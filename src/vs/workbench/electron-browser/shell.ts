@@ -21,7 +21,7 @@ import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
-import {IdleMonitor} from  'vs/base/browser/idleMonitor';
+import {IdleMonitor, UserStatus} from  'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import {createAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
 import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
@@ -216,22 +216,25 @@ export class WorkbenchShell {
 		// Telemetry
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			const appender = createAppender(this.configuration.env);
-			const hardIdleMonitor = new IdleMonitor();
-			const softIdleMonitor = new IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-
 			const config: ITelemetryServiceConfig = {
 				appender,
-				hardIdleMonitor,
-				softIdleMonitor,
 				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
-			const errorTelemetry = new ErrorTelemetry(telemetryService);
-
 			this.telemetryService = telemetryService;
-			disposables.add(telemetryService, errorTelemetry, hardIdleMonitor, softIdleMonitor, ...appender);
+
+			const errorTelemetry = new ErrorTelemetry(telemetryService);
+			const idleMonitor = new IdleMonitor(2 * 60 * 1000); // 2 minutes
+
+			const listener = idleMonitor.onStatusChange(status =>
+				this.telemetryService.publicLog(status === UserStatus.Active
+					? TelemetryService.IDLE_STOP_EVENT_NAME
+					: TelemetryService.IDLE_START_EVENT_NAME
+			));
+
+			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor, ...appender);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}

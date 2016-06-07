@@ -11,7 +11,6 @@ import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IIdleMonitor, UserStatus} from 'vs/base/common/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
@@ -20,8 +19,6 @@ import {Registry} from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender[];
-	hardIdleMonitor: IIdleMonitor;
-	softIdleMonitor: IIdleMonitor;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
 	userOptIn?: boolean;
@@ -29,8 +26,6 @@ export interface ITelemetryServiceConfig {
 
 export class TelemetryService implements ITelemetryService {
 
-	// how long of inactivity before a user is considered 'inactive' - 2 minutes
-	public static SOFT_IDLE_TIME = 2 * 60 * 1000;
 	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
@@ -39,8 +34,6 @@ export class TelemetryService implements ITelemetryService {
 	private _configuration: ITelemetryServiceConfig;
 	private _disposables: IDisposable[] = [];
 	private _timeKeeper: TimeKeeper;
-	private _hardIdleMonitor: IIdleMonitor;
-	private _softIdleMonitor: IIdleMonitor;
 	private _cleanupPatterns: [RegExp, string][] = [];
 
 	constructor(
@@ -49,8 +42,6 @@ export class TelemetryService implements ITelemetryService {
 	) {
 		this._configuration = mixin(config, <ITelemetryServiceConfig>{
 			appender: [],
-			hardIdleMonitor: null,
-			softIdleMonitor: null,
 			commonProperties: TPromise.as({}),
 			piiPaths: [],
 			userOptIn: true
@@ -73,13 +64,6 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables.push(this._timeKeeper);
 		this._disposables.push(this._timeKeeper.addListener(events => this._onTelemetryTimerEventStop(events)));
 
-		this._hardIdleMonitor = this._configuration.hardIdleMonitor;
-		this._softIdleMonitor = this._configuration.softIdleMonitor;
-
-		if (this._softIdleMonitor) {
-			this._disposables.push(this._softIdleMonitor.onStatusChange(status => this._onIdleStatus(status)));
-		}
-
 		if (this._configurationService) {
 			this._updateUserOptIn();
 			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
@@ -87,25 +71,9 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
-	private _onIdleStatus(status: UserStatus): void {
-		if (status === UserStatus.Active) {
-			this._onUserActive();
-		} else {
-			this._onUserIdle();
-		}
-	}
-
 	private _updateUserOptIn(): void {
 		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
 		this._configuration.userOptIn = config ? config.enableTelemetry : this._configuration.userOptIn;
-	}
-
-	private _onUserIdle(): void {
-		this.publicLog(TelemetryService.IDLE_START_EVENT_NAME);
-	}
-
-	private _onUserActive(): void {
-		this.publicLog(TelemetryService.IDLE_STOP_EVENT_NAME);
 	}
 
 	private _onTelemetryTimerEventStop(events: ITimerEvent[]): void {
@@ -146,11 +114,6 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	public publicLog(eventName: string, data?: any): TPromise<any> {
-
-		if (this._hardIdleMonitor && this._hardIdleMonitor.status === UserStatus.Idle) {
-			return TPromise.as(undefined);
-		}
-
 		// don't send events when the user is optout unless the event is the opt{in|out} signal
 		if (!this._configuration.userOptIn && eventName !== 'optInStatus') {
 			return TPromise.as(undefined);

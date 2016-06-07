@@ -5,8 +5,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import {NeverIdleMonitor, UserStatus} from 'vs/base/common/idleMonitor';
-import * as IdleMonitor from 'vs/base/browser/idleMonitor';
 import {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
@@ -87,16 +85,12 @@ suite('TelemetryService', () => {
 
 	test('Disposing', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 
 		return service.publicLog('testPrivateEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
 
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 			assert.equal(!testAppender.isDisposed, true);
 		});
 	}));
@@ -104,9 +98,7 @@ suite('TelemetryService', () => {
 	// event reporting
 	test('Simple event', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 
 		return service.publicLog('testEvent').then(_ => {
 			assert.equal(testAppender.getEventsCount(), 1);
@@ -114,16 +106,12 @@ suite('TelemetryService', () => {
 			assert.notEqual(testAppender.events[0].data, null);
 
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 	}));
 
 	test('Event with data', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 
 		return service.publicLog('testEvent', {
 			'stringProp': 'property',
@@ -142,18 +130,14 @@ suite('TelemetryService', () => {
 			assert.equal(testAppender.events[0].data['complexProp'].value, 0);
 
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 
 	}));
 
 	test('common properties added to *all* events, simple event', function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
 		let service = new TelemetryService({
-			appender: [testAppender], hardIdleMonitor, softIdleMonitor,
+			appender: [testAppender],
 			commonProperties: TPromise.as({ foo: 'JA!', get bar() { return Math.random(); } })
 		}, undefined);
 
@@ -165,17 +149,13 @@ suite('TelemetryService', () => {
 			assert.equal(typeof first.data['bar'], 'number');
 
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 	});
 
 	test('common properties added to *all* events, event with data', function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
 		let service = new TelemetryService({
-			appender: [testAppender], hardIdleMonitor, softIdleMonitor,
+			appender: [testAppender],
 			commonProperties: TPromise.as({ foo: 'JA!', get bar() { return Math.random(); } })
 		}, undefined);
 
@@ -189,16 +169,12 @@ suite('TelemetryService', () => {
 			assert.equal(typeof first.data['price'], 'number');
 
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 	});
 
 	test('TelemetryInfo comes from properties', function () {
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
 		let service = new TelemetryService({
-			appender: [], hardIdleMonitor, softIdleMonitor,
+			appender: [],
 			commonProperties: TPromise.as({
 				sessionID: 'one',
 				['common.instanceId']: 'two',
@@ -212,8 +188,6 @@ suite('TelemetryService', () => {
 			assert.equal(info.machineId, 'three');
 
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 	});
 
@@ -221,9 +195,7 @@ suite('TelemetryService', () => {
 		Timer.ENABLE_TIMER = true;
 
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 
 		let t1 = service.timedPublicLog('editorDance');
 		this.clock.tick(20);
@@ -250,24 +222,18 @@ suite('TelemetryService', () => {
 		assert.equal(testAppender.events[2].data.someData, 'data');
 
 		service.dispose();
-		hardIdleMonitor.dispose();
-		softIdleMonitor.dispose();
 		Timer.ENABLE_TIMER = false;
 	}));
 
 	test('enableTelemetry on by default', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
 			assert.equal(testAppender.events[0].eventName, 'testEvent');
 
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 	}));
 
@@ -278,9 +244,7 @@ suite('TelemetryService', () => {
 
 		try {
 			let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+			let service = new TelemetryService({ appender: [testAppender] }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 
@@ -298,8 +262,6 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
@@ -338,9 +300,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let testError = new Error('test');
@@ -360,17 +320,13 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
-		hardIdleMonitor.dispose();
-		softIdleMonitor.dispose();
 	}));
 
 	test('Uncaught Error Telemetry removes PII from filename', sinon.test(function () {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
@@ -392,8 +348,6 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
-		hardIdleMonitor.dispose();
-		softIdleMonitor.dispose();
 	}));
 
 	test('Unexpected Error Telemetry removes PII', sinon.test(function () {
@@ -402,9 +356,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-			const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+			let service = new TelemetryService({ appender: [testAppender] }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let dangerousPathWithoutImportantInfoError: any = new Error(settings.dangerousPathWithoutImportantInfo);
@@ -422,8 +374,6 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		}
 		finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
@@ -434,9 +384,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
@@ -455,8 +403,6 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
-		hardIdleMonitor.dispose();
-		softIdleMonitor.dispose();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinon.test(function () {
@@ -467,9 +413,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-			const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+			let service = new TelemetryService({ appender: [testAppender] }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
@@ -490,8 +434,6 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		}
 		finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
@@ -502,9 +444,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
@@ -525,8 +465,6 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
-		hardIdleMonitor.dispose();
-		softIdleMonitor.dispose();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function () {
@@ -537,9 +475,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-			const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+			let service = new TelemetryService({ appender: [testAppender] }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let missingModelError: any = new Error(settings.missingModelMessage);
@@ -561,8 +497,6 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
@@ -572,9 +506,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ appender: [testAppender] }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let missingModelError: any = new Error('missingModelMessage');
@@ -596,8 +528,6 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
-		hardIdleMonitor.dispose();
-		softIdleMonitor.dispose();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinon.test(function () {
@@ -608,9 +538,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-			const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+			let service = new TelemetryService({ appender: [testAppender] }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let noSuchFileError: any = new Error(settings.noSuchFileMessage);
@@ -632,8 +560,6 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
@@ -647,9 +573,7 @@ suite('TelemetryService', () => {
 			let errorStub = this.stub(window, 'onerror');
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-			const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			let service = new TelemetryService({ appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+			let service = new TelemetryService({ appender: [testAppender] }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let noSuchFileError: any = new Error('noSuchFileMessage');
@@ -672,100 +596,14 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
 	}));
 
-	test('Test hard idle does not affect sending normal events in active state', sinon.test(function () {
-
-		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new NeverIdleMonitor();
-		let service = new TelemetryService({ hardIdleMonitor, softIdleMonitor, appender: [testAppender] }, undefined);
-
-
-		//report an event
-		service.publicLog('testEvent');
-
-		//verify that the event is not being sent
-		assert.equal(testAppender.getEventsCount(), 1);
-
-		service.dispose();
-		softIdleMonitor.dispose();
-	}));
-
-	test('Test hard idle stops events from being sent in idle state', sinon.test(function () {
-
-		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new NeverIdleMonitor();
-		let service = new TelemetryService({ hardIdleMonitor, softIdleMonitor, appender: [testAppender] }, undefined);
-
-		// make the user idle
-		this.clock.tick(IdleMonitor.DEFAULT_IDLE_TIME);
-
-		//report an event
-		return service.publicLog('testEvent').then(() => {
-			//verify that the event is not being sent
-			assert.equal(testAppender.getEventsCount(), 0);
-
-			service.dispose();
-			softIdleMonitor.dispose();
-		});
-	}));
-
-	test('Test soft idle start/stop events', sinon.test(function () {
-
-		let activeListener: () => void = null;
-		let idleListener: () => void = null;
-
-		function MockIdleMonitor(timeout: number): void {
-			assert.equal(timeout, TelemetryService.SOFT_IDLE_TIME);
-		}
-
-		MockIdleMonitor.prototype.onStatusChange = (callback) => {
-			activeListener = () => callback(UserStatus.Active);
-			idleListener = () => callback(UserStatus.Idle);
-		};
-
-		MockIdleMonitor.prototype.dispose = function () {
-			// empty
-		};
-
-		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new NeverIdleMonitor();
-		const softIdleMonitor = new MockIdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ hardIdleMonitor, softIdleMonitor, appender: [testAppender] }, undefined);
-
-
-		assert.equal(testAppender.getEventsCount(), 0);
-
-		idleListener();
-		activeListener();
-		idleListener();
-		activeListener();
-
-		//verify that two idle happened
-		assert.equal(testAppender.getEventsCount(), 4);
-		//first idle
-		assert.equal(testAppender.events[0].eventName, TelemetryService.IDLE_START_EVENT_NAME);
-		assert.equal(testAppender.events[1].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
-		//second idle
-		assert.equal(testAppender.events[2].eventName, TelemetryService.IDLE_START_EVENT_NAME);
-		assert.equal(testAppender.events[3].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
-
-		service.dispose();
-		hardIdleMonitor.dispose();
-	}));
-
 	test('Telemetry Service respects user opt-in settings', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ userOptIn: false, appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ userOptIn: false, appender: [testAppender] }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 0);
@@ -775,23 +613,17 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ userOptIn: true, appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ userOptIn: true, appender: [testAppender] }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 	}));
 
 	test('Telemetry Service allows optin friendly events', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		let service = new TelemetryService({ userOptIn: false, appender: [testAppender], hardIdleMonitor, softIdleMonitor }, undefined);
+		let service = new TelemetryService({ userOptIn: false, appender: [testAppender] }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 0);
@@ -801,8 +633,6 @@ suite('TelemetryService', () => {
 			assert.equal(testAppender.events[0].eventName, optInStatusEventName);
 			assert.equal(testAppender.events[0].data.userOptIn, false);
 			service.dispose();
-			hardIdleMonitor.dispose();
-			softIdleMonitor.dispose();
 		});
 	}));
 
@@ -812,10 +642,8 @@ suite('TelemetryService', () => {
 		let emitter = new Emitter<any>();
 
 		let testAppender = new TestTelemetryAppender();
-		const hardIdleMonitor = new IdleMonitor.IdleMonitor();
-		const softIdleMonitor = new IdleMonitor.IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
 		let service = new TelemetryService({
-			appender: [testAppender], hardIdleMonitor, softIdleMonitor
+			appender: [testAppender]
 		}, {
 				serviceId: undefined,
 				hasWorkspaceConfiguration() {
@@ -846,7 +674,5 @@ suite('TelemetryService', () => {
 		assert.equal(service.isOptedIn, false);
 
 		service.dispose();
-		hardIdleMonitor.dispose();
-		softIdleMonitor.dispose();
 	});
 });
