@@ -28,7 +28,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {IOptions, ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import {PeekViewWidget} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 
 class MarkerModel {
@@ -155,12 +155,18 @@ class MarkerModel {
 		return null;
 	}
 
-	public indexOf(marker: IMarker): number {
-		return this._markers.indexOf(marker);
-	}
+	public get stats(): { errors: number; others: number; } {
+		let errors = 0;
+		let others = 0;
 
-	public length(): number {
-		return this._markers.length;
+		for (let marker of this._markers) {
+			if (marker.severity === Severity.Error) {
+				errors += 1;
+			} else {
+				others += 1;
+			}
+		}
+		return { errors, others };
 	}
 
 	public reveal(): void {
@@ -292,13 +298,8 @@ class FixesWidget {
 	}
 }
 
-var zoneOptions: IOptions = {
-	showFrame: true,
-	showArrow: true,
-	isAccessible: true
-};
 
-class MarkerNavigationWidget extends ZoneWidget {
+class MarkerNavigationWidget extends PeekViewWidget {
 
 	private _container: HTMLElement;
 	private _element: HTMLElement;
@@ -306,12 +307,12 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _callOnDispose: IDisposable[] = [];
 
 	constructor(editor: ICodeEditor, private _model: MarkerModel, private _keybindingService: IKeybindingService) {
-		super(editor, zoneOptions);
+		super(editor, undefined, { showArrow: true, showFrame: false, isAccessible: true });
 		this.create();
 		this._wireModelAndView();
 	}
 
-	protected _fillContainer(container: HTMLElement): void {
+	protected _fillBody(container: HTMLElement): void {
 		this._container = container;
 
 		dom.addClass(this._container, 'marker-widget');
@@ -323,8 +324,10 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._element.setAttribute('aria-live', 'assertive');
 		this._element.setAttribute('role', 'alert');
 		this._container.appendChild(this._element);
+		this.editor.applyFontInfo(this._element);
 
 		this._fixesWidget = new FixesWidget(this._container, this._keybindingService);
+		this._fixesWidget.domNode.classList.add('fixes');
 		this._callOnDispose.push(this._fixesWidget);
 	}
 
@@ -334,7 +337,31 @@ class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private _wireModelAndView(): void {
+		// listen to events
 		this._model.onCurrentMarkerChanged(this.showAtMarker, this, this._callOnDispose);
+
+		// update title based on stats
+		let {errors, others} = this._model.stats;
+		if (errors === 0 && others === 0) {
+			this.setTitle(nls.localize('title.no', "No Problems"));
+		} else {
+			let msgErrors: string;
+			if (errors > 1) {
+				msgErrors = nls.localize('errors.n', "{0} Errors", errors);
+			} else if (errors > 0) {
+				msgErrors = nls.localize('errors.1', "1 Error");
+			}
+			let msgOthers: string;
+			if (others > 1) {
+				msgOthers = nls.localize('others.n', "{0} Others", others);
+			} else if (others > 0) {
+				msgOthers = nls.localize('others.1', "1 Warning");
+			}
+
+			this.setTitle(msgErrors && msgOthers
+				? nls.localize('both', "{0}, {1}", msgErrors, msgOthers)
+				: msgErrors || msgOthers);
+		}
 	}
 
 	public showAtMarker(marker: IMarker): void {
@@ -343,7 +370,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 			return;
 		}
 
-		// set color
+		// update frame color
 		switch (marker.severity) {
 			case Severity.Error:
 				this.options.frameColor = '#ff5a5a';
@@ -355,19 +382,17 @@ class MarkerNavigationWidget extends ZoneWidget {
 		}
 
 		// update label and show
-		let text = strings.format('({0}/{1}) ', this._model.indexOf(marker) + 1, this._model.length());
-		if (marker.source) {
-			text = `${text}[${marker.source}] `;
-		}
 		dom.clearNode(this._element);
-		this._element.appendChild(document.createTextNode(text));
 		this._element.appendChild(renderHtml(marker.message));
 
-		this._fixesWidget
-			.update(getCodeActions(this.editor.getModel(), Range.lift(marker)))
-			.then(() => this.show(new Position(marker.startLineNumber, marker.startColumn), 4));
+		const range = Range.lift(marker);
+		const lines = strings.computeLineStarts(marker.message).length;
+		this._model.withoutWatchingEditorPosition(() => this.show(range.getStartPosition(), lines + 2));
 
-		this._model.withoutWatchingEditorPosition(() => this.show(new Position(marker.startLineNumber, marker.startColumn), 3));
+		// check for fixes and update widget
+		this._fixesWidget
+			.update(getCodeActions(this.editor.getModel(), range))
+			.then(() => this.show(range.getStartPosition(), lines + 3));
 	}
 
 	public dispose(): void {
@@ -437,6 +462,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _cleanUp(): void {
 		this._markersNavigationVisible.reset();
 		this._callOnClose = dispose(this._callOnClose);
+		this._zone.dispose();
 		this._zone = null;
 		this._model = null;
 	}
@@ -453,20 +479,19 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._markersNavigationVisible.set(true);
 
 		this._callOnClose.push(this._model);
-		this._callOnClose.push(this._zone);
 
-		this._callOnClose.push(this._editor.onDidChangeModel(() => {
-			this._cleanUp();
-		}));
-
+		this._callOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
+		this._callOnClose.push(this._zone.onDidClose(() => this._cleanUp()));
 		this._model.onCurrentMarkerChanged(marker => !marker && this._cleanUp(), undefined, this._callOnClose);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._callOnClose);
 		return this._model;
 	}
 
 	public closeMarkersNavigation(): void {
-		this._cleanUp();
-		this._editor.focus();
+		if (this._zone) {
+			this._zone.dispose();
+			this._editor.focus();
+		}
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
