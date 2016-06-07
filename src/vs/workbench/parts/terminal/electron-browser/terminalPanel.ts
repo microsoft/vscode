@@ -95,11 +95,12 @@ export class TerminalPanel extends Panel {
 
 		let css = '';
 		theme.forEach((color: string, index: number) => {
+			// TODO: The classes could probably be reduced, it's so long to beat the specificity of the general rule.
 			let rgba = this.convertHexCssColorToRgba(color, 0.996);
-			css += `.terminal .xterm-color-${index} { color: ${color}; }` +
-				`.terminal .xterm-color-${index}::selection { background-color: ${rgba}; }` +
-				`.terminal .xterm-bg-color-${index} { background-color: ${color}; }` +
-				`.terminal .xterm-bg-color-${index}::selection { color: ${color}; }`;
+			css += `.monaco-workbench .integrated-terminal .terminal .xterm-color-${index} { color: ${color}; }` +
+				`.monaco-workbench .integrated-terminal .terminal .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+				`.monaco-workbench .integrated-terminal .terminal .xterm-bg-color-${index} { background-color: ${color}; }` +
+				`.monaco-workbench .integrated-terminal .terminal .xterm-bg-color-${index}::selection { color: ${color}; }`;
 		});
 
 		this.themeStyleElement.innerHTML = css;
