@@ -11,7 +11,6 @@ import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import ErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -34,7 +33,6 @@ export class TelemetryService implements ITelemetryService {
 	public static SOFT_IDLE_TIME = 2 * 60 * 1000;
 	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
-	public static ERROR_FLUSH_TIMEOUT: number = 5 * 1000;
 
 	public serviceId = ITelemetryService;
 
@@ -74,9 +72,6 @@ export class TelemetryService implements ITelemetryService {
 		this._timeKeeper = new TimeKeeper();
 		this._disposables.push(this._timeKeeper);
 		this._disposables.push(this._timeKeeper.addListener(events => this._onTelemetryTimerEventStop(events)));
-
-		const errorTelemetry = new ErrorTelemetry(this, TelemetryService.ERROR_FLUSH_TIMEOUT);
-		this._disposables.push(errorTelemetry);
 
 		if (this._configuration.enableHardIdle) {
 			this._hardIdleMonitor = new IdleMonitor();

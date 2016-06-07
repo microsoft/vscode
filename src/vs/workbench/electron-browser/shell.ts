@@ -21,6 +21,7 @@ import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {TelemetryService} from  'vs/platform/telemetry/browser/telemetryService';
+import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import {createAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
 import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
@@ -218,9 +219,10 @@ export class WorkbenchShell {
 				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
 			};
-			let telemetryService = instantiationService.createInstance(TelemetryService, config);
+			const telemetryService = instantiationService.createInstance(TelemetryService, config);
+			const errorTelemetry = new ErrorTelemetry(telemetryService);
 			this.telemetryService = telemetryService;
-			disposables.add(telemetryService, ...config.appender);
+			disposables.add(telemetryService, errorTelemetry, ...config.appender);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}

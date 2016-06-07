@@ -9,6 +9,7 @@ import IdleMonitor = require('vs/base/browser/idleMonitor');
 import {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
+import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import Telemetry = require('vs/platform/telemetry/common/telemetry');
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
@@ -243,6 +244,7 @@ suite('TelemetryService', () => {
 		try {
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
 
 
 			let e: any = new Error('This is a test.');
@@ -252,11 +254,12 @@ suite('TelemetryService', () => {
 			}
 
 			Errors.onUnexpectedError(e);
-			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 			assert.equal(testAppender.getEventsCount(), 1);
 			assert.equal(testAppender.events[0].eventName, 'UnhandledError');
 			assert.equal(testAppender.events[0].data.message, 'This is a test.');
 
+			errorTelemetry.dispose();
 			service.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
@@ -280,7 +283,7 @@ suite('TelemetryService', () => {
 	// 			// prevent console output from failing the test
 	// 			this.stub(console, 'log');
 	// 			// allow for the promise to finish
-	// 			this.clock.tick(MainTelemetryService.ERROR_FLUSH_TIMEOUT);
+	// 			this.clock.tick(MainErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 	//
 	// 			assert.equal(testAppender.getEventsCount(), 1);
 	// 			assert.equal(testAppender.events[0].eventName, 'UnhandledError');
@@ -297,10 +300,11 @@ suite('TelemetryService', () => {
 
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
 
 		let testError = new Error('test');
 		(<any>window.onerror)('Error Message', 'file.js', 2, 42, testError);
-		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
 		assert.equal(errorStub.callCount, 1);
@@ -313,6 +317,7 @@ suite('TelemetryService', () => {
 		assert.equal(testAppender.events[0].data.column, 42);
 		assert.equal(testAppender.events[0].data.error.message, 'test');
 
+		errorTelemetry.dispose();
 		service.dispose();
 	}));
 
@@ -321,11 +326,12 @@ suite('TelemetryService', () => {
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
 		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
-		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		assert.equal(testAppender.events[0].data.filename.indexOf(settings.dangerousPathWithImportantInfo), -1);
@@ -333,12 +339,13 @@ suite('TelemetryService', () => {
 		dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
 		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
-		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 2);
 		assert.equal(testAppender.events[0].data.filename.indexOf(settings.dangerousPathWithImportantInfo), -1);
 		assert.equal(testAppender.events[0].data.filename, settings.importantInfo + '/test.js');
 
+		errorTelemetry.dispose();
 		service.dispose();
 	}));
 
@@ -349,11 +356,12 @@ suite('TelemetryService', () => {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
 
 			let dangerousPathWithoutImportantInfoError: any = new Error(settings.dangerousPathWithoutImportantInfo);
 			dangerousPathWithoutImportantInfoError.stack = settings.stack;
 			Errors.onUnexpectedError(dangerousPathWithoutImportantInfoError);
-			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
@@ -363,6 +371,7 @@ suite('TelemetryService', () => {
 			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+			errorTelemetry.dispose();
 			service.dispose();
 		}
 		finally {
@@ -375,11 +384,12 @@ suite('TelemetryService', () => {
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
 		dangerousPathWithoutImportantInfoError.stack = settings.stack;
 		(<any>window.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
-		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that no file information remains, esp. personal info
@@ -390,6 +400,7 @@ suite('TelemetryService', () => {
 		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+		errorTelemetry.dispose();
 		service.dispose();
 	}));
 
@@ -402,13 +413,14 @@ suite('TelemetryService', () => {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
 
 			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
 			dangerousPathWithImportantInfoError.stack = settings.stack;
 
 			// Test that important information remains but personal info does not
 			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
-			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
@@ -419,6 +431,7 @@ suite('TelemetryService', () => {
 			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+			errorTelemetry.dispose();
 			service.dispose();
 		}
 		finally {
@@ -431,11 +444,12 @@ suite('TelemetryService', () => {
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
 		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
-		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that important information remains but personal info does not
@@ -448,6 +462,7 @@ suite('TelemetryService', () => {
 		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+		errorTelemetry.dispose();
 		service.dispose();
 	}));
 
@@ -460,6 +475,7 @@ suite('TelemetryService', () => {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
 
 			let missingModelError: any = new Error(settings.missingModelMessage);
 			missingModelError.stack = settings.stack;
@@ -467,7 +483,7 @@ suite('TelemetryService', () => {
 			// Test that no file information remains, but this particular
 			// error message does (Received model events for missing model)
 			Errors.onUnexpectedError(missingModelError);
-			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.missingModelPrefix), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
@@ -478,6 +494,7 @@ suite('TelemetryService', () => {
 			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+			errorTelemetry.dispose();
 			service.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
@@ -489,11 +506,12 @@ suite('TelemetryService', () => {
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
 
 		let missingModelError: any = new Error('missingModelMessage');
 		missingModelError.stack = settings.stack;
 		(<any>window.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
-		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that no file information remains, but this particular
@@ -507,6 +525,7 @@ suite('TelemetryService', () => {
 		assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 		assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+		errorTelemetry.dispose();
 		service.dispose();
 	}));
 
@@ -519,6 +538,7 @@ suite('TelemetryService', () => {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
 
 			let noSuchFileError: any = new Error(settings.noSuchFileMessage);
 			noSuchFileError.stack = settings.stack;
@@ -526,7 +546,7 @@ suite('TelemetryService', () => {
 			// Test that no file information remains, but this particular
 			// error message does (ENOENT: no such file or directory)
 			Errors.onUnexpectedError(noSuchFileError);
-			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.noSuchFilePrefix), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
@@ -537,6 +557,7 @@ suite('TelemetryService', () => {
 			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+			errorTelemetry.dispose();
 			service.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
@@ -552,11 +573,12 @@ suite('TelemetryService', () => {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
 			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
 
 			let noSuchFileError: any = new Error('noSuchFileMessage');
 			noSuchFileError.stack = settings.stack;
 			(<any>window.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
-			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.equal(errorStub.callCount, 1);
 			// Test that no file information remains, but this particular
@@ -571,6 +593,7 @@ suite('TelemetryService', () => {
 			assert.notEqual(testAppender.events[0].data.stack.indexOf(settings.stack[4]), -1);
 			assert.equal(testAppender.events[0].data.stack.split('\n').length, settings.stack.length);
 
+			errorTelemetry.dispose();
 			service.dispose();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
