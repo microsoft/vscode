@@ -58,6 +58,7 @@
 	background-color: #1E1E1E;
 }
 
+.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
 .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
 	background: url('media/close-inverse.svg') center center no-repeat;
 }
@@ -83,17 +84,6 @@
 .monaco-editor.hc-black .peekview-widget .head .peekview-title .dirname {
 	color: #fff;
 	opacity: 0.6;
-}
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: none;
-}
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action:before {
-	content: url('media/close-inverse.svg');
-	display: inline-block;
-	height: 16px;
-	width: 16px;
 }
 
 .monaco-editor.hc-black .peekview-widget > .body {
