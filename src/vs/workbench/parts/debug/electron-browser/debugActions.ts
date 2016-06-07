@@ -585,6 +585,10 @@ export class RunToCursorAction extends EditorAction {
 		// breakpoint must not be on position (no need for this action).
 		return bps.length === 0;
 	}
+
+	public isSupported(): boolean {
+		return super.isSupported() && this.debugService.state === debug.State.Stopped;
+	}
 }
 
 export class AddWatchExpressionAction extends AbstractDebugAction {
