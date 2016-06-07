@@ -40,6 +40,7 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
+	display: flex;
 	line-height: 22px;
 }
 
@@ -57,16 +58,24 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description {
-	margin-left: 3px;
+	width: 90%;
 }
 
-.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .resource-label-container .highlight,
-.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description .highlight {
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line,
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
+	opacity: 0.6;
+	font-size: 85%;
+	margin-right: 5px;
+	width: 10em;
+	overflow: hidden;
+	text-overflow: ellipsis
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
 	background-color: rgba(234, 92, 0, 0.3);
 }
 
-.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .resource-label-container .highlight,
-.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description .highlight {
+.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
 	background: none !important;
 	border: 1px dotted #f38518;
 }
@@ -84,8 +93,6 @@
 	background: url('status-warning.svg') center center no-repeat;
 }
 
-.markers-panel-action-toggle-errors-on,
-.markers-panel-action-toggle-errors-off,
 .markers-panel .icon.error {
 	background: url('status-error.svg') center center no-repeat;
 }
@@ -98,8 +105,6 @@
 	background: url('status-warning-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel-action-toggle-errors-on,
-.vs-dark .markers-panel-action-toggle-errors-off,
 .vs-dark .markers-panel .icon.error {
 	background: url('status-error-inverse.svg') center center no-repeat;
 }

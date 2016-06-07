@@ -12,7 +12,7 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix} from 'vs/base/common/filters';
+import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy} from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
 export class Resource {
@@ -27,12 +27,15 @@ export class Resource {
 }
 
 export class Marker {
-	constructor(public id:string, public marker: IMarker, public labelMatches: IMatch[] = []){}
+	constructor(public id:string, public marker: IMarker,
+								public labelMatches: IMatch[] = [],
+								public sourceMatches: IMatch[] = []){}
 }
 
 export class FilterOptions {
 
 	static _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
+	static _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
 
 	private _filterErrors: boolean= false;
 	private _filterWarnings: boolean= false;
@@ -191,8 +194,9 @@ export class MarkersModel {
 	}
 
 	private toMarker(marker: IMarker, index: number):Marker {
-		const labelMatches = FilterOptions._filter(this._filterOptions.filter, marker.message);
-		return new Marker(marker.resource.toString() + index, marker, labelMatches || []);
+		const labelMatches = FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message);
+		const sourceMatches = !!marker.source ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
+		return new Marker(marker.resource.toString() + index, marker, labelMatches || [], sourceMatches || []);
 	}
 
 	private filterMarker(marker: IMarker):boolean {
@@ -206,10 +210,13 @@ export class MarkersModel {
 			if (this._filterOptions.filterInfos && Severity.Info === marker.severity) {
 				return true;
 			}
-			if (!!FilterOptions._filter(this._filterOptions.filter, marker.message)) {
+			if (!!FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message)) {
 				return true;
 			}
 			if (!!FilterOptions._filter(this._filterOptions.filter, paths.basename(marker.resource.fsPath))) {
+				return true;
+			}
+			if (!!marker.source && !!FilterOptions._filter(this._filterOptions.filter, marker.source)) {
 				return true;
 			}
 			return false;

@@ -31,5 +31,7 @@ export default class Messages {
 	public static MARKERS_PANEL_SINGLE_UNKNOWN_LABEL:string= nls.localize('markers.panel.single.unknown.label', "1 Unknown");
 	public static MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL=(noOfUnknowns: number):string=>{return nls.localize('markers.panel.multiple.unknowns.label', "{0} Unknowns", ''+noOfUnknowns);};
 
-	public static MARKERS_PANEL_AT_LINE_NUMBER= (lineNumber: number):string=>{return nls.localize('markers.panel.at.line.number', "Line {0}:", '' + lineNumber);}
+	public static MARKERS_PANEL_AT_LINE_COL_NUMBER= (ln: number, col: number):string=>{return nls.localize('markers.panel.at.ln.col.number', "Ln {0}, Col {1}", '' + ln, '' + col);}
+	public static MARKERS_PANEL_TITLE_AT_LINE_COL_NUMBER= (ln: number, col: number):string=>{return nls.localize('markers.panel.title.at.ln.col.number', "At line {0}, column {1}", '' + ln, '' + col);}
+	public static MARKERS_PANEL_TITLE_SOURCE= (source: string):string=>{return nls.localize('markers.panel.title.source', "Built by {0}", source);}
 }

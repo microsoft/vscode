@@ -27,8 +27,9 @@ interface IResourceTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
-	line: HTMLElement;
 	description: HighlightedLabel;
+	lnCol: HTMLElement;
+	source: HighlightedLabel;
 }
 
 export class DataSource implements IDataSource {
@@ -115,8 +116,9 @@ export class Renderer implements IRenderer {
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		var data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.emmet('.marker-icon'));
-		data.line = dom.append(container, dom.emmet('span.marker-line'));
 		data.description = new HighlightedLabel(dom.append(container, dom.emmet('.marker-description')));
+		data.lnCol = dom.append(container, dom.emmet('span.marker-line'));
+		data.source = new HighlightedLabel(dom.append(container, dom.emmet('.marker-source')));
 		return data;
 	}
 
@@ -138,8 +140,19 @@ export class Renderer implements IRenderer {
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
 		let marker= element.marker;
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
-		templateData.line.textContent= Messages.MARKERS_PANEL_AT_LINE_NUMBER(marker.startLineNumber);
 		templateData.description.set(marker.message, element.labelMatches);
+
+		templateData.lnCol.textContent= Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+		let title= Messages.MARKERS_PANEL_TITLE_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+		templateData.lnCol.title= title;
+		templateData.lnCol.setAttribute('aria-label', title);
+
+		if (marker.source) {
+			templateData.source.set(marker.source, element.sourceMatches);
+			let title= Messages.MARKERS_PANEL_TITLE_SOURCE(marker.source);
+			templateData.source.element.title= title;
+			templateData.source.element.setAttribute('aria-label', title);
+		}
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
