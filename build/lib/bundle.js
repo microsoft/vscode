@@ -23,7 +23,12 @@ function bundle(entryPoints, config, callback) {
     loader.config(config);
     loader(Object.keys(entryPointsMap), function () {
         var modules = loader.getBuildInfo();
-        callback(null, emitEntryPoints(modules, entryPointsMap));
+        var resultFiles = emitEntryPoints(modules, entryPointsMap);
+        var cssInlinedResources = loader('vs/css').getInlinedResources();
+        callback(null, {
+            files: resultFiles,
+            cssInlinedResources: cssInlinedResources
+        });
     }, function (err) { return callback(err, null); });
 }
 exports.bundle = bundle;

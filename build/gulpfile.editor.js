@@ -29,6 +29,9 @@ var editorEntryPoints = _.flatten([
 
 var editorResources = [
 	'out-build/vs/{base,editor}/**/*.{svg,png}',
+	'!out-build/vs/base/browser/ui/splitview/**/*',
+	'!out-build/vs/base/browser/ui/toolbar/**/*',
+	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'!out-build/vs/workbench/**',
@@ -61,6 +64,8 @@ function editorLoaderConfig(removeAllOSS) {
 	if (removeAllOSS) {
 		result.paths['vs/languages/lib/common/beautify-html'] = 'out-build/vs/languages/lib/common/beautify-html.mock';
 	}
+
+	result['vs/css'] = { inlineResources: true };
 
 	return result;
 }
