@@ -143,7 +143,7 @@
 	background-color: rgba(204, 204, 204, 0.996);
 }
 
-.terminal .xterm-color-0 { color: #2e3436; }
+/*.terminal .xterm-color-0 { color: #2e3436; }
 .terminal .xterm-color-0::selection { background-color: #2e3436; }
 .terminal .xterm-bg-color-0 { background-color: #2e3436; }
 .terminal .xterm-bg-color-0::selection { color: #2e3436; }
@@ -252,7 +252,7 @@
 
 .terminal .xterm-bg-color-15 {
 	background-color: #eeeeec;
-}
+}*/
 
 .terminal .xterm-color-16 {
 	color: #000000;

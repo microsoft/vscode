@@ -88,7 +88,29 @@ export class TerminalPanel extends Panel {
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
-		this.terminalInstance.setTheme(this.configurationHelper.getTheme(themeId));
+		let theme = this.configurationHelper.getTheme(themeId);
+
+		let css = '';
+		theme.forEach((color: string, index: number) => {
+			let rgba = this.convertHexCssColorToRgba(color, 0.996);
+			css += `.terminal .xterm-color-${index} { color: ${color}; }` +
+				`.terminal .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+				`.terminal .xterm-bg-color-${index} { background-color: ${color}; }` +
+				`.terminal .xterm-bg-color-${index}::selection { color: ${color}; }`;
+		});
+
+		// TODO: Create in constructor
+		// TODO: Reuse same element
+		let styleElement = document.createElement('style');
+		styleElement.innerHTML = css;
+		this.parentDomElement.appendChild(styleElement);
+	}
+
+	private convertHexCssColorToRgba(hex: string, alpha: number): string {
+		let r = parseInt(hex.substr(1, 2), 16);
+		let g = parseInt(hex.substr(3, 2), 16);
+		let b = parseInt(hex.substr(5, 2), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
 	private updateFont(): void {

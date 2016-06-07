@@ -128,14 +128,6 @@ export class TerminalInstance {
 		});
 	}
 
-	public setTheme(colors: string[]): void {
-		if (!this.terminal) {
-			return;
-		}
-		this.terminal.colors = colors;
-		this.terminal.refresh(0, this.terminal.rows);
-	}
-
 	public setFont(font: ITerminalFont): void {
 		this.font = font;
 		this.terminalDomElement.style.fontFamily = this.font.fontFamily;
