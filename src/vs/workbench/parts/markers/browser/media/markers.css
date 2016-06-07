@@ -43,14 +43,32 @@
 	line-height: 22px;
 }
 
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry > * {
+	display: inline-block;
+}
+
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-stats {
 	display: inline-block;
 	margin-left: 10px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .count-badge-wrapper {
-	display: inline-block;
 	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description {
+	margin-left: 3px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .resource-label-container .highlight,
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description .highlight {
+	background-color: rgba(234, 92, 0, 0.3);
+}
+
+.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .resource-label-container .highlight,
+.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description .highlight {
+	background: none !important;
+	border: 1px dotted #f38518;
 }
 
 .markers-panel .icon {

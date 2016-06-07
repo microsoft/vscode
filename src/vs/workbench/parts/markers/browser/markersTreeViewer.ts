@@ -13,6 +13,7 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/markersStatisticsWidget';
@@ -26,7 +27,8 @@ interface IResourceTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
-	label: HTMLElement;
+	line: HTMLElement;
+	description: HighlightedLabel;
 }
 
 export class DataSource implements IDataSource {
@@ -99,7 +101,8 @@ export class Renderer implements IRenderer {
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		var data: IResourceTemplateData = Object.create(null);
-		data.file = new FileLabel(container, null, this.contextService);
+		const resourceLabelContainer = dom.append(container, dom.emmet('.resource-label-container'));
+		data.file = new FileLabel(resourceLabelContainer, null, this.contextService);
 
 		// data.statistics= new MarkersStatisticsWidget(dom.append(container, dom.emmet('.marker-stats')));
 
@@ -112,7 +115,8 @@ export class Renderer implements IRenderer {
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		var data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.emmet('.marker-icon'));
-		data.label = dom.append(container, dom.emmet('span.label'));
+		data.line = dom.append(container, dom.emmet('span.marker-line'));
+		data.description = new HighlightedLabel(dom.append(container, dom.emmet('.marker-description')));
 		return data;
 	}
 
@@ -121,19 +125,21 @@ export class Renderer implements IRenderer {
 			case Renderer.RESOURCE_TEMPLATE_ID:
 				return this.renderResourceElement(tree, <Resource> element, templateData);
 			case Renderer.MARKER_TEMPLATE_ID:
-				return this.renderMarkerElement(tree, (<Marker>element).marker, templateData);
+				return this.renderMarkerElement(tree, (<Marker>element), templateData);
 		}
 	}
 
 	private renderResourceElement(tree: ITree, element: Resource, templateData: IResourceTemplateData) {
-		templateData.file.setValue(element.uri);
+		templateData.file.setValue(element.uri, element.matches);
 		// templateData.statistics.setStatistics(element.statistics);
 		templateData.count.setCount(element.markers.length);
 	}
 
-	private renderMarkerElement(tree: ITree, element: IMarker, templateData: IMarkerTemplateData) {
-		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(element);
-		templateData.label.textContent = Messages.MARKERS_PANEL_AT_LINE_NUMBER(element.startLineNumber) + element.message;
+	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
+		let marker= element.marker;
+		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
+		templateData.line.textContent= Messages.MARKERS_PANEL_AT_LINE_NUMBER(marker.startLineNumber);
+		templateData.description.set(marker.message, element.labelMatches);
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
