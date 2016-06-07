@@ -20,10 +20,6 @@
 	background-color: transparent!important;
 }
 
-.monaco-workbench .integrated-terminal .terminal span {
-	display: inline-block; /* make terminal characters cover height of line */
-}
-
 .monaco-workbench .integrated-terminal .terminal-cursor {
 	background-color: #333;
 }
@@ -2069,12 +2065,4 @@
 
 .monaco-workbench .integrated-terminal .terminal .xterm-bg-color-255 {
 	background-color: #eeeeee;
-}
-
-/**
- * All styled spans inside terminal lines should be inline-blocks,
- * in orde to achieve better height adjustment.
- */
-.terminal .xterm-rows span {
-	display: inline-block;
 }
