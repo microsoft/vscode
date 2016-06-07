@@ -20,6 +20,16 @@
 	background-color: #0C141F;
 }
 
+.monaco-editor .marker-widget div.block {
+	display: inline-block;
+	vertical-align: top;
+}
+
+.monaco-editor .marker-widget .title {
+	display: inline-block;
+	padding-right: 5px;
+}
+
 .monaco-editor .marker-widget .descriptioncontainer {
 	white-space: pre-wrap;
 }
