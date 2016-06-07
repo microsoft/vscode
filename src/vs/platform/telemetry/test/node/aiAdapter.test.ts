@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {AIAdapter} from 'vs/base/parts/ai/node/aiAdapter';
+import {AppInsightsAppender} from 'vs/platform/telemetry/node/aiAdapter';
 
 interface IAppInsightsEvent {
 	eventName: string;
@@ -41,12 +41,12 @@ class AppInsightsMock {
 
 suite('AIAdapter', () => {
 	var appInsightsMock: AppInsightsMock;
-	var adapter: AIAdapter;
+	var adapter: AppInsightsAppender;
 	var prefix = 'prefix';
 
 	setup(() => {
 		appInsightsMock = new AppInsightsMock();
-		adapter = new AIAdapter(prefix, undefined, () => appInsightsMock);
+		adapter = new AppInsightsAppender(prefix, undefined, () => appInsightsMock);
 	});
 
 	teardown(() => {
@@ -61,7 +61,7 @@ suite('AIAdapter', () => {
 	});
 
 	test('addional data', () => {
-		adapter = new AIAdapter(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
+		adapter = new AppInsightsAppender(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
 		adapter.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 1);

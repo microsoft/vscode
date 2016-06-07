@@ -8,36 +8,34 @@ import * as appInsights from 'applicationinsights';
 import {isObject} from 'vs/base/common/types';
 import {safeStringify, mixin} from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {ITelemetryAppender} from '../common/telemetry';
 
-namespace AI {
+let _initialized = false;
 
-	let _initialized = false;
+function ensureAIEngineIsInitialized(): void {
+	if (_initialized === false) {
+		// we need to pass some fake key, otherwise AI throws an exception
+		appInsights.setup('2588e01f-f6c9-4cd6-a348-143741f8d702')
+			.setAutoCollectConsole(false)
+			.setAutoCollectExceptions(false)
+			.setAutoCollectPerformance(false)
+			.setAutoCollectRequests(false);
 
-	function ensureAIEngineIsInitialized(): void {
-		if (_initialized === false) {
-			// we need to pass some fake key, otherwise AI throws an exception
-			appInsights.setup('2588e01f-f6c9-4cd6-a348-143741f8d702')
-				.setAutoCollectConsole(false)
-				.setAutoCollectExceptions(false)
-				.setAutoCollectPerformance(false)
-				.setAutoCollectRequests(false);
-
-			_initialized = true;
-		}
+		_initialized = true;
 	}
+}
 
-	export function getClient(aiKey: string): typeof appInsights.client {
+function getClient(aiKey: string): typeof appInsights.client {
 
-		ensureAIEngineIsInitialized();
+	ensureAIEngineIsInitialized();
 
-		const client = appInsights.getClient(aiKey);
-		client.channel.setOfflineMode(true);
-		client.context.tags[client.context.keys.deviceMachineName] = ''; //prevent App Insights from reporting machine name
-		if (aiKey.indexOf('AIF-') === 0) {
-			client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-		}
-		return client;
+	const client = appInsights.getClient(aiKey);
+	client.channel.setOfflineMode(true);
+	client.context.tags[client.context.keys.deviceMachineName] = ''; //prevent App Insights from reporting machine name
+	if (aiKey.indexOf('AIF-') === 0) {
+		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
 	}
+	return client;
 }
 
 interface Properties {
@@ -48,7 +46,7 @@ interface Measurements {
 	[key: string]: number;
 }
 
-export class AIAdapter {
+export class AppInsightsAppender implements ITelemetryAppender {
 
 	private _aiClient: typeof appInsights.client;
 
@@ -62,7 +60,7 @@ export class AIAdapter {
 		}
 
 		if (typeof aiKeyOrClientFactory === 'string') {
-			this._aiClient = AI.getClient(aiKeyOrClientFactory);
+			this._aiClient = getClient(aiKeyOrClientFactory);
 		} else if (typeof aiKeyOrClientFactory === 'function') {
 			this._aiClient = aiKeyOrClientFactory();
 		}
@@ -74,7 +72,7 @@ export class AIAdapter {
 		const measurements: Measurements = Object.create(null);
 
 		const flat = Object.create(null);
-		AIAdapter._flaten(data, flat);
+		AppInsightsAppender._flaten(data, flat);
 
 		for (let prop in flat) {
 			// enforce property names less than 150 char, take the last 150 char
@@ -120,7 +118,7 @@ export class AIAdapter {
 
 			} else if (isObject(value)) {
 				if (order < 2) {
-					AIAdapter._flaten(value, result, order + 1, index + '.');
+					AppInsightsAppender._flaten(value, result, order + 1, index + '.');
 				} else {
 					result[index] = safeStringify(value);
 				}
@@ -135,7 +133,7 @@ export class AIAdapter {
 			return;
 		}
 		data = mixin(data, this._defaultData);
-		let {properties, measurements} = AIAdapter._getData(data);
+		let {properties, measurements} = AppInsightsAppender._getData(data);
 		this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
 	}
 

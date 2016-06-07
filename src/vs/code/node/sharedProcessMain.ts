@@ -19,6 +19,11 @@ import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/comm
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 
+import product from 'vs/platform/product';
+import { ITelemetryAppender, combinedAppender, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/aiAdapter';
+
 function quit(err?: Error) {
 	if (err) {
 		console.error(err);
@@ -40,6 +45,23 @@ function setupPlanB(parentPid: number): void {
 	}, 5000);
 }
 
+const eventPrefix = 'monacoworkbench';
+
+function createAppender(): ITelemetryAppender {
+	const result: ITelemetryAppender[] = [];
+	const { key, asimovKey } = product.aiConfig;
+
+	if (key) {
+		result.push(new AppInsightsAppender(eventPrefix, null, key));
+	}
+
+	if (asimovKey) {
+		result.push(new AppInsightsAppender(eventPrefix, null, asimovKey));
+	}
+
+	return combinedAppender(...result);
+}
+
 function main(server: Server): void {
 	const services = new ServiceCollection();
 
@@ -50,13 +72,31 @@ function main(server: Server): void {
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const channel = new ExtensionManagementChannel(extensionManagementService);
-		server.registerChannel('extensions', channel);
-		registerAIChannel(server);
+		const { appRoot, extensionsPath } = accessor.get(IEnvironmentService);
 
-		// eventually clean up old extensions
-		setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
+		const appender = createAppender();
+		const config: ITelemetryServiceConfig = {
+			appender,
+			commonProperties: TPromise.as({}), //resolveCommonProperties(storageService, contextService),
+			piiPaths: [appRoot, extensionsPath]
+		};
+
+		const services = new ServiceCollection();
+		services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+		const instantiationService2 = instantiationService.createChild(services);
+
+		instantiationService2.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+			console.log(telemetryService);
+
+			const extensionManagementService = accessor.get(IExtensionManagementService);
+			const channel = new ExtensionManagementChannel(extensionManagementService);
+			server.registerChannel('extensions', channel);
+			registerAIChannel(server);
+
+			// eventually clean up old extensions
+			setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
+		});
 	});
 }
 

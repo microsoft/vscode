@@ -7,10 +7,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IServer} from 'vs/base/parts/ipc/common/ipc';
-import {AIAdapter} from './aiAdapter';
+import {AppInsightsAppender} from 'vs/platform/telemetry/node/aiAdapter';
 import {IAIChannel} from './ai.ipc';
 
-const adapter: { [handle: number]: AIAdapter } = Object.create(null);
+const adapter: { [handle: number]: AppInsightsAppender } = Object.create(null);
 let idPool = 0;
 
 export function registerAIChannel(server: IServer) {
@@ -20,7 +20,7 @@ export function registerAIChannel(server: IServer) {
 				case 'create': {
 					let handle = idPool++;
 					let {key, eventPrefix, data} = arg;
-					adapter[handle] = new AIAdapter(eventPrefix, data, key);
+					adapter[handle] = new AppInsightsAppender(eventPrefix, data, key);
 					return TPromise.as(handle);
 				}
 				case 'log': {

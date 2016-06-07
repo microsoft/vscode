@@ -10,10 +10,14 @@ import pkg from 'vs/platform/package';
 import * as os from 'os';
 import * as path from 'path';
 import { parseArgs } from 'vs/code/node/argv';
+import URI from 'vs/base/common/uri';
 
 export class EnvironmentService implements IEnvironmentService {
 
 	serviceId = IEnvironmentService;
+
+	private _appRoot: string;
+	get appRoot(): string { return this._appRoot; }
 
 	private _userDataPath: string;
 	get userDataPath(): string { return this._userDataPath; }
@@ -24,6 +28,7 @@ export class EnvironmentService implements IEnvironmentService {
 	constructor() {
 		const argv = parseArgs(process.argv);
 
+		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, process.argv);
 
 		const userHome = path.join(os.homedir(), product.dataFolderName);
