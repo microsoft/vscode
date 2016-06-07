@@ -5,19 +5,22 @@
 'use strict';
 
 import {IEnvironment} from 'vs/platform/workspace/common/workspace';
-import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryAppender, combinedAppender} from 'vs/platform/telemetry/common/telemetry';
 import {createAIAdapter} from 'vs/base/parts/ai/node/ai';
 
 const eventPrefix = 'monacoworkbench';
 
-export function createAppender(env: IEnvironment): ITelemetryAppender[]{
+export function createAppender(env: IEnvironment): ITelemetryAppender {
 	const result: ITelemetryAppender[] = [];
-	let {key, asimovKey} = env.aiConfig;
+	const { key, asimovKey } = env.aiConfig;
+
 	if (key) {
 		result.push(createAIAdapter(key, eventPrefix, undefined));
 	}
+
 	if (asimovKey) {
 		result.push(createAIAdapter(asimovKey, eventPrefix, undefined));
 	}
-	return result;
+
+	return combinedAppender(...result);
 }

@@ -54,6 +54,14 @@ export interface ITelemetryAppender extends IDisposable {
 	log(eventName: string, data?: any): any;
 }
 
+export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
+	const log = (e, d) => appenders.forEach(a => a.log(e, d));
+	const dispose = () => appenders.forEach(a => a.dispose());
+	return { log, dispose };
+}
+
+export const NullAppender = combinedAppender();
+
 // --- util
 
 export function anonymize(input: string): string {

@@ -18,7 +18,7 @@ import {cloneAndChange, mixin} from 'vs/base/common/objects';
 import {Registry} from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
-	appender: ITelemetryAppender[];
+	appender: ITelemetryAppender;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
 	userOptIn?: boolean;
@@ -26,12 +26,16 @@ export interface ITelemetryServiceConfig {
 
 export class TelemetryService implements ITelemetryService {
 
-	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
-	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
+	static IDLE_START_EVENT_NAME = 'UserIdleStart';
+	static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
-	public serviceId = ITelemetryService;
+	serviceId = ITelemetryService;
 
-	private _configuration: ITelemetryServiceConfig;
+	private _appender: ITelemetryAppender;
+	private _commonProperties: TPromise<{ [name: string]: any; }>;
+	private _piiPaths: string[];
+	private _userOptIn: boolean;
+
 	private _disposables: IDisposable[] = [];
 	private _timeKeeper: TimeKeeper;
 	private _cleanupPatterns: [RegExp, string][] = [];
@@ -40,18 +44,16 @@ export class TelemetryService implements ITelemetryService {
 		config: ITelemetryServiceConfig,
 		@optional(IConfigurationService) private _configurationService: IConfigurationService
 	) {
-		this._configuration = mixin(config, <ITelemetryServiceConfig>{
-			appender: [],
-			commonProperties: TPromise.as({}),
-			piiPaths: [],
-			userOptIn: true
-		}, false);
+		this._appender = config.appender;
+		this._commonProperties = config.commonProperties || TPromise.as({});
+		this._piiPaths = config.piiPaths || [];
+		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
 
 		// static cleanup patterns for:
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
 		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		for (let piiPath of this._configuration.piiPaths) {
+		for (let piiPath of this._piiPaths) {
 			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
 		}
 		this._cleanupPatterns.push(
@@ -67,13 +69,13 @@ export class TelemetryService implements ITelemetryService {
 		if (this._configurationService) {
 			this._updateUserOptIn();
 			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
-			this.publicLog('optInStatus', { optIn: this._configuration.userOptIn });
+			this.publicLog('optInStatus', { optIn: this._userOptIn });
 		}
 	}
 
 	private _updateUserOptIn(): void {
 		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
-		this._configuration.userOptIn = config ? config.enableTelemetry : this._configuration.userOptIn;
+		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 
 	private _onTelemetryTimerEventStop(events: ITimerEvent[]): void {
@@ -86,11 +88,11 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	get isOptedIn(): boolean {
-		return this._configuration.userOptIn;
+		return this._userOptIn;
 	}
 
-	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return this._configuration.commonProperties.then(values => {
+	getTelemetryInfo(): TPromise<ITelemetryInfo> {
+		return this._commonProperties.then(values => {
 			// well known properties
 			let sessionId = values['sessionID'];
 			let instanceId = values['common.instanceId'];
@@ -100,11 +102,11 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._disposables = dispose(this._disposables);
 	}
 
-	public timedPublicLog(name: string, data?: any): ITimerEvent {
+	timedPublicLog(name: string, data?: any): ITimerEvent {
 		let topic = 'public';
 		let event = this._timeKeeper.start(topic, name);
 		if (data) {
@@ -113,13 +115,13 @@ export class TelemetryService implements ITelemetryService {
 		return event;
 	}
 
-	public publicLog(eventName: string, data?: any): TPromise<any> {
+	publicLog(eventName: string, data?: any): TPromise<any> {
 		// don't send events when the user is optout unless the event is the opt{in|out} signal
-		if (!this._configuration.userOptIn && eventName !== 'optInStatus') {
+		if (!this._userOptIn && eventName !== 'optInStatus') {
 			return TPromise.as(undefined);
 		}
 
-		return this._configuration.commonProperties.then(values => {
+		return this._commonProperties.then(values => {
 
 			// (first) add common properties
 			data = mixin(data, values);
@@ -131,9 +133,7 @@ export class TelemetryService implements ITelemetryService {
 				}
 			});
 
-			for (let appender of this._configuration.appender) {
-				appender.log(eventName, data);
-			}
+			this._appender.log(eventName, data);
 
 		}, err => {
 			// unsure what to do now...

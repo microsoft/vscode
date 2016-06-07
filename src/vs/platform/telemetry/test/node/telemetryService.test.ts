@@ -85,7 +85,7 @@ suite('TelemetryService', () => {
 
 	test('Disposing', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 
 		return service.publicLog('testPrivateEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
@@ -98,7 +98,7 @@ suite('TelemetryService', () => {
 	// event reporting
 	test('Simple event', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(_ => {
 			assert.equal(testAppender.getEventsCount(), 1);
@@ -111,7 +111,7 @@ suite('TelemetryService', () => {
 
 	test('Event with data', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent', {
 			'stringProp': 'property',
@@ -137,7 +137,7 @@ suite('TelemetryService', () => {
 	test('common properties added to *all* events, simple event', function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({
-			appender: [testAppender],
+			appender: testAppender,
 			commonProperties: TPromise.as({ foo: 'JA!', get bar() { return Math.random(); } })
 		}, undefined);
 
@@ -155,7 +155,7 @@ suite('TelemetryService', () => {
 	test('common properties added to *all* events, event with data', function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({
-			appender: [testAppender],
+			appender: testAppender,
 			commonProperties: TPromise.as({ foo: 'JA!', get bar() { return Math.random(); } })
 		}, undefined);
 
@@ -174,7 +174,7 @@ suite('TelemetryService', () => {
 
 	test('TelemetryInfo comes from properties', function () {
 		let service = new TelemetryService({
-			appender: [],
+			appender: Telemetry.NullAppender,
 			commonProperties: TPromise.as({
 				sessionID: 'one',
 				['common.instanceId']: 'two',
@@ -195,7 +195,7 @@ suite('TelemetryService', () => {
 		Timer.ENABLE_TIMER = true;
 
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 
 		let t1 = service.timedPublicLog('editorDance');
 		this.clock.tick(20);
@@ -227,7 +227,7 @@ suite('TelemetryService', () => {
 
 	test('enableTelemetry on by default', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
@@ -244,7 +244,7 @@ suite('TelemetryService', () => {
 
 		try {
 			let testAppender = new TestTelemetryAppender();
-			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			let service = new TelemetryService({ appender: testAppender }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 
@@ -300,7 +300,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let testError = new Error('test');
@@ -326,7 +326,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
@@ -356,7 +356,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			let service = new TelemetryService({ appender: testAppender }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let dangerousPathWithoutImportantInfoError: any = new Error(settings.dangerousPathWithoutImportantInfo);
@@ -384,7 +384,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
@@ -413,7 +413,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			let service = new TelemetryService({ appender: testAppender }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
@@ -444,7 +444,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
@@ -475,7 +475,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			let service = new TelemetryService({ appender: testAppender }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let missingModelError: any = new Error(settings.missingModelMessage);
@@ -506,7 +506,7 @@ suite('TelemetryService', () => {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		let missingModelError: any = new Error('missingModelMessage');
@@ -538,7 +538,7 @@ suite('TelemetryService', () => {
 		try {
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			let service = new TelemetryService({ appender: testAppender }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let noSuchFileError: any = new Error(settings.noSuchFileMessage);
@@ -573,7 +573,7 @@ suite('TelemetryService', () => {
 			let errorStub = this.stub(window, 'onerror');
 			let settings = new ErrorTestingSettings();
 			let testAppender = new TestTelemetryAppender();
-			let service = new TelemetryService({ appender: [testAppender] }, undefined);
+			let service = new TelemetryService({ appender: testAppender }, undefined);
 			const errorTelemetry = new ErrorTelemetry(service);
 
 			let noSuchFileError: any = new Error('noSuchFileMessage');
@@ -603,7 +603,7 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service respects user opt-in settings', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: false, appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 0);
@@ -613,7 +613,7 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: true, appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ userOptIn: true, appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);
@@ -623,7 +623,7 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service allows optin friendly events', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: false, appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 0);
@@ -643,7 +643,7 @@ suite('TelemetryService', () => {
 
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({
-			appender: [testAppender]
+			appender: testAppender
 		}, {
 				serviceId: undefined,
 				hasWorkspaceConfiguration() {

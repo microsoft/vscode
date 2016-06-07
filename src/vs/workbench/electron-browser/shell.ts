@@ -234,7 +234,7 @@ export class WorkbenchShell {
 					: TelemetryService.IDLE_START_EVENT_NAME
 			));
 
-			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor, ...appender);
+			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor, appender);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
