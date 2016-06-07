@@ -603,7 +603,7 @@ suite('TelemetryService', () => {
 	test('Test hard idle does not affect sending normal events in active state', sinon.test(function () {
 
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ enableHardIdle: true, enableSoftIdle: false, appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ softIdleMonitor: new IdleMonitor.NeverIdleMonitor(), appender: [testAppender] }, undefined);
 
 
 		//report an event
@@ -619,7 +619,7 @@ suite('TelemetryService', () => {
 	test('Test hard idle stops events from being sent in idle state', sinon.test(function () {
 
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ enableHardIdle: true, enableSoftIdle: false, appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ softIdleMonitor: new IdleMonitor.NeverIdleMonitor(), appender: [testAppender] }, undefined);
 
 		// make the user idle
 		this.clock.tick(IdleMonitor.DEFAULT_IDLE_TIME);
@@ -655,7 +655,7 @@ suite('TelemetryService', () => {
 		this.stub(IdleMonitor, 'IdleMonitor', MockIdleMonitor);
 
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ enableHardIdle: false, enableSoftIdle: true, appender: [testAppender] }, undefined);
+		let service = new TelemetryService({ hardIdleMonitor: new IdleMonitor.NeverIdleMonitor(), appender: [testAppender] }, undefined);
 
 
 		assert.equal(testAppender.getEventsCount(), 0);

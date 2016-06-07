@@ -11,7 +11,7 @@ import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
+import {IIdleMonitor, IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
@@ -20,11 +20,11 @@ import {Registry} from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender[];
+	hardIdleMonitor?: IIdleMonitor;
+	softIdleMonitor?: IIdleMonitor;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
 	userOptIn?: boolean;
-	enableHardIdle?: boolean;
-	enableSoftIdle?: boolean;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -39,8 +39,8 @@ export class TelemetryService implements ITelemetryService {
 	private _configuration: ITelemetryServiceConfig;
 	private _disposables: IDisposable[] = [];
 	private _timeKeeper: TimeKeeper;
-	private _hardIdleMonitor: IdleMonitor;
-	private _softIdleMonitor: IdleMonitor;
+	private _hardIdleMonitor: IIdleMonitor;
+	private _softIdleMonitor: IIdleMonitor;
 	private _cleanupPatterns: [RegExp, string][] = [];
 
 	constructor(
@@ -51,8 +51,6 @@ export class TelemetryService implements ITelemetryService {
 			appender: [],
 			commonProperties: TPromise.as({}),
 			piiPaths: [],
-			enableHardIdle: true,
-			enableSoftIdle: true,
 			userOptIn: true
 		}, false);
 
@@ -73,15 +71,14 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables.push(this._timeKeeper);
 		this._disposables.push(this._timeKeeper.addListener(events => this._onTelemetryTimerEventStop(events)));
 
-		if (this._configuration.enableHardIdle) {
-			this._hardIdleMonitor = new IdleMonitor();
-			this._disposables.push(this._hardIdleMonitor);
-		}
-		if (this._configuration.enableSoftIdle) {
-			this._softIdleMonitor = new IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			this._disposables.push(this._softIdleMonitor.onStatusChange(status => this._onIdleStatus(status)));
-			this._disposables.push(this._softIdleMonitor);
-		}
+		this._hardIdleMonitor = this._configuration.hardIdleMonitor || new IdleMonitor();
+		// TODO@joao remove
+		this._disposables.push(this._hardIdleMonitor);
+
+		this._softIdleMonitor = this._configuration.softIdleMonitor || new IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
+		this._disposables.push(this._softIdleMonitor.onStatusChange(status => this._onIdleStatus(status)));
+		// TODO@joao remove
+		this._disposables.push(this._softIdleMonitor);
 
 		if (this._configurationService) {
 			this._updateUserOptIn();
