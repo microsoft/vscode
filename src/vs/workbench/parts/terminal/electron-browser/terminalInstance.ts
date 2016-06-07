@@ -25,6 +25,7 @@ export class TerminalInstance {
 	private ptyProcess: cp.ChildProcess;
 	private terminal;
 	private terminalDomElement: HTMLDivElement;
+	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
 
 	public constructor(
@@ -35,7 +36,7 @@ export class TerminalInstance {
 		private onExitCallback: (TerminalInstance) => void
 	) {
 		this.toDispose = [];
-		this.parentDomElement.innerHTML = '';
+		this.wrapperElement = document.createElement('div');
 		this.ptyProcess = this.createTerminalProcess();
 		this.terminalDomElement = document.createElement('div');
 		this.parentDomElement.classList.add('integrated-terminal');
@@ -89,7 +90,8 @@ export class TerminalInstance {
 		}));
 
 		this.terminal.open(this.terminalDomElement);
-		this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
+		this.wrapperElement.appendChild(terminalScrollbar.getDomNode());
+		this.parentDomElement.appendChild(this.wrapperElement);
 	}
 
 	public layout(dimension: Dimension): void {
@@ -149,6 +151,8 @@ export class TerminalInstance {
 	}
 
 	public dispose(): void {
+		this.parentDomElement.removeChild(this.wrapperElement);
+		this.wrapperElement = null;
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.terminal.destroy();
 		this.ptyProcess.kill();

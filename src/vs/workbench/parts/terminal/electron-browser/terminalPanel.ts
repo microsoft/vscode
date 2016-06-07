@@ -20,6 +20,7 @@ export class TerminalPanel extends Panel {
 
 	private toDispose: lifecycle.IDisposable[];
 	private parentDomElement: HTMLElement;
+	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 	private terminalInstance: TerminalInstance;
 
@@ -43,6 +44,8 @@ export class TerminalPanel extends Panel {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
+		this.themeStyleElement = document.createElement('style');
+		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 
 		return this.createTerminal();
@@ -99,11 +102,7 @@ export class TerminalPanel extends Panel {
 				`.terminal .xterm-bg-color-${index}::selection { color: ${color}; }`;
 		});
 
-		// TODO: Create in constructor
-		// TODO: Reuse same element
-		let styleElement = document.createElement('style');
-		styleElement.innerHTML = css;
-		this.parentDomElement.appendChild(styleElement);
+		this.themeStyleElement.innerHTML = css;
 	}
 
 	private convertHexCssColorToRgba(hex: string, alpha: number): string {
