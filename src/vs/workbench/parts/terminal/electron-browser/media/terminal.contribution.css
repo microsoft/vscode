@@ -2072,14 +2072,6 @@
 }
 
 /**
- * All terminal rows should have explicitly declared height,
- * in order to allow child elements to adjust.
- */
-.terminal .xterm-rows > div {
-	line-height: 1.2;
-}
-
-/**
  * All styled spans inside terminal lines should be inline-blocks,
  * in orde to achieve better height adjustment.
  */
