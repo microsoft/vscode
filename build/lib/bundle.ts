@@ -185,9 +185,103 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 	});
 
 	return {
-		files: removeDuplicateTSBoilerplate(result),
+		files: extractStrings(removeDuplicateTSBoilerplate(result)),
 		bundleData: bundleData
 	};
+}
+
+function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
+	let parseDefineCall = (moduleMatch:string, depsMatch:string) => {
+		let module = moduleMatch.replace(/^"|"$/g, '');
+		let deps = depsMatch.split(',');
+		deps = deps.map((dep) => {
+			dep = dep.trim();
+			dep = dep.replace(/^"|"$/g, '');
+			dep = dep.replace(/^'|'$/g, '');
+			let prefix:string = null;
+			let _path:string = null;
+			let pieces = dep.split('!');
+			if (pieces.length > 1) {
+				prefix = pieces[0] + '!';
+				_path = pieces[1];
+			} else {
+				prefix = '';
+				_path = pieces[0];
+			}
+
+			if (/^\.\//.test(_path) || /^\.\.\//.test(_path)) {
+				let res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
+				return prefix + res;
+			}
+			return prefix + _path;
+		});
+		return {
+			module: module,
+			deps: deps
+		};
+	};
+
+	destFiles.forEach((destFile, index) => {
+		if (!/\.js$/.test(destFile.dest)) {
+			return;
+		}
+		if (/\.nls\.js$/.test(destFile.dest)) {
+			return;
+		}
+
+		// Do one pass to record the usage counts for each module id
+		let useCounts: {[moduleId:string]:number;} = {};
+		destFile.sources.forEach((source) => {
+			let matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
+			if (!matches) {
+				return;
+			}
+
+			let defineCall = parseDefineCall(matches[1], matches[2]);
+			useCounts[defineCall.module] = (useCounts[defineCall.module] || 0) + 1;
+			defineCall.deps.forEach((dep) => {
+				useCounts[dep] = (useCounts[dep] || 0) + 1;
+			});
+		});
+
+		let sortedByUseModules = Object.keys(useCounts);
+		sortedByUseModules.sort((a, b) => {
+			return useCounts[b] - useCounts[a];
+		});
+
+		let replacementMap: {[moduleId:string]:number;} = {};
+		sortedByUseModules.forEach((module, index) => {
+			replacementMap[module] = index;
+		});
+
+		destFile.sources.forEach((source) => {
+			source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduleMatch, depsMatch) => {
+				let defineCall = parseDefineCall(moduleMatch, depsMatch);
+				return `define(__m[${replacementMap[defineCall.module]}], __M([${defineCall.deps.map(dep => replacementMap[dep]).join(',')}])`;
+			});
+		});
+
+		destFile.sources.unshift({
+			path: null,
+			contents: [
+				'(function() {',
+				`var __m = ${JSON.stringify(sortedByUseModules)};`,
+				`var __M = function(deps) {`,
+				`  var result = [];`,
+				`  for (var i = 0, len = deps.length; i < len; i++) {`,
+				`    result[i] = __m[deps[i]];`,
+				`  }`,
+				`  return result;`,
+				`};`
+			].join('\n')
+		});
+
+		destFile.sources.push({
+			path: null,
+			contents: '}).call(this);'
+		});
+	});
+	return destFiles;
 }
 
 function removeDuplicateTSBoilerplate(destFiles:IConcatFile[]):IConcatFile[] {
