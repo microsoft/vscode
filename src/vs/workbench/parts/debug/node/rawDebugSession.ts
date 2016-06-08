@@ -146,7 +146,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
 				if (error && error.sendTelemetry) {
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
-					this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
+					if (this.telemtryAdapter) {
+						this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
+					}
 				}
 				if (error && error.showUser === false) {
 					return TPromise.as(null);
