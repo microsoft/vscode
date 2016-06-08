@@ -1,31 +1,27 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-
 'use strict';
 
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
 
-function parseData(data: proxy.IReferenceResult): vscode.Location[] {
-    if (data && data.references.length > 0) {
-        var references = data.references.map(ref=> {
-            var definitionResource = vscode.Uri.file(ref.fileName);
-            var range = new vscode.Range(ref.lineIndex, ref.columnIndex, ref.lineIndex, ref.columnIndex);
-
-            return new vscode.Location(definitionResource, range);
-        });
-
-        return references;
-    }
-    return [];
-}
 
 export class PythonReferenceProvider implements vscode.ReferenceProvider {
     private jediProxyHandler: proxy.JediProxyHandler<proxy.IReferenceResult, vscode.Location[]>;
 
     public constructor(context: vscode.ExtensionContext) {
-        this.jediProxyHandler = new proxy.JediProxyHandler(context, null, parseData);
+        this.jediProxyHandler = new proxy.JediProxyHandler(context, null, PythonReferenceProvider.parseData);
+    }
+    private static parseData(data: proxy.IReferenceResult): vscode.Location[] {
+        if (data && data.references.length > 0) {
+            var references = data.references.map(ref => {
+                var definitionResource = vscode.Uri.file(ref.fileName);
+                var range = new vscode.Range(ref.lineIndex, ref.columnIndex, ref.lineIndex, ref.columnIndex);
+
+                return new vscode.Location(definitionResource, range);
+            });
+
+            return references;
+        }
+        return [];
     }
 
     public provideReferences(document: vscode.TextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Thenable<vscode.Location[]> {

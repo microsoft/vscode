@@ -1,7 +1,3 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-
 'use strict';
 
 import * as vscode from 'vscode';
@@ -10,32 +6,29 @@ import * as proxy from './jediProxy';
 var _oldName = "";
 var _newName = "";
 
-function parseData(data: proxy.IReferenceResult): vscode.WorkspaceEdit {
-    if (data && data.references.length > 0) {
-        var references = data.references.filter(ref=> {
-            var relPath = vscode.workspace.asRelativePath(ref.fileName);
-            return !relPath.startsWith("..");
-        });
-
-        var workSpaceEdit = new vscode.WorkspaceEdit();
-        references.forEach(ref=> {
-            var uri = vscode.Uri.file(ref.fileName);
-            var range = new vscode.Range(ref.lineIndex, ref.columnIndex, ref.lineIndex, ref.columnIndex + _oldName.length);
-            workSpaceEdit.replace(uri, range, _newName);
-        });
-        return workSpaceEdit;
-    }
-    return;
-}
-
-
 export class PythonRenameProvider implements vscode.RenameProvider {
     private jediProxyHandler: proxy.JediProxyHandler<proxy.IReferenceResult, vscode.WorkspaceEdit>;
 
     public constructor(context: vscode.ExtensionContext) {
-        this.jediProxyHandler = new proxy.JediProxyHandler(context, null, parseData);
+        this.jediProxyHandler = new proxy.JediProxyHandler(context, null, PythonRenameProvider.parseData);
     }
+    private static parseData(data: proxy.IReferenceResult): vscode.WorkspaceEdit {
+        if (data && data.references.length > 0) {
+            var references = data.references.filter(ref => {
+                var relPath = vscode.workspace.asRelativePath(ref.fileName);
+                return !relPath.startsWith("..");
+            });
 
+            var workSpaceEdit = new vscode.WorkspaceEdit();
+            references.forEach(ref => {
+                var uri = vscode.Uri.file(ref.fileName);
+                var range = new vscode.Range(ref.lineIndex, ref.columnIndex, ref.lineIndex, ref.columnIndex + _oldName.length);
+                workSpaceEdit.replace(uri, range, _newName);
+            });
+            return workSpaceEdit;
+        }
+        return;
+    }
     public provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Thenable<vscode.WorkspaceEdit> {
         return vscode.workspace.saveAll(false).then(() => {
             return this.doRename(document, position, newName, token);

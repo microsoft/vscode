@@ -3,9 +3,7 @@
 import * as path from 'path';
 import * as baseLinter from './baseLinter';
 import {OutputChannel, workspace} from 'vscode';
-
 const PYLINT_COMMANDLINE = " --msg-template='{line},{column},{category},{msg_id}:{msg}' --reports=n --output-format=text";
-
 
 export class Linter extends baseLinter.BaseLinter {
     constructor(outputChannel: OutputChannel) {

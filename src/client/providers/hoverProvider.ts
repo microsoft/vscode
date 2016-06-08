@@ -1,29 +1,24 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-
 'use strict';
 
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
 
-function parseData(data: proxy.ICompletionResult) {
-    if (data && data.items.length > 0) {
-        var definition = data.items[0];
-
-        var txt = definition.description || definition.text;
-        return new vscode.Hover({ language: "python", value: txt });
-    }
-    return null;
-}
 
 export class PythonHoverProvider implements vscode.HoverProvider {
     private jediProxyHandler: proxy.JediProxyHandler<proxy.ICompletionResult, vscode.Hover>;
 
     public constructor(context: vscode.ExtensionContext) {
-        this.jediProxyHandler = new proxy.JediProxyHandler(context, null, parseData);
+        this.jediProxyHandler = new proxy.JediProxyHandler(context, null, PythonHoverProvider.parseData);
     }
+    private static parseData(data: proxy.ICompletionResult) {
+        if (data && data.items.length > 0) {
+            var definition = data.items[0];
 
+            var txt = definition.description || definition.text;
+            return new vscode.Hover({ language: "python", value: txt });
+        }
+        return null;
+    }
     public provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.Hover> {
         return new Promise<vscode.Hover>((resolve, reject) => {
             var filename = document.fileName;
