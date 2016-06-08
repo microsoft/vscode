@@ -23,11 +23,12 @@ function bundle(entryPoints, config, callback) {
     loader.config(config);
     loader(Object.keys(entryPointsMap), function () {
         var modules = loader.getBuildInfo();
-        var resultFiles = emitEntryPoints(modules, entryPointsMap);
+        var partialResult = emitEntryPoints(modules, entryPointsMap);
         var cssInlinedResources = loader('vs/css').getInlinedResources();
         callback(null, {
-            files: resultFiles,
-            cssInlinedResources: cssInlinedResources
+            files: partialResult.files,
+            cssInlinedResources: cssInlinedResources,
+            bundleData: partialResult.bundleData
         });
     }, function (err) { return callback(err, null); });
 }
@@ -44,6 +45,10 @@ function emitEntryPoints(modules, entryPoints) {
     var sortedModules = topologicalSort(modulesGraph);
     var result = [];
     var usedPlugins = {};
+    var bundleData = {
+        graph: modulesGraph,
+        bundles: {}
+    };
     Object.keys(entryPoints).forEach(function (moduleToBundle) {
         var info = entryPoints[moduleToBundle];
         var rootNodes = [moduleToBundle].concat(info.include || []);
@@ -58,6 +63,7 @@ function emitEntryPoints(modules, entryPoints) {
         var includedModules = sortedModules.filter(function (module) {
             return allDependencies[module];
         });
+        bundleData.bundles[moduleToBundle] = includedModules;
         var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules);
         result = result.concat(res.files);
         for (var pluginName in res.usedPlugins) {
@@ -79,7 +85,60 @@ function emitEntryPoints(modules, entryPoints) {
             plugin.finishBuild(write);
         }
     });
-    return result;
+    return {
+        files: removeDuplicateTSBoilerplate(result),
+        bundleData: bundleData
+    };
+}
+function removeDuplicateTSBoilerplate(destFiles) {
+    // Taken from typescript compiler => emitFiles
+    var BOILERPLATE = [
+        { start: /^var __extends/, end: /^};$/ },
+        { start: /^var __assign/, end: /^};$/ },
+        { start: /^var __decorate/, end: /^};$/ },
+        { start: /^var __metadata/, end: /^};$/ },
+        { start: /^var __param/, end: /^};$/ },
+        { start: /^var __awaiter/, end: /^};$/ },
+    ];
+    destFiles.forEach(function (destFile) {
+        var SEEN_BOILERPLATE = [];
+        destFile.sources.forEach(function (source) {
+            var lines = source.contents.split(/\r\n|\n|\r/);
+            var newLines = [];
+            var IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                if (IS_REMOVING_BOILERPLATE) {
+                    newLines.push('');
+                    if (END_BOILERPLATE.test(line)) {
+                        IS_REMOVING_BOILERPLATE = false;
+                    }
+                }
+                else {
+                    for (var j = 0; j < BOILERPLATE.length; j++) {
+                        var boilerplate = BOILERPLATE[j];
+                        if (boilerplate.start.test(line)) {
+                            if (SEEN_BOILERPLATE[j]) {
+                                IS_REMOVING_BOILERPLATE = true;
+                                END_BOILERPLATE = boilerplate.end;
+                            }
+                            else {
+                                SEEN_BOILERPLATE[j] = true;
+                            }
+                        }
+                    }
+                    if (IS_REMOVING_BOILERPLATE) {
+                        newLines.push('');
+                    }
+                    else {
+                        newLines.push(line);
+                    }
+                }
+            }
+            source.contents = newLines.join('\n');
+        });
+    });
+    return destFiles;
 }
 function emitEntryPoint(modulesMap, deps, entryPoint, includedModules) {
     var mainResult = {

@@ -70,9 +70,20 @@ export interface IConcatFile {
 	sources: IFile[];
 }
 
+export interface IBundleData {
+	graph: IGraph;
+	bundles: {[moduleId:string]:string[];};
+}
+
 export interface IBundleResult {
 	files: IConcatFile[];
 	cssInlinedResources: string[];
+	bundleData: IBundleData;
+}
+
+interface IPartialBundleResult {
+	files: IConcatFile[];
+	bundleData: IBundleData;
 }
 
 export interface ILoaderConfig {
@@ -100,16 +111,17 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 
 	loader(Object.keys(entryPointsMap), () => {
 		let modules = <IBuildModuleInfo[]>loader.getBuildInfo();
-		let resultFiles = emitEntryPoints(modules, entryPointsMap);
+		let partialResult = emitEntryPoints(modules, entryPointsMap);
 		let cssInlinedResources = loader('vs/css').getInlinedResources();
 		callback(null, {
-			files: resultFiles,
-			cssInlinedResources: cssInlinedResources
+			files: partialResult.files,
+			cssInlinedResources: cssInlinedResources,
+			bundleData: partialResult.bundleData
 		});
 	}, (err) => callback(err, null));
 }
 
-function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap): IConcatFile[] {
+function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap): IPartialBundleResult {
 	let modulesMap: IBuildModuleInfoMap = {};
 	modules.forEach((m:IBuildModuleInfo) => {
 		modulesMap[m.id] = m;
@@ -124,6 +136,10 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 
 	let result: IConcatFile[] = [];
 	let usedPlugins: IPluginMap = {};
+	let bundleData:IBundleData = {
+		graph: modulesGraph,
+		bundles: {}
+	};
 
 	Object.keys(entryPoints).forEach((moduleToBundle:string) => {
 		let info = entryPoints[moduleToBundle];
@@ -141,6 +157,8 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 		let includedModules = sortedModules.filter((module:string) => {
 			return allDependencies[module];
 		});
+
+		bundleData.bundles[moduleToBundle] = includedModules;
 
 		let res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules);
 
@@ -166,7 +184,61 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 		}
 	});
 
-	return result;
+	return {
+		files: removeDuplicateTSBoilerplate(result),
+		bundleData: bundleData
+	};
+}
+
+function removeDuplicateTSBoilerplate(destFiles:IConcatFile[]):IConcatFile[] {
+	// Taken from typescript compiler => emitFiles
+	let BOILERPLATE = [
+		{ start: /^var __extends/, end: /^};$/ },
+		{ start: /^var __assign/, end: /^};$/ },
+		{ start: /^var __decorate/, end: /^};$/ },
+		{ start: /^var __metadata/, end: /^};$/ },
+		{ start: /^var __param/, end: /^};$/ },
+		{ start: /^var __awaiter/, end: /^};$/ },
+	];
+
+	destFiles.forEach((destFile) => {
+		let SEEN_BOILERPLATE = [];
+		destFile.sources.forEach((source) => {
+			let lines = source.contents.split(/\r\n|\n|\r/);
+			let newLines: string[] = [];
+			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
+
+			for (let i = 0; i < lines.length; i++) {
+				let line = lines[i];
+				if (IS_REMOVING_BOILERPLATE) {
+					newLines.push('');
+					if (END_BOILERPLATE.test(line)) {
+						IS_REMOVING_BOILERPLATE = false;
+					}
+				} else {
+					for (let j = 0; j < BOILERPLATE.length; j++) {
+						let boilerplate = BOILERPLATE[j];
+						if (boilerplate.start.test(line)) {
+							if (SEEN_BOILERPLATE[j]) {
+								IS_REMOVING_BOILERPLATE = true;
+								END_BOILERPLATE = boilerplate.end;
+							} else {
+								SEEN_BOILERPLATE[j] = true;
+							}
+						}
+					}
+					if (IS_REMOVING_BOILERPLATE) {
+						newLines.push('');
+					} else {
+						newLines.push(line);
+					}
+				}
+			}
+			source.contents = newLines.join('\n');
+		});
+	});
+
+	return destFiles;
 }
 
 interface IPluginMap {
