@@ -6,8 +6,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { parse, stringify } from 'vs/base/common/marshalling';
-import { normalize } from 'vs/base/common/paths';
+import {normalize} from 'vs/base/common/paths';
 
 suite('URI', () => {
 	test('file#toString', () => {
@@ -311,13 +310,29 @@ suite('URI', () => {
 		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
 	});
 
-	test('Bug 16793:# in folder name => mirror models get out of sync', () => {
-		var uri1 = URI.file('C:\\C#\\file.txt');
-		assert.equal(parse(stringify(uri1)).toString(), uri1.toString());
+	test('URI - http, query & toString', function() {
+
+		let uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008');
+		assert.equal(uri.query, 'LinkId=518008');
+		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008');
+
+		let uri2 = URI.parse(uri.toString());
+		assert.equal(uri2.query, 'LinkId=518008');
+		assert.equal(uri2.query, uri.query);
+
+		uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
+		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
+		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008%26fo%C3%B6%26k%C3%A9%C2%A5%3D%C3%BC%C3%BC');
+
+		uri2 = URI.parse(uri.toString());
+		assert.equal(uri2.query, 'LinkId=518008&foö&ké¥=üü');
+		assert.equal(uri2.query, uri.query);
 	});
 
 
-	test('URI - (de)serialize', function() {
+	test('URI - (de)serialize', function () {
 
 		var values = [
 			URI.parse('http://localhost:8080/far'),
@@ -345,26 +360,5 @@ suite('URI', () => {
 		}
 		// }
 		// console.profileEnd();
-	});
-
-	test('URI - http, query & toString', function() {
-
-		let uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008');
-		assert.equal(uri.query, 'LinkId=518008');
-		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008');
-
-		let uri2 = URI.parse(uri.toString());
-		assert.equal(uri2.query, 'LinkId=518008');
-		assert.equal(uri2.query, uri.query);
-
-		uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008%26fo%C3%B6%26k%C3%A9%C2%A5%3D%C3%BC%C3%BC');
-
-		uri2 = URI.parse(uri.toString());
-		assert.equal(uri2.query, 'LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri2.query, uri.query);
 	});
 });
