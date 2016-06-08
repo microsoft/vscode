@@ -20,6 +20,8 @@ suite('workspace-namespace', () => {
 
 		assert.ok(config.has('config0'));
 		assert.equal(config.get('config0'), true);
+		assert.equal(config.get('config4'), '');
+
 		assert.ok(config.has('nested.config1'));
 		assert.equal(config.get('nested.config1'), 42);
 		assert.ok(config.has('nested.config2'));

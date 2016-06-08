@@ -23,6 +23,9 @@
 				"farboo.nested.config2": {
 					"type": "string",
 					"default": "Das Pferd frisst kein Reis."
+				},
+				"farboo.config4": {
+					"type": "string"
 				}
 			}
 		}
