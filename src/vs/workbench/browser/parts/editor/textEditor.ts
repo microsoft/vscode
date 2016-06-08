@@ -9,9 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
-import {IEditorViewState} from 'vs/editor/common/editorCommon';
 import {OptionsChangeEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
-import {Scope} from 'vs/workbench/common/memento';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
@@ -29,8 +27,6 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {Selection} from 'vs/editor/common/core/selection';
-
-const EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState';
 
 /**
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
@@ -179,46 +175,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public getSelection(): Selection {
 		return this.editorControl.getSelection();
-	}
-
-	/**
-	 * Saves the text editor view state under the given key.
-	 */
-	public saveTextEditorViewState(storageService: IStorageService, key: string): void {
-		let editorViewState = this.editorControl.saveViewState();
-
-		const memento = this.getMemento(storageService, Scope.WORKSPACE);
-		let editorViewStateMemento = memento[EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (!editorViewStateMemento) {
-			editorViewStateMemento = {};
-			memento[EDITOR_VIEW_STATE_PREFERENCE_KEY] = editorViewStateMemento;
-		}
-
-		editorViewStateMemento[key] = editorViewState;
-	}
-
-	/**
-	 * Clears the text editor view state under the given key.
-	 */
-	public clearTextEditorViewState(storageService: IStorageService, keys: string[]): void {
-		const memento = this.getMemento(storageService, Scope.WORKSPACE);
-		let editorViewStateMemento = memento[EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (editorViewStateMemento) {
-			keys.forEach((key) => delete editorViewStateMemento[key]);
-		}
-	}
-
-	/**
-	 * Loads the text editor view state for the given key and returns it.
-	 */
-	public loadTextEditorViewState(storageService: IStorageService, key: string): IEditorViewState {
-		const memento = this.getMemento(storageService, Scope.WORKSPACE);
-		let editorViewStateMemento = memento[EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (editorViewStateMemento) {
-			return editorViewStateMemento[key];
-		}
-
-		return null;
 	}
 
 	public dispose(): void {
