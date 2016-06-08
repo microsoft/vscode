@@ -139,36 +139,45 @@ suite('Workbench - TerminalConfigHelper', () => {
 				integrated: {
 					shell: {
 						linux: 'foo'
+					},
+					shellArgs: {
+						linux: []
 					}
 				}
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getShell(), 'foo', 'terminal.integrated.shell.linux should be selected on Linux');
+		assert.equal(configHelper.getShell().executable, 'foo', 'terminal.integrated.shell.linux should be selected on Linux');
 
 		configurationService = new MockConfigurationService({
 			terminal: {
 				integrated: {
 					shell: {
 						osx: 'foo'
+					},
+					shellArgs: {
+						osx: []
 					}
 				}
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Mac, configurationService, fixture);
-		assert.equal(configHelper.getShell(), 'foo', 'terminal.integrated.shell.osx should be selected on OS X');
+		assert.equal(configHelper.getShell().executable, 'foo', 'terminal.integrated.shell.osx should be selected on OS X');
 
 		configurationService = new MockConfigurationService({
 			terminal: {
 				integrated: {
 					shell: {
 						windows: 'foo'
+					},
+					shellArgs: {
+						windows: []
 					}
 				}
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Windows, configurationService, fixture);
-		assert.equal(configHelper.getShell(), 'foo', 'terminal.integrated.shell.windows should be selected on Windows');
+		assert.equal(configHelper.getShell().executable, 'foo', 'terminal.integrated.shell.windows should be selected on Windows');
 	});
 
 	test('TerminalConfigHelper - getTheme', function () {
