@@ -112,27 +112,25 @@ export class LintProvider extends vscode.Disposable {
                 this.pendingLintings.delete(documentUri.fsPath);
             }
         });
+
         this.pendingLintings.set(documentUri.fsPath, cancelToken);
+        var promises = this.linters.map(linter => linter.runLinter(documentUri.fsPath, documentLines));
 
-        var consolidatedMessages: linter.ILintMessage[] = [];
-        var promises = [];
-        this.linters.forEach(linter=> {
-            promises.push(linter.runLinter(documentUri.fsPath, documentLines).then(diagnostics=> {
-                consolidatedMessages = consolidatedMessages.concat(diagnostics);
-            }));
-        })
-
-        Promise.all(promises).then(() => {
+        Promise.all<linter.ILintMessage[]>(promises).then(msgs => {
             if (cancelToken.token.isCancellationRequested) {
                 return;
             }
 
-            var messages = [];
+            //Flatten the array
+            var consolidatedMessages: linter.ILintMessage[] = [];
+            msgs.forEach(lintMessages => consolidatedMessages = consolidatedMessages.concat(lintMessages));
+
             //Limit the number of messages to the max value
             consolidatedMessages = consolidatedMessages.filter((value, index) => index <= this.settings.linting.maxNumberOfProblems);
 
             //Build the message and suffix the message with the name of the linter used
-            consolidatedMessages.forEach(d=> {
+            var messages = [];
+            consolidatedMessages.forEach(d => {
                 d.message = `${d.message} (${d.provider})`;
                 messages.push(createDiagnostics(d, documentLines));
             });

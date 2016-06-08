@@ -1,7 +1,3 @@
-/* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
- * ------------------------------------------------------------------------------------------ */
 'use strict';
 
 import * as path from 'path';
@@ -53,57 +49,3 @@ export function activate(context: ExtensionContext) {
     // client can be deactivated on extension deactivation
     context.subscriptions.push(disposable);
 }
-// 
-// function onDidSaveTextDocument(textDocument: vscode.TextDocument) {
-//     if (textDocument.languageId !== 'python') {
-//         return;
-//     }
-//     var args: RequestParams = { processId: 0, uri: textDocument.uri };
-//     pythonLanguageClient.sendRequest(Request.type, args)
-// }
-// 
-// function _registerEvents(): void {
-//     // subscribe to trigger when the file is saved
-//     let subscriptions: Disposable[] = [];
-//     workspace.onDidSaveTextDocument(this._onSave, this, subscriptions);
-// }
-// // 
-// namespace Request {
-// 	export const type: RequestType<RequestParams, RequestResult, RequestError> = { get method() { return 'request'; } };
-// }
-// /**
-//  * The Request parameters
-//  */
-// export interface RequestParams {
-// 	/**
-// 	 * The process Id of the parent process that started
-// 	 * the server.
-// 	 */
-// 	processId: number;
-// 
-// 	/**
-// 	 * The uri. Is null
-// 	 * if no folder is open.
-// 	 */
-// 	uri: vscode.Uri;
-// }
-// 
-// /**
-//  * The result returned from an initilize request.
-//  */
-// export interface RequestResult {
-//     succesful: boolean;
-// }
-// 
-// 
-// /**
-//  * The error returned if the initilize request fails.
-//  */
-// export interface RequestError {
-// 	/**
-// 	 * Indicates whether the client should retry to send the
-// 	 * initilize request after showing the message provided
-// 	 * in the {@link ResponseError}
-// 	 */
-// 	retry: boolean;
-// }
