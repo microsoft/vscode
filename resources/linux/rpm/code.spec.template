@@ -43,7 +43,9 @@ sudo ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 #fi
 
 %postun
-sudo rm -f /usr/bin/@@NAME@@
+if [ $1 = 0 ]; then
+  rm -f /usr/bin/@@NAME@@
+fi
 
 %files
 %defattr(-,root,root)
