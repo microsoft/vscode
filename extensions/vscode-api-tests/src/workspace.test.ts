@@ -15,7 +15,7 @@ suite('workspace-namespace', () => {
 
 	teardown(cleanUp);
 
-	test('default configuration', () => {
+	test('configuration, defaults', () => {
 		const config = workspace.getConfiguration('farboo');
 
 		assert.ok(config.has('config0'));
@@ -24,6 +24,11 @@ suite('workspace-namespace', () => {
 		assert.equal(config.get('nested.config1'), 42);
 		assert.ok(config.has('nested.config2'));
 		assert.equal(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+	});
+
+	test('configuration, getConfig/value', () => {
+		const value = workspace.getConfiguration('farboo.config0');
+		assert.equal(Object.keys(value).length, 2);
 	});
 
 	test('textDocuments', () => {

@@ -41,9 +41,14 @@ export class ExtHostConfiguration {
 			? ExtHostConfiguration._lookUp(section, this._config)
 			: this._config;
 
+		let result: any;
+		if (typeof config !== 'object') {
+			// this catches missing config and accessing values
+			result = {};
+		} else {
+			result = clone(config);
+		}
 
-		let result = config ? clone(config) : {};
-		// result = Object.freeze(result);
 		result.has = function(key: string): boolean {
 			return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
 		};
