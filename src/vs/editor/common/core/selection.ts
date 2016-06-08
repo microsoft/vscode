@@ -5,7 +5,21 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import {ISelection, SelectionDirection} from 'vs/editor/common/editorCommon';
+import {ISelection} from 'vs/editor/common/editorCommon';
+
+/**
+ * The direction of a selection.
+ */
+export enum SelectionDirection {
+	/**
+	 * The selection starts above where it ends.
+	 */
+	LTR,
+	/**
+	 * The selection starts below where it ends.
+	 */
+	RTL
+}
 
 /**
  * A selection in the editor.

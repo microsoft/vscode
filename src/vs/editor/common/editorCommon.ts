@@ -88,20 +88,6 @@ export interface ISelection {
 }
 
 /**
- * The direction of a selection.
- */
-export enum SelectionDirection {
-	/**
-	 * The selection starts above where it ends.
-	 */
-	LTR,
-	/**
-	 * The selection starts below where it ends.
-	 */
-	RTL
-}
-
-/**
  * Configuration options for editor scrollbars
  */
 export interface IEditorScrollbarOptions {
