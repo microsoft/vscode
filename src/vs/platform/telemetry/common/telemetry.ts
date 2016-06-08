@@ -18,13 +18,14 @@ export interface ITelemetryInfo {
 }
 
 export interface ITelemetryService {
+
 	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog(eventName: string, data?: any): any;
+	publicLog(eventName: string, data?: any): TPromise<void>;
 
 	/**
 	 * Starts a telemetry timer. Call stop() to send the event.
@@ -38,8 +39,8 @@ export interface ITelemetryService {
 
 export const NullTelemetryService: ITelemetryService = {
 	serviceId: undefined,
-	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
-	publicLog(eventName: string, data?: any): void { },
+	timedPublicLog(name: string, data?: any) { return nullEvent; },
+	publicLog(eventName: string, data?: any) { return TPromise.as<void>(null); },
 	isOptedIn: true,
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
