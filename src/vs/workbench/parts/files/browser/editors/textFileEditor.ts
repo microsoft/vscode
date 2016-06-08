@@ -11,7 +11,9 @@ import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
+import {IEditorViewState} from 'vs/editor/common/editorCommon';
 import {Action} from 'vs/base/common/actions';
+import {Scope} from 'vs/workbench/common/memento';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
@@ -34,6 +36,15 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
+
+const LEGACY_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState'; // TODO@Ben migration
+const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+
+interface ITextEditorViewState {
+	0?: IEditorViewState;
+	1?: IEditorViewState;
+	2?: IEditorViewState;
+}
 
 /**
  * An implementation of editor for file system resources.
@@ -263,6 +274,63 @@ export class TextFileEditor extends BaseTextEditor {
 
 	public supportsSplitEditor(): boolean {
 		return true; // yes, we can!
+	}
+
+	/**
+	 * Saves the text editor view state under the given key.
+	 */
+	private saveTextEditorViewState(storageService: IStorageService, key: string): void {
+		const memento = this.getMemento(storageService, Scope.WORKSPACE);
+		let textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (!textEditorViewStateMemento) {
+			textEditorViewStateMemento = Object.create(null);
+			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
+		}
+
+		const editorViewState = this.getControl().saveViewState();
+
+		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		if (!fileViewState) {
+			fileViewState = Object.create(null);
+			textEditorViewStateMemento[key] = fileViewState;
+		}
+
+		if (typeof this.position === 'number') {
+			fileViewState[this.position] = editorViewState;
+		}
+	}
+
+	/**
+	 * Clears the text editor view state under the given key.
+	 */
+	private clearTextEditorViewState(storageService: IStorageService, keys: string[]): void {
+		const memento = this.getMemento(storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			keys.forEach(key => delete textEditorViewStateMemento[key]);
+		}
+	}
+
+	/**
+	 * Loads the text editor view state for the given key and returns it.
+	 */
+	private loadTextEditorViewState(storageService: IStorageService, key: string): IEditorViewState {
+		const memento = this.getMemento(storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			if (fileViewState) {
+				return fileViewState[this.position];
+			}
+		}
+
+		// TODO@Ben migration
+		const legacyEditorViewStateMemento = memento[LEGACY_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (legacyEditorViewStateMemento) {
+			return legacyEditorViewStateMemento[key];
+		}
+
+		return null;
 	}
 
 	public clearInput(): void {

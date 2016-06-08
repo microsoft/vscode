@@ -15,15 +15,13 @@ import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
-import {IEditorViewState, IEditor} from 'vs/editor/common/editorCommon';
 import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult, EditorInputEvent} from 'vs/workbench/common/editor';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState, ITitleAreaState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
+import {EditorInput, EditorOptions, ConfirmResult, EditorInputEvent} from 'vs/workbench/common/editor';
+import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
@@ -140,13 +138,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onEditorDirty(identifier: EditorIdentifier): void {
 		const position = this.stacks.positionOfGroup(identifier.group);
-		const group = identifier.group;
 
 		// we pin every editor that becomes dirty
-		this.pinEditor(position, identifier.editor, false /* we update the UI right after */);
-
-		// Update UI
-		this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
+		this.pinEditor(position, identifier.editor);
 	}
 
 	private onEditorDisposed(identifier: EditorIdentifier): void {
@@ -205,12 +199,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Opened to the side
 		if (position !== Position.LEFT) {
-
-			// Log side by side use
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
-
-			// Determine options if the editor opens to the side by looking at same input already opened
-			options = this.findSideOptions(input, options, position);
 		}
 
 		// Open through UI
@@ -229,9 +218,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
 		const pinned = (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
 		group.openEditor(input, { active: true, pinned, index: options && options.index });
-
-		// Set the title early enough
-		this.sideBySideControl.setTitleLabel(position, input, group.isPinned(input), this.stacks.isActive(group));
 
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
@@ -416,13 +402,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				this._onEditorsChanged.fire();
 			}
 
-			// Update Title Area
-			if (inputChanged) {
-				this.doRecreateEditorTitleArea(); // full title update
-			} else {
-				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count }); // little update for position
-			}
-
 			timerEvent.stop();
 
 			// Fullfill promise with Editor that is being used
@@ -487,7 +466,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.doCloseActiveEditor(group, focusNext);
 		}
 
-		// Closing inactive editor is just a model and title update
+		// Closing inactive editor is just a model update
 		else {
 			this.doCloseInactiveEditor(group, input);
 		}
@@ -514,9 +493,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Closing inactive editor is just a model update
 		group.closeEditor(input);
-
-		// Update UI
-		this.sideBySideControl.updateTitleArea({ position: this.stacks.positionOfGroup(group), preview: group.previewEditor, editorCount: group.count });
 	}
 
 	private doCloseGroup(group: EditorGroup): void {
@@ -564,9 +540,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Rochade as needed
 		this.rochade(rochade);
-
-		// Clear Title Area for Position
-		this.sideBySideControl.clearTitleArea(position);
 
 		// Emit Editor move event
 		if (rochade !== Rochade.NONE) {
@@ -634,9 +607,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// Update stacks model: close non active editors supporting the direction
 			group.closeEditors(group.activeEditor, direction);
-
-			// Update UI
-			this.sideBySideControl.updateTitleArea({ position: this.stacks.positionOfGroup(group), preview: group.previewEditor, editorCount: group.count });
 		}
 
 		// Finally: we are asked to close editors around a non-active editor
@@ -729,9 +699,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Restore focus
 		this.focusGroup(this.stacks.positionOfGroup(fromGroup));
 
-		// Update all title areas
-		this.doRecreateEditorTitleArea();
-
 		// Events
 		this._onEditorsMoved.fire();
 	}
@@ -768,9 +735,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Update stacks model
 		group.moveEditor(input, toIndex);
 		group.pin(input);
-
-		// Update UI
-		this.doRecreateEditorTitleArea();
 	}
 
 	private doMoveEditorAcrossGroups(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number): void {
@@ -797,7 +761,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea);
 
 		this.toUnbind.push(this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged()));
-		this.toUnbind.push(this.sideBySideControl.onEditorTitleDoubleclick((position) => this.onEditorTitleDoubleclick(position)));
 
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
@@ -817,16 +780,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		let activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
 			this._onEditorsChanged.fire();
-		}
-
-		// Update Title Area
-		this.doRecreateEditorTitleArea();
-	}
-
-	private onEditorTitleDoubleclick(position: Position): void {
-		const group = this.stacks.groupAt(position);
-		if (group) {
-			this.pinEditor(position, group.activeEditor);
 		}
 	}
 
@@ -1031,7 +984,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	public pinEditor(position: Position, input: EditorInput, updateTitleArea = true): void {
+	public pinEditor(position: Position, input: EditorInput): void {
 		const group = this.stacks.groupAt(position);
 		if (group) {
 			if (group.isPinned(input)) {
@@ -1040,11 +993,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// Update stacks model
 			group.pin(input);
-
-			// Update UI
-			if (updateTitleArea) {
-				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
-			}
 		}
 	}
 
@@ -1079,23 +1027,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 				// Update stacks model
 				group.unpin(input);
-
-				// Update UI
-				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
 			});
 		}
-	}
-
-	private doRecreateEditorTitleArea(): void {
-		const titleAreaState: ITitleAreaState[] = this.stacks.groups.map((group, index) => {
-			return {
-				position: this.stacks.positionOfGroup(group),
-				preview: group.previewEditor,
-				editorCount: group.count
-			};
-		});
-
-		this.sideBySideControl.recreateTitleArea(titleAreaState);
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
@@ -1217,58 +1150,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		return arg1;
-	}
-
-	private findSideOptions(input: EditorInput, options: EditorOptions, position: Position): EditorOptions {
-		if (
-			(this.visibleEditors[position] && input.matches(this.visibleEditors[position].input)) ||	// Return early if the input is already showing at the position
-			(options instanceof TextEditorOptions && (<TextEditorOptions>options).hasOptionsDefined())	// Return early if explicit text options are defined
-		) {
-			return options;
-		}
-
-		// Otherwise try to copy viewstate over from an existing opened editor with same input
-		let viewState: IEditorViewState = null;
-		let editors = this.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-
-			if (!(editor instanceof BaseTextEditor)) {
-				continue; // Only works with text editors
-			}
-
-			// Found a match
-			if (input.matches(editor.input)) {
-				let codeEditor = <IEditor>editor.getControl();
-				viewState = <IEditorViewState>codeEditor.saveViewState();
-
-				break;
-			}
-		}
-
-		// Found view state
-		if (viewState) {
-			let textEditorOptions: TextEditorOptions = null;
-
-			// Merge into existing text editor options if given
-			if (options instanceof TextEditorOptions) {
-				textEditorOptions = <TextEditorOptions>options;
-				textEditorOptions.viewState(viewState);
-
-				return textEditorOptions;
-			}
-
-			// Otherwise create new
-			textEditorOptions = new TextEditorOptions();
-			textEditorOptions.viewState(viewState);
-			if (options) {
-				textEditorOptions.mixin(options);
-			}
-
-			return textEditorOptions;
-		}
-
-		return options;
 	}
 
 	private startDelayedCloseEditorsFromInputDispose(): void {

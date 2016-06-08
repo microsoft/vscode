@@ -15,6 +15,13 @@ var File = require('vinyl');
 var bundle = require('./lib/bundle');
 var util = require('./lib/util');
 var i18n = require('./lib/i18n');
+var gulpUtil = require('gulp-util');
+
+var quiet = !!process.env['VSCODE_BUILD_QUIET'];
+
+function log(prefix, message) {
+	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
+}
 
 var root = path.dirname(__dirname);
 var commit = util.getVersion(root);
@@ -22,7 +29,7 @@ var commit = util.getVersion(root);
 var tsOptions = {
 	target: 'ES5',
 	module: 'amd',
-	verbose: true,
+	verbose: !quiet,
 	preserveConstEnums: true,
 	experimentalDecorators: true,
 	sourceMap: true,
@@ -132,12 +139,22 @@ exports.optimizeTask = function(opts) {
 	var out = opts.out;
 
 	return function() {
-		var bundlesStream = es.through();
+		var bundlesStream = es.through(); // this stream will contain the bundled files
+		var resourcesStream = es.through(); // this stream will contain the resources
 
 		bundle.bundle(entryPoints, loaderConfig, function(err, result) {
 			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
-			toBundleStream(bundledFileHeader, result).pipe(bundlesStream);
+			toBundleStream(bundledFileHeader, result.files).pipe(bundlesStream);
+
+			// Remove css inlined resources
+			var filteredResources = [];
+			filteredResources = filteredResources.concat(resources);
+			result.cssInlinedResources.forEach(function(resource) {
+				log('optimizer', 'excluding inlined: ' + resource);
+				filteredResources.push('!' + resource);
+			});
+			gulp.src(filteredResources, { base: 'out-build' }).pipe(resourcesStream);
 		});
 
 		var otherSourcesStream = es.through();
@@ -158,7 +175,7 @@ exports.optimizeTask = function(opts) {
 			loader(bundledFileHeader),
 			bundlesStream,
 			otherSourcesStream,
-			gulp.src(resources, { base: 'out-build' })
+			resourcesStream
 		);
 
 		return result

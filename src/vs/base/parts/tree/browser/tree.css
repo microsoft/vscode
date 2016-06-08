@@ -227,10 +227,7 @@
 	background: url('CollapseAll.svg') center center no-repeat;
 }
 
+.hc-black .monaco-tree-action.collapse-all,
 .vs-dark .monaco-tree-action.collapse-all {
 	background: url('CollapseAll_inverse.svg') center center no-repeat;
-}
-
-.hc-black .monaco-tree-action.collapse-all:before {
-	content: url('CollapseAll_inverse.svg');
 }

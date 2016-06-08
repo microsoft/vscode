@@ -303,60 +303,6 @@ export function registerLinkProvider(languageId:string, support:modes.LinkProvid
 /**
  * @internal
  */
-export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	ModesRegistry.registerLanguage(language);
-
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{language:IMonarchLanguage;conf:IRichLanguageConfiguration}) => {
-			if (!value.language) {
-				console.error('Expected ' + defModule + ' to export a `language`');
-				return;
-			}
-
-			startup.initStaticServicesIfNecessary();
-			let staticPlatformServices = ensureStaticPlatformServices(null);
-			let modeService = staticPlatformServices.modeService;
-
-			let lexer = compile(language.id, value.language);
-
-			modeService.registerTokenizationSupport(language.id, (mode) => {
-				return createTokenizationSupport(modeService, mode, lexer);
-			});
-
-			LanguageConfigurationRegistry.register(language.id, value.conf);
-		}, (err) => {
-			console.error('Cannot find module ' + defModule, err);
-		});
-	});
-}
-
-/**
- * @internal
- */
-export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	ModesRegistry.registerLanguage(language);
-
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{activate:()=>void}) => {
-			if (!value.activate) {
-				console.error('Expected ' + defModule + ' to export an `activate` function');
-				return;
-			}
-
-			startup.initStaticServicesIfNecessary();
-			let staticPlatformServices = ensureStaticPlatformServices(null);
-			let instantiationService = staticPlatformServices.instantiationService;
-
-			instantiationService.invokeFunction(value.activate);
-		}, (err) => {
-			console.error('Cannot find module ' + defModule, err);
-		});
-	});
-}
-
-/**
- * @internal
- */
 export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
 	let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 	schemaRegistry.registerSchema(uri, schema);

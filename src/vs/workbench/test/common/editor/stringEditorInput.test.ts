@@ -94,10 +94,10 @@ suite('Workbench - StringEditorInput', () => {
 		let inst = new InstantiationService();
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
-		let promiseEditorInput = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.create('inMemory', null, 'thePath'));
+		let promiseEditorInput = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' }));
 
 		let stringEditorInput2 = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
-		let promiseEditorInput2 = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.create('inMemory', null, 'thePath'));
+		let promiseEditorInput2 = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' }));
 
 		assert.strictEqual(stringEditorInput.matches(null), false);
 		assert.strictEqual(promiseEditorInput.matches(null), false);
@@ -117,7 +117,7 @@ suite('Workbench - StringEditorInput', () => {
 		services.set(IModelService, modelService);
 		let inst = new InstantiationService(services);
 
-		let resource = URI.create('inMemory', null, 'thePath');
+		let resource = URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' });
 		modelService.createModel('function test() {}', modeService.getOrCreateMode('text'), resource);
 		let input: ResourceEditorInput = inst.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 

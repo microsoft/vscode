@@ -74,7 +74,6 @@ var copyrightFilter = [
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
-	'!src/vs/editor/standalone-languages/swift.ts',
 ];
 
 var tslintFilter = [

@@ -17,7 +17,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {IShell, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance {
 
@@ -28,7 +28,7 @@ export class TerminalInstance {
 	private font: ITerminalFont;
 
 	public constructor(
-		private shell: string,
+		private shell: IShell,
 		private parentDomElement: HTMLElement,
 		private contextService: IWorkspaceContextService,
 		private terminalService: ITerminalService,
@@ -120,7 +120,10 @@ export class TerminalInstance {
 
 	private createTerminalProcess(): cp.ChildProcess {
 		let env = this.cloneEnv();
-		env['PTYSHELL'] = this.shell;
+		env['PTYSHELL'] = this.shell.executable;
+		this.shell.args.forEach((arg, i) => {
+			env[`PTYSHELLARG${i}`] = arg;
+		});
 		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
 		return cp.fork('./terminalProcess', [], {
 			env: env,

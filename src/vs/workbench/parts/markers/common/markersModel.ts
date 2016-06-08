@@ -6,29 +6,36 @@
 
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
+import * as types from 'vs/base/common/types';
 import * as Map from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import {IFilter, or, matchesContiguousSubString, matchesPrefix} from 'vs/base/common/filters';
+import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy} from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
 export class Resource {
 	public name: string;
 	public path: string;
-	constructor(public uri: URI, public markers: Marker[], public statistics: MarkerStatistics){
+	constructor(public uri: URI, public markers: Marker[],
+								public statistics: MarkerStatistics,
+								public matches: IMatch[] = []){
 		this.path= uri.fsPath;
 		this.name= paths.basename(uri.fsPath);
 	}
 }
 
 export class Marker {
-	static _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
-	constructor(public id:string, public marker: IMarker){}
+	constructor(public id:string, public marker: IMarker,
+								public labelMatches: IMatch[] = [],
+								public sourceMatches: IMatch[] = []){}
 }
 
 export class FilterOptions {
+
+	static _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
+	static _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
 
 	private _filterErrors: boolean= false;
 	private _filterWarnings: boolean= false;
@@ -130,7 +137,7 @@ export class MarkersModel {
 			this.updateResource(arg1, arg2);
 		}
 
-		if (arg1 instanceof Array) {
+		if (types.isArray(arg1)) {
 			this.updateMarkers(arg1);
 		}
 
@@ -178,22 +185,22 @@ export class MarkersModel {
 	}
 
 	private toFilteredResource(entry: Map.Entry<URI, IMarker[]>) {
-		let markers:Marker[]= entry.value.filter(this.filterMarker.bind(this)).map(this.toMarker);
+		let markers:Marker[]= entry.value.filter(this.filterMarker.bind(this)).map((marker, index) => {
+			return this.toMarker(marker, index);
+		});
 		markers.sort(this.compareMarkers.bind(this));
-		return new Resource(entry.key, markers, this.getStatistics(entry.value));
+		const matches = FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath));
+		return new Resource(entry.key, markers, this.getStatistics(entry.value), matches || []);
 	}
 
 	private toMarker(marker: IMarker, index: number):Marker {
-		return new Marker(marker.resource.toString() + index, marker);
+		const labelMatches = FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message);
+		const sourceMatches = !!marker.source ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
+		return new Marker(marker.resource.toString() + index, marker, labelMatches || [], sourceMatches || []);
 	}
 
 	private filterMarker(marker: IMarker):boolean {
 		if (this._filterOptions.filter) {
-			const labelHighlights = Marker._filter(this._filterOptions.filter, marker.message);
-			const descHighlights = Marker._filter(this._filterOptions.filter, marker.resource.toString());
-			if (!!labelHighlights || !!descHighlights) {
-				return true;
-			}
 			if (this._filterOptions.filterErrors && Severity.Error === marker.severity) {
 				return true;
 			}
@@ -201,6 +208,15 @@ export class MarkersModel {
 				return true;
 			}
 			if (this._filterOptions.filterInfos && Severity.Info === marker.severity) {
+				return true;
+			}
+			if (!!FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message)) {
+				return true;
+			}
+			if (!!FilterOptions._filter(this._filterOptions.filter, paths.basename(marker.resource.fsPath))) {
+				return true;
+			}
+			if (!!marker.source && !!FilterOptions._filter(this._filterOptions.filter, marker.source)) {
 				return true;
 			}
 			return false;

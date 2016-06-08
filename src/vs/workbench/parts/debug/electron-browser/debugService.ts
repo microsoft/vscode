@@ -53,7 +53,6 @@ import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electro
 import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 import { ipcRenderer as ipc } from 'electron';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import URI from 'vs/base/common/uri';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -558,93 +557,97 @@ export class DebugService implements debug.IDebugService {
 	private doCreateSession(configuration: debug.IConfig): TPromise<any> {
 		this.setStateAndEmit(debug.State.Initializing);
 
-		this.telemetryService.getTelemetryInfo().then(info => {
+		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
 			telemetryInfo['common.vscodemachineid'] = info.machineId;
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 			return telemetryInfo;
 		}).then(data => {
 			const { aiKey, type } = this.configurationManager.adapter;
-			const client = new Client(
-				URI.parse(require.toUrl('bootstrap')).fsPath,
-				{
-					serverName: 'Debug Telemetry',
-					timeout: 1000 * 60 * 5,
-					args: [type, JSON.stringify(data), aiKey],
-					env: {
-						ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
-						PIPE_LOGGING: 'true',
-						AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
+			this.customTelemetryService = null;
+
+			if (aiKey) {
+				const client = new Client(
+					uri.parse(require.toUrl('bootstrap')).fsPath,
+					{
+						serverName: 'Debug Telemetry',
+						timeout: 1000 * 60 * 5,
+						args: [type, JSON.stringify(data), aiKey],
+						env: {
+							ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+							PIPE_LOGGING: 'true',
+							AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
+						}
 					}
+				);
+
+				const channel = client.getChannel('telemetryAppender');
+				const appender = new TelemetryAppenderClient(channel);
+
+				this.toDisposeOnSessionEnd.push(client);
+				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
+			}
+
+			this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
+			this.registerSessionListeners();
+
+			return this.session.initialize({
+				adapterID: configuration.type,
+				pathFormat: 'path',
+				linesStartAt1: true,
+				columnsStartAt1: true
+			}).then((result: DebugProtocol.InitializeResponse) => {
+				if (!this.session) {
+					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
 				}
-			);
 
-			const channel = client.getChannel('telemetryAppender');
-			const appender = new TelemetryAppenderClient(channel);
+				this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
+				return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
+			}).then((result: DebugProtocol.Response) => {
+				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
+					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+				}
 
-			this.toDisposeOnSessionEnd.push(client);
-			this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
-		});
+				if (!this.viewModel.changedWorkbenchViewState && !this.partService.isSideBarHidden()) {
+					// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
+					this.viewModel.changedWorkbenchViewState = true;
+					this.viewletService.openViewlet(debug.VIEWLET_ID);
+				}
 
-		this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
-		this.registerSessionListeners();
+				// Do not change status bar to orange if we are just running without debug.
+				if (!configuration.noDebug) {
+					this.partService.addClass('debugging');
+				}
+				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
+				this.contextService.updateOptions('editor', {
+					glyphMargin: true
+				});
+				this.inDebugMode.set(true);
+				this.lazyTransitionToRunningState();
 
-		return this.session.initialize({
-			adapterID: configuration.type,
-			pathFormat: 'path',
-			linesStartAt1: true,
-			columnsStartAt1: true
-		}).then((result: DebugProtocol.InitializeResponse) => {
-			if (!this.session) {
-				return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
-			}
+				this.telemetryService.publicLog('debugSessionStart', {
+					type: configuration.type,
+					breakpointCount: this.model.getBreakpoints().length,
+					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
+					watchExpressionsCount: this.model.getWatchExpressions().length,
+					extensionName: `${ this.configurationManager.adapter.extensionDescription.publisher }.${ this.configurationManager.adapter.extensionDescription.name }`,
+					isBuiltin: this.configurationManager.adapter.extensionDescription.isBuiltin
+				});
+			}).then(undefined, (error: any) => {
+				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
+				this.setStateAndEmit(debug.State.Inactive);
+				if (this.session) {
+					this.session.disconnect();
+				}
+				// Show the repl if some error got logged there #5870
+				if (this.model.getReplElements().length > 0) {
+					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+				}
 
-			this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
-			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
-		}).then((result: DebugProtocol.Response) => {
-			if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
-				this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
-			}
-
-			if (!this.viewModel.changedWorkbenchViewState && !this.partService.isSideBarHidden()) {
-				// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
-				this.viewModel.changedWorkbenchViewState = true;
-				this.viewletService.openViewlet(debug.VIEWLET_ID);
-			}
-
-			// Do not change status bar to orange if we are just running without debug.
-			if (!configuration.noDebug) {
-				this.partService.addClass('debugging');
-			}
-			this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
-			this.contextService.updateOptions('editor', {
-				glyphMargin: true
+				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
+				const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
+				return TPromise.wrapError(errors.create(error.message, { actions }));
 			});
-			this.inDebugMode.set(true);
-			this.lazyTransitionToRunningState();
-
-			this.telemetryService.publicLog('debugSessionStart', {
-				type: configuration.type,
-				breakpointCount: this.model.getBreakpoints().length,
-				exceptionBreakpoints: this.model.getExceptionBreakpoints(),
-				watchExpressionsCount: this.model.getWatchExpressions().length,
-				extensionName: `${ this.configurationManager.adapter.extensionDescription.publisher }.${ this.configurationManager.adapter.extensionDescription.name }`,
-				isBuiltin: this.configurationManager.adapter.extensionDescription.isBuiltin
-			});
-		}).then(undefined, (error: any) => {
-			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
-			this.setStateAndEmit(debug.State.Inactive);
-			if (this.session) {
-				this.session.disconnect();
-			}
-			// Show the repl if some error got logged there #5870
-			if (this.model.getReplElements().length > 0) {
-				this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
-			}
-
-			const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
-			const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
-			return TPromise.wrapError(errors.create(error.message, { actions }));
 		});
 	}
 

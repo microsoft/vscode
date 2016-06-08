@@ -51,8 +51,7 @@ function createCompile(build, emitError) {
 	return function (token) {
 		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
 		var tsFilter = filter([
-			'**/*.ts',
-			'!vs/languages/typescript/common/lib/lib.**.ts'
+			'**/*.ts'
 		], { restore: true });
 
 		var input = es.through();

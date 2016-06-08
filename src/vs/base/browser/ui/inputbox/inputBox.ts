@@ -27,7 +27,6 @@ export interface IInputOptions {
 	validationOptions?: IInputValidationOptions;
 	flexibleHeight?: boolean;
 	actions?: IAction[];
-	iconClass?: string;
 }
 
 export interface IInputValidator {
@@ -97,9 +96,6 @@ export class InputBox extends Widget {
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
 		let wrapper = dom.append(this.element, $('.wrapper'));
-		if (this.options.iconClass) {
-			dom.append(wrapper, $('span.icon.' + this.options.iconClass));
-		}
 		this.input = <HTMLInputElement>dom.append(wrapper, $(tagName + '.input'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');

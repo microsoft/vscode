@@ -37,6 +37,7 @@ import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {CollapseAction} from 'vs/workbench/browser/viewlet';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -1803,6 +1804,57 @@ export class ShowActiveFileInExplorer extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class CollapseExplorerView extends Action {
+
+	public static ID = 'workbench.files.action.collapseFilesExplorerFolders';
+	public static LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			const explorerView = viewlet.getExplorerView();
+			if (explorerView) {
+				const viewer = explorerView.getViewer();
+				if (viewer) {
+					const action = new CollapseAction(viewer, true, null);
+					action.run().done();
+					action.dispose();
+				}
+			}
+		});
+	}
+}
+
+export class RefreshExplorerView extends Action {
+
+	public static ID = 'workbench.files.action.refreshFilesExplorer';
+	public static LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			const explorerView = viewlet.getExplorerView();
+			if (explorerView) {
+				explorerView.refresh();
+			}
+		});
 	}
 }
 

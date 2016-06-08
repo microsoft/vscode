@@ -70,6 +70,11 @@ export interface IConcatFile {
 	sources: IFile[];
 }
 
+export interface IBundleResult {
+	files: IConcatFile[];
+	cssInlinedResources: string[];
+}
+
 export interface ILoaderConfig {
 	isBuild?: boolean;
 }
@@ -77,7 +82,7 @@ export interface ILoaderConfig {
 /**
  * Bundle `entryPoints` given config `config`.
  */
-export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback:(err:any, result:IConcatFile[]) => void): void {
+export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback:(err:any, result:IBundleResult) => void): void {
 	let entryPointsMap:IEntryPointMap = {};
 	entryPoints.forEach((module:IEntryPoint) => {
 		entryPointsMap[module.name] = module;
@@ -95,7 +100,12 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 
 	loader(Object.keys(entryPointsMap), () => {
 		let modules = <IBuildModuleInfo[]>loader.getBuildInfo();
-		callback(null, emitEntryPoints(modules, entryPointsMap));
+		let resultFiles = emitEntryPoints(modules, entryPointsMap);
+		let cssInlinedResources = loader('vs/css').getInlinedResources();
+		callback(null, {
+			files: resultFiles,
+			cssInlinedResources: cssInlinedResources
+		});
 	}, (err) => callback(err, null));
 }
 

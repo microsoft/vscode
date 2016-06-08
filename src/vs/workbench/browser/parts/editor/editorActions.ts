@@ -19,6 +19,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 
 export class SplitEditorAction extends Action {
 
@@ -34,18 +35,33 @@ export class SplitEditorAction extends Action {
 		super(id, label, 'split-editor-action');
 	}
 
-	public run(): TPromise<any> {
+	public run(context: IEditorContext): TPromise<any> {
+		let editorToSplit: IEditor;
+		if (context) {
+			editorToSplit = this.editorService.getVisibleEditors()[this.editorGroupService.getStacksModel().positionOfGroup(context.group)];
+		} else {
+			editorToSplit = this.editorService.getActiveEditor();
+		}
 
-		// Can only split with active editor
-		let activeEditor = this.editorService.getActiveEditor();
-		if (!activeEditor) {
+		// Can only split with target editor
+		if (!editorToSplit) {
 			return TPromise.as(true);
 		}
 
 		// Return if the editor to split does not support split editing
-		if (!(<BaseEditor>activeEditor).supportsSplitEditor()) {
+		if (!(<BaseEditor>editorToSplit).supportsSplitEditor()) {
 			return TPromise.as(true);
 		}
+
+		// Options
+		let options: EditorOptions;
+		if (editorToSplit instanceof BaseTextEditor) {
+			options = new TextEditorOptions();
+			(<TextEditorOptions>options).viewState(editorToSplit.getControl().saveViewState());
+		} else {
+			options = new EditorOptions();
+		}
+		options.pinned = true;
 
 		// Count editors
 		let visibleEditors = this.editorService.getVisibleEditors();
@@ -63,17 +79,15 @@ export class SplitEditorAction extends Action {
 			case 2:
 
 				// Continue splitting to the right
-				if (activeEditor.position === Position.CENTER) {
+				if (editorToSplit.position === Position.CENTER) {
 					targetPosition = Position.RIGHT;
 				}
 
 				// Push the center group to the right to make room for the splitted input
-				else if (activeEditor.position === Position.LEFT) {
-					let options = new TextEditorOptions();
+				else if (editorToSplit.position === Position.LEFT) {
 					options.preserveFocus = true;
-					options.pinned = true;
 
-					return this.editorService.openEditor(activeEditor.input, options, Position.RIGHT).then(() => {
+					return this.editorService.openEditor(editorToSplit.input, options, Position.RIGHT).then(() => {
 						this.editorGroupService.moveGroup(Position.RIGHT, Position.CENTER);
 						this.editorGroupService.focusGroup(Position.CENTER);
 					});
@@ -82,7 +96,7 @@ export class SplitEditorAction extends Action {
 
 		// Only split if we have a target position to split to
 		if (typeof targetPosition === 'number') {
-			return this.editorService.openEditor(activeEditor.input, EditorOptions.create({ pinned: true }), targetPosition);
+			return this.editorService.openEditor(editorToSplit.input, options, targetPosition);
 		}
 
 		return TPromise.as(true);

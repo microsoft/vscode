@@ -9,19 +9,23 @@ import dom = require('vs/base/browser/dom');
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IMatch } from 'vs/base/common/filters';
 import {IWorkspaceProvider, getPathLabel} from 'vs/base/common/labels';
 
 export class FileLabel {
 
 	private domNode: HTMLElement;
+	private labelNode: HighlightedLabel;
+	private directoryNode: HTMLElement;
 	private basepath: string;
 	private path: string;
-	private renderedOnce: boolean;
+	private labelHighlights: IMatch[]= [];
 
 	constructor(container: HTMLElement, arg2?: uri | string, arg3?: uri | string | IWorkspaceProvider) {
-		this.domNode = document.createElement('span');
-		this.domNode.className = 'monaco-file-label';
-		container.appendChild(this.domNode);
+		this.domNode = dom.append(container, dom.emmet('.monaco-file-label'));
+		this.labelNode= new HighlightedLabel(dom.append(this.domNode, dom.emmet('span.file-name')));
+		this.directoryNode= dom.append(this.domNode, dom.emmet('span.file-path'));
 
 		if (arg3) {
 			this.basepath = getPath(arg3);
@@ -36,38 +40,18 @@ export class FileLabel {
 		return this.domNode;
 	}
 
-	public setValue(arg1: uri | string): void {
+	public setValue(arg1: uri | string, labelHighlights?: IMatch[]): void {
 		let newPath = getPath(arg1);
-
-		if (this.renderedOnce && this.path === newPath) {
-			// don't render again if nothing has changed
-			return;
-		}
-
 		this.path = newPath;
+		this.labelHighlights= labelHighlights;
 		this.render();
-		this.renderedOnce = true;
 	}
 
 	private render(): void {
-		dom.clearNode(this.domNode);
-
-		let htmlContent: string[] = [];
-
-		htmlContent.push('<span class="file-name">');
-		htmlContent.push(paths.basename(this.path));
-		htmlContent.push('</span>');
-
-		let parent = paths.dirname(this.path);
-		if (parent && parent !== '.') {
-			let pathLabel = getPathLabel(parent, this.basepath);
-			htmlContent.push('<span class="file-path">');
-			htmlContent.push(pathLabel);
-			htmlContent.push('</span>');
-		}
-
 		this.domNode.title = this.path;
-		this.domNode.innerHTML = htmlContent.join('');
+		this.labelNode.set(paths.basename(this.path), this.labelHighlights);
+		let parent = paths.dirname(this.path);
+		this.directoryNode.textContent= parent && parent !== '.' ? getPathLabel(parent, this.basepath) : '';
 	}
 }
 

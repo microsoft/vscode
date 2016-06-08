@@ -112,7 +112,7 @@ export class DefinitionAction extends EditorAction {
 				return;
 			}
 
-			return this._onResult(result);
+			return this._onResult(new ReferencesModel(result));
 
 		}, (err) => {
 			// report an error
@@ -121,14 +121,14 @@ export class DefinitionAction extends EditorAction {
 		});
 	}
 
-	private _onResult(references: Location[]) {
+	private _onResult(model: ReferencesModel) {
 		if (this._configuration.openInPeek) {
-			this._openInPeek(this.editor, references);
+			this._openInPeek(this.editor, model);
 		} else {
-			let [first] = references;
-			this._openReference(first, this._configuration.openToSide).then(editor => {
-				if (references.length > 1) {
-					this._openInPeek(editor, references);
+			let next = model.nearestReference(this.editor.getModel().uri, this.editor.getPosition());
+			this._openReference(next, this._configuration.openToSide).then(editor => {
+				if (model.references.length > 1) {
+					this._openInPeek(editor, model);
 				}
 			});
 		}
@@ -141,9 +141,9 @@ export class DefinitionAction extends EditorAction {
 		});
 	}
 
-	private _openInPeek(target: editorCommon.ICommonCodeEditor, references: Location[]) {
+	private _openInPeek(target: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.getController(target);
-		controller.toggleWidget(target.getSelection(), TPromise.as(new ReferencesModel(references)), {
+		controller.toggleWidget(target.getSelection(), TPromise.as(model), {
 			getMetaTitle: (model) => {
 				return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
 			},

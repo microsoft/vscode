@@ -30,6 +30,7 @@ import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -46,6 +47,8 @@ export class ExplorerViewlet extends Viewlet {
 	private viewletState: FileViewletState;
 	private dimension: Dimension;
 
+	private viewletVisibleContextKey: IKeybindingContextKey<boolean>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -53,11 +56,13 @@ export class ExplorerViewlet extends Viewlet {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
 		this.viewletState = new FileViewletState();
+		this.viewletVisibleContextKey = keybindingService.createKey<boolean>('explorerViewletVisible', true);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
@@ -190,6 +195,8 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
+		this.viewletVisibleContextKey.set(visible);
+
 		return super.setVisible(visible).then(() => {
 			return TPromise.join(this.views.map((view) => view.setVisible(visible))).then(() => void 0);
 		});

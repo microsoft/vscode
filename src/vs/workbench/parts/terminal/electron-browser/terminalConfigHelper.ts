@@ -76,6 +76,11 @@ export interface ITerminalFont {
 	charHeight: number;
 }
 
+export interface IShell {
+	executable: string;
+	args: string[];
+}
+
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
@@ -137,15 +142,23 @@ export class TerminalConfigHelper {
 		return this.measureFont(fontFamily, fontSize, lineHeight);
 	}
 
-	public getShell(): string {
+	public getShell(): IShell {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		let shell: IShell = {
+			executable: '',
+			args: []
+		};
 		if (this.platform === Platform.Windows) {
-			return config.terminal.integrated.shell.windows;
+			shell.executable = config.terminal.integrated.shell.windows;
+			shell.args = config.terminal.integrated.shellArgs.windows;
+		} else if (this.platform === Platform.Mac) {
+			shell.executable = config.terminal.integrated.shell.osx;
+			shell.args = config.terminal.integrated.shellArgs.osx;
+		} else if (this.platform === Platform.Linux) {
+			shell.executable = config.terminal.integrated.shell.linux;
+			shell.args = config.terminal.integrated.shellArgs.linux;
 		}
-		if (this.platform === Platform.Mac) {
-			return config.terminal.integrated.shell.osx;
-		}
-		return config.terminal.integrated.shell.linux;
+		return shell;
 	}
 
 	private toInteger(source: any, minimum?: number): number {

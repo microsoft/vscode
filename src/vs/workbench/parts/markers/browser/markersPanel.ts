@@ -9,6 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Delayer } from 'vs/base/common/async';
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import builder = require('vs/base/browser/builder');
@@ -34,8 +35,10 @@ import { FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/marke
 export class MarkersPanel extends Panel {
 
 	public markersModel: MarkersModel;
-	private tree: Tree.ITree;
 	private toDispose: lifecycle.IDisposable[];
+	private delayedRefresh: Delayer<void>;
+
+	private tree: Tree.ITree;
 	private autoExpanded: Set.ArraySet<string>;
 
 	private actions: IAction[];
@@ -56,6 +59,7 @@ export class MarkersPanel extends Panel {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
 		this.markersModel= new MarkersModel();
 		this.toDispose = [];
+		this.delayedRefresh= new Delayer<void>(1000);
 		this.autoExpanded= new Set.ArraySet<string>();
 	}
 
@@ -153,6 +157,7 @@ export class MarkersPanel extends Panel {
 
 	private onMarkerChanged(changedResources: URI[]) {
 		this.updateResources(changedResources);
+		// this.delayedRefresh.trigger(() => {this.refreshPanel(true);});
 		this.refreshPanel(true);
 	}
 
@@ -206,6 +211,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	public dispose(): void {
+		this.delayedRefresh.cancel();
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}

@@ -40,7 +40,12 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
+	display: flex;
 	line-height: 22px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry > * {
+	display: inline-block;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-stats {
@@ -49,8 +54,30 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .count-badge-wrapper {
-	display: inline-block;
 	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description {
+	width: 90%;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line,
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
+	opacity: 0.6;
+	font-size: 85%;
+	margin-right: 5px;
+	width: 10em;
+	overflow: hidden;
+	text-overflow: ellipsis
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
+	color: #007ACC;
+	font-weight: bold;
+}
+
+.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
+	color: #0097FB;
 }
 
 .markers-panel .icon {
@@ -66,8 +93,6 @@
 	background: url('status-warning.svg') center center no-repeat;
 }
 
-.markers-panel-action-toggle-errors-on,
-.markers-panel-action-toggle-errors-off,
 .markers-panel .icon.error {
 	background: url('status-error.svg') center center no-repeat;
 }
@@ -80,8 +105,6 @@
 	background: url('status-warning-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel-action-toggle-errors-on,
-.vs-dark .markers-panel-action-toggle-errors-off,
 .vs-dark .markers-panel .icon.error {
 	background: url('status-error-inverse.svg') center center no-repeat;
 }

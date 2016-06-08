@@ -71,7 +71,8 @@ export class FilePreview {
 	public preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
 
 		const {startLineNumber, startColumn, endColumn} = range;
-		const beforeRange = new Range(startLineNumber, 1, startLineNumber, startColumn);
+		const word = this._value.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
+		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
 		const afterRange = new Range(startLineNumber, endColumn, startLineNumber, Number.MAX_VALUE);
 
 		const ret = {
@@ -80,8 +81,6 @@ export class FilePreview {
 			after: this._value.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
 		};
 
-		// long before parts will be cut at the best position
-		ret.before = strings.lcut(ret.before, n);
 		return ret;
 	}
 }

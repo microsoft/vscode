@@ -28,15 +28,39 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_LINUX
 		},
+		'terminal.integrated.shellArgs.linux': {
+			'description': nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal."),
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': []
+		},
 		'terminal.integrated.shell.osx': {
 			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_OSX
 		},
+		'terminal.integrated.shellArgs.osx': {
+			'description': nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the OS X terminal."),
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': []
+		},
 		'terminal.integrated.shell.windows': {
 			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
+		},
+		'terminal.integrated.shellArgs.windows': {
+			'description': nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': []
 		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),

@@ -235,11 +235,16 @@ var CSSLoaderPlugin;
         }
         CSSPlugin.prototype.load = function (name, req, load, config) {
             config = config || {};
+            var myConfig = config['vs/css'] || {};
+            if (myConfig.inlineResources) {
+                global.inlineResources = true;
+            }
             var cssUrl = req.toUrl(name + '.css');
             this.cssLoader.load(name, cssUrl, function (contents) {
                 // Contents has the CSS file contents if we are in a build
                 if (config.isBuild) {
                     CSSPlugin.BUILD_MAP[name] = contents;
+                    CSSPlugin.BUILD_PATH_MAP[name] = cssUrl;
                 }
                 load({});
             }, function (err) {
@@ -257,7 +262,8 @@ var CSSLoaderPlugin;
             global.cssPluginEntryPoints[entryPoint] = global.cssPluginEntryPoints[entryPoint] || [];
             global.cssPluginEntryPoints[entryPoint].push({
                 moduleName: moduleName,
-                contents: CSSPlugin.BUILD_MAP[moduleName]
+                contents: CSSPlugin.BUILD_MAP[moduleName],
+                fsPath: CSSPlugin.BUILD_PATH_MAP[moduleName],
             });
             write.asModule(pluginName + '!' + moduleName, 'define([\'vs/css!' + entryPoint + '\'], {});');
         };
@@ -270,12 +276,21 @@ var CSSLoaderPlugin;
                     ' *--------------------------------------------------------*/'
                 ], entries = global.cssPluginEntryPoints[moduleName];
                 for (var i = 0; i < entries.length; i++) {
-                    contents.push(Utilities.rewriteUrls(entries[i].moduleName, moduleName, entries[i].contents));
+                    if (global.inlineResources) {
+                        contents.push(Utilities.rewriteOrInlineUrls(entries[i].fsPath, entries[i].moduleName, moduleName, entries[i].contents));
+                    }
+                    else {
+                        contents.push(Utilities.rewriteUrls(entries[i].moduleName, moduleName, entries[i].contents));
+                    }
                 }
                 write(fileName, contents.join('\r\n'));
             }
         };
+        CSSPlugin.prototype.getInlinedResources = function () {
+            return global.cssInlinedResources || [];
+        };
         CSSPlugin.BUILD_MAP = {};
+        CSSPlugin.BUILD_PATH_MAP = {};
         return CSSPlugin;
     }());
     CSSLoaderPlugin.CSSPlugin = CSSPlugin;
@@ -381,7 +396,7 @@ var CSSLoaderPlugin;
             }
             return result + toPath;
         };
-        Utilities.rewriteUrls = function (originalFile, newFile, contents) {
+        Utilities._replaceURL = function (contents, replacer) {
             // Use ")" as the terminator as quotes are oftentimes not used at all
             return contents.replace(/url\(\s*([^\)]+)\s*\)?/g, function (_) {
                 var matches = [];
@@ -402,10 +417,52 @@ var CSSLoaderPlugin;
                     url = url.substring(0, url.length - 1);
                 }
                 if (!Utilities.startsWith(url, 'data:') && !Utilities.startsWith(url, 'http://') && !Utilities.startsWith(url, 'https://')) {
-                    var absoluteUrl = Utilities.joinPaths(Utilities.pathOf(originalFile), url);
-                    url = Utilities.relativePath(newFile, absoluteUrl);
+                    url = replacer(url);
                 }
                 return 'url(' + url + ')';
+            });
+        };
+        Utilities.rewriteUrls = function (originalFile, newFile, contents) {
+            return this._replaceURL(contents, function (url) {
+                var absoluteUrl = Utilities.joinPaths(Utilities.pathOf(originalFile), url);
+                return Utilities.relativePath(newFile, absoluteUrl);
+            });
+        };
+        Utilities.rewriteOrInlineUrls = function (originalFileFSPath, originalFile, newFile, contents) {
+            var fs = require.nodeRequire('fs');
+            var path = require.nodeRequire('path');
+            return this._replaceURL(contents, function (url) {
+                if (/\.(svg|png)$/.test(url)) {
+                    var fsPath = path.join(path.dirname(originalFileFSPath), url);
+                    var fileContents = fs.readFileSync(fsPath);
+                    if (fileContents.length < 3000) {
+                        global.cssInlinedResources = global.cssInlinedResources || [];
+                        var normalizedFSPath = fsPath.replace(/\\/g, '/');
+                        if (global.cssInlinedResources.indexOf(normalizedFSPath) >= 0) {
+                            console.warn('CSS INLINING IMAGE AT ' + fsPath + ' MORE THAN ONCE. CONSIDER CONSOLIDATING CSS RULES');
+                        }
+                        global.cssInlinedResources.push(normalizedFSPath);
+                        var MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
+                        var DATA = ';base64,' + fileContents.toString('base64');
+                        if (/\.svg$/.test(url)) {
+                            // .svg => url encode as explained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uris
+                            var newText = fileContents.toString()
+                                .replace(/"/g, '\'')
+                                .replace(/</g, '%3C')
+                                .replace(/>/g, '%3E')
+                                .replace(/&/g, '%26')
+                                .replace(/#/g, '%23')
+                                .replace(/\s+/g, ' ');
+                            var encodedData = ',' + newText;
+                            if (encodedData.length < DATA.length) {
+                                DATA = encodedData;
+                            }
+                        }
+                        return '"data:' + MIME + DATA + '"';
+                    }
+                }
+                var absoluteUrl = Utilities.joinPaths(Utilities.pathOf(originalFile), url);
+                return Utilities.relativePath(newFile, absoluteUrl);
             });
         };
         return Utilities;
