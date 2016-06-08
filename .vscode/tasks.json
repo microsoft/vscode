@@ -10,6 +10,11 @@
 		"command": "./node_modules/.bin/gulp"
 	},
 	"isShellCommand": true,
+	"options": {
+		"env": {
+			"VSCODE_BUILD_QUIET": "1"
+		}
+	},
 	"tasks": [
 		{
 			"taskName": "watch",
@@ -20,6 +25,7 @@
 			"isWatching": true,
 			"problemMatcher": {
 				"owner": "typescript",
+				"applyTo": "closedDocuments",
 				"fileLocation": [
 					"absolute"
 				],

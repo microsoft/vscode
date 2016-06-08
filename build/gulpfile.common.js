@@ -17,6 +17,8 @@ var util = require('./lib/util');
 var i18n = require('./lib/i18n');
 var gulpUtil = require('gulp-util');
 
+var quiet = !!process.env['VSCODE_BUILD_QUIET'];
+
 function log(prefix, message) {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
@@ -27,7 +29,7 @@ var commit = util.getVersion(root);
 var tsOptions = {
 	target: 'ES5',
 	module: 'amd',
-	verbose: true,
+	verbose: !quiet,
 	preserveConstEnums: true,
 	experimentalDecorators: true,
 	sourceMap: true,
