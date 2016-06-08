@@ -17,7 +17,7 @@ export class CSSHover {
 	public doHover(document: TextDocument, position: Position, stylesheet: nodes.Stylesheet): Thenable<Hover> {
 
 		function getRange(node: nodes.Node) {
-			return Range.create(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
+			return Range.create(document.positionAt(node.offset), document.positionAt(node.end));
 		}
 
 		let offset = document.offsetAt(position);

@@ -90,7 +90,7 @@ export enum ReferenceType {
 export function getNodeAtOffset(node:Node, offset:number):Node {
 
 	var candidate:Node = null;
-	if (!node || offset < node.offset || offset > node.offset + node.length ) {
+	if (!node || offset < node.offset || offset > node.end ) {
 		return null;
 	}
 
@@ -99,7 +99,7 @@ export function getNodeAtOffset(node:Node, offset:number):Node {
 		if (node.offset === -1 && node.length === -1) {
 			return true;
 		}
-		if (node.offset <= offset && node.offset + node.length >= offset) {
+		if (node.offset <= offset && node.end >= offset) {
 			if(!candidate) {
 				candidate = node;
 			} else if(node.length <= candidate.length) {
@@ -144,6 +144,7 @@ export class Node {
 
 	public offset:number;
 	public length:number;
+	public get end() { return this.offset + this.length; };
 
 	public options:{[name:string]:any;};
 
@@ -195,7 +196,7 @@ export class Node {
 	}
 
 	public endsWith(str: string) : boolean {
-		return this.length >= str.length && this.getTextProvider()(this.offset + this.length - str.length, str.length) === str;
+		return this.length >= str.length && this.getTextProvider()(this.end - str.length, str.length) === str;
 	}
 
 	public accept(visitor: IVisitorFunction):void;
@@ -286,8 +287,9 @@ export class Node {
 		if (node.offset < this.offset || this.offset === -1) {
 			this.offset = node.offset;
 		}
-		if ((node.offset + node.length > this.offset + this.length) || this.length === -1)  {
-			this.length = node.offset + node.length - this.offset;
+		let nodeEnd = node.end;
+		if ((nodeEnd > this.end) || this.length === -1)  {
+			this.length = nodeEnd - this.offset;
 		}
 	}
 
@@ -326,7 +328,7 @@ export class Node {
 
 	public findChildAtOffset(offset:number, goDeep: boolean): Node {
 		var current:Node = this.findFirstChildBeforeOffset(offset);
-		if (current && current.offset + current.length >= offset) {
+		if (current && current.end >= offset) {
 			if (goDeep) {
 				return current.findChildAtOffset(offset, true) || current;
 			}
