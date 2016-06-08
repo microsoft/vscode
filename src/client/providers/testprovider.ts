@@ -23,12 +23,8 @@ export function activateUnitTestProvider(context: vscode.ExtensionContext, setti
 function runUnitTests(filePath: string = "") {
     pythonOutputChannel.clear();
 
-    var promise = [];
-    testProviders.forEach(t=> {
-        promise.push(t.runTests(filePath));
-    });
-
-    Promise.all(promise).then(() => {
+    var promises = testProviders.map(t=> t.runTests(filePath));
+    Promise.all(promises).then(() => {
         pythonOutputChannel.show();
     })
 }
