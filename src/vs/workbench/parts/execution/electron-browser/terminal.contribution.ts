@@ -22,7 +22,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
-import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_MAC} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX} from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -36,10 +36,10 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
 			'default': DEFAULT_TERMINAL_WINDOWS
 		},
-		'terminal.external.macExec': {
+		'terminal.external.osxExec': {
 			'type': 'string',
-			'description': nls.localize('terminal.external.macExec', "Customizes which terminal application to run on OS X."),
-			'default': DEFAULT_TERMINAL_MAC
+			'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
+			'default': DEFAULT_TERMINAL_OSX
 		},
 		'terminal.external.linuxExec': {
 			'type': 'string',

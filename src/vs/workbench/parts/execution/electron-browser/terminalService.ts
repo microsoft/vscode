@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_MAC} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import {ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX} from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 import cp = require('child_process');
 import processes = require('vs/base/node/processes');
@@ -59,7 +59,7 @@ export class MacTerminalService implements ITerminalService {
 
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, path?: string): TPromise<void> {
 		let terminalConfig = configuration.terminal.external;
-		let terminalApp = terminalConfig.macExec || DEFAULT_TERMINAL_MAC;
+		let terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
 		return new TPromise<void>((c, e) => {
 			let child = spawner.spawn('/usr/bin/open', ['-a', terminalApp, path]);
