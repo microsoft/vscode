@@ -395,11 +395,6 @@
       "from": "string_decoder@>=0.10.0 <0.11.0",
       "resolved": "https://registry.npmjs.org/string_decoder/-/string_decoder-0.10.31.tgz"
     },
-    "term.js": {
-      "version": "0.0.7",
-      "from": "https://github.com/jeremyramin/term.js/tarball/master",
-      "resolved": "https://github.com/jeremyramin/term.js/tarball/master"
-    },
     "typechecker": {
       "version": "2.0.8",
       "from": "typechecker@>=2.0.1 <2.1.0",
@@ -424,6 +419,11 @@
       "version": "1.2.0",
       "from": "winreg@1.2.0",
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
+    },
+    "xterm": {
+      "version": "0.33.0",
+      "from": "xterm@latest",
+      "resolved": "https://registry.npmjs.org/xterm/-/xterm-0.33.0.tgz"
     },
     "yauzl": {
       "version": "2.3.1",
