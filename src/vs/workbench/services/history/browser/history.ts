@@ -500,6 +500,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private save(): void {
+		if (!this.history) {
+			return; // nothing to save because history was not used
+		}
+
 		let entries: ISerializedEditorInput[] = this.history.map((input: EditorInput) => {
 			let factory = this.registry.getEditorInputFactory(input.getTypeId());
 			if (factory) {
