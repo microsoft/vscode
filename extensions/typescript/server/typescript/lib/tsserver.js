@@ -44957,7 +44957,8 @@ var ts;
             return {
                 start: project.compilerService.host.positionToLineOffset(fileName, diag.start),
                 end: project.compilerService.host.positionToLineOffset(fileName, diag.start + diag.length),
-                text: ts.flattenDiagnosticMessageText(diag.messageText, "\n")
+                text: ts.flattenDiagnosticMessageText(diag.messageText, "\n"),
+                code: diag.code
             };
         }
         function allEditsBeforePos(edits, pos) {
