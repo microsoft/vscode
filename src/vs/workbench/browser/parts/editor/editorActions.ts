@@ -19,6 +19,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 
 export class SplitEditorAction extends Action {
 
@@ -47,6 +48,16 @@ export class SplitEditorAction extends Action {
 			return TPromise.as(true);
 		}
 
+		// Options
+		let options: EditorOptions;
+		if (activeEditor instanceof BaseTextEditor) {
+			options = new TextEditorOptions();
+			(<TextEditorOptions>options).viewState(activeEditor.getControl().saveViewState());
+		} else {
+			options = new EditorOptions();
+		}
+		options.pinned = true;
+
 		// Count editors
 		let visibleEditors = this.editorService.getVisibleEditors();
 		let editorCount = visibleEditors.length;
@@ -69,9 +80,7 @@ export class SplitEditorAction extends Action {
 
 				// Push the center group to the right to make room for the splitted input
 				else if (activeEditor.position === Position.LEFT) {
-					let options = new TextEditorOptions();
 					options.preserveFocus = true;
-					options.pinned = true;
 
 					return this.editorService.openEditor(activeEditor.input, options, Position.RIGHT).then(() => {
 						this.editorGroupService.moveGroup(Position.RIGHT, Position.CENTER);
@@ -82,7 +91,7 @@ export class SplitEditorAction extends Action {
 
 		// Only split if we have a target position to split to
 		if (typeof targetPosition === 'number') {
-			return this.editorService.openEditor(activeEditor.input, EditorOptions.create({ pinned: true }), targetPosition);
+			return this.editorService.openEditor(activeEditor.input, options, targetPosition);
 		}
 
 		return TPromise.as(true);

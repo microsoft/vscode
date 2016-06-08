@@ -15,14 +15,12 @@ import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
-import {IEditorViewState, IEditor} from 'vs/editor/common/editorCommon';
 import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult, EditorInputEvent} from 'vs/workbench/common/editor';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import {EditorInput, EditorOptions, ConfirmResult, EditorInputEvent} from 'vs/workbench/common/editor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
@@ -201,12 +199,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Opened to the side
 		if (position !== Position.LEFT) {
-
-			// Log side by side use
 			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
-
-			// Determine options if the editor opens to the side by looking at same input already opened
-			options = this.findSideOptions(input, options, position);
 		}
 
 		// Open through UI
@@ -1157,58 +1150,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		return arg1;
-	}
-
-	private findSideOptions(input: EditorInput, options: EditorOptions, position: Position): EditorOptions {
-		if (
-			(this.visibleEditors[position] && input.matches(this.visibleEditors[position].input)) ||	// Return early if the input is already showing at the position
-			(options instanceof TextEditorOptions && (<TextEditorOptions>options).hasOptionsDefined())	// Return early if explicit text options are defined
-		) {
-			return options;
-		}
-
-		// Otherwise try to copy viewstate over from an existing opened editor with same input
-		let viewState: IEditorViewState = null;
-		let editors = this.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-
-			if (!(editor instanceof BaseTextEditor)) {
-				continue; // Only works with text editors
-			}
-
-			// Found a match
-			if (input.matches(editor.input)) {
-				let codeEditor = <IEditor>editor.getControl();
-				viewState = <IEditorViewState>codeEditor.saveViewState();
-
-				break;
-			}
-		}
-
-		// Found view state
-		if (viewState) {
-			let textEditorOptions: TextEditorOptions = null;
-
-			// Merge into existing text editor options if given
-			if (options instanceof TextEditorOptions) {
-				textEditorOptions = <TextEditorOptions>options;
-				textEditorOptions.viewState(viewState);
-
-				return textEditorOptions;
-			}
-
-			// Otherwise create new
-			textEditorOptions = new TextEditorOptions();
-			textEditorOptions.viewState(viewState);
-			if (options) {
-				textEditorOptions.mixin(options);
-			}
-
-			return textEditorOptions;
-		}
-
-		return options;
 	}
 
 	private startDelayedCloseEditorsFromInputDispose(): void {
