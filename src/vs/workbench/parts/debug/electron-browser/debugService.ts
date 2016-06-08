@@ -562,7 +562,7 @@ export class DebugService implements debug.IDebugService {
 			return telemetryInfo;
 		}).then(data => {
 			const { aiKey, type } = this.configurationManager.adapter;
-			this.telemetryAdapter = createAIAdapter(aiKey, type, data);
+			this.telemetryAdapter = aiKey ? createAIAdapter(aiKey, type, data) : null;
 
 			this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
 			this.registerSessionListeners();
