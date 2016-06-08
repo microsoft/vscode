@@ -16,10 +16,19 @@ import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion} from 'vs/editor/common/modes';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {BasicInplaceReplace} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
-import {EditorSimpleWorker, IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
+import {IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
+import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 
-class MirrorModel extends MirrorModel2 {
+export class MirrorModel extends MirrorModel2 {
+
+	public get uri(): URI {
+		return this._uri;
+	}
+
+	public get version(): number {
+		return this._versionId;
+	}
 
 	public getLinesContent(): string[] {
 		return this._lines.slice(0);
@@ -91,7 +100,7 @@ class MirrorModel extends MirrorModel2 {
 		});
 	}
 
-//	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
+	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
 	private _wordenize(content:string, wordDefinition:RegExp): editorCommon.IWordRange[] {
 		var result:editorCommon.IWordRange[] = [];
 		var match:RegExpExecArray;
@@ -125,14 +134,21 @@ class MirrorModel extends MirrorModel2 {
 	}
 }
 
-export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IRequestHandler {
+export class EditorSimpleWorkerImpl implements IRequestHandler {
 	_requestHandlerTrait: any;
 
 	private _models:{[uri:string]:MirrorModel;};
+	private _foreignModule: any;
 
 	constructor() {
-		super();
 		this._models = Object.create(null);
+		this._foreignModule = null;
+	}
+
+	public getModels(): MirrorModel[] {
+		let all: MirrorModel[] = [];
+		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
+		return all;
 	}
 
 	public acceptNewModel(data:IRawModelData): void {
@@ -269,11 +285,60 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 		let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
 		return TPromise.as(result);
 	}
+
+	// ---- BEGIN foreign module support --------------------------------------------------------------------------
+
+	public loadForeignModule(moduleId:string): TPromise<string[]> {
+		return new TPromise<any>((c, e) => {
+			require([moduleId], (foreignModule) => {
+				this._foreignModule = foreignModule.create();
+
+				let methods: string[] = [];
+				for (let prop in this._foreignModule) {
+					if (typeof this._foreignModule[prop] === 'function') {
+						methods.push(prop);
+					}
+				}
+
+				c(methods);
+
+			}, e);
+		});
+	}
+
+	// foreign method request
+	public fmr(method:string, args:any[]): TPromise<any> {
+		if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
+			return TPromise.wrapError(new Error('Missing requestHandler or method: ' + method));
+		}
+
+		try {
+			return TPromise.as(this._foreignModule[method].apply(this._foreignModule, args));
+		} catch (e) {
+			return TPromise.wrapError(e);
+		}
+	}
+
+	// ---- END foreign module support --------------------------------------------------------------------------
 }
+
+const instance = new EditorSimpleWorkerImpl();
 
 /**
  * Called on the worker side
  */
 export function create(): IRequestHandler {
-	return new EditorSimpleWorkerImpl();
+	return instance;
 }
+
+function createMonacoWorkerAPI(): typeof monaco.worker {
+	return {
+		get mirrorModels () {
+			return instance.getModels();
+		}
+	};
+}
+
+var global:any = self;
+global.monaco = createMonacoBaseAPI();
+global.monaco.worker = createMonacoWorkerAPI();
