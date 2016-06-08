@@ -182,6 +182,9 @@ export class ContributableActionProvider implements IActionProvider {
 
 // Helper function used in parts to massage actions before showing in action areas
 export function prepareActions(actions: IAction[]): IAction[] {
+	if (!actions.length) {
+		return actions;
+	}
 
 	// Patch order if not provided
 	for (let l = 0; l < actions.length; l++) {

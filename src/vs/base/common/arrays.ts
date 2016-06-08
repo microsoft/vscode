@@ -26,7 +26,7 @@ export function forEach<T>(array: T[], callback: (element: T, remove: Function) 
 	}
 }
 
-export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean): boolean {
+export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one.length !== other.length) {
 		return false;
 	}

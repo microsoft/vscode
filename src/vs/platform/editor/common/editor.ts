@@ -124,7 +124,7 @@ export interface IEditorInput extends IEventEmitter {
 	/**
 	 * Returns the display description of this input.
 	 */
-	getDescription(): string;
+	getDescription(verbose?: boolean): string;
 
 	/**
 	 * Returns if this input is dirty or not.
