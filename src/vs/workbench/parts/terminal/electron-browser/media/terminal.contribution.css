@@ -32,12 +32,13 @@
 	color: #CCC;
 }
 
-.vs-dark .monaco-workbench .integrated-terminal .terminal:not(:focus) .terminal-cursor {
+/* TODO: Re-enable when new xterm.js is published */
+/*.vs-dark .monaco-workbench .integrated-terminal .terminal:not(:focus) .terminal-cursor {
 	outline: 1px solid #CCC;
 	outline-offset: -1px;
-}
+}*/
 
-.vs-dark .monaco-workbench .integrated-terminal .terminal:focus .terminal-cursor {
+.vs-dark .monaco-workbench .integrated-terminal .terminal/*:focus*/ .terminal-cursor {
 	background-color: #CCC;
 }
 
