@@ -44,23 +44,6 @@ exports.collectModules = function(args) {
 		.combine(worker)
 			.define('vs/languages/json/common/jsonWorker');
 
-	// // ---- typescript & javascript -----------------
-
-	// result.push({
-	// 	name: 'vs/languages/typescript/common/lib/typescriptServices',
-	// 	exclude: ['vs/css', 'vs/nls']
-	// });
-
-	// result.push({
-	// 	name: 'vs/languages/typescript/common/worker',
-	// 	exclude: ['vs/base/common/worker/simpleWorker', 'vs/languages/typescript/common/lib/typescriptServices', 'vs/css', 'vs/nls']
-	// });
-
-	// result.push({
-	// 	name: 'vs/languages/typescript/common/mode',
-	// 	exclude: ['vs/editor/editor.main', 'vs/languages/typescript/common/lib/typescriptServices', 'vs/css', 'vs/nls']
-	// });
-
 	result.push({
 		name: 'vs/editor/browser/standalone/standaloneWorker',
 		exclude: [ 'vs/base/common/worker/simpleWorker', 'vs/css', 'vs/nls' ]
