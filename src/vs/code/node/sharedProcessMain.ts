@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
 
 import product from 'vs/platform/product';
-import { ITelemetryAppender, ITelemetryService, combinedAppender } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, combinedAppender } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
@@ -60,22 +60,19 @@ function main(server: Server): void {
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
-		const aiAppenders: AppInsightsAppender[] = [];
+		const appenders: AppInsightsAppender[] = [];
 
 		if (product.aiConfig && product.aiConfig.key) {
-			aiAppenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
+			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
 		}
 
 		if (product.aiConfig && product.aiConfig.asimovKey) {
-			aiAppenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 		}
-
-		const appenders: ITelemetryAppender[] = aiAppenders.slice();
-		appenders.push({ log: (e,d) => console.log(`Telemetry event: ${ e }\n${ JSON.stringify(d) }`) });
 
 		// It is important to dispose the AI adapter properly because
 		// only then they flush remaining data.
-		process.once('exit', () => aiAppenders.forEach(a => a.dispose()));
+		process.once('exit', () => appenders.forEach(a => a.dispose()));
 
 		const appender = combinedAppender(...appenders);
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
