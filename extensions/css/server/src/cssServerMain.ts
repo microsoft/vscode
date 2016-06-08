@@ -6,15 +6,13 @@
 
 import {
 	IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
-	TextDocuments, TextDocument,
-	InitializeParams, InitializeResult, TextDocumentPositionParams, CompletionList,
-	Hover, SymbolInformation, DocumentSymbolParams
+	TextDocuments, TextDocument, InitializeParams, InitializeResult
 } from 'vscode-languageserver';
 
 import {Parser} from './parser/cssParser';
 import {CSSCompletion} from './services/cssCompletion';
 import {CSSHover} from './services/cssHover';
-import {CSSDocumentSymbols} from './services/cssDocumentSymbols';
+import {CSSSymbols} from './services/cssSymbols';
 import {CSSValidation, Settings} from './services/cssValidation';
 
 import {Stylesheet} from './parser/cssNodes';
@@ -51,8 +49,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 let cssCompletion = new CSSCompletion();
 let cssHover = new CSSHover();
-let cssDocumentSymbols = new CSSDocumentSymbols();
 let cssValidation = new CSSValidation();
+let cssSymbols = new CSSSymbols();
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
@@ -92,23 +90,40 @@ function getStylesheet(document: TextDocument): Stylesheet {
 	return parser.parseStylesheet(document);
 }
 
-connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Thenable<CompletionList> => {
+connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let stylesheet = getStylesheet(document);
 	return cssCompletion.doSuggest(document, textDocumentPosition.position, stylesheet);
 });
 
-
-connection.onHover((textDocumentPosition: TextDocumentPositionParams): Thenable<Hover> => {
+connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let styleSheet = getStylesheet(document);
 	return cssHover.doHover(document, textDocumentPosition.position, styleSheet);
 });
 
-connection.onDocumentSymbol((documentSymbolParams: DocumentSymbolParams): Thenable<SymbolInformation[]> => {
+connection.onDocumentSymbol(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssDocumentSymbols.compute(document, stylesheet);
+	return cssSymbols.findDocumentSymbols(document, stylesheet);
+});
+
+connection.onDefinition(documentSymbolParams => {
+	let document = documents.get(documentSymbolParams.textDocument.uri);
+	let stylesheet = getStylesheet(document);
+	return cssSymbols.findDefinition(document, documentSymbolParams.position, stylesheet);
+});
+
+connection.onDocumentHighlight(documentSymbolParams => {
+	let document = documents.get(documentSymbolParams.textDocument.uri);
+	let stylesheet = getStylesheet(document);
+	return cssSymbols.findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
+});
+
+connection.onReferences(referenceParams => {
+	let document = documents.get(referenceParams.textDocument.uri);
+	let stylesheet = getStylesheet(document);
+	return cssSymbols.findReferences(document, referenceParams.position, stylesheet);
 });
 
 // Listen on the connection
