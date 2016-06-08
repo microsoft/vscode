@@ -7,9 +7,6 @@
 
 import DOM = require('vs/base/browser/dom');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-// import {TPromise} from 'vs/base/common/winjs.base';
-// import {WorkerClient} from 'vs/base/common/worker/workerClient';
-// import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {marked} from 'vs/base/common/marked/marked';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 
@@ -146,40 +143,6 @@ function getSafeTagName(tagName: string): string {
 	}
 	return null;
 }
-
-// // --- markdown worker renderer
-
-// namespace marked {
-
-// 	const workerFactory = new DefaultWorkerFactory();
-// 	let worker: WorkerClient;
-// 	let workerDisposeHandle: number;
-
-// 	export function html(source: string): TPromise<string> {
-
-// 		const t1 = Date.now();
-// 		if (!worker) {
-// 			worker = new WorkerClient(workerFactory, 'vs/base/common/marked/simpleMarkedWorker', (msg) => msg.type, client => { shutdown(); });
-// 		}
-
-// 		function shutdown() {
-// 			if (worker) {
-// 				worker.dispose();
-// 				worker = undefined;
-// 			}
-// 		}
-
-// 		// re-schedule termination
-// 		clearTimeout(workerDisposeHandle);
-// 		workerDisposeHandle = setTimeout(shutdown, 1000 * 5);
-
-// 		return worker.request('markdownToHtml', { source, hightlight: false }).then(html => {
-// 			console.log(`t1: ${Date.now() - t1}ms`);
-// 			return html;
-// 		});
-// 	}
-
-// }
 
 // --- formatted string parsing
 
