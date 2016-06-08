@@ -290,7 +290,8 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 
 	public loadForeignModule(moduleId:string): TPromise<string[]> {
 		return new TPromise<any>((c, e) => {
-			require([moduleId], (foreignModule) => {
+			// Use the global require to be sure to get the global config
+			(<any>self).require([moduleId], (foreignModule) => {
 				this._foreignModule = foreignModule.create();
 
 				let methods: string[] = [];

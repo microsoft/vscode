@@ -68,7 +68,8 @@ export class ModeWorkerManager<W> {
 
 	private static _loadModule(moduleName:string): TPromise<any> {
 		return new TPromise((c, e, p) => {
-			require([moduleName], c, e);
+			// Use the global require to be sure to get the global config
+			(<any>self).require([moduleName], c, e);
 		}, () => {
 			// Cannot cancel loading code
 		});

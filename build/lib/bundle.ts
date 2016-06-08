@@ -99,6 +99,17 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 		entryPointsMap[module.name] = module;
 	});
 
+	let allMentionedModulesMap: {[modules:string]:boolean;} = {};
+	entryPoints.forEach((module:IEntryPoint) => {
+		allMentionedModulesMap[module.name] = true;
+		(module.include||[]).forEach(function(includedModule) {
+			allMentionedModulesMap[includedModule] = true;
+		});
+		(module.exclude||[]).forEach(function(excludedModule) {
+			allMentionedModulesMap[excludedModule] = true;
+		});
+	});
+
 
 	var code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
 	var r: Function = <any> vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
@@ -109,7 +120,7 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 	config.isBuild = true;
 	loader.config(config);
 
-	loader(Object.keys(entryPointsMap), () => {
+	loader(Object.keys(allMentionedModulesMap), () => {
 		let modules = <IBuildModuleInfo[]>loader.getBuildInfo();
 		let partialResult = emitEntryPoints(modules, entryPointsMap);
 		let cssInlinedResources = loader('vs/css').getInlinedResources();

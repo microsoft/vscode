@@ -114,7 +114,8 @@ export class WorkerServer {
 	}
 
 	public loadModule(moduleId:string, callback:Function, errorback:(err:any)=>void): void {
-		require([moduleId], (...result:any[]) => {
+		// Use the global require to be sure to get the global config
+		(<any>self).require([moduleId], (...result:any[]) => {
 			callback(result[0]);
 		}, errorback);
 	}

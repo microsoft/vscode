@@ -328,7 +328,8 @@ export class SimpleWorkerServer {
 			ee = e;
 		});
 
-		require([moduleId], (...result:any[]) => {
+		// Use the global require to be sure to get the global config
+		(<any>self).require([moduleId], (...result:any[]) => {
 			let handlerModule = result[0];
 			this._requestHandler = handlerModule.create();
 

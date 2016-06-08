@@ -14,6 +14,16 @@ function bundle(entryPoints, config, callback) {
     entryPoints.forEach(function (module) {
         entryPointsMap[module.name] = module;
     });
+    var allMentionedModulesMap = {};
+    entryPoints.forEach(function (module) {
+        allMentionedModulesMap[module.name] = true;
+        (module.include || []).forEach(function (includedModule) {
+            allMentionedModulesMap[includedModule] = true;
+        });
+        (module.exclude || []).forEach(function (excludedModule) {
+            allMentionedModulesMap[excludedModule] = true;
+        });
+    });
     var code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
     var r = vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
     var loaderModule = { exports: {} };
@@ -21,7 +31,7 @@ function bundle(entryPoints, config, callback) {
     var loader = loaderModule.exports;
     config.isBuild = true;
     loader.config(config);
-    loader(Object.keys(entryPointsMap), function () {
+    loader(Object.keys(allMentionedModulesMap), function () {
         var modules = loader.getBuildInfo();
         var partialResult = emitEntryPoints(modules, entryPointsMap);
         var cssInlinedResources = loader('vs/css').getInlinedResources();
