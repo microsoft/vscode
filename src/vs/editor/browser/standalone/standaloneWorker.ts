@@ -11,9 +11,9 @@ import {IRequestHandler} from 'vs/base/common/worker/simpleWorker';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
+import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
 
 export class MirrorModel extends MirrorModel2 {
 
@@ -39,9 +39,9 @@ export class MirrorModel extends MirrorModel2 {
 
 	public getWordAtPosition(position:editorCommon.IPosition, wordDefinition:RegExp): Range {
 
-		let wordAtText = WordHelper._getWordAtText(
+		let wordAtText = getWordAtText(
 			position.column,
-			WordHelper.ensureValidWordDefinition(wordDefinition),
+			ensureValidWordDefinition(wordDefinition),
 			this._lines[position.lineNumber - 1],
 			0
 		);

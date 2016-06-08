@@ -7,7 +7,6 @@
 import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IAutoClosingPair,
 	IAutoClosingPairConditional, IRichEditOnEnter, CharacterPair,
 	IRichEditElectricCharacter, IEnterAction, IndentAction} from 'vs/editor/common/modes';
-import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
 import {IIndentationRules, IOnEnterRegExpRules, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
@@ -18,6 +17,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {Position} from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {DEFAULT_WORD_REGEXP} from 'vs/editor/common/model/wordHelper';
 
 export interface CommentRule {
 	lineComment?: string;
@@ -71,7 +71,7 @@ export class RichEditSupport {
 			this.electricCharacter = new BracketElectricCharacterSupport(LanguageConfigurationRegistry, modeId, this.brackets, this._conf.__electricCharacterSupport);
 		}
 
-		this.wordDefinition = this._conf.wordPattern || NullMode.DEFAULT_WORD_REGEXP;
+		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
 	}
 
 	private static _mergeConf(prev:IRichLanguageConfiguration, current:IRichLanguageConfiguration): IRichLanguageConfiguration {
