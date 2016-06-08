@@ -72,12 +72,12 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
-	background-color: rgba(234, 92, 0, 0.3);
+	color: #007ACC;
+	font-weight: bold;
 }
 
 .hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
-	background: none !important;
-	border: 1px dotted #f38518;
+	color: #0097FB;
 }
 
 .markers-panel .icon {
