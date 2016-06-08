@@ -20,17 +20,17 @@ body
 
 h1, h2, h3, h4, h5, h6
 {
-    color: black;
+    color: #000;
     font-size: 40px;
     margin: 0px;
 }
 
-textarea
+textarea 
 {
    font-family: Consolas
 }
 
-#results
+#results 
 {
     margin-top: 2em;
     margin-left: 2em;
