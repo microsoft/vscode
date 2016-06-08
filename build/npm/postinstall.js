@@ -13,7 +13,8 @@ const extensions = [
 	'configuration-editing',
 	'typescript',
 	'php',
-	'javascript'
+	'javascript',
+	'css'
 ];
 
 extensions.forEach(extension => {

@@ -74,6 +74,7 @@ var copyrightFilter = [
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
+	'!**/*.xml',
 	'!src/vs/editor/standalone-languages/swift.ts',
 ];
 
