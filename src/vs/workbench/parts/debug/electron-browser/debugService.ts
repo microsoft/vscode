@@ -28,7 +28,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
@@ -52,6 +52,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 import { ipcRenderer as ipc } from 'electron';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import URI from 'vs/base/common/uri';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -563,7 +565,24 @@ export class DebugService implements debug.IDebugService {
 			return telemetryInfo;
 		}).then(data => {
 			const { aiKey, type } = this.configurationManager.adapter;
-			const appender = new AppInsightsAppender(type, data, aiKey);
+			const client = new Client(
+				URI.parse(require.toUrl('bootstrap')).fsPath,
+				{
+					serverName: 'Debug Telemetry',
+					timeout: 1000 * 60 * 5,
+					args: [type, JSON.stringify(data), aiKey],
+					env: {
+						ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+						PIPE_LOGGING: 'true',
+						AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
+					}
+				}
+			);
+
+			const channel = client.getChannel('telemetryAppender');
+			const appender = new TelemetryAppenderClient(channel);
+
+			this.toDisposeOnSessionEnd.push(client);
 			this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 		});
 
