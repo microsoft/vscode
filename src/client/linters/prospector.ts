@@ -2,7 +2,6 @@
 
 import * as path from 'path';
 import * as baseLinter from './baseLinter';
-import * as settings from './../common/configSettings';
 import {OutputChannel, workspace} from 'vscode';
 
 const PROSPECTOR_COMMANDLINE = " --output-format=vscode";
@@ -11,8 +10,8 @@ const REGEX = '(?<line>\\d+),(?<column>\\d+),(?<type>[\\w-]+),(?<code>[\\w-]+):(
 
 
 export class Linter extends baseLinter.BaseLinter {
-    constructor(rootDir: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
-        super("prospector", pythonSettings, outputChannel);
+    constructor(outputChannel: OutputChannel) {
+        super("prospector", outputChannel);
     }
 
     public runLinter(filePath: string, txtDocumentLines: string[]): Promise<baseLinter.ILintMessage[]> {

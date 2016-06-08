@@ -3,14 +3,13 @@
 import * as path from 'path';
 import * as baseLinter from './baseLinter';
 import {ILintMessage} from './baseLinter';
-import * as settings from './../common/configSettings';
 import {OutputChannel, window} from 'vscode';
 import { exec } from 'child_process';
 import {sendCommand} from './../common/childProc';
 
 export class Linter extends baseLinter.BaseLinter {
-    constructor(rootDir: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
-        super("pydocstyle", pythonSettings, outputChannel);
+    constructor(outputChannel: OutputChannel) {
+        super("pydocstyle", outputChannel);
     }
 
     public runLinter(filePath: string, txtDocumentLines: string[]): Promise<baseLinter.ILintMessage[]> {

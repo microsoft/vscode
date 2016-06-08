@@ -2,14 +2,13 @@
 
 import * as path from 'path';
 import * as baseLinter from './baseLinter';
-import * as settings from './../common/configSettings';
 import {OutputChannel, workspace} from 'vscode';
 
 const FLAKE8_COMMANDLINE = " --format='%(row)d,%(col)d,%(code)s,%(code)s:%(text)s'";
 
 export class Linter extends baseLinter.BaseLinter {
-    constructor(rootDir: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
-        super("flake8", pythonSettings, outputChannel);
+    constructor(outputChannel: OutputChannel) {
+        super("flake8", outputChannel);
     }
 
     public runLinter(filePath: string, txtDocumentLines: string[]): Promise<baseLinter.ILintMessage[]> {

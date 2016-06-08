@@ -8,18 +8,20 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import {sendCommand} from './../common/childProc';
+import * as settings from './../common/configSettings';
 
 export abstract class BaseFormatter {
     public Id: string;
     protected outputChannel: vscode.OutputChannel;
+    protected pythonSettings: settings.IPythonSettings;
 
     constructor(id: string, outputChannel: vscode.OutputChannel) {
         this.Id = id;
         this.outputChannel = outputChannel;
+        this.pythonSettings = settings.PythonSettings.getInstance();
     }
-    public formatDocument(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken): Thenable<vscode.TextEdit[]> {
-        return Promise.resolve([]);
-    }
+
+    public abstract formatDocument(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken): Thenable<vscode.TextEdit[]>;
 
     protected provideDocumentFormattingEdits(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken, cmdLine: string): Thenable<vscode.TextEdit[]> {
         var fileDir = path.dirname(document.uri.fsPath);
@@ -45,7 +47,7 @@ export abstract class BaseFormatter {
                     var txtEdit = new vscode.TextEdit(range, formattedText);
                     resolve([txtEdit]);
 
-                }, errorMsg => {
+                }).catch(errorMsg => {
                     vscode.window.showErrorMessage(`There was an error in formatting the document. View the Python output window for details.`);
                     this.outputChannel.appendLine(errorMsg);
                     return resolve([]);

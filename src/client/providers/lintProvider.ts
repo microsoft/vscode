@@ -53,11 +53,11 @@ export class LintProvider extends vscode.Disposable {
     private outputChannel: vscode.OutputChannel;
     private context: vscode.ExtensionContext;
 
-    public constructor(context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
+    public constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
         super(() => { });
         this.outputChannel = outputChannel;
         this.context = context;
-        this.settings = settings;
+        this.settings = settings.PythonSettings.getInstance();
 
         this.initialize();
     }
@@ -66,11 +66,11 @@ export class LintProvider extends vscode.Disposable {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection("python");
         var disposables = [];
 
-        this.linters.push(new prospector.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
-        this.linters.push(new pylint.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
-        this.linters.push(new pep8.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
-        this.linters.push(new flake8.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
-        this.linters.push(new pydocstyle.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
+        this.linters.push(new prospector.Linter(this.outputChannel));
+        this.linters.push(new pylint.Linter(this.outputChannel));
+        this.linters.push(new pep8.Linter(this.outputChannel));
+        this.linters.push(new flake8.Linter(this.outputChannel));
+        this.linters.push(new pydocstyle.Linter(this.outputChannel));
 
         var disposable = vscode.workspace.onDidChangeTextDocument((e) => {
             if (e.document.languageId !== "python" || !this.settings.linting.enabled || !this.settings.linting.lintOnTextChange) {

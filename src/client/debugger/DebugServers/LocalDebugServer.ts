@@ -27,11 +27,6 @@ export class LocalDebugServer extends BaseDebugServer {
             var that = this;
             this.debugSocketServer = net.createServer(c => { //'connection' listener
                 var connected = false;
-                c.on('end', (ex) => { 
-                    //var msg = "Debugger client disconneced, " + ex;
-                    //that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
-                    //console.log(msg);
-                });
                 c.on("data", (buffer: Buffer) => {
                     if (!connected) {
                         connected = true;
@@ -45,12 +40,6 @@ export class LocalDebugServer extends BaseDebugServer {
                 c.on("close", d=> {
                     var msg = "Debugger client closed, " + d;
                     that.emit("detach", d);
-                });
-                c.on("error", d=> {
-                    // var msg = "Debugger client error, " + d;
-                    // that.sendEvent(new OutputEvent(msg + "\n", "Python"));
-                    // console.log(msg);
-                    // // that.onDetachDebugger();
                 });
                 c.on("timeout", d=> {
                     var msg = "Debugger client timedout, " + d;

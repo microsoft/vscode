@@ -9,7 +9,7 @@ import * as settings from './../common/configSettings';
 import * as logger from './../common/logger';
 
 var proc: child_process.ChildProcess;
-var pythonSettings = new settings.PythonSettings();
+var pythonSettings = settings.PythonSettings.getInstance();
 
 const pythonVSCodeTypeMappings = new Map<string, vscode.CompletionItemKind>();
 var mappings = {

@@ -52,15 +52,13 @@ export abstract class BaseLinter {
     public Id: string;
     protected pythonSettings: settings.IPythonSettings;
     protected outputChannel: OutputChannel;
-    constructor(id: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
+    constructor(id: string, outputChannel: OutputChannel) {
         this.Id = id;
-        this.pythonSettings = pythonSettings;
+        this.pythonSettings = settings.PythonSettings.getInstance();
         this.outputChannel = outputChannel;
     }
 
-    public runLinter(filePath: string, txtDocumentLines: string[]): Promise<ILintMessage[]> {
-        return Promise.resolve([]);
-    }
+    public abstract runLinter(filePath: string, txtDocumentLines: string[]): Promise<ILintMessage[]>;
 
     protected run(commandLine: string, filePath: string, txtDocumentLines: string[], cwd: string, regEx: string = REGEX): Promise<ILintMessage[]> {
         var outputChannel = this.outputChannel;

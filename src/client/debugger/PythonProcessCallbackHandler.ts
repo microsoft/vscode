@@ -285,9 +285,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
                 this.process.PendingExecuteCommands.delete(execId);
             }
             cmd.PromiseReject(exceptionText);
-            //console.log(`ExecuteText Exception ${execId}`);
-        } else {
-            //console.error("Received execution result with unknown execution ID " + execId);
         }
         this.idDispenser.Free(execId);
     }
@@ -300,8 +297,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         var cmd: IExecutionCommand = null;
         if (this.process.PendingExecuteCommands.has(execId)) {
             cmd = this.process.PendingExecuteCommands.get(execId);
-        } else {
-            //console.error("Received execution result with unknown execution ID " + execId);
         }
 
         if (cmd === null) {
@@ -338,8 +333,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         var cmd: IChildEnumCommand = null;
         if (this.process.PendingChildEnumCommands.has(execId)) {
             cmd = this.process.PendingChildEnumCommands.get(execId);
-        } else {
-            //console.error("Received enum children result with unknown execution ID " + execId);
         }
 
         var childrenCount = this.stream.ReadInt32();

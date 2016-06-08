@@ -55,12 +55,19 @@ export interface IAutoCompeteSettings {
     extraPaths: string[];
 }
 export class PythonSettings implements IPythonSettings {
+    private static pythonSettings: PythonSettings = new PythonSettings();
     constructor() {
+        if (PythonSettings.pythonSettings) {
+            throw new Error("Singleton class, Use getInstance method");
+        }
         vscode.workspace.onDidChangeConfiguration(() => {
             this.initializeSettings();
         });
 
         this.initializeSettings();
+    }
+    public static getInstance(): PythonSettings {
+        return PythonSettings.pythonSettings;
     }
     private initializeSettings() {
         var pythonSettings = vscode.workspace.getConfiguration("python");

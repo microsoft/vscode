@@ -2,13 +2,10 @@ import * as vscode from 'vscode';
 import * as settings from './configSettings'
 
 let outChannel: vscode.OutputChannel;
-let pythonSettings: settings.IPythonSettings;
 
 class Logger {
     static initializeChannel() {
-        if (pythonSettings) return;
-        pythonSettings = new settings.PythonSettings();
-        if (pythonSettings.devOptions.indexOf("DEBUG") >= 0) {
+        if (settings.PythonSettings.getInstance().devOptions.indexOf("DEBUG") >= 0) {
             outChannel = vscode.window.createOutputChannel('PythonExtLog');
         }
     }

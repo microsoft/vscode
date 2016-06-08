@@ -13,8 +13,8 @@ export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilt
     let formatters = new Map<string, BaseFormatter>();
     let pythonSettings = settings;
 
-    var yapfFormatter = new YapfFormatter(settings, outputChannel);
-    var autoPep8 = new AutoPep8Formatter(settings, outputChannel);
+    var yapfFormatter = new YapfFormatter(outputChannel);
+    var autoPep8 = new AutoPep8Formatter(outputChannel);
 
     formatters.set(yapfFormatter.Id, yapfFormatter);
     formatters.set(autoPep8.Id, autoPep8);

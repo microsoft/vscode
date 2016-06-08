@@ -15,10 +15,6 @@ let testProviders: baseTest.BaseTestRunner[] = [];
 export function activateUnitTestProvider(context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
     pythonOutputChannel = outputChannel;
     vscode.commands.registerCommand("python.runtests", () => runUnitTests());
-    // 
-    //     vscode.commands.registerTextEditorCommand("extension.paython.runCurrentTest", (textEditor) => {
-    //         runUnitTests(textEditor.document.fileName);
-    //     });
 
     testProviders.push(new unittest.PythonUnitTest(settings, outputChannel));
     testProviders.push(new nosetest.NoseTests(settings, outputChannel));

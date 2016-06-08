@@ -2,15 +2,14 @@
 
 import * as path from 'path';
 import * as baseLinter from './baseLinter';
-import * as settings from './../common/configSettings';
 import {OutputChannel, workspace} from 'vscode';
 
 const PYLINT_COMMANDLINE = " --msg-template='{line},{column},{category},{msg_id}:{msg}' --reports=n --output-format=text";
 
 
 export class Linter extends baseLinter.BaseLinter {
-    constructor(rootDir: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
-        super("pylint", pythonSettings, outputChannel);
+    constructor(outputChannel: OutputChannel) {
+        super("pylint", outputChannel);
     }
 
     private parseMessagesSeverity(category: string): baseLinter.LintMessageSeverity {

@@ -16,11 +16,11 @@ export class PythonFormattingEditProvider implements vscode.DocumentFormattingEd
     private settings: settings.IPythonSettings;
     private formatters = new Map<string, BaseFormatter>();
 
-    public constructor(context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
+    public constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
         this.rootDir = context.asAbsolutePath(".");
-        this.settings = settings;
-        var yapfFormatter = new YapfFormatter(settings, outputChannel);
-        var autoPep8 = new AutoPep8Formatter(settings, outputChannel);
+        this.settings = settings.PythonSettings.getInstance();
+        var yapfFormatter = new YapfFormatter(outputChannel);
+        var autoPep8 = new AutoPep8Formatter(outputChannel);
         this.formatters.set(yapfFormatter.Id, yapfFormatter);
         this.formatters.set(autoPep8.Id, autoPep8);
     }
