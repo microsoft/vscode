@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { TPromise, Promise, xhr } from 'vs/base/common/winjs.base';
+import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { xhr } from 'vs/base/common/network';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
