@@ -10,10 +10,11 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {IRange} from 'vs/editor/common/editorCommon';
-import {HoverProviderRegistry, Hover, IMode} from 'vs/editor/common/modes';
+import {HoverProviderRegistry, Hover} from 'vs/editor/common/modes';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {getHover} from '../common/hover';
@@ -126,15 +127,17 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _highlightDecorations:string[];
 	private _isChangingDecorations: boolean;
 	private _openerService: IOpenerService;
+	private _modeService: IModeService;
 	private _shouldFocus: boolean;
 
-	constructor(editor: ICodeEditor, openerService: IOpenerService) {
+	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 		this._openerService = openerService || NullOpenerService;
+		this._modeService = modeService;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -244,13 +247,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						actionCallback: (content) => {
 							this._openerService.open(URI.parse(content));
 						},
-						codeBlockRenderer: (modeId, value) => {
-							let mode: IMode;
-							let model = this._editor.getModel();
-							if (!model.isDisposed()) {
-								mode = model.getMode();
+						codeBlockRenderer: (modeId, value): string | TPromise<string> => {
+
+							let mode = this._modeService.getMode(modeId);
+							if (mode) {
+								return tokenizeToString(value, mode);
 							}
-							return tokenizeToString(value, model.getMode());
+
+							return this._modeService.getOrCreateMode(modeId).then(
+								mode => tokenizeToString(value, mode),
+								err => tokenizeToString(value, null));
 						}
 					}));
 				});
