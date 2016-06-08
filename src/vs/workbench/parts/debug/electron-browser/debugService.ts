@@ -17,7 +17,6 @@ import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
-import { IAIAdapter, createAIAdapter } from 'vs/base/parts/ai/node/ai';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -28,6 +27,8 @@ import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/pl
 import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
@@ -68,7 +69,7 @@ export class DebugService implements debug.IDebugService {
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
-	private telemetryAdapter: IAIAdapter;
+	private customTelemetryService: ITelemetryService;
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
@@ -292,8 +293,8 @@ export class DebugService implements debug.IDebugService {
 			if (event.body && event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				// and the user opted in telemetry
-				if (this.telemetryAdapter && this.telemetryService.isOptedIn) {
-					this.telemetryAdapter.log(event.body.output, event.body.data);
+				if (this.customTelemetryService && this.telemetryService.isOptedIn) {
+					this.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
 				this.onOutput(event);
@@ -561,11 +562,12 @@ export class DebugService implements debug.IDebugService {
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 			return telemetryInfo;
 		}).then(data => {
-			let {aiKey, type} = this.configurationManager.adapter;
-			this.telemetryAdapter = createAIAdapter(aiKey, type, data);
+			const { aiKey, type } = this.configurationManager.adapter;
+			const appender = new AppInsightsAppender(type, data, aiKey);
+			this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 		});
 
-		this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
+		this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
 		this.registerSessionListeners();
 
 		return this.session.initialize({
@@ -740,10 +742,6 @@ export class DebugService implements debug.IDebugService {
 		});
 		this.model.updateBreakpoints(data);
 
-		if (this.telemetryAdapter) {
-			this.telemetryAdapter.dispose();
-			this.telemetryAdapter = null;
-		}
 		this.inDebugMode.reset();
 	}
 

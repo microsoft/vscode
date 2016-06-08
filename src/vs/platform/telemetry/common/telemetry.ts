@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
@@ -51,17 +50,15 @@ export const NullTelemetryService: ITelemetryService = {
 	}
 };
 
-export interface ITelemetryAppender extends IDisposable {
-	log(eventName: string, data?: any): any;
+export interface ITelemetryAppender {
+	log(eventName: string, data: any): void;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	const log = (e, d) => appenders.forEach(a => a.log(e, d));
-	const dispose = () => appenders.forEach(a => a.dispose());
-	return { log, dispose };
+	return { log: (e, d) => appenders.forEach(a => a.log(e,d)) };
 }
 
-export const NullAppender = combinedAppender();
+export const NullAppender: ITelemetryAppender = { log: () => null };
 
 // --- util
 

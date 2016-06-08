@@ -24,7 +24,8 @@ export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
 	constructor(private appender: ITelemetryAppender) { }
 
 	call(command: string, { eventName, data }: ITelemetryLog): TPromise<any> {
-		return this.appender.log(eventName, data);
+		this.appender.log(eventName, data);
+		return TPromise.as(null);
 	}
 }
 

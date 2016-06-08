@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { registerAIChannel } from 'vs/base/parts/ai/node/ai.app';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -22,9 +21,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
 
 import product from 'vs/platform/product';
-import { ITelemetryAppender, combinedAppender, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryAppender, ITelemetryService, combinedAppender } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/aiAdapter';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 
 function quit(err?: Error) {
 	if (err) {
@@ -49,21 +49,6 @@ function setupPlanB(parentPid: number): void {
 
 const eventPrefix = 'monacoworkbench';
 
-function createAppender(): ITelemetryAppender {
-	const result: ITelemetryAppender[] = [];
-	const { key, asimovKey } = product.aiConfig || { key: null, asimovKey: null };
-
-	if (key) {
-		result.push(new AppInsightsAppender(eventPrefix, null, key));
-	}
-
-	if (asimovKey) {
-		result.push(new AppInsightsAppender(eventPrefix, null, asimovKey));
-	}
-
-	return combinedAppender(...result);
-}
-
 function main(server: Server): void {
 	const services = new ServiceCollection();
 
@@ -75,12 +60,30 @@ function main(server: Server): void {
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
-		const { appRoot, extensionsPath } = accessor.get(IEnvironmentService);
+		const aiAppenders: AppInsightsAppender[] = [];
 
-		const appender = createAppender();
+		if (product.aiConfig && product.aiConfig.key) {
+			aiAppenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
+		}
+
+		if (product.aiConfig && product.aiConfig.asimovKey) {
+			aiAppenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+		}
+
+		const appenders: ITelemetryAppender[] = aiAppenders.slice();
+		appenders.push({ log: (e,d) => console.log(`Telemetry event: ${ e }\n${ JSON.stringify(d) }`) });
+
+		// It is important to dispose the AI adapter properly because
+		// only then they flush remaining data.
+		process.once('exit', () => aiAppenders.forEach(a => a.dispose()));
+
+		const appender = combinedAppender(...appenders);
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
+
+		const { appRoot, extensionsPath } = accessor.get(IEnvironmentService);
 		const config: ITelemetryServiceConfig = {
 			appender,
-			commonProperties: TPromise.as({}), //resolveCommonProperties(storageService, contextService),
+			commonProperties: TPromise.as({}),
 			piiPaths: [appRoot, extensionsPath]
 		};
 
@@ -89,13 +92,11 @@ function main(server: Server): void {
 		const instantiationService2 = instantiationService.createChild(services);
 
 		instantiationService2.invokeFunction(accessor => {
-			const telemetryService = accessor.get(ITelemetryService);
-			console.log(telemetryService);
+			// const telemetryService = accessor.get(ITelemetryService);
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);
-			registerAIChannel(server);
 
 			// eventually clean up old extensions
 			setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
