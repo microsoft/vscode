@@ -27,6 +27,11 @@ export interface ITerminalConfiguration {
 				osx: string,
 				windows: string
 			},
+			shellArgs: {
+				linux: string[],
+				osx: string[],
+				windows: string[]
+			},
 			fontFamily: string,
 			fontSize: number,
 			lineHeight: number

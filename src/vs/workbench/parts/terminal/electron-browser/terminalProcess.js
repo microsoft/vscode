@@ -8,7 +8,8 @@ var ptyJs = require('pty.js');
 
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38
-var ptyProcess = ptyJs.fork(process.env.PTYSHELL, [], {
+
+var ptyProcess = ptyJs.fork(process.env.PTYSHELL, getArgs(), {
 	name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
 	cwd: process.env.PTYCWD
 });
@@ -28,3 +29,13 @@ process.on('message', function (message) {
 		ptyProcess.resize(message.cols, message.rows);
 	}
 });
+
+function getArgs() {
+	var args = [];
+	var i = 0;
+	while (process.env['PTYSHELLARG' + i]) {
+		args.push(process.env['PTYSHELLARG' + i]);
+		i++;
+	}
+	return args;
+}
