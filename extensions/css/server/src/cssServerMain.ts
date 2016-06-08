@@ -93,7 +93,7 @@ function getStylesheet(document: TextDocument): Stylesheet {
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssCompletion.doSuggest(document, textDocumentPosition.position, stylesheet);
+	return cssCompletion.doComplete(document, textDocumentPosition.position, stylesheet);
 });
 
 connection.onHover(textDocumentPosition => {
