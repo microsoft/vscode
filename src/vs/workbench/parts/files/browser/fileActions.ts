@@ -1809,7 +1809,7 @@ export class ShowActiveFileInExplorer extends Action {
 
 export class CollapseExplorerView extends Action {
 
-	public static ID = 'workbench.files.action.collapseExplorerFolders';
+	public static ID = 'workbench.files.action.collapseFilesExplorerFolders';
 	public static LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
 
 	constructor(
@@ -1837,7 +1837,7 @@ export class CollapseExplorerView extends Action {
 
 export class RefreshExplorerView extends Action {
 
-	public static ID = 'workbench.files.action.refreshExplorerView';
+	public static ID = 'workbench.files.action.refreshFilesExplorer';
 	public static LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
 
 	constructor(
