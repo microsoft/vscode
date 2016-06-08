@@ -108,11 +108,6 @@
 	display: none;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar {
-	padding-left: 4px;
-	background-color: rgba(128, 128, 128, 0.2);
-}
-
 /* Drag Cursor */
 .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title,
 .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label a,

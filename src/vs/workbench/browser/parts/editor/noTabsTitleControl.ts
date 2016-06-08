@@ -12,6 +12,7 @@ import arrays = require('vs/base/common/arrays');
 import {Builder, $} from 'vs/base/browser/builder';
 import {IEditorGroup} from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -28,13 +29,10 @@ export class NoTabsTitleControl extends TitleControl {
 	private titleDecoration: Builder;
 	private titleDescription: Builder;
 
-	private groupActionsToolbar: ToolBar;
 	private editorActionsToolbar: ToolBar;
 
 	private currentPrimaryEditorActionIds: string[];
 	private currentSecondaryEditorActionIds: string[];
-	private currentPrimaryGroupActionIds: string[];
-	private currentSecondaryGroupActionIds: string[];
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -49,15 +47,12 @@ export class NoTabsTitleControl extends TitleControl {
 
 		this.currentPrimaryEditorActionIds = [];
 		this.currentSecondaryEditorActionIds = [];
-		this.currentPrimaryGroupActionIds = [];
-		this.currentSecondaryGroupActionIds = [];
 	}
 
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
 
 		this.editorActionsToolbar.context = { group };
-		this.groupActionsToolbar.context = { group };
 	}
 
 	public create(parent: Builder): void {
@@ -103,10 +98,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Editor actions
 			this.editorActionsToolbar = this.doCreateToolbar(div);
-
-			// Group actions
-			this.groupActionsToolbar = this.doCreateToolbar(div);
-			this.groupActionsToolbar.getContainer().addClass('editor-group-toolbar');
 		});
 	}
 
@@ -141,7 +132,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private targetInToolbar(target: HTMLElement): boolean {
-		return DOM.isAncestor(target, this.editorActionsToolbar.getContainer().getHTMLElement()) || DOM.isAncestor(target, this.groupActionsToolbar.getContainer().getHTMLElement());
+		return DOM.isAncestor(target, this.editorActionsToolbar.getContainer().getHTMLElement());
 	}
 
 	protected redraw(): void {
@@ -153,18 +144,17 @@ export class NoTabsTitleControl extends TitleControl {
 		const editor = group.activeEditor;
 		if (!editor) {
 			this.editorActionsToolbar.setActions([], [])();
-			this.groupActionsToolbar.setActions([], [])();
 
 			this.currentPrimaryEditorActionIds = [];
 			this.currentSecondaryEditorActionIds = [];
-			this.currentPrimaryGroupActionIds = [];
-			this.currentSecondaryGroupActionIds = [];
 
 			return; // return early if we are being closed
 		}
 
 		const isPinned = group.isPinned(group.activeEditor);
 		const isActive = this.stacks.isActive(group);
+		const position = this.stacks.positionOfGroup(group);
+		const control = this.editorService.getVisibleEditors()[position];
 
 		// Pinned state
 		if (isPinned) {
@@ -204,26 +194,19 @@ export class NoTabsTitleControl extends TitleControl {
 		// Update Editor Actions Toolbar
 		const editorActions = this.getEditorActions(group);
 		const primaryEditorActions = prepareActions(editorActions.primary);
+		if (isActive && control instanceof BaseEditor && control.supportsSplitEditor()) {
+			primaryEditorActions.push(this.splitEditorAction);
+		}
+		primaryEditorActions.push(this.closeEditorAction);
+
 		const secondaryEditorActions = prepareActions(editorActions.secondary);
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
 
 		if (!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) || !arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds)) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
-			this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
-		}
-
-		// Update Group Actions Toolbar
-		const groupActions = this.getGroupActions(group);
-		const primaryGroupActionIds = groupActions.primary.map(a => a.id);
-		const secondaryGroupActionIds = groupActions.secondary.map(a => a.id);
-
-		if (!arrays.equals(primaryGroupActionIds, this.currentPrimaryGroupActionIds) || !arrays.equals(secondaryGroupActionIds, this.currentSecondaryGroupActionIds)) {
-			this.groupActionsToolbar.setActions(groupActions.primary, groupActions.secondary)();
-			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
-			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
 		}
 	}
 
@@ -231,7 +214,6 @@ export class NoTabsTitleControl extends TitleControl {
 		super.dispose();
 
 		// Toolbars
-		this.groupActionsToolbar.dispose();
 		this.editorActionsToolbar.dispose();
 	}
 }
