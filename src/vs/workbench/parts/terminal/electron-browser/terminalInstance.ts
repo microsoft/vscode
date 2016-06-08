@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import cp = require('child_process');
-import termJs = require('term.js');
+import xterm = require('xterm');
 import lifecycle = require('vs/base/common/lifecycle');
 import os = require('os');
 import path = require('path');
@@ -25,6 +25,7 @@ export class TerminalInstance {
 	private ptyProcess: cp.ChildProcess;
 	private terminal;
 	private terminalDomElement: HTMLDivElement;
+	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
 
 	public constructor(
@@ -35,7 +36,7 @@ export class TerminalInstance {
 		private onExitCallback: (TerminalInstance) => void
 	) {
 		this.toDispose = [];
-		this.parentDomElement.innerHTML = '';
+		this.wrapperElement = document.createElement('div');
 		this.ptyProcess = this.createTerminalProcess();
 		this.terminalDomElement = document.createElement('div');
 		this.parentDomElement.classList.add('integrated-terminal');
@@ -45,7 +46,7 @@ export class TerminalInstance {
 			vertical: ScrollbarVisibility.Auto
 		});
 		this.toDispose.push(terminalScrollbar);
-		this.terminal = termJs({
+		this.terminal = xterm({
 			cursorBlink: false // term.js' blinking cursor breaks selection
 		});
 
@@ -89,15 +90,16 @@ export class TerminalInstance {
 		}));
 
 		this.terminal.open(this.terminalDomElement);
-		this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
+		this.wrapperElement.appendChild(terminalScrollbar.getDomNode());
+		this.parentDomElement.appendChild(this.wrapperElement);
 	}
 
 	public layout(dimension: Dimension): void {
 		if (!this.font || !this.font.charWidth || !this.font.charHeight) {
 			return;
 		}
-		let cols = Math.floor(this.parentDomElement.offsetWidth / this.font.charWidth);
-		let rows = Math.floor(this.parentDomElement.offsetHeight / this.font.charHeight);
+		let cols = Math.floor(dimension.width / this.font.charWidth);
+		let rows = Math.floor(dimension.height / this.font.charHeight);
 		if (this.terminal) {
 			this.terminal.resize(cols, rows);
 		}
@@ -131,14 +133,6 @@ export class TerminalInstance {
 		});
 	}
 
-	public setTheme(colors: string[]): void {
-		if (!this.terminal) {
-			return;
-		}
-		this.terminal.colors = colors;
-		this.terminal.refresh(0, this.terminal.rows);
-	}
-
 	public setFont(font: ITerminalFont): void {
 		this.font = font;
 		this.terminalDomElement.style.fontFamily = this.font.fontFamily;
@@ -160,6 +154,8 @@ export class TerminalInstance {
 	}
 
 	public dispose(): void {
+		this.parentDomElement.removeChild(this.wrapperElement);
+		this.wrapperElement = null;
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.terminal.destroy();
 		this.ptyProcess.kill();

@@ -20,6 +20,7 @@ export class TerminalPanel extends Panel {
 
 	private toDispose: lifecycle.IDisposable[];
 	private parentDomElement: HTMLElement;
+	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 	private terminalInstance: TerminalInstance;
 
@@ -43,6 +44,8 @@ export class TerminalPanel extends Panel {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
+		this.themeStyleElement = document.createElement('style');
+		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 
 		return this.createTerminal();
@@ -88,7 +91,29 @@ export class TerminalPanel extends Panel {
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
-		this.terminalInstance.setTheme(this.configurationHelper.getTheme(themeId));
+		let theme = this.configurationHelper.getTheme(themeId);
+
+		let css = '';
+		theme.forEach((color: string, index: number) => {
+			// TODO: The classes could probably be reduced, it's so long to beat the specificity of the general rule.
+			let rgba = this.convertHexCssColorToRgba(color, 0.996);
+			css += `.monaco-workbench .integrated-terminal .terminal .xterm-color-${index} { color: ${color}; }` +
+				`.monaco-workbench .integrated-terminal .terminal .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+				`.monaco-workbench .integrated-terminal .terminal .xterm-bg-color-${index} { background-color: ${color}; }` +
+				`.monaco-workbench .integrated-terminal .terminal .xterm-bg-color-${index}::selection { color: ${color}; }`;
+		});
+
+		this.themeStyleElement.innerHTML = css;
+	}
+
+	/**
+	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
+	 */
+	private convertHexCssColorToRgba(hex: string, alpha: number): string {
+		let r = parseInt(hex.substr(1, 2), 16);
+		let g = parseInt(hex.substr(3, 2), 16);
+		let b = parseInt(hex.substr(5, 2), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
 	private updateFont(): void {

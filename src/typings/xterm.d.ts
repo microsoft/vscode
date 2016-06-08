@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'term.js' {
+declare module 'xterm' {
 	function init(options: any): TermJsTerminal;
 
 	// There seems to be no way to export this so it can be referenced outside of this file when a

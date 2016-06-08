@@ -30,10 +30,10 @@
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/prebuilt",
     "sax": "1.1.2",
     "semver": "4.3.6",
-    "term.js": "https://github.com/jeremyramin/term.js/tarball/master",
     "vscode-debugprotocol": "1.9.0",
     "vscode-textmate": "1.1.0",
     "winreg": "1.2.0",
+    "xterm": "^0.33.0",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
