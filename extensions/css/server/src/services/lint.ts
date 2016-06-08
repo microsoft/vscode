@@ -7,7 +7,6 @@
 import languageFacts = require('./languageFacts');
 import lintRules = require('./lintRules');
 import nodes = require('../parser/cssNodes');
-import _level = require('../parser/level');
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -53,13 +52,13 @@ export class LintVisitor implements nodes.IVisitor {
 	];
 
 	private warnings:nodes.IMarker[] = [];
-	private configuration:{ [id:string] : _level.Level };
+	private configuration:{ [id:string] : nodes.Level };
 
 	constructor(settings: lintRules.ILintConfigurationSettings = {}) {
 		this.configuration = {};
 		for (var ruleKey in lintRules.Rules) {
 			var rule = lintRules.Rules[ruleKey];
-			var level = settings[rule.id] || _level.toLevel(rule.defaultValue);
+			var level = settings[rule.id] || lintRules.toLevel(rule.defaultValue);
 			this.configuration[rule.id] = level;
 		}
 	}
@@ -113,7 +112,7 @@ export class LintVisitor implements nodes.IVisitor {
 		return elements;
 	}
 
-	public getEntries(filter:number=(_level.Level.Warning | _level.Level.Error)):nodes.IMarker[] {
+	public getEntries(filter:number=(nodes.Level.Warning | nodes.Level.Error)):nodes.IMarker[] {
 		return this.warnings.filter((entry) => {
 			return (entry.getLevel() & filter) !== 0;
 		});

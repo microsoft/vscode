@@ -5,7 +5,6 @@
 'use strict';
 
 import nodes = require('../parser/cssNodes');
-import _level = require('../parser/level');
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -42,17 +41,26 @@ export var Rules = {
 };
 
 export interface ILintConfigurationSettings {
-	[ruleId:string] : _level.Level;
+	[ruleId:string] : nodes.Level;
 }
 
 export function sanitize(conf:any): ILintConfigurationSettings {
 	var settings: ILintConfigurationSettings = {};
 	for (var ruleName in Rules) {
 		var rule = Rules[ruleName];
-		var level = _level.toLevel(conf[rule.id]);
+		var level = toLevel(conf[rule.id]);
 		if (level) {
 			settings[rule.id] = level;
 		}
 	}
 	return settings;
+}
+
+export function toLevel(level: string):nodes.Level {
+	switch (level) {
+		case 'ignore': return nodes.Level.Ignore;
+		case 'warning': return nodes.Level.Warning;
+		case 'error': return nodes.Level.Error;
+	}
+	return null;
 }

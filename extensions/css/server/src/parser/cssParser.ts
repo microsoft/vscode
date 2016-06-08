@@ -5,7 +5,6 @@
 'use strict';
 import scanner = require ('./cssScanner');
 import nodes = require ('./cssNodes');
-import _level = require('./level');
 import errors = require('./cssErrors');
 import languageFacts = require('../services/languageFacts');
 import {TextDocument} from 'vscode-languageserver';
@@ -142,7 +141,7 @@ export class Parser {
 
 	public markError<T extends nodes.Node>(node:T, error: errors.CSSIssueType, resyncTokens?: scanner.TokenType[], resyncStopTokens?: scanner.TokenType[]): void {
 		if (this.token !== this.lastErrorToken) { // do not report twice on the same token
-			node.addIssue(new nodes.Marker(node, error, _level.Level.Error, null, this.token.offset, this.token.len));
+			node.addIssue(new nodes.Marker(node, error, nodes.Level.Error, null, this.token.offset, this.token.len));
 			this.lastErrorToken = this.token;
 		}
 		if (resyncTokens || resyncStopTokens) {

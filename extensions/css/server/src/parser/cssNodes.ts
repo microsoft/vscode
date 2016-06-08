@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import _level = require('./level');
-
 /// <summary>
 /// Nodes for the css 2.1 specification. See for reference:
 /// http://www.w3.org/TR/CSS21/grammar.html#grammar
@@ -1334,25 +1332,31 @@ export interface IRule {
 }
 
 
+export enum Level {
+	Ignore = 1,
+	Warning = 2,
+	Error = 4
+}
+
 export interface IMarker {
 	getNode():Node;
 	getMessage():string;
 	getOffset(): number;
 	getLength(): number;
 	getRule():IRule;
-	getLevel():_level.Level;
+	getLevel():Level;
 }
 
 export class Marker implements IMarker {
 
 	private node:Node;
 	private rule:IRule;
-	private level:_level.Level;
+	private level:Level;
 	private message:string;
 	private offset:number;
 	private length:number;
 
-	constructor(node:Node, rule:IRule, level:_level.Level, message?:string, offset:number=node.offset, length:number=node.length) {
+	constructor(node:Node, rule:IRule, level:Level, message?:string, offset:number=node.offset, length:number=node.length) {
 		this.node = node;
 		this.rule = rule;
 		this.level = level;
@@ -1365,7 +1369,7 @@ export class Marker implements IMarker {
 		return this.rule;
 	}
 
-	public getLevel():_level.Level {
+	public getLevel():Level {
 		return this.level;
 	}
 
