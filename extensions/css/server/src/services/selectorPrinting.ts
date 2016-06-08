@@ -4,17 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('../parser/cssNodes');
+import * as nodes from '../parser/cssNodes';
 import {MarkedString} from 'vscode-languageserver';
 
-
-export interface IElement {
-	name?: string;
-	children?: IElement[];
-	attributes?: { [name: string]: string; };
-}
-
-export class Element implements IElement {
+export class Element {
 
 	public name: string;
 	public parent: Element;
@@ -32,7 +25,7 @@ export class Element implements IElement {
 	}
 
 	public findRoot(): Element {
-		var curr: Element = this;
+		let curr: Element = this;
 		while (curr.parent && !(curr.parent instanceof RootElement)) {
 			curr = curr.parent;
 		}
@@ -41,7 +34,7 @@ export class Element implements IElement {
 
 	public removeChild(child: Element): boolean {
 		if (this.children) {
-			var index = this.children.indexOf(child);
+			let index = this.children.indexOf(child);
 			if (index !== -1) {
 				this.children.splice(index, 1);
 				return true;
@@ -62,17 +55,17 @@ export class Element implements IElement {
 	}
 
 	public clone(cloneChildren: boolean = true): Element {
-		var elem = new Element();
+		let elem = new Element();
 		elem.name = this.name;
 		if (this.attributes) {
 			elem.attributes = {};
-			for (var key in this.attributes) {
+			for (let key in this.attributes) {
 				elem.addAttr(key, this.attributes[key]);
 			}
 		}
 		if (cloneChildren && this.children) {
 			elem.children = [];
-			for (var index = 0; index < this.children.length; index++) {
+			for (let index = 0; index < this.children.length; index++) {
 				elem.addChild(this.children[index].clone());
 			}
 		}
@@ -80,9 +73,9 @@ export class Element implements IElement {
 	}
 
 	public cloneWithParent(): Element {
-		var clone = this.clone(false);
+		let clone = this.clone(false);
 		if (this.parent && !(this.parent instanceof RootElement)) {
-			var parentClone = this.parent.cloneWithParent();
+			let parentClone = this.parent.cloneWithParent();
 			parentClone.addChild(clone);
 		}
 		return clone;
@@ -109,7 +102,7 @@ class MarkedStringPrinter {
 		// empty
 	}
 
-	public print(element: IElement): MarkedString[] {
+	public print(element: Element): MarkedString[] {
 		this.result = [];
 		if (element instanceof RootElement) {
 			this.doPrint(element.children, 0);
@@ -119,7 +112,7 @@ class MarkedStringPrinter {
 		return this.result;
 	}
 
-	private doPrint(elements: IElement[], indent: number) {
+	private doPrint(elements: Element[], indent: number) {
 		for (let element of elements) {
 			this.doPrintElement(element, indent);
 			if (element.children) {
@@ -133,7 +126,7 @@ class MarkedStringPrinter {
 		this.result.push({ language: 'html', value: indent + content });
 	}
 
-	private doPrintElement(element: IElement, indent: number) {
+	private doPrintElement(element: Element, indent: number) {
 
 		// special case: a simple label
 		if (element instanceof LabelElement) {
@@ -157,7 +150,7 @@ class MarkedStringPrinter {
 
 				content.push(' ');
 				content.push(attr);
-				var value = element.attributes[attr];
+				let value = element.attributes[attr];
 				if (value) {
 					content.push('=');
 					content.push(quotes.ensure(value, this.quote));
@@ -188,12 +181,12 @@ namespace quotes {
 
 export function toElement(node: nodes.SimpleSelector, parentElement?: Element): Element {
 
-	var result = new Element();
+	let result = new Element();
 	node.getChildren().forEach((child) => {
 		switch (child.type) {
 			case nodes.NodeType.SelectorCombinator:
 				if (parentElement) {
-					var segments = child.getText().split('&');
+					let segments = child.getText().split('&');
 					if (segments.length === 1) {
 						// should not happen
 						result.name = segments[0];
@@ -201,12 +194,12 @@ export function toElement(node: nodes.SimpleSelector, parentElement?: Element): 
 					}
 					result = parentElement.cloneWithParent();
 					if (segments[0]) {
-						var root = result.findRoot();
+						let root = result.findRoot();
 						root.name = segments[0] + root.name;
 					}
-					for (var i = 1; i < segments.length; i++) {
+					for (let i = 1; i < segments.length; i++) {
 						if (i > 1) {
-							var clone = parentElement.cloneWithParent();
+							let clone = parentElement.cloneWithParent();
 							result.addChild(clone.findRoot());
 							result = clone;
 						}
@@ -216,7 +209,7 @@ export function toElement(node: nodes.SimpleSelector, parentElement?: Element): 
 				break;
 			case nodes.NodeType.SelectorPlaceholder:
 			case nodes.NodeType.ElementNameSelector:
-				var text = child.getText();
+				let text = child.getText();
 				result.name = text === '*' ? 'element' : text;
 				break;
 			case nodes.NodeType.ClassSelector:
@@ -232,10 +225,10 @@ export function toElement(node: nodes.SimpleSelector, parentElement?: Element): 
 				result.addAttr(child.getText(), '');
 				break;
 			case nodes.NodeType.AttributeSelector:
-				var expr = <nodes.BinaryExpression>child.getChildren()[0];
+				let expr = <nodes.BinaryExpression>child.getChildren()[0];
 				if (expr) {
+					let value: string;
 					if (expr.getRight()) {
-						var value: string;
 						switch (expr.getOperator().getText()) {
 							case '|=':
 								// excatly or followed by -words
@@ -271,12 +264,12 @@ export function toElement(node: nodes.SimpleSelector, parentElement?: Element): 
 }
 
 export function selectorToMarkedString(node: nodes.Selector): MarkedString[] {
-	var root = selectorToElement(node);
+	let root = selectorToElement(node);
 	return new MarkedStringPrinter('"').print(root);
 }
 
 export function simpleSelectorToMarkedString(node: nodes.SimpleSelector): MarkedString[] {
-	var element = toElement(node);
+	let element = toElement(node);
 	return new MarkedStringPrinter('"').print(element);
 }
 
@@ -291,11 +284,11 @@ class SelectorElementBuilder {
 	}
 
 	public processSelector(selector: nodes.Selector): void {
-		var parentElement: Element = null;
+		let parentElement: Element = null;
 
 		if (!(this.element instanceof RootElement)) {
 			if (selector.getChildren().some((c) => c.hasChildren() && c.getChild(0).type === nodes.NodeType.SelectorCombinator)) {
-				var curr = this.element.findRoot();
+				let curr = this.element.findRoot();
 				if (curr.parent instanceof RootElement) {
 					parentElement = this.element;
 
@@ -309,7 +302,7 @@ class SelectorElementBuilder {
 		selector.getChildren().forEach((selectorChild) => {
 			if (selectorChild instanceof nodes.SimpleSelector) {
 				if (this.prev instanceof nodes.SimpleSelector) {
-					var labelElement = new LabelElement('\u2026');
+					let labelElement = new LabelElement('\u2026');
 					this.element.addChild(labelElement);
 					this.element = labelElement;
 				} else if (this.prev && (this.prev.matches('+') || this.prev.matches('~'))) {
@@ -321,8 +314,8 @@ class SelectorElementBuilder {
 					this.element.addChild(new LabelElement('\u22EE'));
 				}
 
-				var thisElement = toElement(<nodes.SimpleSelector>selectorChild, parentElement);
-				var root = thisElement.findRoot();
+				let thisElement = toElement(<nodes.SimpleSelector>selectorChild, parentElement);
+				let root = thisElement.findRoot();
 
 				this.element.addChild(root);
 				this.element = thisElement;
@@ -349,11 +342,11 @@ function isNewSelectorContext(node: nodes.Node): boolean {
 }
 
 export function selectorToElement(node: nodes.Selector): Element {
-	var root: Element = new RootElement();
-	var parentRuleSets: nodes.RuleSet[] = [];
+	let root: Element = new RootElement();
+	let parentRuleSets: nodes.RuleSet[] = [];
 
 	if (node.getParent() instanceof nodes.RuleSet) {
-		var parent = node.getParent().getParent(); // parent of the selector's ruleset
+		let parent = node.getParent().getParent(); // parent of the selector's ruleset
 		while (parent && !isNewSelectorContext(parent)) {
 			if (parent instanceof nodes.RuleSet) {
 				parentRuleSets.push(<nodes.RuleSet>parent);
@@ -362,10 +355,10 @@ export function selectorToElement(node: nodes.Selector): Element {
 		}
 	}
 
-	var builder = new SelectorElementBuilder(root);
+	let builder = new SelectorElementBuilder(root);
 
-	for (var i = parentRuleSets.length - 1; i >= 0; i--) {
-		var selector = parentRuleSets[i].getSelectors().getChild(0);
+	for (let i = parentRuleSets.length - 1; i >= 0; i--) {
+		let selector = parentRuleSets[i].getSelectors().getChild(0);
 		if (selector) {
 			builder.processSelector(selector);
 		}
