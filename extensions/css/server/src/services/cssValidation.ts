@@ -8,7 +8,6 @@ import nodes = require('../parser/cssNodes');
 import {TextDocument, Range, Diagnostic, DiagnosticSeverity} from 'vscode-languageserver';
 import {ILintConfigurationSettings, sanitize} from './lintRules';
 import {LintVisitor} from './lint';
-import {Level} from '../parser/level';
 
 export interface LanguageSettings {
 	validate: boolean;
@@ -52,14 +51,14 @@ export class CSSValidation {
 
 		function toDiagnostic(marker: nodes.IMarker): Diagnostic {
 			let range = Range.create(document.positionAt(marker.getOffset()), document.positionAt(marker.getOffset() + marker.getLength()));
-			return <Diagnostic> {
+			return <Diagnostic>{
 				code: marker.getRule().id,
 				message: marker.getMessage(),
-				severity: marker.getLevel() === Level.Warning ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
+				severity: marker.getLevel() === nodes.Level.Warning ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
 				range: range
 			};
 		}
 
-		return Promise.resolve(entries.filter(entry => entry.getLevel() !== Level.Ignore).map(toDiagnostic));
+		return Promise.resolve(entries.filter(entry => entry.getLevel() !== nodes.Level.Ignore).map(toDiagnostic));
 	}
 }
