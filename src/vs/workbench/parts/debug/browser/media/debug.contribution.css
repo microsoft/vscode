@@ -177,7 +177,7 @@
 }
 
 .monaco-workbench .monaco-tree-row:not(.selected) .expression .value.boolean {
-	color: #0000FF;
+	color: blue;
 }
 
 .monaco-workbench .monaco-tree-row:not(.selected) .expression .value.string {

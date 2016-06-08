@@ -73,5 +73,5 @@
 
 .hc-black .monaco-workbench > .part.statusbar {
 	border-top: 1px solid #6FC3DF;
-	background-color: #000;
+	background-color: black;
 }

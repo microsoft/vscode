@@ -182,7 +182,7 @@
 }
 
 .hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .warn {
-	color: #008000;
+	color: green;
 }
 
 .vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .annotation {
@@ -194,7 +194,7 @@
 }
 
 .hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .annotation {
-	color: #0000FF;
+	color: blue;
 }
 
 .vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.info {
@@ -208,7 +208,7 @@
 }
 
 .hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.info {
-	background-color: #0000FF;
+	background-color: blue;
 	color: white;
 }
 
@@ -223,7 +223,7 @@
 }
 
 .hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.warn {
-	background-color: #008000;
+	background-color: green;
 	color: white;
 }
 
@@ -238,7 +238,7 @@
 }
 
 .hc-black .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .counter.error {
-	background-color: #FF0000;
+	background-color: red;
 	color: white;
 }
 

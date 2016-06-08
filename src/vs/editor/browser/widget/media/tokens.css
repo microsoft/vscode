@@ -10,7 +10,7 @@
 	mix-blend-mode: difference;
 }
 
-.monaco-editor.vs .token					{ color: #000000; }
+.monaco-editor.vs .token					{ color: black; }
 .monaco-editor.vs .token.whitespace			{ color: rgba(51, 51, 51, 0.2) !important; }
 .monaco-editor.vs .token.info-token			{ color: #316bcd; }
 .monaco-editor.vs .token.warn-token			{ color: #cd9731; }
@@ -24,11 +24,11 @@
 .monaco-editor.vs-dark .token.error-token	{ color: #f44747; }
 .monaco-editor.vs-dark .token.debug-token	{ color: #b267e6; }
 
-.monaco-editor.hc-black .token				{ color: #FFFFFF; }
+.monaco-editor.hc-black .token				{ color: white; }
 .monaco-editor.hc-black .token.whitespace	{ color: rgba(227, 228, 226, 0.16) !important; }
 .monaco-editor.hc-black .token.info-token	{ color: #6796e6; }
 .monaco-editor.hc-black .token.warn-token	{ color: #008000; }
-.monaco-editor.hc-black .token.error-token	{ color: #FF0000; }
+.monaco-editor.hc-black .token.error-token	{ color: red; }
 .monaco-editor.hc-black .token.debug-token	{ color: #b267e6; }
 
 /* -------------------- Indent Guides -------------------- */
