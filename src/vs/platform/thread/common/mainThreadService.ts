@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, decoratePromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import Worker = require('vs/base/common/worker/workerClient');
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import Env = require('vs/base/common/flags');
 import Platform = require('vs/base/common/platform');
-import Timer = require('vs/base/common/timer');
 import remote = require('vs/base/common/remote');
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -191,17 +190,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		if (!id) {
 			throw new Error('Synchronizable Objects must have an identifier');
 		}
-
-		let timerEvent = Timer.start(Timer.Topic.LANGUAGES, this._shortName(id, methodName));
-		let stopTimer = () => {
-			timerEvent.stop();
-			//			console.log(timerEvent.timeTaken(), this._workerPool.indexOf(worker), obj.getId() + ' >>> ' + methodName + ': ', params);
-		};
-
-
-		let r = decoratePromise(worker.request('threadService', [id, methodName, params]), stopTimer, stopTimer);
-
-		return r;
+		return worker.request('threadService', [id, methodName, params]);
 	}
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {

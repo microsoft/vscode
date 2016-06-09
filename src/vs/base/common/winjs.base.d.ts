@@ -43,9 +43,6 @@ export declare class Promise {
 	public cancel():void;
 }
 
-export declare function decoratePromise(promise:Promise, successCallback?:ValueCallback, errorCallback?:ErrorCallback):Promise;
-export declare function decoratePromise<T>(promise:TPromise<T>, successCallback?:TValueCallback<T>, errorCallback?:ErrorCallback):TPromise<T>;
-
 // --- Generic promise
 export interface TValueCallback<T> {
 	(value:T):void;
