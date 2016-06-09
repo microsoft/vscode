@@ -723,10 +723,6 @@ export class FileDragAndDrop implements IDragAndDrop {
 		let isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
 		let fromDesktop = data instanceof DesktopDragAndDropData;
 
-		if (this.contextService.getOptions().readOnly) {
-			return DRAG_OVER_REJECT;
-		}
-
 		// Desktop DND
 		if (fromDesktop) {
 			let dragData = (<DesktopDragAndDropData>data).getData();

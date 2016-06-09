@@ -101,7 +101,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		let baseOptions: IEditorOptions = {
 			overviewRulerLanes: 3,
-			readOnly: this.contextService.getOptions().readOnly,
 			glyphMargin: true,
 			lineNumbersMinChars: 3,
 			theme: this._themeService.getTheme()

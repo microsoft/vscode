@@ -64,7 +64,6 @@ export interface IFileViewletState {
 
 export class BaseFileAction extends Action {
 	private _element: FileStat;
-	private listenerToUnbind: IDisposable;
 
 	constructor(
 		id: string,
@@ -79,9 +78,6 @@ export class BaseFileAction extends Action {
 		super(id, label);
 
 		this.enabled = false;
-
-		// update enablement when options change
-		this.listenerToUnbind = this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, () => this._updateEnablement());
 	}
 
 	public get contextService() {
@@ -121,7 +117,7 @@ export class BaseFileAction extends Action {
 	}
 
 	_updateEnablement(): void {
-		this.enabled = !!(this._contextService && this._fileService && this._editorService && !this._contextService.getOptions().readOnly && this._isEnabled());
+		this.enabled = !!(this._contextService && this._fileService && this._editorService && this._isEnabled());
 	}
 
 	protected onError(error: any): void {
@@ -165,12 +161,6 @@ export class BaseFileAction extends Action {
 		}
 
 		return TPromise.as(false);
-	}
-
-	public dispose(): void {
-		this.listenerToUnbind.dispose();
-
-		super.dispose();
 	}
 }
 

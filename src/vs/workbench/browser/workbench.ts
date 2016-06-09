@@ -718,11 +718,6 @@ export class Workbench implements IPartService {
 			this.workbench.addClass('nosidebar');
 		}
 
-		// Apply readonly state as CSS class
-		if (this.workbenchParams.options.readOnly) {
-			this.workbench.addClass('readonly');
-		}
-
 		// Apply no-workspace state as CSS class
 		if (!this.workbenchParams.workspace) {
 			this.workbench.addClass('no-workspace');

@@ -42,11 +42,6 @@ export interface IOptions {
 	singleFileMode?: boolean;
 
 	/**
-	 * A flag turning the workbench into readonly mode preventing file modifications.
-	 */
-	readOnly?: boolean;
-
-	/**
 	 * Editor options to be used for any editor in the workbench.
 	 */
 	editor?: IEditorOptions;
