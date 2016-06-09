@@ -272,10 +272,6 @@ export class TextFileEditor extends BaseTextEditor {
 		return options;
 	}
 
-	public supportsSplitEditor(): boolean {
-		return true; // yes, we can!
-	}
-
 	/**
 	 * Saves the text editor view state under the given key.
 	 */

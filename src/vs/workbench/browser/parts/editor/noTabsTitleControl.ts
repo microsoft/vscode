@@ -10,9 +10,8 @@ import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
 import {Builder, $} from 'vs/base/browser/builder';
-import {IEditorGroup} from 'vs/workbench/common/editor';
+import {IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -153,8 +152,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 		const isPinned = group.isPinned(group.activeEditor);
 		const isActive = this.stacks.isActive(group);
-		const position = this.stacks.positionOfGroup(group);
-		const control = this.editorService.getVisibleEditors()[position];
 
 		// Pinned state
 		if (isPinned) {
@@ -194,7 +191,7 @@ export class NoTabsTitleControl extends TitleControl {
 		// Update Editor Actions Toolbar
 		const editorActions = this.getEditorActions(group);
 		const primaryEditorActions = prepareActions(editorActions.primary);
-		if (isActive && control instanceof BaseEditor && control.supportsSplitEditor()) {
+		if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primaryEditorActions.push(this.splitEditorAction);
 		}
 		primaryEditorActions.push(this.closeEditorAction);

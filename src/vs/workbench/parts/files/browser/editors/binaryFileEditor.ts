@@ -27,8 +27,4 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	public getTitle(): string {
 		return this.getInput() ? this.getInput().getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
-
-	public supportsSplitEditor(): boolean {
-		return true; // yes, we can!
-	}
 }

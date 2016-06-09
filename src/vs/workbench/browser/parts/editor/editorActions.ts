@@ -7,7 +7,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
@@ -49,7 +48,7 @@ export class SplitEditorAction extends Action {
 		}
 
 		// Return if the editor to split does not support split editing
-		if (!(<BaseEditor>editorToSplit).supportsSplitEditor()) {
+		if (editorToSplit.input instanceof EditorInput && !(<EditorInput>editorToSplit.input).supportsSplitEditor()) {
 			return TPromise.as(true);
 		}
 
@@ -215,7 +214,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		}
 
 		// Require the reference editor to be visible and supporting split editor
-		if (referenceEditor && (<BaseEditor>referenceEditor).supportsSplitEditor()) {
+		if (referenceEditor && (<EditorInput>referenceEditor.input).supportsSplitEditor()) {
 			return this.editorService.openEditor(referenceEditor.input, null, this.getTargetEditorSide());
 		}
 

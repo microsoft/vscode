@@ -131,14 +131,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return this._position;
 	}
 
-	/**
-	 * Controls if the editor shows an action to split the input of the editor to the side. Subclasses should override
-	 * if they are capable of showing the same editor input side by side.
-	 */
-	public supportsSplitEditor(): boolean {
-		return false;
-	}
-
 	public dispose(): void {
 		this._input = null;
 		this._options = null;
