@@ -3,17 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Title Actions */
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
-	display: flex;
-	flex: initial;
+/* Tabs Container */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container {
+	flex: 1;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive .title-actions {
+/* Title Actions */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions {
+	flex: initial;
+	padding-left: 4px;
+	background-color: rgba(128, 128, 128, 0.2);
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive .group-actions {
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label {
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label {
 	display: block;
 	height: 35px;
 	width: 28px;
@@ -22,11 +30,6 @@
 	background-repeat: no-repeat;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label .label {
 	display: none;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar {
-	padding-left: 4px;
-	background-color: rgba(128, 128, 128, 0.2);
 }

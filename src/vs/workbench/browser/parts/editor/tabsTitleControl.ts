@@ -52,14 +52,21 @@ export class TabsTitleControl extends TitleControl {
 	public create(parent: Builder): void {
 		this.titleContainer = $(parent);
 
-		// Group Actions Container
+		// Tabs Container
 		parent.div({
-			'class': 'title-actions'
+			'class': 'tabs-container'
 		}, (div) => {
 
-			// Editor actions
+			
+		});
+
+		// Group Actions Container
+		parent.div({
+			'class': 'group-actions'
+		}, (div) => {
+
+			// Group actions toolbar
 			this.groupActionsToolbar = this.doCreateToolbar(div);
-			this.groupActionsToolbar.getContainer().addClass('editor-group-toolbar');
 		});
 	}
 
@@ -77,6 +84,15 @@ export class TabsTitleControl extends TitleControl {
 			this.currentSecondaryGroupActionIds = [];
 
 			return; // return early if we are being closed
+		}
+
+		const isActive = this.stacks.isActive(group);
+
+		// Activity state
+		if (isActive) {
+			this.titleContainer.removeClass('inactive');
+		} else {
+			this.titleContainer.addClass('inactive');
 		}
 
 		// Update Group Actions Toolbar
