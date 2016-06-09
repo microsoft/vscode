@@ -284,12 +284,10 @@ export class StageAction extends BaseStageAction {
 	static LABEL = nls.localize('stageChanges', "Stage");
 
 	constructor(
-		id = StageAction.ID,
-		label = StageAction.LABEL,
 		@IGitService gitService: IGitService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		super(id, label, 'git-action stage', gitService, editorService);
+		super(StageAction.ID, StageAction.LABEL, 'git-action stage', gitService, editorService);
 	}
 }
 
@@ -567,12 +565,10 @@ export class UnstageAction extends BaseUnstageAction {
 	static LABEL = nls.localize('unstage', "Unstage");
 
 	constructor(
-		id = UnstageAction.ID,
-		label = UnstageAction.LABEL,
 		@IGitService gitService: IGitService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		super(id, label, 'git-action unstage', gitService, editorService);
+		super(UnstageAction.ID, UnstageAction.LABEL, 'git-action unstage', gitService, editorService);
 	}
 }
 

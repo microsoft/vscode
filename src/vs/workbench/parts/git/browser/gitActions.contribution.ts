@@ -8,12 +8,11 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/platform/platform');
 import abr = require('vs/workbench/browser/actionBarRegistry');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import PlatformEditorCommon = require('vs/platform/editor/common/editor');
 import tdeditor = require('vs/workbench/browser/parts/editor/textDiffEditor');
 import teditor = require('vs/workbench/browser/parts/editor/textEditor');
 import filesCommon = require('vs/workbench/parts/files/common/files');
@@ -29,7 +28,7 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, StageAction, UnstageAction } from './gitActions';
+import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction } from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 
@@ -245,8 +244,10 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 	}
 }
 
-export class WorkbenchStageAction extends StageAction {
+export class WorkbenchStageAction extends BaseStageAction {
 
+	static ID = 'workbench.action.git.stage';
+	static LABEL = nls.localize('workbenchStage', "Stage");
 	private contextService: IWorkspaceContextService;
 
 	constructor(
@@ -256,7 +257,7 @@ export class WorkbenchStageAction extends StageAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(id, label, gitService, editorService);
+		super(id, label, '', gitService, editorService);
 		this.contextService = contextService;
 		this.onGitServiceChange();
 	}
@@ -269,36 +270,42 @@ export class WorkbenchStageAction extends StageAction {
 		}
 	}
 
-	public isEnabled():boolean {
+	isEnabled():boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
-		let editor = this.editorService.getActiveEditor();
-		if (editor === null) {
+
+		const editor = this.editorService.getActiveEditor();
+		if (!editor || !(editor instanceof baseeditor.BaseEditor)) {
 			return false;
 		}
-		if (editor instanceof baseeditor.BaseEditor) {
-			return true;
-		}
-		return false;
+
+		return true;
 	}
 
-	public run(context?: any): Promise {
-		// use context if provided, else get file in view
-		if (context) {
-			return super.run(context);
-		}
-		let input = <WorkbenchEditorCommon.IFileEditorInput>this.editorService.getActiveEditor().input;
+	run(context?: any): TPromise<void> {
+		const input = this.editorService.getActiveEditor().input;
+		let fileStatus: IFileStatus;
+
 		if (gitei.isGitEditorInput(input)) {
-			return super.run([(<gitei.GitDiffEditorInput>(<PlatformEditorCommon.IEditorInput>input)).getFileStatus()]);
+			const gitInput = input as gitei.GitDiffEditorInput;
+			fileStatus = gitInput.getFileStatus();
+		} else {
+			fileStatus = getStatus(this.gitService, this.contextService, input as WorkbenchEditorCommon.IFileEditorInput);
 		}
-		let fileStatus = getStatus(this.gitService, this.contextService, input);
-		return super.run([fileStatus]);
+
+		if (!fileStatus) {
+			return TPromise.as<void>(null);
+		}
+
+		return super.run(fileStatus);
 	}
 }
 
-export class WorkbenchUnstageAction extends UnstageAction {
+export class WorkbenchUnstageAction extends BaseUnstageAction {
 
+	static ID = 'workbench.action.git.unstage';
+	static LABEL = nls.localize('workbenchUnstage', "Unstage");
 	private contextService: IWorkspaceContextService;
 
 	constructor(
@@ -308,7 +315,7 @@ export class WorkbenchUnstageAction extends UnstageAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(id, label, gitService, editorService);
+		super(id, label, '', gitService, editorService);
 		this.contextService = contextService;
 		this.onGitServiceChange();
 	}
@@ -321,33 +328,35 @@ export class WorkbenchUnstageAction extends UnstageAction {
 		}
 	}
 
-	public isEnabled():boolean {
+	isEnabled():boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
-		let editor = this.editorService.getActiveEditor();
-		if (editor === null) {
+
+		const editor = this.editorService.getActiveEditor();
+		if (!editor || !(editor instanceof baseeditor.BaseEditor)) {
 			return false;
 		}
-		if (editor instanceof baseeditor.BaseEditor) {
-			return true;
-		}
-		return false;
+
+		return true;
 	}
 
-	public run(context?: any): Promise {
-		// use context if provided, else get file in view
-		if (context) {
-			return super.run(context);
-		}
+	run(context?: any): TPromise<void> {
+		const input = this.editorService.getActiveEditor().input;
 		let fileStatus: IFileStatus;
-		let input = <WorkbenchEditorCommon.IFileEditorInput>this.editorService.getActiveEditor().input;
+
 		if (gitei.isGitEditorInput(input)) {
-			fileStatus = (<gitei.GitDiffEditorInput>(<PlatformEditorCommon.IEditorInput>input)).getFileStatus();
+			const gitInput = input as gitei.GitDiffEditorInput;
+			fileStatus = gitInput.getFileStatus();
 		} else {
-			fileStatus = getStatus(this.gitService, this.contextService, input);
+			fileStatus = getStatus(this.gitService, this.contextService, input as WorkbenchEditorCommon.IFileEditorInput);
 		}
-		return super.run([fileStatus]);
+
+		if (!fileStatus) {
+			return TPromise.as<void>(null);
+		}
+
+		return super.run(fileStatus);
 	}
 }
 
