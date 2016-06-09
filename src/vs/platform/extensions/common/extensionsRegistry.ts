@@ -223,7 +223,7 @@ const schema: IJSONSchema = {
 			type: 'array',
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other']
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Productivity', 'Other']
 			}
 		},
 		galleryBanner: {
