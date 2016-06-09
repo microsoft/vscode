@@ -7,7 +7,7 @@
 import * as path from 'path';
 
 import {languages, ExtensionContext} from 'vscode';
-import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, NotificationType, Range} from 'vscode-languageclient';
+import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, NotificationType, Range, TextEdit, Protocol2Code} from 'vscode-languageclient';
 
 namespace ColorDecorationNotification {
 	export const type: NotificationType<Range[]> = { get method() { return 'css/colorDecorations'; } };
@@ -40,7 +40,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('css', serverOptions, clientOptions);
-	
+
 	client.onNotification(ColorDecorationNotification.type, ranges => {
 
 	});
@@ -101,6 +101,25 @@ export function activate(context: ExtensionContext) {
 		]
 	});
 
+	vscode.commands.registerCommand('_css.applyCodeAction', applyCodeAction);
+}
+
+function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]) {
+	let textEditor = vscode.window.activeTextEditor;
+	if (textEditor && textEditor.document.uri.toString() === uri) {
+		if (textEditor.document.version !== documentVersion) {
+			vscode.window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
+		}
+		textEditor.edit(mutator => {
+			for (let edit of edits) {
+				mutator.replace(Protocol2Code.asRange(edit.range), edit.newText);
+			}
+		}).then(success => {
+			if (!success) {
+				vscode.window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
+			}
+		});
+	}
 }
 
 // 	let decorationType : vscode.DecorationRenderOptions = {

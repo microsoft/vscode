@@ -13,6 +13,7 @@ import {Parser} from './parser/cssParser';
 import {CSSCompletion} from './services/cssCompletion';
 import {CSSHover} from './services/cssHover';
 import {CSSSymbols} from './services/cssSymbols';
+import {CSSCodeActions} from './services/cssCodeActions';
 import {CSSValidation, Settings} from './services/cssValidation';
 
 import {Stylesheet} from './parser/cssNodes';
@@ -42,7 +43,11 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			textDocumentSync: documents.syncKind,
 			completionProvider: { resolveProvider: false },
 			hoverProvider: true,
-			documentSymbolProvider: true
+			documentSymbolProvider: true,
+			referencesProvider: true,
+			definitionProvider: true,
+			documentHighlightProvider: true,
+			codeActionProvider: true
 		}
 	};
 });
@@ -51,6 +56,7 @@ let cssCompletion = new CSSCompletion();
 let cssHover = new CSSHover();
 let cssValidation = new CSSValidation();
 let cssSymbols = new CSSSymbols();
+let cssCodeActions = new CSSCodeActions();
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
@@ -124,6 +130,12 @@ connection.onReferences(referenceParams => {
 	let document = documents.get(referenceParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
 	return cssSymbols.findReferences(document, referenceParams.position, stylesheet);
+});
+
+connection.onCodeAction(codeActionParams => {
+	let document = documents.get(codeActionParams.textDocument.uri);
+	let stylesheet = getStylesheet(document);
+	return cssCodeActions.doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
 });
 
 // Listen on the connection
