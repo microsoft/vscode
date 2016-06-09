@@ -344,7 +344,8 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 	public entries: IExtensionEntry[];
 
 	constructor(
-		private extensions: IExtension[],
+		private installedExtensions: IExtension[],
+		private outdatedExtensions: IExtension[],
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.renderer = instantiationService.createInstance(Renderer);
@@ -352,14 +353,20 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 	}
 
 	public set input(input: string) {
-		this.entries = this.extensions
+		this.entries = this.installedExtensions
 			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ highlights }) => !!highlights)
-			.map(({ extension, highlights }) => ({
-				extension,
-				highlights,
-				state: ExtensionState.Installed
-			}))
+			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
+				const [outdatedExt] = this.outdatedExtensions.filter(outdatedExt => extensionEquals(outdatedExt, extension));
+
+				return {
+					extension,
+					highlights: getHighlights(input.trim(), extension),
+					state: outdatedExt
+						? ExtensionState.Outdated
+						: ExtensionState.Installed
+				};
+			})
 			.sort(extensionEntryCompare);
 	}
 }
@@ -370,7 +377,8 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
 		super();
 		this.modelPromise = null;
@@ -382,8 +390,9 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.modelPromise) {
-			this.modelPromise = this.extensionManagementService.getInstalled()
-				.then(extensions => this.instantiationService.createInstance(LocalExtensionsModel, extensions));
+			this.modelPromise = TPromise.join<any>([this.extensionManagementService.getInstalled(),
+				getOutdatedExtensions(this.extensionManagementService, this.galleryService)])
+				.then(result => this.instantiationService.createInstance(LocalExtensionsModel, result[0], result[1]));
 		}
 
 		return this.modelPromise.then(model => {
