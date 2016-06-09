@@ -21,6 +21,7 @@ export class TextualSuggestSupport implements ISuggestSupport {
 	/* tslint:disable */
 	private static _c = Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 		type: 'object',
+		order: 5.1,
 		properties: {
 			'editor.wordBasedSuggestions': {
 				'type': 'boolean',
