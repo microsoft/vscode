@@ -10,8 +10,8 @@ import {ILintConfigurationSettings, sanitize} from './lintRules';
 import {LintVisitor} from './lint';
 
 export interface LanguageSettings {
-	validate: boolean;
-	lint: ILintConfigurationSettings;
+	validate?: boolean;
+	lint?: ILintConfigurationSettings;
 }
 
 // The settings interface describe the server relevant settings part

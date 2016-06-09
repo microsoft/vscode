@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nodes = require('./cssNodes');
+import * as nodes from './cssNodes';
+import {findFirst} from '../utils/arrays';
 
 export class Scope {
 
@@ -44,10 +45,7 @@ export class Scope {
 	private findInScope(offset: number, length: number = 0): Scope {
 		// find the first scope child that has an offset larger than offset + length
 		var end = offset + length;
-		let idx = 0;
-		for (let len = this.children.length; idx < len && this.children[idx].offset > end; idx++) {
-			// loop
-		}
+		var idx = findFirst(this.children, s => s.offset > end);
 		if (idx === 0) {
 			// all scopes have offsets larger than our end
 			return this;
