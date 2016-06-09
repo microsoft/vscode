@@ -98,6 +98,9 @@ export class TerminalInstance {
 		if (!this.font || !this.font.charWidth || !this.font.charHeight) {
 			return;
 		}
+		if (!dimension.height) { // Minimized
+			return;
+		}
 		let cols = Math.floor(dimension.width / this.font.charWidth);
 		let rows = Math.floor(dimension.height / this.font.charHeight);
 		if (this.terminal) {
