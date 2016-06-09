@@ -215,7 +215,15 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 		// Require the reference editor to be visible and supporting split editor
 		if (referenceEditor && (<EditorInput>referenceEditor.input).supportsSplitEditor()) {
-			return this.editorService.openEditor(referenceEditor.input, null, this.getTargetEditorSide());
+
+			// Options
+			let options: EditorOptions;
+			if (referenceEditor instanceof BaseTextEditor) {
+				options = new TextEditorOptions();
+				(<TextEditorOptions>options).viewState(referenceEditor.getControl().saveViewState());
+			}
+
+			return this.editorService.openEditor(referenceEditor.input, options, this.getTargetEditorSide());
 		}
 
 		// Otherwise try to find a history entry to open to the target editor side
