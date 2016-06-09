@@ -30,6 +30,8 @@ process.on('message', function (message) {
 	}
 });
 
+setupPlanB(process.env.PTYPID);
+
 function getArgs() {
 	var args = [];
 	var i = 0;
@@ -38,4 +40,14 @@ function getArgs() {
 		i++;
 	}
 	return args;
+}
+
+function setupPlanB(parentPid) {
+	setInterval(function () {
+		try {
+			process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+		} catch (e) {
+			process.exit();
+		}
+	}, 5000);
 }

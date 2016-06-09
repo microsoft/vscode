@@ -125,6 +125,7 @@ export class TerminalInstance {
 
 	private createTerminalProcess(): cp.ChildProcess {
 		let env = this.cloneEnv();
+		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = this.shell.executable;
 		this.shell.args.forEach((arg, i) => {
 			env[`PTYSHELLARG${i}`] = arg;
