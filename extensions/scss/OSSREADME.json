@@ -1,7 +1,7 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [
 	{
-		"name": "atom/language-c",
+		"name": "atom/language-sass",
 		"version": "0.52.0",
 		"license": "MIT",
 		"repositoryURL": "https://github.com/atom/language-sass",
