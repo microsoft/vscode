@@ -142,13 +142,13 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 						return null;
 					}
 
-					if (Strings.trim(value.split('\n')[0]).length > 50) {
+					if (/^[^\n]{51}/.test(value)) {
 						return {
 							content: ChangesView.LONG_COMMIT,
 							type: InputBox.MessageType.WARNING
 						};
 					}
-					
+
 					return null;
 				}
 			},
