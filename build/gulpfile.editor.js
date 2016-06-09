@@ -114,7 +114,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 			gulp.src('out-editor-min/**/*')
 		).pipe(filterStream(function(path) {
 			// no map files
-			return !/\.js\.map$|nls\.metadata\.json/.test(path);
+			return !/(\.js\.map$)|(nls\.metadata\.json$)|(bundleInfo\.json$)/.test(path);
 		})).pipe(es.through(function(data) {
 			// tweak the sourceMappingURL
 			if (!/\.js$/.test(data.path)) {

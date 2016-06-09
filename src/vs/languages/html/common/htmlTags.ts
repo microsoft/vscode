@@ -2,6 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*!
+BEGIN THIRD PARTY
+*/
 /*--------------------------------------------------------------------------------------------
  *  This file is based on or incorporates material from the projects listed below (Third Party IP).
  *  The original copyright notice and the license under which Microsoft received such Third Party IP,
@@ -615,3 +618,6 @@ function collectValuesDefault(tag: string, attribute: string, collector: (value:
 		}
 	}
 }
+/*!
+END THIRD PARTY
+*/
