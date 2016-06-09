@@ -11,6 +11,7 @@ var util = require('./lib/util');
 var common = require('./gulpfile.common');
 var es = require('event-stream');
 var fs = require('fs');
+var File = require('vinyl');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
@@ -101,6 +102,17 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 				json.private = false;
 				data.contents = new Buffer(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
+			}))
+			.pipe(gulp.dest('out-monaco-editor-core')),
+
+		// README.md
+		gulp.src('build/monaco/README-npm.md')
+			.pipe(es.through(function(data) {
+				this.emit('data', new File({
+					path: data.path.replace(/README-npm\.md/, 'README.md'),
+					base: data.base,
+					contents: data.contents
+				}));
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
 
