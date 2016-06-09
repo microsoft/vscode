@@ -50,8 +50,8 @@ import 'vs/workbench/parts/output/browser/output.contribution';
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
 
-import 'vs/workbench/parts/markdown/browser/markdown.contribution';
-import 'vs/workbench/parts/markdown/browser/markdownActions.contribution';
+// import 'vs/workbench/parts/markdown/browser/markdown.contribution';
+// import 'vs/workbench/parts/markdown/browser/markdownActions.contribution';
 
 import 'vs/workbench/browser/workbench';
 
