@@ -25,7 +25,7 @@ import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/edit
 
 export var language = <Types.IMonarchLanguage>{
 	defaultToken: '',
-	tokenPostfix: '.sass',
+	tokenPostfix: '.scss',
 
 	ws: '[ \t\n\r\f]*', // whitespaces (referenced in several rules)
 	identifier: '-?-?([a-zA-Z]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))([\\w\\-]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))*',
