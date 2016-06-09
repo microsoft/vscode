@@ -62,7 +62,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			},
 			terminal: {
 				integrated: {
-					fontFamily: undefined
+					fontFamily: 0
 				}
 			}
 		});
@@ -91,8 +91,8 @@ suite('Workbench - TerminalConfigHelper', () => {
 			},
 			terminal: {
 				integrated: {
-					fontFamily: undefined,
-					fontSize: undefined
+					fontFamily: 0,
+					fontSize: 0
 				}
 			}
 		});
@@ -106,7 +106,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			},
 			terminal: {
 				integrated: {
-					fontFamily: undefined,
+					fontFamily: 0,
 					lineHeight: 2
 				}
 			}
@@ -121,8 +121,8 @@ suite('Workbench - TerminalConfigHelper', () => {
 			},
 			terminal: {
 				integrated: {
-					fontFamily: undefined,
-					lineHeight: undefined
+					fontFamily: 0,
+					lineHeight: 0
 				}
 			}
 		});
