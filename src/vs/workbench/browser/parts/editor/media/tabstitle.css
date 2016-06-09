@@ -101,8 +101,7 @@
 	color: white;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab .tab-label a,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.inactive .tab-label a {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab .tab-label a {
 	color: rgba(255, 255, 255, 0.5);
 }
 
