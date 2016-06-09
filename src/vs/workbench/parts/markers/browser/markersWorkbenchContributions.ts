@@ -14,6 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import * as panel from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 class ToggleMarkersPanelAction extends Action {
 
@@ -37,6 +38,20 @@ class ToggleMarkersPanelAction extends Action {
 }
 
 export function registerContributions(): void {
+
+	(<IConfigurationRegistry>platform.Registry.as(Extensions.Configuration)).registerConfiguration({
+		'id': 'problems',
+		'order': 101,
+		'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
+		'type': 'object',
+		'properties': {
+			'problems.autoReveal': {
+				'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
+				'type': 'boolean',
+				'default': true
+			}
+		}
+	});
 
 	// register markers panel
 	(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(

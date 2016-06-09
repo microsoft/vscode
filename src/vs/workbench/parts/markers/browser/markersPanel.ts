@@ -18,25 +18,31 @@ import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEventService } from 'vs/platform/event/common/event';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { FileEditorInput } from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import { Panel } from 'vs/workbench/browser/panel';
-import {IAction} from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { MarkersModel } from 'vs/workbench/parts/markers/common/markersModel';
+import { IProblemsConfiguration, MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import {CollapseAllAction} from 'vs/base/parts/tree/browser/treeDefaults';
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/markersTreeViewer';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MarkersPanel extends Panel {
 
 	public markersModel: MarkersModel;
 	private toDispose: lifecycle.IDisposable[];
 	private delayedRefresh: Delayer<void>;
+
+	private currentActiveFile: URI = null;
+	private hasToAutoReveal: boolean;
 
 	private tree: Tree.ITree;
 	private autoExpanded: Set.ArraySet<string>;
@@ -52,22 +58,27 @@ export class MarkersPanel extends Panel {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMarkerService private markerService: IMarkerService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEventService private eventService: IEventService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
-		this.markersModel= new MarkersModel();
+		this.markersModel = new MarkersModel();
 		this.toDispose = [];
-		this.delayedRefresh= new Delayer<void>(1000);
-		this.autoExpanded= new Set.ArraySet<string>();
+		this.delayedRefresh = new Delayer<void>(1000);
+		this.autoExpanded = new Set.ArraySet<string>();
 	}
 
 	public create(parent: builder.Builder): TPromise<void> {
 		super.create(parent);
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
 
-		let container= dom.append(parent.getHTMLElement(), dom.emmet('.markers-panel-container'));
+		const conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
+		this.onConfigurationsUpdated(conf);
+
+		let container = dom.append(parent.getHTMLElement(), dom.emmet('.markers-panel-container'));
 
 		this.createMessageBox(container);
 		this.createTree(container);
@@ -80,8 +91,8 @@ export class MarkersPanel extends Panel {
 		return TPromise.as(null);
 	}
 
-	public getTitle():string {
-		let markerStatistics= this.markerService.getStatistics();
+	public getTitle(): string {
+		let markerStatistics = this.markerService.getStatistics();
 		return this.markersModel.getTitle(markerStatistics);
 	}
 
@@ -99,12 +110,12 @@ export class MarkersPanel extends Panel {
 	}
 
 	public getActions(): IAction[] {
-		this.collapseAllAction.enabled= this.markersModel.hasFilteredResources();
+		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
 		return this.actions;
 	}
 
-	public refreshPanel(updateTitleArea: boolean= false):TPromise<any> {
-		this.collapseAllAction.enabled= this.markersModel.hasFilteredResources();
+	public refreshPanel(updateTitleArea: boolean = false): TPromise<any> {
+		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
 		this.refreshAutoExpanded();
 		if (updateTitleArea) {
 			this.updateTitleArea();
@@ -120,50 +131,63 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
-		this.messageBoxContainer= dom.append(parent, dom.emmet('.message-box-container'));
-		this.messageBox= dom.append(this.messageBoxContainer, dom.emmet('p'));
+		this.messageBoxContainer = dom.append(parent, dom.emmet('.message-box-container'));
+		this.messageBox = dom.append(this.messageBoxContainer, dom.emmet('p'));
 	}
 
-	private createTree(parent: HTMLElement):void {
-		this.treeContainer= dom.append(parent, dom.emmet('.tree-container'));
+	private createTree(parent: HTMLElement): void {
+		this.treeContainer = dom.append(parent, dom.emmet('.tree-container'));
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		var controller = this.instantiationService.createInstance(Controller);
-		this.tree= new TreeImpl.Tree(this.treeContainer, {
+		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer: renderer,
 			controller: controller
 		}, {
-			indentPixels: 0,
-			twistiePixels: 20,
-		});
+				indentPixels: 0,
+				twistiePixels: 20,
+			});
 	}
 
-	private createActions():void {
-		this.collapseAllAction= this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		this.filterAction= new FilterAction(this);
-		this.actions= [
-					this.filterAction,
-					this.collapseAllAction
-				];
+	private createActions(): void {
+		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
+		this.filterAction = new FilterAction(this);
+		this.actions = [
+			this.filterAction,
+			this.collapseAllAction
+		];
 		this.actions.forEach(a => {
 			this.toDispose.push(a);
 		});
 	}
 
 	private createListeners(): void {
-		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged.bind(this)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(e.config)));
+		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
+		this.toDispose.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
 		this.updateResources(changedResources);
 		// this.delayedRefresh.trigger(() => {this.refreshPanel(true);});
 		this.refreshPanel(true);
+		this.autoReveal();
+	}
+
+	private onEditorsChanged(): void {
+		let activeInput = this.editorService.getActiveEditorInput();
+		this.currentActiveFile = activeInput instanceof FileEditorInput ? activeInput.getResource() : null;
+		this.autoReveal();
+	}
+
+	private onConfigurationsUpdated(conf: IProblemsConfiguration): void {
+		this.hasToAutoReveal = conf && conf.problems && conf.problems.autoReveal;
 	}
 
 	private updateResources(resources: URI[]) {
 		resources.forEach((resource) => {
-			let markers= this.markerService.read({resource: resource}).slice(0);
+			let markers = this.markerService.read({ resource: resource }).slice(0);
 			this.markersModel.update(resource, markers);
 			if (!this.markersModel.hasResource(resource)) {
 				this.autoExpanded.unset(resource.toString());
@@ -179,9 +203,9 @@ export class MarkersPanel extends Panel {
 		this.renderMessage();
 	}
 
-	private renderMessage():void {
-		let message= this.markersModel.getMessage();
-		this.messageBox.textContent= message;
+	private renderMessage(): void {
+		let message = this.markersModel.getMessage();
+		this.messageBox.textContent = message;
 		dom.toggleClass(this.messageBoxContainer, 'hidden', this.markersModel.hasFilteredResources());
 	}
 
@@ -201,6 +225,35 @@ export class MarkersPanel extends Panel {
 			this.tree.expand(resource).done(null, errors.onUnexpectedError);
 			this.autoExpanded.set(resource.uri.toString());
 		});
+	}
+
+	private autoReveal(): void {
+		let conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
+		if (conf && conf.problems && conf.problems.autoReveal) {
+			let resources = this.markersModel.filteredResources.filter((resource): boolean => {
+				return this.currentActiveFile.toString() === resource.uri.toString();
+			});
+			if (resources && resources.length > 0) {
+				if (this.hasSelectedMarkerFor(resources[0])) {
+					// TODO: get previous relative top position of selected element
+					this.tree.reveal(this.tree.getSelection()[0], this.tree.getScrollPosition());
+				} else {
+					this.tree.reveal(resources[0], 0);
+				}
+			}
+		}
+	}
+
+	private hasSelectedMarkerFor(resource): boolean {
+		let selectedElement = this.tree.getSelection();
+		if (selectedElement && selectedElement.length > 0) {
+			if (selectedElement[0] instanceof Marker) {
+				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	public getActionItem(action: Action): IActionItem {
