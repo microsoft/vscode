@@ -49,12 +49,14 @@ export function stageRanges(diff:editorbrowser.IDiffEditor): string {
 }
 
 export function unstageRanges(diff:editorbrowser.IDiffEditor): string {
-	var selections = diff.getSelections();
-	var changes = getSelectedChanges(diff.getLineChanges(), selections);
-
-	changes.forEach((change) => {
-		[change.originalStartLineNumber, change.originalEndLineNumber, change.modifiedStartLineNumber, change.modifiedEndLineNumber] = [change.modifiedStartLineNumber, change.modifiedEndLineNumber, change.originalStartLineNumber, change.originalEndLineNumber];
-	});
+	const selections = diff.getSelections();
+	const changes = getSelectedChanges(diff.getLineChanges(), selections)
+		.map(c => ({
+			modifiedStartLineNumber: c.originalStartLineNumber,
+			modifiedEndLineNumber: c.originalEndLineNumber,
+			originalStartLineNumber: c.modifiedStartLineNumber,
+			originalEndLineNumber: c.modifiedEndLineNumber
+		}));
 
 	return applyChangesToModel(diff.getModel().modified, diff.getModel().original, changes);
 }
