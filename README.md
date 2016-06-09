@@ -114,6 +114,12 @@ If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you ca
 
 ## Change Log
 
+### Version 0.3.10
+* Fixed issue with duplicate output channels being created
+* Fixed issues in the LICENSE file
+* Fixed issue where current directory was incorrect [#68](https://github.com/DonJayamanne/pythonVSCode/issues/68)
+* General cleanup of code
+
 ### Version 0.3.9
 * Fixed auto indenting issues [#137](https://github.com/DonJayamanne/pythonVSCode/issues/137)
 
