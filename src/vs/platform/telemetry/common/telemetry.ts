@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
@@ -18,13 +17,14 @@ export interface ITelemetryInfo {
 }
 
 export interface ITelemetryService {
+
 	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog(eventName: string, data?: any): any;
+	publicLog(eventName: string, data?: any): TPromise<void>;
 
 	/**
 	 * Starts a telemetry timer. Call stop() to send the event.
@@ -38,8 +38,8 @@ export interface ITelemetryService {
 
 export const NullTelemetryService: ITelemetryService = {
 	serviceId: undefined,
-	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
-	publicLog(eventName: string, data?: any): void { },
+	timedPublicLog(name: string, data?: any) { return nullEvent; },
+	publicLog(eventName: string, data?: any) { return TPromise.as<void>(null); },
 	isOptedIn: true,
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
@@ -50,9 +50,15 @@ export const NullTelemetryService: ITelemetryService = {
 	}
 };
 
-export interface ITelemetryAppender extends IDisposable {
-	log(eventName: string, data?: any): any;
+export interface ITelemetryAppender {
+	log(eventName: string, data: any): void;
 }
+
+export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
+	return { log: (e, d) => appenders.forEach(a => a.log(e,d)) };
+}
+
+export const NullAppender: ITelemetryAppender = { log: () => null };
 
 // --- util
 

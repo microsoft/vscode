@@ -50,10 +50,11 @@ export class RemoteTelemetryService implements ITelemetryService {
 		return this._proxy.$getTelemetryInfo();
 	}
 
-	publicLog(eventName: string, data?: any): void {
+	publicLog(eventName: string, data?: any): TPromise<void> {
 		data = data || Object.create(null);
 		data[this._name] = true;
 		this._proxy.$publicLog(eventName, data);
+		return TPromise.as(null);
 	}
 
 	timedPublicLog(): any {
