@@ -98,9 +98,6 @@ export class TerminalPanel extends Panel {
 	}
 
 	private updateTheme(themeId?: string): void {
-		if (this.terminalInstances.length === 0) {
-			return;
-		}
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
