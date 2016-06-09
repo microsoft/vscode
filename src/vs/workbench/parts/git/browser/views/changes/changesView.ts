@@ -52,7 +52,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	private static COMMIT_KEYBINDING = Platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
 	private static NEED_MESSAGE = nls.localize('needMessage', "Please provide a commit message. You can always press **{0}** to commit changes. If there are any staged changes, only those will be committed; otherwise, all changes will.", ChangesView.COMMIT_KEYBINDING);
 	private static NOTHING_TO_COMMIT = nls.localize('nothingToCommit', "Once there are some changes to commit, type in the commit message and either press **{0}** to commit changes. If there are any staged changes, only those will be committed; otherwise, all changes will.", ChangesView.COMMIT_KEYBINDING);
-	private static LONG_COMMIT = nls.localize('longCommit', "Great commit summaries are 50 characters or less. Place extra information in next lines.");
+	private static LONG_COMMIT = nls.localize('longCommit', "It is recommended to keep the commit's first line under 50 characters. Feel free to use more lines for extra information.");
 
 	private instantiationService: IInstantiationService;
 	private editorService: IWorkbenchEditorService;
