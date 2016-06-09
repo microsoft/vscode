@@ -37,6 +37,7 @@ export class TerminalInstance {
 	) {
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
+		this.wrapperElement.classList.add('terminal-wrapper');
 		this.ptyProcess = this.createTerminalProcess();
 		this.terminalDomElement = document.createElement('div');
 		this.parentDomElement.classList.add('integrated-terminal');
@@ -135,6 +136,10 @@ export class TerminalInstance {
 			env: env,
 			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
 		});
+	}
+
+	public toggleVisibility(visible: boolean) {
+		this.wrapperElement.classList.toggle('active', visible);
 	}
 
 	public setFont(font: ITerminalFont): void {

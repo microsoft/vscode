@@ -50,10 +50,16 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
-			this.terminalInstances[0].dispatchEvent(new WheelEvent(event.type, event));
+			this.terminalInstances[this.activeTerminalIndex].dispatchEvent(new WheelEvent(event.type, event));
 		}));
 
 		return this.createTerminal();
+	}
+
+	public createNewTerminalInstance() : TPromise<void> {
+		return this.createTerminal().then(() => {
+			this.updateFont();
+		});
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -76,10 +82,17 @@ export class TerminalPanel extends Panel {
 	private createTerminal(): TPromise<void> {
 		return new TPromise<void>(resolve => {
 			this.terminalInstances.push(new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this)));
-			this.activeTerminalIndex = this.terminalInstances.length - 1;
+			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
 			resolve(void 0);
+		});
+	}
+
+	private setActiveTerminal(index: number) {
+		this.activeTerminalIndex = index;
+		this.terminalInstances.forEach((terminalInstance, i) => {
+			terminalInstance.toggleVisibility(i === this.activeTerminalIndex);
 		});
 	}
 

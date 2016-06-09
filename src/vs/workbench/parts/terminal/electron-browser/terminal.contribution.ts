@@ -10,7 +10,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
-import {FocusTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {CreateNewTerminalAction, FocusTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
@@ -96,3 +96,4 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAc
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 }), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), FocusTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL), CreateNewTerminalAction.LABEL);

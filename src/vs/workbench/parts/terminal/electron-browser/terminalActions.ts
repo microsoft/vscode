@@ -25,6 +25,23 @@ export class ToggleTerminalAction extends Action {
 	}
 }
 
+export class CreateNewTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.new';
+	public static LABEL = nls.localize('newTerminal', "Create New Integrated Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.createNew();
+	}
+}
+
 export class FocusTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.focus';

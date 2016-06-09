@@ -44,4 +44,5 @@ export interface ITerminalService {
 
 	focus(): TPromise<any>;
 	toggle(): TPromise<any>;
+	createNew(): TPromise<any>;
 }
