@@ -19,11 +19,13 @@ import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/ter
 
 export class TerminalPanel extends Panel {
 
-	private toDispose: lifecycle.IDisposable[];
+	private toDispose: lifecycle.IDisposable[] = [];
+	private terminalInstances: TerminalInstance[] = [];
+
 	private parentDomElement: HTMLElement;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
-	private terminalInstance: TerminalInstance;
+	private activeTerminalIndex: number;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -33,12 +35,11 @@ export class TerminalPanel extends Panel {
 		@IThemeService private themeService: IThemeService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
-		this.toDispose = [];
 	}
 
 	public layout(dimension?: Dimension): void {
-		if (this.terminalInstance) {
-			this.terminalInstance.layout(dimension);
+		if (this.terminalInstances.length > 0) {
+			this.terminalInstances[this.activeTerminalIndex].layout(dimension);
 		}
 	}
 
@@ -49,7 +50,7 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
-			this.terminalInstance.dispatchEvent(new WheelEvent(event.type, event));
+			this.terminalInstances[0].dispatchEvent(new WheelEvent(event.type, event));
 		}));
 
 		return this.createTerminal();
@@ -57,7 +58,7 @@ export class TerminalPanel extends Panel {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
-			if (this.terminalInstance) {
+			if (this.terminalInstances.length > 0) {
 				this.updateFont();
 				this.updateTheme();
 			} else {
@@ -74,7 +75,8 @@ export class TerminalPanel extends Panel {
 
 	private createTerminal(): TPromise<void> {
 		return new TPromise<void>(resolve => {
-			this.terminalInstance = new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this));
+			this.terminalInstances.push(new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this)));
+			this.activeTerminalIndex = this.terminalInstances.length - 1;
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
 			resolve(void 0);
@@ -82,14 +84,21 @@ export class TerminalPanel extends Panel {
 	}
 
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
-		if (this.terminalInstance === terminalInstance) {
-			this.terminalInstance = null;
+		for (var i = 0; i < this.terminalInstances.length; i++) {
+			if (this.terminalInstances[i] === terminalInstance) {
+				if (this.activeTerminalIndex === i) {
+					this.activeTerminalIndex = -1;
+				} else if (this.activeTerminalIndex > i) {
+					this.activeTerminalIndex--;
+				}
+				this.terminalInstances.splice(i, 1);
+			}
 		}
 		this.terminalService.toggle();
 	}
 
 	private updateTheme(themeId?: string): void {
-		if (!this.terminalInstance) {
+		if (this.terminalInstances.length === 0) {
 			return;
 		}
 		if (!themeId) {
@@ -121,25 +130,24 @@ export class TerminalPanel extends Panel {
 	}
 
 	private updateFont(): void {
-		if (!this.terminalInstance) {
+		if (this.terminalInstances.length === 0) {
 			return;
 		}
-		this.terminalInstance.setFont(this.configurationHelper.getFont());
+		this.terminalInstances[this.activeTerminalIndex].setFont(this.configurationHelper.getFont());
 		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
 	}
 
 
 	public focus(): void {
-		if (this.terminalInstance) {
-			this.terminalInstance.focus(true);
+		if (this.terminalInstances.length > 0) {
+			this.terminalInstances[this.activeTerminalIndex].focus(true);
 		}
 	}
 
 	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
-		if (this.terminalInstance) {
-			this.terminalInstance.dispose();
-			this.terminalInstance = null;
+		while (this.terminalInstances.length > 0) {
+			this.terminalInstances.pop().dispose();
 		}
 		super.dispose();
 	}
