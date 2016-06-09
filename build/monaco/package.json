@@ -4,5 +4,12 @@
   "version": "0.3.1",
   "description": "A browser based code editor",
   "author": "Microsoft Corporation",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Microsoft/vscode"
+  },
+   "bugs": {
+    "url": "https://github.com/Microsoft/vscode/issues"
+  }
 }
