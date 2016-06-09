@@ -364,6 +364,10 @@ export class InputBox extends Widget {
 			this.mirror.textContent = this.value + suffix;
 			this.layout();
 		}
+
+		if (this.state === 'open') {
+			this.contextViewProvider.layout();
+		}
 	}
 
 	public layout(): void {
