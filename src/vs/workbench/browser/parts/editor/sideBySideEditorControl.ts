@@ -26,7 +26,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
+import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 
@@ -699,7 +699,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
 			this.hookTitleDragListener(position);
 
-			this.titleAreaControl[position] = this.instantiationService.createInstance(NoTabsTitleControl);
+			this.titleAreaControl[position] = this.instantiationService.createInstance(TabsTitleControl);
 			this.titleAreaControl[position].create($(this.titleContainer[position]));
 			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
 		});

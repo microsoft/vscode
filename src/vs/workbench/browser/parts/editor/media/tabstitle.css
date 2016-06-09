@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Title Actions */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
+	display: flex;
+	flex: initial;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive .title-actions {
+	opacity: 0.5;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label {
+	display: block;
+	height: 35px;
+	width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
+	display: none;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar {
+	padding-left: 4px;
+	background-color: rgba(128, 128, 128, 0.2);
+}
