@@ -38,7 +38,7 @@
 			<key>name</key>
 			<string>String</string>
 			<key>scope</key>
-			<string>string</string>
+			<string>string, markup.quote, markup.bold, markup.italic</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
@@ -208,7 +208,7 @@
 			<key>name</key>
 			<string>Library function</string>
 			<key>scope</key>
-			<string>support.function</string>
+			<string>support.function, markup.inline.raw</string>
 			<key>settings</key>
 			<dict>
 				<key>fontStyle</key>
