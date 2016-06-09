@@ -68,11 +68,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.integrated.fontSize': {
 			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size of the terminal, this defaults to editor.fontSize's value."),
-			'type': 'number'
+			'type': 'number',
+			'default': 0
 		},
 		'terminal.integrated.lineHeight': {
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to editor.lineHeight's value."),
-			'type': 'number'
+			'type': 'number',
+			'default': 0
 		}
 	}
 });

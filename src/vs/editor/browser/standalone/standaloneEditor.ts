@@ -24,10 +24,7 @@ import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
 import {SimpleEditorService} from 'vs/editor/browser/standalone/simpleServices';
 import * as modes from 'vs/editor/common/modes';
-import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
-import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
-import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
-import {StandaloneWorker} from 'vs/editor/browser/standalone/standaloneWorker';
+import {EditorWorkerClient} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
 
 function shallowClone<T>(obj:T): T {
@@ -205,64 +202,54 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
-interface IMonacoWebWorkerState<T> {
-	myProxy:StandaloneWorker;
-	foreignProxy:T;
-	modelMananger: EditorModelManager;
-}
+export class MonacoWebWorker<T> extends EditorWorkerClient {
 
-export class MonacoWebWorker<T> {
-
-	private _loaded: TPromise<IMonacoWebWorkerState<T>>;
-	private _client: SimpleWorkerClient<StandaloneWorker>;
+	private _foreignModuleId: string;
+	private _foreignProxy: TPromise<T>;
 
 	/**
 	 * @internal
 	 */
 	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
-		this._client = new SimpleWorkerClient<StandaloneWorker>(new DefaultWorkerFactory(), 'vs/editor/browser/standalone/standaloneWorker', null);
-
-		this._loaded = this._client.getProxyObject().then((proxy) => {
-
-			let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
-				return proxy.fmr(method, args);
-			};
-
-			let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
-				return function () {
-					let args = Array.prototype.slice.call(arguments, 0);
-					return proxyMethodRequest(method, args);
-				};
-			};
-
-			const manager = new EditorModelManager(proxy, modelService, true);
-
-			return proxy.loadModule(opts.moduleId).then((foreignMethods): IMonacoWebWorkerState<T> => {
-
-				let foreignProxy = <T><any>{};
-				for (let i = 0; i < foreignMethods.length; i++) {
-					foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
-				}
-
-				return {
-					myProxy: proxy,
-					foreignProxy: foreignProxy,
-					modelMananger: manager
-				};
-			});
-		});
+		super(modelService);
+		this._foreignModuleId = opts.moduleId;
+		this._foreignProxy = null;
 	}
 
-	public dispose(): void {
-		console.log('TODO: I should dispose now');
+	private _getForeignProxy(): TPromise<T> {
+		if (!this._foreignProxy) {
+			this._foreignProxy = new ShallowCancelThenPromise(this._getProxy().then((proxy) => {
+				return proxy.loadForeignModule(this._foreignModuleId).then((foreignMethods) => {
+
+					let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
+						return proxy.fmr(method, args);
+					};
+
+					let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
+						return function () {
+							let args = Array.prototype.slice.call(arguments, 0);
+							return proxyMethodRequest(method, args);
+						};
+					};
+
+					let foreignProxy = <T><any>{};
+					for (let i = 0; i < foreignMethods.length; i++) {
+						foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
+					}
+
+					return foreignProxy;
+				});
+			}));
+		}
+		return this._foreignProxy;
 	}
 
 	public getProxy(): TPromise<T> {
-		return new ShallowCancelThenPromise(this._loaded.then(data => data.foreignProxy));
+		return this._getForeignProxy();
 	}
 
-	public withSyncedResources(resources: URI[]): TPromise<void> {
-		return new ShallowCancelThenPromise(this._loaded.then(data => data.modelMananger.withSyncedResources(resources)));
+	public withSyncedResources(resources: URI[]): TPromise<T> {
+		return this._withSyncedResources(resources).then(_ => this.getProxy());
 	}
 }
 

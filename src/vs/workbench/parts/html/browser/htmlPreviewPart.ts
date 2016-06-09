@@ -68,10 +68,6 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.dispose();
 	}
 
-	public supportsSplitEditor(): boolean {
-		return true;
-	}
-
 	public createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
 		this._container.style.paddingLeft = '20px';

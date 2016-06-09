@@ -122,6 +122,13 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 
 	/**
+	 * Subclasses can set this to false if it does not make sense to split the editor input.
+	 */
+	public supportsSplitEditor(): boolean {
+		return true;
+	}
+
+	/**
 	 * Returns true if this input is identical to the otherInput.
 	 */
 	public matches(otherInput: any): boolean {

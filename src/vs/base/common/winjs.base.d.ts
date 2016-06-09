@@ -43,18 +43,6 @@ export declare class Promise {
 	public cancel():void;
 }
 
-export interface IXHROptions {
-	type?:string;
-	url?:string;
-	user?:string;
-	password?:string;
-	responseType?:string;
-	headers?:any;
-	customRequestInitializer?:(req:any)=>void;
-	data?:any;
-}
-
-export declare function xhr(options:IXHROptions):TPromise<XMLHttpRequest>;
 export declare function decoratePromise(promise:Promise, successCallback?:ValueCallback, errorCallback?:ErrorCallback):Promise;
 export declare function decoratePromise<T>(promise:TPromise<T>, successCallback?:TValueCallback<T>, errorCallback?:ErrorCallback):TPromise<T>;
 

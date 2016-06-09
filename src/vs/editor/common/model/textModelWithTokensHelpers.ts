@@ -6,9 +6,9 @@
 
 import {IPosition, IWordAtPosition} from 'vs/editor/common/editorCommon';
 import {IMode, IModeTransition} from 'vs/editor/common/modes';
-import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
 
 export interface ITextSource {
 
@@ -31,31 +31,8 @@ export class WordHelper {
 		return LanguageConfigurationRegistry.getWordDefinition(mode.getId());
 	}
 
-	public static ensureValidWordDefinition(wordDefinition?:RegExp): RegExp {
-		var result: RegExp = NullMode.DEFAULT_WORD_REGEXP;
-
-		if (wordDefinition && (wordDefinition instanceof RegExp)) {
-			if (!wordDefinition.global) {
-				var flags = 'g';
-				if (wordDefinition.ignoreCase) {
-					flags += 'i';
-				}
-				if (wordDefinition.multiline) {
-					flags += 'm';
-				}
-				result = new RegExp(wordDefinition.source, flags);
-			} else {
-				result = wordDefinition;
-			}
-		}
-
-		result.lastIndex = 0;
-
-		return result;
-	}
-
 	public static massageWordDefinitionOf(mode:IMode): RegExp {
-		return WordHelper.ensureValidWordDefinition(WordHelper._safeGetWordDefinition(mode));
+		return ensureValidWordDefinition(WordHelper._safeGetWordDefinition(mode));
 	}
 
 	private static _getWordAtColumn(txt:string, column:number, modeIndex: number, modeTransitions:IModeTransition[]): IWordAtPosition {
@@ -63,7 +40,7 @@ export class WordHelper {
 			modeEndIndex = (modeIndex + 1 < modeTransitions.length ? modeTransitions[modeIndex + 1].startIndex : txt.length),
 			mode = modeTransitions[modeIndex].mode;
 
-		return WordHelper._getWordAtText(
+		return getWordAtText(
 			column, WordHelper.massageWordDefinitionOf(mode),
 			txt.substring(modeStartIndex, modeEndIndex), modeStartIndex
 		);
@@ -72,7 +49,7 @@ export class WordHelper {
 	public static getWordAtPosition(textSource:ITextSource, position:IPosition): IWordAtPosition {
 
 		if (!textSource._lineIsTokenized(position.lineNumber)) {
-			return WordHelper._getWordAtText(position.column, WordHelper.massageWordDefinitionOf(textSource.getMode()), textSource.getLineContent(position.lineNumber), 0);
+			return getWordAtText(position.column, WordHelper.massageWordDefinitionOf(textSource.getMode()), textSource.getLineContent(position.lineNumber), 0);
 		}
 
 		var result: IWordAtPosition = null;
@@ -89,41 +66,5 @@ export class WordHelper {
 		}
 
 		return result;
-	}
-
-	static _getWordAtText(column:number, wordDefinition:RegExp, text:string, textOffset:number): IWordAtPosition {
-
-		// console.log('_getWordAtText: ', column, text, textOffset);
-
-		var words = text.match(wordDefinition),
-			k:number,
-			startWord:number,
-			endWord:number,
-			startColumn:number,
-			endColumn:number,
-			word:string;
-
-		if (words) {
-			for (k = 0; k < words.length; k++) {
-				word = words[k].trim();
-				if (word.length > 0) {
-					startWord = text.indexOf(word, endWord);
-					endWord = startWord + word.length;
-
-					startColumn = textOffset + startWord + 1;
-					endColumn = textOffset + endWord + 1;
-
-					if (startColumn <= column && column <= endColumn) {
-						return {
-							word: word,
-							startColumn: startColumn,
-							endColumn: endColumn
-						};
-					}
-				}
-			}
-		}
-
-		return null;
 	}
 }

@@ -890,6 +890,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move to valid position if any
 				if (moveTo !== null) {
 					this.editorGroupService.moveGroup(position, moveTo);
+					this.titleAreaControl[position].refresh();
+					this.titleAreaControl[moveTo].refresh();
 				}
 
 				// Otherwise layout to restore proper positioning

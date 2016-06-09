@@ -20,7 +20,7 @@ if (env.isLinux) {
 
 export const DEFAULT_TERMINAL_LINUX = defaultTerminalLinux;
 
-export const DEFAULT_TERMINAL_MAC = 'Terminal.app';
+export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
 export const DEFAULT_TERMINAL_WINDOWS = 'cmd';
 
@@ -28,7 +28,7 @@ export interface ITerminalConfiguration {
 	terminal: {
 		external: {
 			linuxExec: string,
-			macExec: string,
+			osxExec: string,
 			windowsExec: string
 		}
 	};

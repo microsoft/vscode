@@ -217,6 +217,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private static STORAGE_KEY = 'history.entries';
 	private static MAX_HISTORY_ITEMS = 200;
+	private static MAX_STACK_ITEMS = 20;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -332,29 +333,26 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Restore on dispose
 		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
-			this.restore(<EditorInput>input);
+			this.restoreInHistory(input);
 		});
 	}
 
-	private restore(input: EditorInput): void {
+	private restoreInHistory(input: IEditorInput): void {
 		let index = this.indexOf(input);
 		if (index < 0) {
 			return;
 		}
 
 		// Using the factory we try to recreate the input
-		const factory = this.registry.getEditorInputFactory(input.getTypeId());
-		if (factory) {
-			const inputRaw = factory.serialize(input);
-			if (inputRaw) {
-				this.history[index] = factory.deserialize(this.instantiationService, inputRaw);
-
-				return;
-			}
+		const restoredInput = this.restoreInput(input);
+		if (restoredInput) {
+			this.history[index] = restoredInput;
 		}
 
 		// Factory failed, just remove entry then
-		this.removeFromHistory(input, index);
+		else {
+			this.removeFromHistory(input, index);
+		}
 	}
 
 	public remove(input: IEditorInput): void {
@@ -366,7 +364,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.ensureLoaded();
 
 		if (typeof index !== 'number') {
-			index = this.indexOf(<EditorInput>input);
+			index = this.indexOf(input);
 		}
 
 		if (index >= 0) {
@@ -460,7 +458,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			this.stack.splice(this.index, 0, entry);
 
 			// Check for limit
-			if (this.stack.length > HistoryService.MAX_HISTORY_ITEMS) {
+			if (this.stack.length > HistoryService.MAX_STACK_ITEMS) {
 				this.stack.shift(); // remove first
 				if (this.index > 0) {
 					this.index--;
@@ -468,10 +466,47 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 		}
 
-		// Take out on dispose
+		// Restore on dispose
 		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
-			this.removeFromStack(input);
+			this.restoreInStack(input);
 		});
+	}
+
+	private restoreInStack(input: IEditorInput): void {
+		let restoredInput: EditorInput;
+		let restored = false;
+
+		this.stack.forEach((e, i) => {
+			if (e.input.matches(input)) {
+				if (!restored) {
+					restoredInput = this.restoreInput(input);
+					restored = true;
+				}
+
+				if (restoredInput) {
+					this.stack[i].input = restoredInput;
+				} else {
+					this.stack.splice(i, 1);
+					if (this.index >= i) {
+						this.index--; // reduce index if the element is before index
+					}
+				}
+			}
+		});
+	}
+
+	private restoreInput(input: IEditorInput): EditorInput {
+		if (input instanceof EditorInput) {
+			const factory = this.registry.getEditorInputFactory(input.getTypeId());
+			if (factory) {
+				const inputRaw = factory.serialize(input);
+				if (inputRaw) {
+					return factory.deserialize(this.instantiationService, inputRaw);
+				}
+			}
+		}
+
+		return null;
 	}
 
 	private removeFromStack(input: IEditorInput): void {

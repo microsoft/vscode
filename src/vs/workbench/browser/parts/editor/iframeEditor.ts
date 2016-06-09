@@ -261,10 +261,6 @@ export class IFrameEditor extends BaseEditor {
 		setTimeout(() => this.reload(true));
 	}
 
-	public supportsSplitEditor(): boolean {
-		return true;
-	}
-
 	/**
 	 * Reloads the contents of the iframe in this editor by reapplying the input.
 	 */

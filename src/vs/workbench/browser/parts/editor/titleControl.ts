@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import {Builder} from 'vs/base/browser/builder';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import {IActionItem, ActionsOrientation, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
@@ -37,6 +37,7 @@ export interface IToolbarActions {
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	create(parent: Builder): void;
+	refresh(): void;
 	dispose(): void;
 }
 
@@ -72,7 +73,7 @@ export abstract class TitleControl {
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
-		this.scheduler = new RunOnceScheduler(() => this.redraw(), 0);
+		this.scheduler = new RunOnceScheduler(() => this.refresh(), 0);
 		this.toDispose.push(this.scheduler);
 
 		this.initActions();
@@ -84,7 +85,7 @@ export abstract class TitleControl {
 		this.scheduler.schedule();
 	}
 
-	protected abstract redraw();
+	public abstract refresh();
 
 	private initActions(): void {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
@@ -208,8 +209,7 @@ export abstract class TitleControl {
 	}
 
 	protected getGroupActions(group: IEditorGroup): IToolbarActions {
-		const position = this.stacks.positionOfGroup(group);
-		const editor = this.editorService.getVisibleEditors()[position];
+		const editor = group.activeEditor;
 		const primary: IAction[] = [];
 
 		const isOverflowing = group.count > 1;
@@ -241,7 +241,7 @@ export abstract class TitleControl {
 		}
 
 		// Splitting
-		if (editor && editor instanceof BaseEditor && editor.supportsSplitEditor()) {
+		if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primary.push(this.splitEditorAction);
 		}
 

@@ -128,6 +128,7 @@ function toBundleStream(bundledFileHeader, bundles) {
  * - resources (svg, etc.)
  * - loaderConfig
  * - header (basically the Copyright treatment)
+ * - bundleInfo (boolean - emit bundleInfo.json file)
  * - out (out folder name)
  */
 exports.optimizeTask = function(opts) {
@@ -141,6 +142,7 @@ exports.optimizeTask = function(opts) {
 	return function() {
 		var bundlesStream = es.through(); // this stream will contain the bundled files
 		var resourcesStream = es.through(); // this stream will contain the resources
+		var bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
 
 		bundle.bundle(entryPoints, loaderConfig, function(err, result) {
 			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
@@ -155,6 +157,16 @@ exports.optimizeTask = function(opts) {
 				filteredResources.push('!' + resource);
 			});
 			gulp.src(filteredResources, { base: 'out-build' }).pipe(resourcesStream);
+
+			var bundleInfoArray = [];
+			if (opts.bundleInfo) {
+				bundleInfoArray.push(new File({
+					path: 'bundleInfo.json',
+					base: '.',
+					contents: new Buffer(JSON.stringify(result.bundleData, null, '\t'))
+				}));
+			}
+			es.readArray(bundleInfoArray).pipe(bundleInfoStream);
 		});
 
 		var otherSourcesStream = es.through();
@@ -175,7 +187,8 @@ exports.optimizeTask = function(opts) {
 			loader(bundledFileHeader),
 			bundlesStream,
 			otherSourcesStream,
-			resourcesStream
+			resourcesStream,
+			bundleInfoStream
 		);
 
 		return result

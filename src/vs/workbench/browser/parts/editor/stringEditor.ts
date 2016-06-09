@@ -162,10 +162,6 @@ export class StringEditor extends BaseTextEditor {
 		}
 	}
 
-	public supportsSplitEditor(): boolean {
-		return true;
-	}
-
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back

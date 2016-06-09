@@ -12,12 +12,12 @@ import {IInstantiationService, optional} from 'vs/platform/instantiation/common/
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import * as wordHelper from 'vs/editor/common/model/wordHelper';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
-	return NullMode.createWordRegExp(allowInWords);
+	return wordHelper.createWordRegExp(allowInWords);
 }
 
 export class ModeWorkerManager<W> {
@@ -68,7 +68,8 @@ export class ModeWorkerManager<W> {
 
 	private static _loadModule(moduleName:string): TPromise<any> {
 		return new TPromise((c, e, p) => {
-			require([moduleName], c, e);
+			// Use the global require to be sure to get the global config
+			(<any>self).require([moduleName], c, e);
 		}, () => {
 			// Cannot cancel loading code
 		});

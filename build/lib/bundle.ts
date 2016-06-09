@@ -70,9 +70,20 @@ export interface IConcatFile {
 	sources: IFile[];
 }
 
+export interface IBundleData {
+	graph: IGraph;
+	bundles: {[moduleId:string]:string[];};
+}
+
 export interface IBundleResult {
 	files: IConcatFile[];
 	cssInlinedResources: string[];
+	bundleData: IBundleData;
+}
+
+interface IPartialBundleResult {
+	files: IConcatFile[];
+	bundleData: IBundleData;
 }
 
 export interface ILoaderConfig {
@@ -88,6 +99,17 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 		entryPointsMap[module.name] = module;
 	});
 
+	let allMentionedModulesMap: {[modules:string]:boolean;} = {};
+	entryPoints.forEach((module:IEntryPoint) => {
+		allMentionedModulesMap[module.name] = true;
+		(module.include||[]).forEach(function(includedModule) {
+			allMentionedModulesMap[includedModule] = true;
+		});
+		(module.exclude||[]).forEach(function(excludedModule) {
+			allMentionedModulesMap[excludedModule] = true;
+		});
+	});
+
 
 	var code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
 	var r: Function = <any> vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
@@ -98,18 +120,19 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 	config.isBuild = true;
 	loader.config(config);
 
-	loader(Object.keys(entryPointsMap), () => {
+	loader(Object.keys(allMentionedModulesMap), () => {
 		let modules = <IBuildModuleInfo[]>loader.getBuildInfo();
-		let resultFiles = emitEntryPoints(modules, entryPointsMap);
+		let partialResult = emitEntryPoints(modules, entryPointsMap);
 		let cssInlinedResources = loader('vs/css').getInlinedResources();
 		callback(null, {
-			files: resultFiles,
-			cssInlinedResources: cssInlinedResources
+			files: partialResult.files,
+			cssInlinedResources: cssInlinedResources,
+			bundleData: partialResult.bundleData
 		});
 	}, (err) => callback(err, null));
 }
 
-function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap): IConcatFile[] {
+function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap): IPartialBundleResult {
 	let modulesMap: IBuildModuleInfoMap = {};
 	modules.forEach((m:IBuildModuleInfo) => {
 		modulesMap[m.id] = m;
@@ -124,6 +147,10 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 
 	let result: IConcatFile[] = [];
 	let usedPlugins: IPluginMap = {};
+	let bundleData:IBundleData = {
+		graph: modulesGraph,
+		bundles: {}
+	};
 
 	Object.keys(entryPoints).forEach((moduleToBundle:string) => {
 		let info = entryPoints[moduleToBundle];
@@ -141,6 +168,8 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 		let includedModules = sortedModules.filter((module:string) => {
 			return allDependencies[module];
 		});
+
+		bundleData.bundles[moduleToBundle] = includedModules;
 
 		let res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules);
 
@@ -166,7 +195,155 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 		}
 	});
 
-	return result;
+	return {
+		files: extractStrings(removeDuplicateTSBoilerplate(result)),
+		bundleData: bundleData
+	};
+}
+
+function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
+	let parseDefineCall = (moduleMatch:string, depsMatch:string) => {
+		let module = moduleMatch.replace(/^"|"$/g, '');
+		let deps = depsMatch.split(',');
+		deps = deps.map((dep) => {
+			dep = dep.trim();
+			dep = dep.replace(/^"|"$/g, '');
+			dep = dep.replace(/^'|'$/g, '');
+			let prefix:string = null;
+			let _path:string = null;
+			let pieces = dep.split('!');
+			if (pieces.length > 1) {
+				prefix = pieces[0] + '!';
+				_path = pieces[1];
+			} else {
+				prefix = '';
+				_path = pieces[0];
+			}
+
+			if (/^\.\//.test(_path) || /^\.\.\//.test(_path)) {
+				let res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
+				return prefix + res;
+			}
+			return prefix + _path;
+		});
+		return {
+			module: module,
+			deps: deps
+		};
+	};
+
+	destFiles.forEach((destFile, index) => {
+		if (!/\.js$/.test(destFile.dest)) {
+			return;
+		}
+		if (/\.nls\.js$/.test(destFile.dest)) {
+			return;
+		}
+
+		// Do one pass to record the usage counts for each module id
+		let useCounts: {[moduleId:string]:number;} = {};
+		destFile.sources.forEach((source) => {
+			let matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
+			if (!matches) {
+				return;
+			}
+
+			let defineCall = parseDefineCall(matches[1], matches[2]);
+			useCounts[defineCall.module] = (useCounts[defineCall.module] || 0) + 1;
+			defineCall.deps.forEach((dep) => {
+				useCounts[dep] = (useCounts[dep] || 0) + 1;
+			});
+		});
+
+		let sortedByUseModules = Object.keys(useCounts);
+		sortedByUseModules.sort((a, b) => {
+			return useCounts[b] - useCounts[a];
+		});
+
+		let replacementMap: {[moduleId:string]:number;} = {};
+		sortedByUseModules.forEach((module, index) => {
+			replacementMap[module] = index;
+		});
+
+		destFile.sources.forEach((source) => {
+			source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduleMatch, depsMatch) => {
+				let defineCall = parseDefineCall(moduleMatch, depsMatch);
+				return `define(__m[${replacementMap[defineCall.module]}], __M([${defineCall.deps.map(dep => replacementMap[dep]).join(',')}])`;
+			});
+		});
+
+		destFile.sources.unshift({
+			path: null,
+			contents: [
+				'(function() {',
+				`var __m = ${JSON.stringify(sortedByUseModules)};`,
+				`var __M = function(deps) {`,
+				`  var result = [];`,
+				`  for (var i = 0, len = deps.length; i < len; i++) {`,
+				`    result[i] = __m[deps[i]];`,
+				`  }`,
+				`  return result;`,
+				`};`
+			].join('\n')
+		});
+
+		destFile.sources.push({
+			path: null,
+			contents: '}).call(this);'
+		});
+	});
+	return destFiles;
+}
+
+function removeDuplicateTSBoilerplate(destFiles:IConcatFile[]):IConcatFile[] {
+	// Taken from typescript compiler => emitFiles
+	let BOILERPLATE = [
+		{ start: /^var __extends/, end: /^};$/ },
+		{ start: /^var __assign/, end: /^};$/ },
+		{ start: /^var __decorate/, end: /^};$/ },
+		{ start: /^var __metadata/, end: /^};$/ },
+		{ start: /^var __param/, end: /^};$/ },
+		{ start: /^var __awaiter/, end: /^};$/ },
+	];
+
+	destFiles.forEach((destFile) => {
+		let SEEN_BOILERPLATE = [];
+		destFile.sources.forEach((source) => {
+			let lines = source.contents.split(/\r\n|\n|\r/);
+			let newLines: string[] = [];
+			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
+
+			for (let i = 0; i < lines.length; i++) {
+				let line = lines[i];
+				if (IS_REMOVING_BOILERPLATE) {
+					newLines.push('');
+					if (END_BOILERPLATE.test(line)) {
+						IS_REMOVING_BOILERPLATE = false;
+					}
+				} else {
+					for (let j = 0; j < BOILERPLATE.length; j++) {
+						let boilerplate = BOILERPLATE[j];
+						if (boilerplate.start.test(line)) {
+							if (SEEN_BOILERPLATE[j]) {
+								IS_REMOVING_BOILERPLATE = true;
+								END_BOILERPLATE = boilerplate.end;
+							} else {
+								SEEN_BOILERPLATE[j] = true;
+							}
+						}
+					}
+					if (IS_REMOVING_BOILERPLATE) {
+						newLines.push('');
+					} else {
+						newLines.push(line);
+					}
+				}
+			}
+			source.contents = newLines.join('\n');
+		});
+	});
+
+	return destFiles;
 }
 
 interface IPluginMap {

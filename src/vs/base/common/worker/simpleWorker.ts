@@ -159,11 +159,10 @@ export class SimpleWorkerClient<T> extends Disposable {
 	private _worker:IWorker;
 	private _onModuleLoaded:TPromise<string[]>;
 	private _protocol: SimpleWorkerProtocol;
-	private _proxy: T;
 	private _lazyProxy: TPromise<T>;
 	private _lastRequestTimestamp = -1;
 
-	constructor(workerFactory:IWorkerFactory, moduleId:string, ctor:any) {
+	constructor(workerFactory:IWorkerFactory, moduleId:string) {
 		super();
 		this._worker = this._register(workerFactory.create('vs/base/common/worker/simpleWorker', (msg:string) => {
 			this._protocol.handleMessage(msg);
@@ -227,22 +226,6 @@ export class SimpleWorkerClient<T> extends Disposable {
 				return proxyMethodRequest(method, args);
 			};
 		};
-
-		this._proxy = <T><any>{};
-		if (ctor) {
-			// console.warn('deprecated');
-			for (let prop in ctor.prototype) {
-				if (ctor.prototype.hasOwnProperty(prop)) {
-					if (typeof ctor.prototype[prop] === 'function') {
-						this._proxy[prop] = createProxyMethod(prop, proxyMethodRequest);
-					}
-				}
-			}
-		}
-	}
-
-	public get(): T {
-		return this._proxy;
 	}
 
 	public getProxyObject(): TPromise<T> {
@@ -345,7 +328,8 @@ export class SimpleWorkerServer {
 			ee = e;
 		});
 
-		require([moduleId], (...result:any[]) => {
+		// Use the global require to be sure to get the global config
+		(<any>self).require([moduleId], (...result:any[]) => {
 			let handlerModule = result[0];
 			this._requestHandler = handlerModule.create();
 

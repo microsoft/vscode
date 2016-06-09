@@ -5,7 +5,7 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class CopyLinesCommand implements editorCommon.ICommand {
@@ -13,7 +13,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 	private _selection: Selection;
 	private _isCopyingDown: boolean;
 
-	private _selectionDirection:editorCommon.SelectionDirection;
+	private _selectionDirection:SelectionDirection;
 	private _selectionId: string;
 	private _startLineNumberDelta: number;
 	private _endLineNumberDelta: number;

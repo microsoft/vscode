@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { TPromise, xhr } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { xhr } from 'vs/base/common/network';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRequestService } from 'vs/platform/request/common/request';

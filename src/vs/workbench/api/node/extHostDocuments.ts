@@ -20,12 +20,12 @@ import {EventType as FileEventType, TextFileChangeEvent, ITextFileService} from 
 import * as TypeConverters from './extHostTypeConverters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
-import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {asWinJsPromise} from 'vs/base/common/async';
+import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
 
 export interface IModelAddedData {
 	url: URI;
@@ -424,9 +424,9 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	getWordRangeAtPosition(_position: vscode.Position): vscode.Range {
 		let position = this.validatePosition(_position);
 
-		let wordAtText = WordHelper._getWordAtText(
+		let wordAtText = getWordAtText(
 			position.character + 1,
-			WordHelper.ensureValidWordDefinition(getWordDefinitionFor(this._languageId)),
+			ensureValidWordDefinition(getWordDefinitionFor(this._languageId)),
 			this._lines[position.line],
 			0
 		);

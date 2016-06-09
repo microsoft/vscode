@@ -28,7 +28,17 @@ import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
 const timers = (<any>window).GlobalEnvironment.timers;
-const domContentLoaded: Function = (<any>winjs).Utilities.ready;
+
+function domContentLoaded(): winjs.Promise {
+	return new winjs.Promise((c, e) => {
+		var readyState = document.readyState;
+		if (readyState === 'complete' || (document && document.body !== null)) {
+			window.setImmediate(c);
+		} else {
+			window.addEventListener('DOMContentLoaded', c, false);
+		}
+	});
+}
 
 export interface IPath {
 	filePath: string;
@@ -137,7 +147,7 @@ function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, opt
 	return configurationService.initialize().then(() => {
 		timers.beforeReady = new Date();
 
-		return domContentLoaded(() => {
+		return domContentLoaded().then(() => {
 			timers.afterReady = new Date();
 
 			// Open Shell
@@ -161,6 +171,6 @@ function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, opt
 					}
 				}
 			});
-		}, true);
+		});
 	});
 }

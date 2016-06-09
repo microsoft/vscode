@@ -36,7 +36,6 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {EditorStacksModel, EditorGroup, EditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
 
 class ProgressMonitor {
@@ -89,7 +88,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
-	private visibleEditorListeners: IDisposable[][];
 	private instantiatedEditors: BaseEditor[][];
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
@@ -117,7 +115,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.editorOpenToken = arrays.fill(POSITIONS.length, () => 0);
 
-		this.visibleEditorListeners = arrays.fill(POSITIONS.length, () => []);
 		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
 
 		this.mapEditorToEditorContainers = arrays.fill(POSITIONS.length, () => Object.create(null));
@@ -317,9 +314,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// Remember Editor at position
 			this.visibleEditors[position] = editor;
-
-			// Register as Emitter to Workbench Bus
-			this.visibleEditorListeners[position].push(this.eventService.addEmitter2(this.visibleEditors[position], this.visibleEditors[position].getId()));
 
 			// Create editor as needed
 			if (newlyCreatedEditorContainerBuilder) {
@@ -528,9 +522,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Clear any running Progress
 		this.sideBySideControl.updateProgress(position, ProgressState.STOP);
 
-		// Clear Listeners
-		this.visibleEditorListeners[position] = dispose(this.visibleEditorListeners[position]);
-
 		// Indicate to Editor
 		editor.clearInput();
 		editor.setVisible(false);
@@ -690,7 +681,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Move data structures
 		arrays.move(this.visibleEditors, from, to);
-		arrays.move(this.visibleEditorListeners, from, to);
 		arrays.move(this.editorOpenToken, from, to);
 		arrays.move(this.mapEditorInstantiationPromiseToEditor, from, to);
 		arrays.move(this.instantiatedEditors, from, to);
@@ -1078,11 +1068,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Widgets
 		this.sideBySideControl.dispose();
 
-		// Editor listeners
-		for (let i = 0; i < this.visibleEditorListeners.length; i++) {
-			this.visibleEditorListeners[i] = dispose(this.visibleEditorListeners[i]);
-		}
-
 		// Pass to active editors
 		this.visibleEditors.forEach((editor) => {
 			if (editor) {
@@ -1212,7 +1197,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.doRochade(this.visibleEditors, from, to, null);
 			this.doRochade(this.editorOpenToken, from, to, null);
 			this.doRochade(this.mapEditorInstantiationPromiseToEditor, from, to, Object.create(null));
-			this.doRochade(this.visibleEditorListeners, from, to, []);
 			this.doRochade(this.instantiatedEditors, from, to, []);
 			this.doRochade(this.mapEditorToEditorContainers, from, to, Object.create(null));
 		}

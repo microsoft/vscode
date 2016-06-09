@@ -12,6 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
@@ -39,7 +40,8 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	constructor(editor: ICodeEditor,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IModeService modeService: IModeService
 	) {
 		this._editor = editor;
 
@@ -58,7 +60,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 				}
 			}));
 
-			this._contentWidget = new ModesContentHoverWidget(editor, openerService);
+			this._contentWidget = new ModesContentHoverWidget(editor, openerService, modeService);
 			this._glyphWidget = new ModesGlyphHoverWidget(editor);
 		}
 	}

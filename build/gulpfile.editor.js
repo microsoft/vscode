@@ -10,6 +10,7 @@ var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
 var es = require('event-stream');
+var fs = require('fs');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
@@ -76,6 +77,7 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 	resources: editorResources,
 	loaderConfig: editorLoaderConfig(false),
 	header: BUNDLED_FILE_HEADER,
+	bundleInfo: true,
 	out: 'out-editor'
 }));
 
@@ -138,6 +140,49 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 			return /\.js\.map$/.test(path);
 		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
+});
+
+gulp.task('analyze-editor-distro', function() {
+	var bundleInfo = require('../out-editor/bundleInfo.json');
+	var graph = bundleInfo.graph;
+	var bundles = bundleInfo.bundles;
+
+	var inverseGraph = {};
+	Object.keys(graph).forEach(function(module) {
+		var dependencies = graph[module];
+		dependencies.forEach(function(dep) {
+			inverseGraph[dep] = inverseGraph[dep] || [];
+			inverseGraph[dep].push(module);
+		});
+	});
+
+	var detailed = {};
+	Object.keys(bundles).forEach(function(entryPoint) {
+		var included = bundles[entryPoint];
+		var includedMap = {};
+		included.forEach(function(included) {
+			includedMap[included] = true;
+		});
+
+		var explanation = [];
+		included.map(function(included) {
+			if (included.indexOf('!') >= 0) {
+				return;
+			}
+
+			var reason = (inverseGraph[included]||[]).filter(function(mod) {
+				return !!includedMap[mod];
+			});
+			explanation.push({
+				module: included,
+				reason: reason
+			});
+		});
+
+		detailed[entryPoint] = explanation;
+	});
+
+	console.log(JSON.stringify(detailed, null, '\t'));
 });
 
 function filterStream(testFunc) {

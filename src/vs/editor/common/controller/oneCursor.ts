@@ -12,7 +12,7 @@ import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelect
 import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult, IColumnSelectResult, IViewColumnSelectResult} from 'vs/editor/common/controller/cursorMoveHelper';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IElectricAction, IndentAction} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -144,7 +144,7 @@ export class OneCursor {
 	private _cachedViewSelection: Selection;
 	private _selStartMarker: string;
 	private _selEndMarker: string;
-	private _selDirection: editorCommon.SelectionDirection;
+	private _selDirection: SelectionDirection;
 
 	constructor(
 		editorId: number,
@@ -415,7 +415,7 @@ export class OneCursor {
 		let start = this.model._getMarker(this._selStartMarker);
 		let end = this.model._getMarker(this._selEndMarker);
 
-		if (this._selDirection === editorCommon.SelectionDirection.LTR) {
+		if (this._selDirection === SelectionDirection.LTR) {
 			return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
 		}
 
