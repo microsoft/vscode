@@ -16,9 +16,6 @@
 		"compile": "gulp compile-extension:configuration-editing",
 		"watch": "gulp watch-extension:configuration-editing"
 	},
-	"devDependencies": {
-		"vscode": "^0.11.0"
-	},
 	"dependencies": {
 		"jsonc-parser": "^0.2.1"
 	}
