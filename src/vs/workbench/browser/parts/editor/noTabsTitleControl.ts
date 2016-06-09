@@ -134,7 +134,7 @@ export class NoTabsTitleControl extends TitleControl {
 		return DOM.isAncestor(target, this.editorActionsToolbar.getContainer().getHTMLElement());
 	}
 
-	protected redraw(): void {
+	public refresh(): void {
 		if (!this.context) {
 			return;
 		}

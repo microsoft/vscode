@@ -37,6 +37,7 @@ export interface IToolbarActions {
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	create(parent: Builder): void;
+	refresh(): void;
 	dispose(): void;
 }
 
@@ -72,7 +73,7 @@ export abstract class TitleControl {
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
-		this.scheduler = new RunOnceScheduler(() => this.redraw(), 0);
+		this.scheduler = new RunOnceScheduler(() => this.refresh(), 0);
 		this.toDispose.push(this.scheduler);
 
 		this.initActions();
@@ -84,7 +85,7 @@ export abstract class TitleControl {
 		this.scheduler.schedule();
 	}
 
-	protected abstract redraw();
+	public abstract refresh();
 
 	private initActions(): void {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
