@@ -8,6 +8,7 @@ import {transformErrorForSerialization} from 'vs/base/common/errors';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {ErrorCallback, TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import {IWorker, IWorkerFactory} from './workerClient';
+import {ShallowCancelThenPromise} from 'vs/base/common/async';
 
 const INITIALIZE = '$initialize';
 
@@ -229,7 +230,8 @@ export class SimpleWorkerClient<T> extends Disposable {
 	}
 
 	public getProxyObject(): TPromise<T> {
-		return this._lazyProxy;
+		// Do not allow chaining promises to cancel the proxy creation
+		return new ShallowCancelThenPromise(this._lazyProxy);
 	}
 
 	public getLastRequestTimestamp(): number {
