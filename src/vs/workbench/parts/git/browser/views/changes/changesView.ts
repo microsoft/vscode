@@ -40,6 +40,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import IGitService = git.IGitService;
 
@@ -87,7 +88,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IGitService gitService: IGitService,
 		@IOutputService outputService: IOutputService,
-		@IEventService eventService: IEventService
+		@IEventService eventService: IEventService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -134,12 +136,19 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			validationOptions: {
 				showMessage: true,
 				validation: (value): InputBox.IMessage => {
+					const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+
+					if (!config.enableLongCommitWarning) {
+						return null;
+					}
+
 					if (Strings.trim(value.split('\n')[0]).length > 50) {
 						return {
 							content: ChangesView.LONG_COMMIT,
 							type: InputBox.MessageType.WARNING
 						};
 					}
+					
 					return null;
 				}
 			},
