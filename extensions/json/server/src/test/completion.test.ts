@@ -16,12 +16,12 @@ import {applyEdits} from './textEditSupport';
 
 suite('JSON Completion', () => {
 
-	var requestService = function(options: XHROptions): Promise<XHRResponse> {
+	let requestService = function(options: XHROptions): Promise<XHRResponse> {
 		return Promise.reject<XHRResponse>({ responseText: '', status: 404 });
 	}
 
-	var assertSuggestion = function(completions: CompletionItem[], label: string, documentation?: string, document?: TextDocument, resultText?: string) {
-		var matches = completions.filter(function(completion: CompletionItem) {
+	let assertCompletion = function(completions: CompletionItem[], label: string, documentation?: string, document?: TextDocument, resultText?: string) {
+		let matches = completions.filter(function(completion: CompletionItem) {
 			return completion.label === label && (!documentation || completion.documentation === documentation);
 		});
 		assert.equal(matches.length, 1, label + " should only existing once: Actual: " + completions.map(c => c.label).join(', '));
@@ -31,21 +31,21 @@ suite('JSON Completion', () => {
 	};
 
 
-	var testSuggestionsFor = function(value: string, stringAfter: string, schema: JsonSchema.IJSONSchema, test: (items: CompletionItem[], document: TextDocument) => void) : Thenable<void> {
-		var uri = 'test://test.json';
-		var idx = stringAfter ? value.indexOf(stringAfter) : 0;
+	let testCompletionsFor = function(value: string, stringAfter: string, schema: JsonSchema.IJSONSchema, test: (items: CompletionItem[], document: TextDocument) => void) : Thenable<void> {
+		let uri = 'test://test.json';
+		let idx = stringAfter ? value.indexOf(stringAfter) : 0;
 
-		var schemaService = new SchemaService.JSONSchemaService(requestService);
-		var completionProvider = new JSONCompletion(schemaService, console);
+		let schemaService = new SchemaService.JSONSchemaService(requestService);
+		let completionProvider = new JSONCompletion(schemaService, console);
 		if (schema) {
-			var id = "http://myschemastore/test1";
+			let id = "http://myschemastore/test1";
 			schemaService.registerExternalSchema(id, ["*.json"], schema);
 		}
 
-		var document = TextDocument.create(uri, 'json', 0, value);
-		var position = Position.create(0, idx);
-		var jsonDoc = Parser.parse(value);
-		return completionProvider.doSuggest(document, position, jsonDoc).then(list => list.items).then(completions => {
+		let document = TextDocument.create(uri, 'json', 0, value);
+		let position = Position.create(0, idx);
+		let jsonDoc = Parser.parse(value);
+		return completionProvider.doComplete(document, position, jsonDoc).then(list => list.items).then(completions => {
 			test(completions, document);
 			return null;
 		})
@@ -53,65 +53,65 @@ suite('JSON Completion', () => {
 
 	test('Complete keys no schema', function(testDone) {
 		Promise.all([
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { /**/ }', '/**/', null, result => {
+			testCompletionsFor('[ { "name": "John", "age": 44 }, { /**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'name');
-				assertSuggestion(result, 'age');
+				assertCompletion(result, 'name');
+				assertCompletion(result, 'age');
 			}),
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "/**/ }', '/**/', null, result => {
+			testCompletionsFor('[ { "name": "John", "age": 44 }, { "/**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'name');
-				assertSuggestion(result, 'age');
+				assertCompletion(result, 'name');
+				assertCompletion(result, 'age');
 			}),
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "n/**/ }', '/**/', null, result => {
+			testCompletionsFor('[ { "name": "John", "age": 44 }, { "n/**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'name');
+				assertCompletion(result, 'name');
 			}),
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "name/**/" }', '/**/', null, result => {
+			testCompletionsFor('[ { "name": "John", "age": 44 }, { "name/**/" }', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'name');
+				assertCompletion(result, 'name');
 			}),
-			testSuggestionsFor('[ { "name": "John", "address": { "street" : "MH Road", "number" : 5 } }, { "name": "Jack", "address": { "street" : "100 Feet Road", /**/ }', '/**/', null, result => {
+			testCompletionsFor('[ { "name": "John", "address": { "street" : "MH Road", "number" : 5 } }, { "name": "Jack", "address": { "street" : "100 Feet Road", /**/ }', '/**/', null, result => {
 				assert.strictEqual(result.length, 1);
-				assertSuggestion(result, 'number');
+				assertCompletion(result, 'number');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete values no schema', function(testDone) {
 		Promise.all([
-			testSuggestionsFor('[ { "name": "John", "age": 44 }, { "name": /**/', '/**/', null, result => {
+			testCompletionsFor('[ { "name": "John", "age": 44 }, { "name": /**/', '/**/', null, result => {
 				assert.strictEqual(result.length, 1);
-				assertSuggestion(result, '"John"');
+				assertCompletion(result, '"John"');
 			}),
-			testSuggestionsFor('[ { "data": { "key": 1, "data": true } }, { "data": /**/', '/**/', null, result => {
+			testCompletionsFor('[ { "data": { "key": 1, "data": true } }, { "data": /**/', '/**/', null, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, '{}');
-				assertSuggestion(result, 'true');
-				assertSuggestion(result, 'false');
+				assertCompletion(result, '{}');
+				assertCompletion(result, 'true');
+				assertCompletion(result, 'false');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "/**/" } ]', '/**/', null, result => {
+			testCompletionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "/**/" } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, '"foo"');
-				assertSuggestion(result, '"bar"');
+				assertCompletion(result, '"foo"');
+				assertCompletion(result, '"bar"');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "f/**/" } ]', '/**/', null, result => {
+			testCompletionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "f/**/" } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, '"foo"');
-				assertSuggestion(result, '"bar"');
+				assertCompletion(result, '"foo"');
+				assertCompletion(result, '"bar"');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"/**/ } ]', '/**/', null, result => {
+			testCompletionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"/**/ } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, '"xoo"');
+				assertCompletion(result, '"xoo"');
 			}),
-			testSuggestionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"  /**/ } ]', '/**/', null, result => {
+			testCompletionsFor('[ { "data": "foo" }, { "data": "bar" }, { "data": "xoo"  /**/ } ]', '/**/', null, result => {
 				assert.strictEqual(result.length, 0);
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete keys with schema', function(testDone) {
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			type: 'object',
 			properties: {
 				'a': {
@@ -129,30 +129,30 @@ suite('JSON Completion', () => {
 			}
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema, result => {
+			testCompletionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b', 'B');
-				assertSuggestion(result, 'c', 'C');
+				assertCompletion(result, 'a', 'A');
+				assertCompletion(result, 'b', 'B');
+				assertCompletion(result, 'c', 'C');
 			}),
-			testSuggestionsFor('{ "/**/}', '/**/', schema, result => {
+			testCompletionsFor('{ "/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b', 'B');
-				assertSuggestion(result, 'c', 'C');
+				assertCompletion(result, 'a', 'A');
+				assertCompletion(result, 'b', 'B');
+				assertCompletion(result, 'c', 'C');
 			}),
-			testSuggestionsFor('{ "a/**/}', '/**/', schema, (result, document) => {
+			testCompletionsFor('{ "a/**/}', '/**/', schema, (result, document) => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, 'a', 'A', document, '{ "a": {{0}}');
+				assertCompletion(result, 'a', 'A', document, '{ "a": {{0}}');
 			}),
-			testSuggestionsFor('{ a/**/}', '/**/', schema, (result, document) => {
+			testCompletionsFor('{ a/**/}', '/**/', schema, (result, document) => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, 'a', 'A', document, '{ "a": {{0}}/**/}');
+				assertCompletion(result, 'a', 'A', document, '{ "a": {{0}}/**/}');
 			}),
-			testSuggestionsFor('{ "a" = 1;/**/}', '/**/', schema, result => {
+			testCompletionsFor('{ "a" = 1;/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'b', 'B');
-				assertSuggestion(result, 'c', 'C');
+				assertCompletion(result, 'b', 'B');
+				assertCompletion(result, 'c', 'C');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 
@@ -160,7 +160,7 @@ suite('JSON Completion', () => {
 
 	test('Complete value with schema', function(testDone) {
 
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			type: 'object',
 			properties: {
 				'a': {
@@ -169,29 +169,29 @@ suite('JSON Completion', () => {
 			}
 		};
 		Promise.all([
-			testSuggestionsFor('{ "a": /**/ }', '/**/', schema, result => {
+			testCompletionsFor('{ "a": /**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, '"John"');
-				assertSuggestion(result, '"Jeff"');
-				assertSuggestion(result, '"George"');
+				assertCompletion(result, '"John"');
+				assertCompletion(result, '"Jeff"');
+				assertCompletion(result, '"George"');
 			}),
 
-			testSuggestionsFor('{ "a": "J/**/ }', '/**/', schema, result => {
+			testCompletionsFor('{ "a": "J/**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, '"John"');
-				assertSuggestion(result, '"Jeff"');
+				assertCompletion(result, '"John"');
+				assertCompletion(result, '"Jeff"');
 			}),
 
-			testSuggestionsFor('{ "a": "John"/**/ }', '/**/', schema, result => {
+			testCompletionsFor('{ "a": "John"/**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, '"John"');
+				assertCompletion(result, '"John"');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete value with schema: booleans, null', function(testDone) {
 
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			type: 'object',
 			properties: {
 				'a': {
@@ -203,24 +203,24 @@ suite('JSON Completion', () => {
 			}
 		};
 		Promise.all([
-			testSuggestionsFor('{ "a": /**/ }', '/**/', schema, result => {
+			testCompletionsFor('{ "a": /**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'true');
-				assertSuggestion(result, 'false');
+				assertCompletion(result, 'true');
+				assertCompletion(result, 'false');
 			}),
-			testSuggestionsFor('{ "b": "/**/ }', '/**/', schema, result => {
+			testCompletionsFor('{ "b": "/**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, 'true');
-				assertSuggestion(result, 'false');
-				assertSuggestion(result, 'null');
+				assertCompletion(result, 'true');
+				assertCompletion(result, 'false');
+				assertCompletion(result, 'null');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete with nested schema', function(testDone) {
 
-		var content = '{/**/}';
-		var schema: JsonSchema.IJSONSchema = {
+		let content = '{/**/}';
+		let schema: JsonSchema.IJSONSchema = {
 			oneOf: [{
 				type: 'object',
 				properties: {
@@ -238,17 +238,17 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor(content, '/**/', schema, result => {
+			testCompletionsFor(content, '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b', 'B');
+				assertCompletion(result, 'a', 'A');
+				assertCompletion(result, 'b', 'B');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete with required anyOf', function(testDone) {
 
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			anyOf: [{
 				type: 'object',
 				required: ['a', 'b'],
@@ -278,23 +278,23 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema, result => {
+			testCompletionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 4);
-				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b', 'B');
-				assertSuggestion(result, 'c', 'C');
-				assertSuggestion(result, 'd', 'D');
+				assertCompletion(result, 'a', 'A');
+				assertCompletion(result, 'b', 'B');
+				assertCompletion(result, 'c', 'C');
+				assertCompletion(result, 'd', 'D');
 			}),
-			testSuggestionsFor('{ "a": "", /**/}', '/**/', schema, result => {
+			testCompletionsFor('{ "a": "", /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 1);
-				assertSuggestion(result, 'b', 'B');
+				assertCompletion(result, 'b', 'B');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete with anyOf', function(testDone) {
 
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			anyOf: [{
 				type: 'object',
 				properties: {
@@ -318,22 +318,22 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema, result => {
+			testCompletionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, 'type');
-				assertSuggestion(result, 'b');
-				assertSuggestion(result, 'c');
+				assertCompletion(result, 'type');
+				assertCompletion(result, 'b');
+				assertCompletion(result, 'c');
 			}),
-			testSuggestionsFor('{ "type": "appartment", /**/}', '/**/', schema, result => {
+			testCompletionsFor('{ "type": "appartment", /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 1);
-				assertSuggestion(result, 'c');
+				assertCompletion(result, 'c');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete with oneOf', function(testDone) {
 
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			oneOf: [{
 				type: 'object',
 				allOf: [{
@@ -376,25 +376,25 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema, result => {
+			testCompletionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 5);
-				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b1', 'B1');
-				assertSuggestion(result, 'b2', 'B2');
-				assertSuggestion(result, 'c', 'C');
-				assertSuggestion(result, 'd', 'D');
+				assertCompletion(result, 'a', 'A');
+				assertCompletion(result, 'b1', 'B1');
+				assertCompletion(result, 'b2', 'B2');
+				assertCompletion(result, 'c', 'C');
+				assertCompletion(result, 'd', 'D');
 			}),
-			testSuggestionsFor('{ "b1": "", /**/}', '/**/', schema, result => {
+			testCompletionsFor('{ "b1": "", /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'a', 'A');
-				assertSuggestion(result, 'b2', 'B2');
+				assertCompletion(result, 'a', 'A');
+				assertCompletion(result, 'b2', 'B2');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Complete with oneOf and enums', function(testDone) {
 
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			oneOf: [{
 				type: 'object',
 				properties: {
@@ -440,77 +440,77 @@ suite('JSON Completion', () => {
 				}]
 		};
 		Promise.all([
-			testSuggestionsFor('{/**/}', '/**/', schema, result => {
+			testCompletionsFor('{/**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 4);
-				assertSuggestion(result, 'type');
-				assertSuggestion(result, 'a');
-				assertSuggestion(result, 'b');
-				assertSuggestion(result, 'c');
+				assertCompletion(result, 'type');
+				assertCompletion(result, 'a');
+				assertCompletion(result, 'b');
+				assertCompletion(result, 'c');
 			}),
-			testSuggestionsFor('{ "type": /**/}', '/**/', schema, result => {
+			testCompletionsFor('{ "type": /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
-				assertSuggestion(result, '"1"');
-				assertSuggestion(result, '"2"');
-				assertSuggestion(result, '"3"');
+				assertCompletion(result, '"1"');
+				assertCompletion(result, '"2"');
+				assertCompletion(result, '"3"');
 			}),
-			testSuggestionsFor('{ "a": { "x": "", "y": "" }, "type": /**/}', '/**/', schema, result => {
+			testCompletionsFor('{ "a": { "x": "", "y": "" }, "type": /**/}', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, '"1"');
-				assertSuggestion(result, '"2"');
+				assertCompletion(result, '"1"');
+				assertCompletion(result, '"2"');
 			}),
-			testSuggestionsFor('{ "type": "1", "a" : { /**/ }', '/**/', schema, result => {
+			testCompletionsFor('{ "type": "1", "a" : { /**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'x');
-				assertSuggestion(result, 'y');
+				assertCompletion(result, 'x');
+				assertCompletion(result, 'y');
 			}),
-			testSuggestionsFor('{ "type": "1", "a" : { "x": "", "z":"" }, /**/', '/**/', schema, result => {
+			testCompletionsFor('{ "type": "1", "a" : { "x": "", "z":"" }, /**/', '/**/', schema, result => {
 				// both alternatives have errors: intellisense proposes all options
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'b');
-				assertSuggestion(result, 'c');
+				assertCompletion(result, 'b');
+				assertCompletion(result, 'c');
 			}),
-			testSuggestionsFor('{ "a" : { "x": "", "z":"" }, /**/', '/**/', schema, result => {
+			testCompletionsFor('{ "a" : { "x": "", "z":"" }, /**/', '/**/', schema, result => {
 				assert.strictEqual(result.length, 2);
-				assertSuggestion(result, 'type');
-				assertSuggestion(result, 'c');
+				assertCompletion(result, 'type');
+				assertCompletion(result, 'c');
 			}),
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Escaping no schema', function(testDone) {
 		Promise.all([
-			testSuggestionsFor('[ { "\\\\{{}}": "John" }, { "/**/" }', '/**/', null, result => {
-				assertSuggestion(result, '\\{{}}');
+			testCompletionsFor('[ { "\\\\{{}}": "John" }, { "/**/" }', '/**/', null, result => {
+				assertCompletion(result, '\\{{}}');
 			}),
-			testSuggestionsFor('[ { "\\\\{{}}": "John" }, { /**/ }', '/**/', null, (result, document) => {
-				assertSuggestion(result, '\\{{}}', null, document, '[ { "\\\\{{}}": "John" }, { "\\\\\\\\\\{\\{\\}\\}"/**/ }');
+			testCompletionsFor('[ { "\\\\{{}}": "John" }, { /**/ }', '/**/', null, (result, document) => {
+				assertCompletion(result, '\\{{}}', null, document, '[ { "\\\\{{}}": "John" }, { "\\\\\\\\\\{\\{\\}\\}"/**/ }');
 			}),
-			testSuggestionsFor('[ { "name": "\\{" }, { "name": /**/ }', '/**/', null, result => {
-				assertSuggestion(result, '"\\{"');
+			testCompletionsFor('[ { "name": "\\{" }, { "name": /**/ }', '/**/', null, result => {
+				assertCompletion(result, '"\\{"');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('Escaping with schema', function(testDone) {
-		var schema: JsonSchema.IJSONSchema = {
+		let schema: JsonSchema.IJSONSchema = {
 			type: 'object',
 			properties: {
 				'{\\}': {
 					default: "{\\}",
-					defaultSnippets: [ { body: "{{var}}"} ],
+					defaultSnippets: [ { body: "{{let}}"} ],
 					enum: ['John{\\}']
 				}
 			}
 		};
 
 		Promise.all([
-			testSuggestionsFor('{ /**/ }', '/**/', schema, (result, document) => {
-				assertSuggestion(result, '{\\}', null, document, '{ "\\{\\\\\\\\\\}": "{{\\{\\\\\\\\\\}}}"/**/ }');
+			testCompletionsFor('{ /**/ }', '/**/', schema, (result, document) => {
+				assertCompletion(result, '{\\}', null, document, '{ "\\{\\\\\\\\\\}": "{{\\{\\\\\\\\\\}}}"/**/ }');
 			}),
-			testSuggestionsFor('{ "{\\\\}": /**/ }', '/**/', schema, (result, document) => {
-				assertSuggestion(result, '"{\\\\}"', null, document, '{ "{\\\\}": "\\{\\\\\\\\\\}"/**/ }');
-				assertSuggestion(result, '"John{\\\\}"', null, document, '{ "{\\\\}": "John\\{\\\\\\\\\\}"/**/ }');
-				assertSuggestion(result, '"var"', null, document, '{ "{\\\\}": "{{var}}"/**/ }');
+			testCompletionsFor('{ "{\\\\}": /**/ }', '/**/', schema, (result, document) => {
+				assertCompletion(result, '"{\\\\}"', null, document, '{ "{\\\\}": "\\{\\\\\\\\\\}"/**/ }');
+				assertCompletion(result, '"John{\\\\}"', null, document, '{ "{\\\\}": "John\\{\\\\\\\\\\}"/**/ }');
+				assertCompletion(result, '"let"', null, document, '{ "{\\\\}": "{{let}}"/**/ }');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});
