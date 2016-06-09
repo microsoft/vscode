@@ -58,17 +58,29 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description {
-	width: 90%;
+	margin-right: 5px;
 }
 
-.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line,
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
+	color: #bcbcbc;
+	margin-right: 5px;
+}
+
+.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
+	color: #888;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source:before {
+	content: '[';
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source:after {
+	content: ']';
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line {
 	opacity: 0.6;
 	font-size: 85%;
-	margin-right: 5px;
-	width: 10em;
-	overflow: hidden;
-	text-overflow: ellipsis
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
@@ -76,7 +88,7 @@
 	font-weight: bold;
 }
 
-.hc-black .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
+.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
 	color: #0097FB;
 }
 

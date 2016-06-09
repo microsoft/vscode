@@ -27,9 +27,9 @@ interface IResourceTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
+	source: HighlightedLabel;
 	description: HighlightedLabel;
 	lnCol: HTMLElement;
-	source: HighlightedLabel;
 }
 
 export class DataSource implements IDataSource {
@@ -116,9 +116,9 @@ export class Renderer implements IRenderer {
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		var data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.emmet('.marker-icon'));
+		data.source = new HighlightedLabel(dom.append(container, dom.emmet('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.emmet('.marker-description')));
 		data.lnCol = dom.append(container, dom.emmet('span.marker-line'));
-		data.source = new HighlightedLabel(dom.append(container, dom.emmet('.marker-source')));
 		return data;
 	}
 
@@ -142,17 +142,19 @@ export class Renderer implements IRenderer {
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
 		templateData.description.set(marker.message, element.labelMatches);
 
+		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
+		templateData.source.set(marker.source, element.sourceMatches);
+		if (marker.source) {
+			let title= Messages.MARKERS_PANEL_TITLE_SOURCE(marker.source);
+			templateData.source.element.title= title;
+			templateData.source.element.setAttribute('aria-label', title);
+		}
+
 		templateData.lnCol.textContent= Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 		let title= Messages.MARKERS_PANEL_TITLE_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 		templateData.lnCol.title= title;
 		templateData.lnCol.setAttribute('aria-label', title);
 
-		if (marker.source) {
-			templateData.source.set(marker.source, element.sourceMatches);
-			let title= Messages.MARKERS_PANEL_TITLE_SOURCE(marker.source);
-			templateData.source.element.title= title;
-			templateData.source.element.setAttribute('aria-label', title);
-		}
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
