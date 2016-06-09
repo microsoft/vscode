@@ -5,6 +5,7 @@
 
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
+import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -47,6 +48,9 @@ export class TerminalPanel extends Panel {
 		this.themeStyleElement = document.createElement('style');
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
+		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
+			this.terminalInstance.dispatchEvent(new WheelEvent(event.type, event));
+		}));
 
 		return this.createTerminal();
 	}

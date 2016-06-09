@@ -153,6 +153,10 @@ export class TerminalInstance {
 		}
 	}
 
+	public dispatchEvent(event: Event) {
+		this.terminal.element.dispatchEvent(event);
+	}
+
 	public dispose(): void {
 		this.parentDomElement.removeChild(this.wrapperElement);
 		this.wrapperElement = null;
