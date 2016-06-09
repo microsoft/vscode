@@ -7,9 +7,106 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container {
 	flex: 1;
+	display: flex;
+	overflow: scroll;
+	background-color: rgba(128, 128, 128, 0.2);
 }
 
-/* Title Actions */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container::-webkit-scrollbar {
+	display: none;
+}
+
+/* Tab */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab {
+	display: flex;
+	width: 120px;
+	min-width: fit-content;
+	overflow: hidden;
+	white-space: nowrap;
+	cursor: pointer;
+	border-left: 1px solid rgba(128, 128, 128, 0.2);
+	box-sizing: border-box;
+	padding-left: 10px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child {
+	border-left: 0;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.inactive {
+	border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+	opacity: 0.7;
+}
+
+/* Tab Close */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.inactive > .tab-close,
+.monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab > .tab-close {
+	opacity: 0;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab:hover > .tab-close,
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.dirty > .tab-close {
+	opacity: 1;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
+	background: url('close-dirty.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
+	background: url('close-dirty-inverse.svg') center center no-repeat;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
+	background: url('close.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
+	background: url('close-inverse.svg') center center no-repeat;
+}
+
+/* Editor Label */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label {
+	line-height: 35px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	position: relative;
+	flex: 1;
+	font-style: italic;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab.pinned .tab-label {
+	font-style: normal;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
+	text-decoration: none;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
+	color: #333333;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab .tab-label a {
+	color: rgba(51, 51, 51, 0.5);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
+	color: white;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab .tab-label a,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.inactive .tab-label a {
+	color: rgba(255, 255, 255, 0.5);
+}
+
+/* Group Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions {
 	flex: initial;
@@ -17,17 +114,18 @@
 	background-color: rgba(128, 128, 128, 0.2);
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive .group-actions {
-	opacity: 0.5;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label {
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab > .tab-close .action-label {
 	display: block;
 	height: 35px;
 	width: 28px;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab > .tab-close .action-label {
+	width: 20px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label .label {

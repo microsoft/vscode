@@ -125,13 +125,9 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Focus editor group unless click on toolbar
-		else if (this.stacks.groups.length === 1 && !this.targetInToolbar(<any>e.target || e.srcElement)) {
+		else if (this.stacks.groups.length === 1 && !DOM.isAncestor(<any>e.target || e.srcElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
 			this.editorGroupService.focusGroup(position);
 		}
-	}
-
-	private targetInToolbar(target: HTMLElement): boolean {
-		return DOM.isAncestor(target, this.editorActionsToolbar.getContainer().getHTMLElement());
 	}
 
 	public refresh(): void {
