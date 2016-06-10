@@ -141,6 +141,7 @@ export class Renderer implements IRenderer {
 		let marker= element.marker;
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
 		templateData.description.set(marker.message, element.labelMatches);
+		templateData.description.element.title= marker.message;
 
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 		templateData.source.set(marker.source, element.sourceMatches);

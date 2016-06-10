@@ -59,6 +59,8 @@
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description {
 	margin-right: 5px;
+	text-overflow:  ellipsis;
+	overflow: hidden;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
@@ -81,6 +83,7 @@
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line {
 	opacity: 0.6;
 	font-size: 85%;
+	margin-right: 5px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {

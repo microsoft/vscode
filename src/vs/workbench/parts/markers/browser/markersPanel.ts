@@ -35,8 +35,6 @@ import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersAction
 import { FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export const CONTEXT_PROBLEMS_VIEW_VISIBLE = 'problemsViewVisible';
-
 export class MarkersPanel extends Panel {
 
 	public markersModel: MarkersModel;
