@@ -27,8 +27,11 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
+import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import {IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
+
+const useTabs = true;
 
 export enum Rochade {
 	NONE,
@@ -699,7 +702,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
 			this.hookTitleDragListener(position);
 
-			this.titleAreaControl[position] = this.instantiationService.createInstance(TabsTitleControl);
+			this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
 			this.titleAreaControl[position].create($(this.titleContainer[position]));
 			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
 		});
@@ -721,12 +724,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Allow to reorder positions by dragging the title
 		this.titleContainer[position].on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (!this.titleAreaControl[position].allowDragging(<any>e.target || e.srcElement)) {
+				return; // return early if we are not in the drag zone of the title widget
+			}
 
 			// Reset flag
 			wasDragged = false;
 
 			// Return early if there is only one editor active or the user clicked into the toolbar
-			if (this.getVisibleEditorCount() <= 1 || !!DOM.findParentWithClass((<any>e.target || e.srcElement), 'monaco-action-bar', 'one-editor-container')) {
+			if (this.getVisibleEditorCount() <= 1) {
 				return;
 			}
 

@@ -76,6 +76,10 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
+	public allowDragging(element: HTMLElement): boolean {
+		return (element.className === 'tabs-container');
+	}
+
 	public refresh(): void {
 		if (!this.context) {
 			return;
@@ -121,7 +125,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Empty container first
 		this.tabsContainer.empty();
-		while(this.tabActionBars.length) {
+		while (this.tabActionBars.length) {
 			this.tabActionBars.pop().dispose();
 		}
 

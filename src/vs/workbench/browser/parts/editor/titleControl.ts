@@ -5,12 +5,14 @@
 
 'use strict';
 
+import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import {Builder} from 'vs/base/browser/builder';
+import DOM = require('vs/base/browser/dom');
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {IEditorStacksModel, IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
@@ -36,6 +38,7 @@ export interface IToolbarActions {
 
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
+	allowDragging(element: HTMLElement): boolean;
 	create(parent: Builder): void;
 	refresh(): void;
 	dispose(): void;
@@ -86,6 +89,10 @@ export abstract class TitleControl {
 	}
 
 	public abstract refresh();
+
+	public allowDragging(element: HTMLElement): boolean {
+		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-container');
+	}
 
 	private initActions(): void {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
