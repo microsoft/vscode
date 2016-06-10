@@ -25,12 +25,13 @@ var sourcemaps = require('gulp-sourcemaps');
 var _ = require('underscore');
 var assign = require('object-assign');
 var quiet = !!process.env['VSCODE_BUILD_QUIET'];
-var declaration = !!process.env['VSCODE_BUILD_DECLARATION_FILES'];
+var monacodts = require('./build/monaco/api');
+var fs = require('fs');
 
 var rootDir = path.join(__dirname, 'src');
 var tsOptions = {
 	target: 'ES5',
-	declaration: declaration,
+	declaration: true,
 	module: 'amd',
 	verbose: !quiet,
 	preserveConstEnums: true,
@@ -50,9 +51,8 @@ function createCompile(build, emitError) {
 
 	return function (token) {
 		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
-		var tsFilter = filter([
-			'**/*.ts'
-		], { restore: true });
+		var tsFilter = filter(['**/*.ts'], { restore: true });
+		var noDeclarationsFilter = filter(['**/*', '!**/*.d.ts'], { restore: true });
 
 		var input = es.through();
 		var output = input
@@ -62,7 +62,9 @@ function createCompile(build, emitError) {
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(ts(token))
+			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls() : es.through())
+			.pipe(noDeclarationsFilter.restore)
 			.pipe(sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
@@ -83,7 +85,8 @@ function compileTask(out, build) {
 
 		return src
 			.pipe(compile())
-			.pipe(gulp.dest(out));
+			.pipe(gulp.dest(out))
+			.pipe(monacodtsTask(out, false));
 	};
 }
 
@@ -96,8 +99,64 @@ function watchTask(out, build) {
 
 		return watchSrc
 			.pipe(util.incremental(compile, src, true))
-			.pipe(gulp.dest(out));
+			.pipe(gulp.dest(out))
+			.pipe(monacodtsTask(out, true));
 	};
+}
+
+function monacodtsTask(out, isWatch) {
+
+	var filesToWatchMap = {};
+	monacodts.getFilesToWatch(out).forEach(function(filePath) {
+		filesToWatchMap[path.normalize(filePath)] = true;
+	});
+
+	var timer = -1;
+
+	var runSoon = function(howSoon) {
+		if (timer !== -1) {
+			clearTimeout(timer);
+			timer = -1;
+		}
+		timer = setTimeout(function() {
+			timer = -1;
+			runNow();
+		}, howSoon);
+	};
+
+	var runNow = function() {
+		if (timer !== -1) {
+			clearTimeout(timer);
+			timer = -1;
+		}
+		var result = monacodts.run(out);
+		if (!result.isTheSame) {
+			if (isWatch) {
+				fs.writeFileSync(result.filePath, result.content);
+			} else {
+				resultStream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
+			}
+		}
+	};
+
+	if (isWatch) {
+		watch('build/monaco/*').pipe(es.through(function() {
+			runSoon(500);
+		}));
+	}
+
+	var resultStream = es.through(function(data) {
+		var filePath = path.normalize(data.path);
+		if (filesToWatchMap[filePath]) {
+			runSoon(5000);
+		}
+		this.emit('data', data);
+	}, function(end) {
+		runNow();
+		this.emit('end');
+	});
+
+	return resultStream;
 }
 
 // Fast compile for development time

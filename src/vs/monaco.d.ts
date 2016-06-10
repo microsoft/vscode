@@ -1271,6 +1271,14 @@ declare module monaco.editor {
          * to have a background color decoration.
          */
         inlineClassName?: string;
+        /**
+         * If set, the decoration will be rendered before the text with this CSS class name.
+         */
+        beforeContentClassName?: string;
+        /**
+         * If set, the decoration will be rendered after the text with this CSS class name.
+         */
+        afterContentClassName?: string;
     }
 
     /**
@@ -2675,6 +2683,28 @@ declare module monaco.editor {
          * Restore view state.
          */
         restoreViewState?(state: any): void;
+    }
+
+    export interface IContentDecorationRenderOptions {
+        contentText?: string;
+        contentIconPath?: string;
+        border?: string;
+        textDecoration?: string;
+        color?: string;
+        backgroundColor?: string;
+        margin?: string;
+        width?: string;
+        height?: string;
+    }
+
+    export interface IThemeDecorationInstanceRenderOptions {
+        before?: IContentDecorationRenderOptions;
+        after?: IContentDecorationRenderOptions;
+    }
+
+    export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstanceRenderOptions {
+        light?: IThemeDecorationInstanceRenderOptions;
+        dark?: IThemeDecorationInstanceRenderOptions;
     }
 
     export interface ICommonCodeEditor extends IEditor {
