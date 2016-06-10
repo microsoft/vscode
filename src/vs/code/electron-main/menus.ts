@@ -655,7 +655,9 @@ export class VSCodeMenu {
 		if (this.envService.product.commit || this.envService.product.date) {
 			version += ` (${this.envService.product.commit || 'Unknown'}, ${this.envService.product.date || 'Unknown'})`;
 		}
-		return `${this.envService.product.reportIssueUrl}?body=VSCode Version: ${version}, OS Version: ${os.type()} ${os.arch()}`;
+		return `${this.envService.product.reportIssueUrl}?body=- VSCode Version: ${version}%0A` +
+			`- OS Version: ${os.type()} ${os.arch()}%0A%0A` +
+			'Steps to Reproduce:%0A%0A1.%0A2.';
 	}
 
 	private setHelpMenu(helpMenu: Electron.Menu): void {
