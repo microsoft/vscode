@@ -56,10 +56,16 @@ export class TerminalPanel extends Panel {
 		return this.createTerminal();
 	}
 
-	public createNewTerminalInstance() : TPromise<void> {
+	public createNewTerminalInstance(): TPromise<void> {
 		return this.createTerminal().then(() => {
 			this.updateFont();
 			this.focus();
+		});
+	}
+
+	public closeActiveTerminal(): TPromise<void> {
+		return new TPromise<void>(resolve => {
+			this.onTerminalInstanceExit(this.terminalInstances[this.activeTerminalIndex]);
 		});
 	}
 
@@ -100,15 +106,19 @@ export class TerminalPanel extends Panel {
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
 		for (var i = 0; i < this.terminalInstances.length; i++) {
 			if (this.terminalInstances[i] === terminalInstance) {
-				if (this.activeTerminalIndex === i) {
-					this.activeTerminalIndex = -1;
-				} else if (this.activeTerminalIndex > i) {
+				if (this.activeTerminalIndex > i) {
 					this.activeTerminalIndex--;
 				}
-				this.terminalInstances.splice(i, 1);
+				let killedTerminal = this.terminalInstances.splice(i, 1)[0];
+				killedTerminal.dispose();
 			}
 		}
-		this.terminalService.toggle();
+		if (this.terminalInstances.length === 0) {
+			this.activeTerminalIndex = -1;
+			this.terminalService.toggle();
+		} else {
+			this.setActiveTerminal(Math.min(this.activeTerminalIndex, this.terminalInstances.length - 1));
+		}
 	}
 
 	private updateTheme(themeId?: string): void {

@@ -43,4 +43,16 @@ export class TerminalService implements ITerminalService {
 		}
 		return (<TerminalPanel>panel).createNewTerminalInstance();
 	}
+
+	public close(): TPromise<any> {
+		// TODO: Refactor to share code with createNew
+		let panel = this.panelService.getActivePanel();
+		if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
+			return this.toggle().then(() => {
+				panel = this.panelService.getActivePanel();
+				return (<TerminalPanel>panel).closeActiveTerminal();
+			});
+		}
+		return (<TerminalPanel>panel).closeActiveTerminal();
+	}
 }

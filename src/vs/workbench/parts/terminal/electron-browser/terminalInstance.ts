@@ -63,10 +63,7 @@ export class TerminalInstance {
 		});
 		this.ptyProcess.on('exit', (exitCode) => {
 			this.dispose();
-			// TODO: When multiple terminals are supported this should do something smarter. There is
-			// also a weird bug here at least on Ubuntu 15.10 where the new terminal text does not
-			// repaint correctly.
-			if (exitCode !== 0) {
+			if (exitCode) {
 				console.error('Integrated terminal exited with code ' + exitCode);
 			}
 			this.onExitCallback(this);
@@ -167,8 +164,10 @@ export class TerminalInstance {
 	}
 
 	public dispose(): void {
-		this.parentDomElement.removeChild(this.wrapperElement);
-		this.wrapperElement = null;
+		if (this.wrapperElement) {
+			this.parentDomElement.removeChild(this.wrapperElement);
+			this.wrapperElement = null;
+		}
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.terminal.destroy();
 		this.ptyProcess.kill();
