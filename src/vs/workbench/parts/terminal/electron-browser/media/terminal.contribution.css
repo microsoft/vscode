@@ -28,8 +28,14 @@
 	display: block;
 }
 
-.monaco-workbench .integrated-terminal .terminal-cursor {
+.monaco-workbench .integrated-terminal .terminal:focus .terminal-cursor {
 	background-color: #333;
+}
+
+.monaco-workbench .integrated-terminal .terminal:not(:focus) .terminal-cursor {
+	background-color: transparent;
+	outline: 1px solid #333;
+	outline-offset: -1px;
 }
 
 .monaco-workbench .integrated-terminal .reverse-video {
@@ -40,14 +46,14 @@
 	color: #CCC;
 }
 
-/* TODO: Re-enable when new xterm.js is published */
-/*.vs-dark .monaco-workbench .integrated-terminal .terminal:not(:focus) .terminal-cursor {
+.vs-dark .monaco-workbench .integrated-terminal .terminal:focus .terminal-cursor {
+	background-color: #CCC;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal .terminal:not(:focus) .terminal-cursor {
+	background-color: transparent;
 	outline: 1px solid #CCC;
 	outline-offset: -1px;
-}*/
-
-.vs-dark .monaco-workbench .integrated-terminal .terminal/*:focus*/ .terminal-cursor {
-	background-color: #CCC;
 }
 
 .vs-dark .monaco-workbench .integrated-terminal .reverse-video {
@@ -60,8 +66,14 @@
 	color: #FFF;
 }
 
-.hc-black .monaco-workbench .integrated-terminal .terminal-cursor {
+.hc-black .monaco-workbench .integrated-terminal .terminal:focus .terminal-cursor {
 	background-color: #FFF;
+}
+
+.hc-black .monaco-workbench .integrated-terminal .terminal:not(:focus) .terminal-cursor {
+	background-color: transparent;
+	outline: 1px solid #FFF;
+	outline-offset: -1px;
 }
 
 .hc-black .monaco-workbench .integrated-terminal .reverse-video {
