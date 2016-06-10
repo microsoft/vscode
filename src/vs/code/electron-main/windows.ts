@@ -165,15 +165,9 @@ export class WindowsManager implements IWindowsService {
 		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
 			this.logService.log('App#activate');
 
-			// Mac only event: reopen last window when we get activated
+			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-
-				// We want to open the previously opened folder, so we dont pass on the path argument
-				let cliArgWithoutPath = objects.clone(this.envService.cliArgs);
-				cliArgWithoutPath.pathArguments = [];
-				this.windowsState.openedFolders = []; // make sure we do not restore too much
-
-				this.open({ cli: cliArgWithoutPath });
+				this.openNewWindow();
 			}
 		});
 
