@@ -89,12 +89,18 @@ registerSingleton(ITerminalService, TerminalService);
 	'terminal'
 ));
 
+// On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-	// on mac cmd+` is reserved to cycle between windows
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 }), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), FocusTerminalAction.LABEL);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL), CreateNewTerminalAction.LABEL);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL), CloseTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
+}), CreateNewTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_X }
+}), CloseTerminalAction.LABEL);
