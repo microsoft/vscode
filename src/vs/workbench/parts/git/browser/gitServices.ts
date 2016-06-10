@@ -385,7 +385,7 @@ export class GitService extends ee.EventEmitter
 	private editorService: IWorkbenchEditorService;
 	private lifecycleService: ILifecycleService;
 	private outputService: IOutputService;
-	private raw: git.IRawGitService;
+	protected raw: git.IRawGitService;
 
 	private state: git.ServiceState;
 	private operations: git.IGitOperation[];
@@ -395,6 +395,7 @@ export class GitService extends ee.EventEmitter
 	private needsRefresh: boolean;
 	private refreshDelayer: async.ThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
+	allowHugeRepositories: boolean;
 
 	get onOutput(): Event<string> { return this.raw.onOutput; }
 
@@ -407,7 +408,8 @@ export class GitService extends ee.EventEmitter
 		@IOutputService outputService: IOutputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -428,6 +430,7 @@ export class GitService extends ee.EventEmitter
 		this.needsRefresh = false;
 		this.refreshDelayer = new async.PeriodThrottledDelayer<void>(500, 10000);
 		this.autoFetcher = this.instantiationService.createInstance(AutoFetcher, this);
+		this.allowHugeRepositories = false;
 
 		this.registerListeners();
 
@@ -471,6 +474,18 @@ export class GitService extends ee.EventEmitter
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES,(e) => this.onFileChanges(e)));
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVED, (e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_REVERTED, (e) => this.onTextFileChange(e)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {
+			if (this.allowHugeRepositories) {
+				return;
+			}
+
+			const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+			this.allowHugeRepositories = config.allowLargeRepositories;
+
+			if (this.allowHugeRepositories) {
+				this.triggerStatus(true);
+			}
+		}));
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
@@ -548,7 +563,20 @@ export class GitService extends ee.EventEmitter
 	}
 
 	public status(): winjs.Promise {
-		return this.run(git.ServiceOperations.STATUS, () => this.raw.status());
+		const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+
+		if (this.allowHugeRepositories || config.allowLargeRepositories) {
+			return this.run(git.ServiceOperations.STATUS, () => this.raw.status());
+		}
+
+		return this.raw.statusCount().then(count => {
+			if (count > 5000 && !this.allowHugeRepositories) {
+				this.transition(git.ServiceState.Huge);
+				return winjs.TPromise.as(this.model);
+			}
+
+			return this.run(git.ServiceOperations.STATUS, () => this.raw.status());
+		});
 	}
 
 	public init(): winjs.Promise {

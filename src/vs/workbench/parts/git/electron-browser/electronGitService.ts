@@ -182,6 +182,6 @@ export class ElectronGitService extends GitService {
 			raw = new GitChannelClient(channel);
 		}
 
-		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService, storageService);
+		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService, storageService, configurationService);
 	}
 }

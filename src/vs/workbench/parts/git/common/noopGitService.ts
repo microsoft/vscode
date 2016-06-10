@@ -31,6 +31,10 @@ export class NoOpGitService implements git.IRawGitService {
 		return TPromise.as(git.RawServiceState.OK);
 	}
 
+	statusCount(): TPromise<number> {
+		return TPromise.as(0);
+	}
+
 	status(): TPromise<git.IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
