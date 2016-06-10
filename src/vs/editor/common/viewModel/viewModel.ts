@@ -13,7 +13,10 @@ import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IDecorationsViewportData {
 	decorations: IModelDecoration[];
-	inlineDecorations: IModelDecoration[][];
+	/**
+	 * inline decorations grouped by each line in the viewport
+	 */
+	inlineDecorations: InlineDecoration[][];
 }
 
 export interface IViewModel extends IEventEmitter {
@@ -44,4 +47,16 @@ export interface IViewModel extends IEventEmitter {
 	convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): Position;
 	convertModelSelectionToViewSelection(modelSelection:Selection): Selection;
 	modelPositionIsVisible(position:IPosition): boolean;
+}
+
+export class InlineDecoration {
+	_inlineDecorationBrand: void;
+
+	range: Range;
+	inlineClassName: string;
+
+	constructor(range:Range, inlineClassName:string) {
+		this.range = range;
+		this.inlineClassName = inlineClassName;
+	}
 }

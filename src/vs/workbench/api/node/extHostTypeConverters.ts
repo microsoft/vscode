@@ -156,7 +156,7 @@ function fromMarkedStringOrMarkedStringArr(something: vscode.MarkedString | vsco
 }
 
 function isDecorationOptions(something: any): something is vscode.DecorationOptions {
-	return (typeof something.range !== 'undefined') || (typeof something.after !== 'undefined') || (typeof something.before !== 'undefined');
+	return (typeof something.range !== 'undefined');
 }
 
 function isDecorationOptionsArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {

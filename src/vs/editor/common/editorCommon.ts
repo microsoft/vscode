@@ -3514,11 +3514,11 @@ export interface IContentDecorationRenderOptions {
 	contentText?: string;
 	contentIconPath?: string;
 
+	border?: string;
+	textDecoration?: string;
 	color?: string;
 	backgroundColor?: string;
 
-	border?: string;
-	textDecoration?: string;
 	margin?: string;
 	width?: string;
 	height?: string;
@@ -3536,12 +3536,8 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
 }
 
 export interface IThemeDecorationInstanceRenderOptions {
-	before?: {
-		content?: string;
-	};
-	after?: {
-		content?: string;
-	};
+	before?: IContentDecorationRenderOptions;
+	after?: IContentDecorationRenderOptions;
 }
 
 export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstanceRenderOptions {

@@ -5,7 +5,7 @@
 'use strict';
 
 import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -13,6 +13,7 @@ import {Configuration} from 'vs/editor/browser/config/configuration';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
 export class ViewOverlays extends ViewLayer {
 
@@ -151,7 +152,7 @@ class ViewOverlayLine implements IVisibleLineData {
 		}
 	}
 
-	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
+	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean {
 		let newPieces = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			let dynamicOverlay = this._dynamicOverlays[i];

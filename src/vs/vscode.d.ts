@@ -832,7 +832,7 @@ declare namespace vscode {
 		/**
 		 * A message that should be rendered when hovering over the decoration.
 		 */
-		hoverMessage: MarkedString | MarkedString[];
+		hoverMessage?: MarkedString | MarkedString[];
 
 		/**
 		 * Render options applied to the current decoration. For performance reasons, keep the
@@ -841,22 +841,16 @@ declare namespace vscode {
 		renderOptions?: DecorationInstanceRenderOptions;
 	}
 
-	export interface ThemableDecorationInstanceAttachmentRenderOptions {
-		content?: string;
-		color?: string;
-		backgroundColor?: string;
-	}
-
 	export interface ThemableDecorationInstanceRenderOptions {
 		/**
 		 * Defines the rendering options of the attachment that is inserted before the decorated text
 		 */
-		before?: ThemableDecorationInstanceAttachmentRenderOptions;
+		before?: ThemableDecorationAttachmentRenderOptions;
 
 		/**
 		 * Defines the rendering options of the attachment that is inserted after the decorated text
 		 */
-		after?: ThemableDecorationInstanceAttachmentRenderOptions;
+		after?: ThemableDecorationAttachmentRenderOptions;
 	}
 
 	export interface DecorationInstanceRenderOptions extends ThemableDecorationInstanceRenderOptions {

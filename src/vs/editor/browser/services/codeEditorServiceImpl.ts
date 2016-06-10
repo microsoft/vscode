@@ -26,16 +26,14 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	public registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
 		let provider = this._decorationOptionProviders[key];
-		if (provider) {
-			provider.dispose();
-			delete this._decorationOptionProviders[key];
+		if (!provider) {
+			if (!parentTypeKey) {
+				provider = new DecorationTypeOptionsProvider(this._styleSheet, key, options);
+			} else {
+				provider = new DecorationSubTypeOptionsProvider(this._styleSheet, key, parentTypeKey, options);
+			}
+			this._decorationOptionProviders[key] = provider;
 		}
-		if (!parentTypeKey) {
-			provider = new DecorationTypeOptionsProvider(this._styleSheet, key, options);
-		} else {
-			provider = new DecorationSubTypeOptionsProvider(this._styleSheet, key, parentTypeKey, options);
-		}
-		this._decorationOptionProviders[key] = provider;
 		provider.refCount++;
 	}
 
@@ -81,7 +79,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 		var themedOpts = getThemedRenderOptions(options);
 
-		this._beforeContentClassName = DecorationRenderHelper.handle(
+		this._beforeContentClassName = DecorationRenderHelper.createCSSRules(
 			styleSheet,
 			key,
 			parentTypeKey,
@@ -92,7 +90,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 			}
 		);
 
-		this._afterContentClassName = DecorationRenderHelper.handle(
+		this._afterContentClassName = DecorationRenderHelper.createCSSRules(
 			styleSheet,
 			key,
 			parentTypeKey,
@@ -104,7 +102,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 		);
 		if (this._beforeContentClassName || this._afterContentClassName) {
 			this._disposable = toDisposable(() => {
-				dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionPrefixFor(key), styleSheet);
+				dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionSubstring(key), styleSheet);
 			});
 		}
 	}
@@ -145,7 +143,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	constructor(styleSheet: HTMLStyleElement, key:string, options:IDecorationRenderOptions) {
 		var themedOpts = getThemedRenderOptions(options);
 
-		this.className = DecorationRenderHelper.handle(
+		this.className = DecorationRenderHelper.createCSSRules(
 			styleSheet,
 			key,
 			null,
@@ -156,7 +154,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			}
 		);
 
-		this.inlineClassName = DecorationRenderHelper.handle(
+		this.inlineClassName = DecorationRenderHelper.createCSSRules(
 			styleSheet,
 			key,
 			null,
@@ -167,7 +165,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			}
 		);
 
-		this.beforeContentClassName = DecorationRenderHelper.handle(
+		this.beforeContentClassName = DecorationRenderHelper.createCSSRules(
 			styleSheet,
 			key,
 			null,
@@ -178,7 +176,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			}
 		);
 
-		this.afterContentClassName = DecorationRenderHelper.handle(
+		this.afterContentClassName = DecorationRenderHelper.createCSSRules(
 			styleSheet,
 			key,
 			null,
@@ -189,7 +187,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			}
 		);
 
-		this.glyphMarginClassName = DecorationRenderHelper.handle(
+		this.glyphMarginClassName = DecorationRenderHelper.createCSSRules(
 			styleSheet,
 			key,
 			null,
@@ -214,7 +212,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		}
 
 		this._disposable = toDisposable(() => {
-			dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionPrefixFor(key), styleSheet);
+			dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionSubstring(key), styleSheet);
 		});
 	}
 
@@ -349,7 +347,10 @@ class DecorationRenderHelper {
 		return cssTextArr.length !== lenBefore;
 	}
 
-	public static handle(styleSheet: HTMLStyleElement, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, cssTexts: {light:string, dark:string}): string {
+	/**
+	 * Create CSS rules for `cssTexts` with the generated class names from `ruleType`
+	 */
+	public static createCSSRules(styleSheet: HTMLStyleElement, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, cssTexts: {light:string, dark:string}): string {
 		function createCSSSelector(themeType:ThemeType, cssText:string) {
 			let selector = CSSNameHelper.getSelector(themeType, key, parentKey, ruleType);
 			dom.createCSSRule(selector, cssText, styleSheet);
@@ -418,7 +419,7 @@ class CSSNameHelper {
 		return selector;
 	}
 
-	public static getDeletionPrefixFor(key:string): string {
+	public static getDeletionSubstring(key:string): string {
 		return '.ced-' + key + '-';
 	}
 }

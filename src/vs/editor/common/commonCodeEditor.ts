@@ -103,6 +103,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	protected _instantiationService: IInstantiationService;
 	protected _keybindingService: IKeybindingService;
 
+	/**
+	 * map from "parent" decoration type to live decoration ids.
+	 */
 	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[]};
 	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
 
@@ -667,6 +670,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				// identify custom reder options by a hash code over all keys and values
 				// For custom render options register a decoration type if necessary
 				let subType = hash(decorationOption.renderOptions).toString(16);
+				// The fact that `decorationTypeKey` appears in the typeKey has no influence
+				// it is just a mechanism to get predictable and unique keys (repeatable for the same options and unique across clients)
 				typeKey = decorationTypeKey + '-' + subType;
 				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
 					// decoration type did not exist before, register new one
@@ -681,16 +686,16 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			newModelDecorations.push({ range: decorationOption.range, options: opts });
 		}
 
-		// update all decorations
-		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
-
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		for (let subType in oldDecorationsSubTypes) {
 			if (!newDecorationsSubTypes[subType]) {
 				this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
 			}
 		}
+
+		// update all decorations
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
+		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
 	public removeDecorations(decorationTypeKey: string): void {
@@ -960,6 +965,15 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	_postDetachModelCleanup(detachedModel:editorCommon.IModel): void {
 		if (detachedModel) {
 			this._decorationTypeKeysToIds = {};
+			if (this._decorationTypeSubtypes) {
+				for (let decorationType in this._decorationTypeSubtypes) {
+					let subTypes = this._decorationTypeSubtypes[decorationType];
+					for (let subType in subTypes) {
+						this._codeEditorService.removeDecorationType(decorationType + '-' + subType);
+					}
+				}
+				this._decorationTypeSubtypes = {};
+			}
 			detachedModel.removeAllDecorationsWithOwnerId(this.id);
 		}
 	}
@@ -982,20 +996,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			this.viewModel.dispose();
 			this.viewModel = null;
 		}
-
-		if (this._decorationTypeKeysToIds) {
-			for (let decorationType in this._decorationTypeKeysToIds) {
-				let decorationIdsBySubType = this._decorationTypeKeysToIds[decorationType];
-				if (decorationIdsBySubType) {
-					for (let subType in decorationIdsBySubType) {
-						if (subType.length > 0) {
-							this._codeEditorService.removeDecorationType(decorationType + '-' + subType);
-						}
-					}
-				}
-			}
-		}
-
 
 		var result = this.model;
 		this.model = null;
