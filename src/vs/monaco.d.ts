@@ -441,20 +441,6 @@ declare module monaco {
     }
 
     /**
-     * The direction of a selection.
-     */
-    export enum SelectionDirection {
-        /**
-         * The selection starts above where it ends.
-         */
-        LTR = 0,
-        /**
-         * The selection starts below where it ends.
-         */
-        RTL = 1,
-    }
-
-    /**
      * A selection in the editor.
      * The selection is a range that has an orientation.
      */
@@ -629,6 +615,20 @@ declare module monaco {
         static isISelection(obj: any): boolean;
         static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction: SelectionDirection): Selection;
     }
+
+    /**
+     * The direction of a selection.
+     */
+    export enum SelectionDirection {
+        /**
+         * The selection starts above where it ends.
+         */
+        LTR = 0,
+        /**
+         * The selection starts below where it ends.
+         */
+        RTL = 1,
+    }
 }
 
 declare module monaco.editor {
@@ -657,10 +657,10 @@ declare module monaco.editor {
         oldLanguage: string;
     }) => void): IDisposable;
 
-    export class MonacoWebWorker<T> {
+    export interface MonacoWebWorker<T> {
         dispose(): void;
         getProxy(): Promise<T>;
-        withSyncedResources(resources: Uri[]): Promise<void>;
+        withSyncedResources(resources: Uri[]): Promise<T>;
     }
 
     export interface IWebWorkerOptions {

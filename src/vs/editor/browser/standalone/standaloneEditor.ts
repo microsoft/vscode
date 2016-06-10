@@ -202,7 +202,16 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
-export class MonacoWebWorker<T> extends EditorWorkerClient {
+export interface MonacoWebWorker<T> {
+	dispose(): void;
+	getProxy(): TPromise<T>;
+	withSyncedResources(resources: URI[]): TPromise<T>;
+}
+
+/**
+ * @internal
+ */
+export class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
 
 	private _foreignModuleId: string;
 	private _foreignProxy: TPromise<T>;
@@ -262,7 +271,7 @@ export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
 	let staticPlatformServices = ensureStaticPlatformServices(null);
 	let modelService = staticPlatformServices.modelService;
 
-	return new MonacoWebWorker(modelService, opts);
+	return new MonacoWebWorkerImpl<T>(modelService, opts);
 }
 
 export function colorizeElement(domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
@@ -320,7 +329,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 
 		// classes
-		MonacoWebWorker: <any>MonacoWebWorker,
 		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
 		EditorWrappingInfo: <any>editorCommon.EditorWrappingInfo,
 		InternalEditorViewOptions: <any>editorCommon.InternalEditorViewOptions,
