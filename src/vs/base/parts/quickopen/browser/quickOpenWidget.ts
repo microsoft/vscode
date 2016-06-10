@@ -25,7 +25,7 @@ import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeDefaults';
 import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
@@ -155,6 +155,15 @@ export class QuickOpenWidget implements IModelProvider {
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
+					if (platform.isMacintosh) {
+						if (keyboardEvent.equals(CommonKeybindings.WINCTRL_N)) {
+							keyboardEvent.keyCode = KeyCode.DownArrow;
+						}
+						else if (keyboardEvent.equals(CommonKeybindings.WINCTRL_P)) {
+							keyboardEvent.keyCode = KeyCode.UpArrow;
+						}
+					}
+
 					// Do not handle Tab: It is used to navigate between elements without mouse
 					if (keyboardEvent.keyCode === KeyCode.Tab) {
 						return;
@@ -225,6 +234,15 @@ export class QuickOpenWidget implements IModelProvider {
 					// Only handle when in quick navigation mode
 					if (!this.quickNavigateConfiguration) {
 						return;
+					}
+
+					if (platform.isMacintosh) {
+						if (keyboardEvent.equals(CommonKeybindings.WINCTRL_N)) {
+							keyboardEvent.keyCode = KeyCode.DownArrow;
+						}
+						else if (keyboardEvent.equals(CommonKeybindings.WINCTRL_P)) {
+							keyboardEvent.keyCode = KeyCode.UpArrow;
+						}
 					}
 
 					// Support keyboard navigation in quick navigation mode
