@@ -50,10 +50,23 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
-			this.terminalInstances[0].dispatchEvent(new WheelEvent(event.type, event));
+			this.terminalInstances[this.activeTerminalIndex].dispatchEvent(new WheelEvent(event.type, event));
 		}));
 
 		return this.createTerminal();
+	}
+
+	public createNewTerminalInstance(): TPromise<void> {
+		return this.createTerminal().then(() => {
+			this.updateFont();
+			this.focus();
+		});
+	}
+
+	public closeActiveTerminal(): TPromise<void> {
+		return new TPromise<void>(resolve => {
+			this.onTerminalInstanceExit(this.terminalInstances[this.activeTerminalIndex]);
+		});
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -76,31 +89,39 @@ export class TerminalPanel extends Panel {
 	private createTerminal(): TPromise<void> {
 		return new TPromise<void>(resolve => {
 			this.terminalInstances.push(new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this)));
-			this.activeTerminalIndex = this.terminalInstances.length - 1;
+			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
 			resolve(void 0);
 		});
 	}
 
+	private setActiveTerminal(index: number) {
+		this.activeTerminalIndex = index;
+		this.terminalInstances.forEach((terminalInstance, i) => {
+			terminalInstance.toggleVisibility(i === this.activeTerminalIndex);
+		});
+	}
+
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
 		for (var i = 0; i < this.terminalInstances.length; i++) {
 			if (this.terminalInstances[i] === terminalInstance) {
-				if (this.activeTerminalIndex === i) {
-					this.activeTerminalIndex = -1;
-				} else if (this.activeTerminalIndex > i) {
+				if (this.activeTerminalIndex > i) {
 					this.activeTerminalIndex--;
 				}
-				this.terminalInstances.splice(i, 1);
+				let killedTerminal = this.terminalInstances.splice(i, 1)[0];
+				killedTerminal.dispose();
 			}
 		}
-		this.terminalService.toggle();
+		if (this.terminalInstances.length === 0) {
+			this.activeTerminalIndex = -1;
+			this.terminalService.toggle();
+		} else {
+			this.setActiveTerminal(Math.min(this.activeTerminalIndex, this.terminalInstances.length - 1));
+		}
 	}
 
 	private updateTheme(themeId?: string): void {
-		if (this.terminalInstances.length === 0) {
-			return;
-		}
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}

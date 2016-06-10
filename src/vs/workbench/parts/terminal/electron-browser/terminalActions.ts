@@ -10,8 +10,8 @@ import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/ter
 
 export class ToggleTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.toggleTerminal';
-	public static LABEL = nls.localize('toggleTerminal', "Toggle Integrated Terminal");
+	public static ID = 'workbench.action.terminal.toggle';
+	public static LABEL = nls.localize('workbench.action.terminal.toggle', "Toggle Integrated Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -25,10 +25,44 @@ export class ToggleTerminalAction extends Action {
 	}
 }
 
+export class CloseTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.close';
+	public static LABEL = nls.localize('workbench.action.terminal.close', "Terminal: Close the current terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.close();
+	}
+}
+
+export class CreateNewTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.new';
+	public static LABEL = nls.localize('workbench.action.terminal.new', "Terminal: Create New Integrated Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.createNew();
+	}
+}
+
 export class FocusTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.focus';
-	public static LABEL = nls.localize('focusTerminal', "Focus Integrated Terminal");
+	public static LABEL = nls.localize('workbench.action.terminal.focus', "Terminal: Focus Terminal");
 
 	constructor(
 		id: string, label: string,
