@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import {languages, ExtensionContext} from 'vscode';
+import {languages, window, commands, ExtensionContext} from 'vscode';
 import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, NotificationType, Range, TextEdit, Protocol2Code} from 'vscode-languageclient';
 
 namespace ColorDecorationNotification {
@@ -101,14 +101,14 @@ export function activate(context: ExtensionContext) {
 		]
 	});
 
-	vscode.commands.registerCommand('_css.applyCodeAction', applyCodeAction);
+	commands.registerCommand('_css.applyCodeAction', applyCodeAction);
 }
 
 function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]) {
-	let textEditor = vscode.window.activeTextEditor;
+	let textEditor = window.activeTextEditor;
 	if (textEditor && textEditor.document.uri.toString() === uri) {
 		if (textEditor.document.version !== documentVersion) {
-			vscode.window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
+			window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
 		}
 		textEditor.edit(mutator => {
 			for (let edit of edits) {
@@ -116,7 +116,7 @@ function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]
 			}
 		}).then(success => {
 			if (!success) {
-				vscode.window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
+				window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
 			}
 		});
 	}
