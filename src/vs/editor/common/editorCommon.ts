@@ -1028,6 +1028,14 @@ export interface IModelDecorationOptions {
 	 * to have a background color decoration.
 	 */
 	inlineClassName?:string;
+	/**
+	 * If set, the decoration will be rendered before the text with this CSS class name.
+	 */
+	beforeContentClassName?:string;
+	/**
+	 * If set, the decoration will be rendered after the text with this CSS class name.
+	 */
+	afterContentClassName?:string;
 }
 
 /**
@@ -3470,10 +3478,12 @@ export interface IEditorContribution {
 export interface IThemeDecorationRenderOptions {
 	backgroundColor?: string;
 
+	outline?: string;
 	outlineColor?: string;
 	outlineStyle?: string;
 	outlineWidth?: string;
 
+	border?:string;
 	borderColor?: string;
 	borderRadius?: string;
 	borderSpacing?: string;
@@ -3488,6 +3498,23 @@ export interface IThemeDecorationRenderOptions {
 	gutterIconPath?: string;
 
 	overviewRulerColor?: string;
+
+	before?: IContentDecorationRenderOptions;
+	after?: IContentDecorationRenderOptions;
+}
+
+export interface IContentDecorationRenderOptions {
+	contentText?: string;
+	contentIconPath?: string;
+
+	border?: string;
+	textDecoration?: string;
+	color?: string;
+	backgroundColor?: string;
+
+	margin?: string;
+	width?: string;
+	height?: string;
 }
 
 /**
@@ -3501,13 +3528,25 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
 	dark?: IThemeDecorationRenderOptions;
 }
 
+export interface IThemeDecorationInstanceRenderOptions {
+	before?: IContentDecorationRenderOptions;
+	after?: IContentDecorationRenderOptions;
+}
+
+export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstanceRenderOptions {
+	light?: IThemeDecorationInstanceRenderOptions;
+	dark?: IThemeDecorationInstanceRenderOptions;
+}
+
 /**
  * @internal
  */
-export interface IRangeWithMessage {
+export interface IDecorationOptions {
 	range: IRange;
 	hoverMessage?: IHTMLContentElement[];
+	renderOptions? : IDecorationInstanceRenderOptions;
 }
+
 
 export interface ICommonCodeEditor extends IEditor {
 
@@ -3642,7 +3681,7 @@ export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * @internal
 	 */
-	setDecorations(decorationTypeKey: string, ranges:IRangeWithMessage[]): void;
+	setDecorations(decorationTypeKey: string, ranges: IDecorationOptions[]): void;
 
 	/**
 	 * @internal

@@ -29,7 +29,7 @@ export interface ICodeEditorService {
 	 */
 	getFocusedCodeEditor(): ICommonCodeEditor;
 
-	registerDecorationType(key:string, options: IDecorationRenderOptions): void;
+	registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	removeDecorationType(key:string): void;
-	resolveDecorationType(key:string): IModelDecorationOptions;
+	resolveDecorationOptions(typeKey:string, writable: boolean): IModelDecorationOptions;
 }
