@@ -505,31 +505,26 @@ export class VSCodeMenu {
 		let search = this.createMenuItem(nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"), 'workbench.view.search');
 		let git = this.createMenuItem(nls.localize({ key: 'miViewGit', comment: ['&& denotes a mnemonic'] }, "&&Git"), 'workbench.view.git');
 		let debug = this.createMenuItem(nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"), 'workbench.view.debug');
+		let output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
+		let debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"), 'workbench.debug.action.toggleRepl');
+		let integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
+		let problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.action.markers.panel.toggle');
 
 		let viewsMenu = new Menu();
 		[
 			explorer,
 			search,
 			git,
-			debug
-		].forEach(item => viewsMenu.append(item));
-
-		let viewsItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miView', comment: ['&& denotes a mnemonic'] }, "&&Views")), submenu: viewsMenu, enabled: true });
-
-		let output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
-		let debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"), 'workbench.debug.action.toggleRepl');
-		let integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
-		let problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.action.markers.panel.toggle');
-
-		let panelsMenu = new Menu();
-		[
+			debug,
+			__separator__(),
 			output,
 			problems,
 			debugConsole,
 			integratedTerminal
-		].forEach(item => panelsMenu.append(item));
+		].forEach(item => viewsMenu.append(item));
 
-		let panelsItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPanels', comment: ['&& denotes a mnemonic'] }, "&&Panels")), submenu: panelsMenu, enabled: true });
+		let viewsItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miView', comment: ['&& denotes a mnemonic'] }, "&&Views")), submenu: viewsMenu, enabled: true });
+
 
 		let commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 
@@ -550,7 +545,6 @@ export class VSCodeMenu {
 
 		arrays.coalesce([
 			viewsItem,
-			panelsItem,
 			__separator__(),
 			commands,
 			__separator__(),
