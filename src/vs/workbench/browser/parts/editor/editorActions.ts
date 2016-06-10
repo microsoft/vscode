@@ -13,7 +13,7 @@ import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, 
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {Position, IEditor, Direction, IResourceInput} from 'vs/platform/editor/common/editor';
+import {Position, IEditor, Direction, IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -34,7 +34,7 @@ export class SplitEditorAction extends Action {
 		super(id, label, 'split-editor-action');
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let editorToSplit: IEditor;
 		if (context) {
 			editorToSplit = this.editorService.getVisibleEditors()[this.editorGroupService.getStacksModel().positionOfGroup(context.group)];
@@ -437,7 +437,7 @@ export class CloseEditorAction extends Action {
 		super(id, label, 'close-editor-action');
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 
 		// Close Active Editor
@@ -480,7 +480,7 @@ export class CloseEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
@@ -563,7 +563,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
@@ -594,7 +594,7 @@ export class CloseOtherEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		let input = context ? context.editor : null;
 
@@ -627,7 +627,7 @@ export class CloseAllEditorsInGroupAction extends Action {
 		super(id, label, 'action-close-all-files');
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
@@ -656,7 +656,7 @@ export class MoveGroupLeftAction extends Action {
 		super(id, label);
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
@@ -690,7 +690,7 @@ export class MoveGroupRightAction extends Action {
 		super(id, label);
 	}
 
-	public run(context: IEditorContext): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
@@ -783,10 +783,10 @@ export class PinEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor) {
-			this.editorGroupService.pinEditor(editor.position, editor.input);
+	public run(context?: IEditorContext): TPromise<any> {
+		let target = getTarget(this.editorService, this.editorGroupService, context);
+		if (target) {
+			this.editorGroupService.pinEditor(target.position, target.input);
 		}
 
 		return TPromise.as(true);
@@ -807,14 +807,27 @@ export class UnpinEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor) {
-			this.editorGroupService.unpinEditor(editor.position, editor.input);
+	public run(context?: IEditorContext): TPromise<any> {
+		let target = getTarget(this.editorService, this.editorGroupService, context);
+		if (target) {
+			this.editorGroupService.unpinEditor(target.position, target.input);
 		}
 
 		return TPromise.as(true);
 	}
+}
+
+function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorContext): { input: IEditorInput, position: Position } {
+	if (context) {
+		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(context.group) };
+	}
+
+	const activeEditor = editorService.getActiveEditor();
+	if (activeEditor) {
+		return { input: activeEditor.input, position: activeEditor.position };
+	}
+
+	return null;
 }
 
 export abstract class BaseNavigateEditorAction extends Action {

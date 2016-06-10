@@ -6,15 +6,18 @@
 'use strict';
 
 import 'vs/css!./media/tabstitle';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
+import {IAction} from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import {Builder, $} from 'vs/base/browser/builder';
 import {IEditorGroup} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
-import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
+import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
+import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -237,6 +240,41 @@ export class TabsTitleControl extends TitleControl {
 				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
 			}
 		});
+
+		// Context menu
+		tab.on(DOM.EventType.CONTEXT_MENU, (e) => {
+			DOM.EventHelper.stop(e);
+
+			let anchor: HTMLElement | { x: number, y: number } = tab.getHTMLElement();
+			if (e instanceof MouseEvent) {
+				const event = new StandardMouseEvent(e);
+				anchor = { x: event.posx, y: event.posy };
+			}
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => TPromise.as(this.getTabActions(editor, group)),
+				getActionsContext: () => { return { editor, group }; },
+				getKeyBinding: (action) => {
+					var opts = this.keybindingService.lookupKeybindings(action.id);
+					if (opts.length > 0) {
+						return opts[0]; // only take the first one
+					}
+
+					return null;
+				}
+			});
+		});
+	}
+
+	private getTabActions(editor: IEditorInput, group: IEditorGroup): IAction[] {
+		return [
+			this.closeEditorAction,
+			this.closeOtherEditorsAction,
+			this.closeAllEditorsAction,
+			new Separator(),
+			(group.isPinned(editor)) ? this.unpinEditorAction : this.pinEditorAction
+		];
 	}
 
 	public dispose(): void {
