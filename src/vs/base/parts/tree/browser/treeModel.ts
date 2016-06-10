@@ -1220,7 +1220,7 @@ export class TreeModel extends Events.EventEmitter {
 		return new TreeNavigator(this.getItem(element), subTreeOnly);
 	}
 
-	private getItem(element: any = null): Item {
+	public getItem(element: any = null): Item {
 		if (element === null) {
 			return this.input;
 		} else if (element instanceof Item) {

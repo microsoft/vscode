@@ -125,6 +125,13 @@ export interface ITree extends Events.IEventEmitter {
 	reveal(element: any, relativeTop?:number): WinJS.Promise;
 
 	/**
+	 * Returns the relative top position of any given element, if visible.
+	 * If not visible, returns -1.
+	 * Useful when calling `reveal(element, relativeTop)`.
+	 */
+	getRelativeTop(element: any): number;
+
+	/**
 	 * Returns a number between 0 and 1 representing how much the tree is scroll down. 0 means all the way
 	 * to the top; 1 means all the way down.
 	 */

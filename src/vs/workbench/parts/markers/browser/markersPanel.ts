@@ -24,7 +24,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { IProblemsConfiguration, MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
+import { IProblemsConfiguration, MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import {CollapseAllAction} from 'vs/base/parts/tree/browser/treeDefaults';
@@ -35,12 +35,16 @@ import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersAction
 import { FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
+export const CONTEXT_PROBLEMS_VIEW_VISIBLE = 'problemsViewVisible';
+
 export class MarkersPanel extends Panel {
 
 	public markersModel: MarkersModel;
+
 	private toDispose: lifecycle.IDisposable[];
 	private delayedRefresh: Delayer<void>;
 
+	private lastSelectedRelativeTop: number= 0;
 	private currentActiveFile: URI = null;
 	private hasToAutoReveal: boolean;
 
@@ -88,6 +92,8 @@ export class MarkersPanel extends Panel {
 
 		this.render();
 
+		// this.telemetryService.publicLog('problems.used');
+
 		return TPromise.as(null);
 	}
 
@@ -101,11 +107,13 @@ export class MarkersPanel extends Panel {
 	}
 
 	public focus(): void {
+		if (this.tree.isDOMFocused()) {
+			return;
+		}
+
 		if (this.markersModel.hasFilteredResources()) {
 			this.tree.DOMFocus();
-			if (!this.tree.getFocus()) {
-				this.tree.focusFirst();
-			}
+			this.revealProblemsForCurrentActiveEditor(true);
 		}
 	}
 
@@ -166,6 +174,7 @@ export class MarkersPanel extends Panel {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(e.config)));
 		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toDispose.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
+		this.toDispose.push(this.tree.addListener2('selection', () => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
@@ -183,6 +192,13 @@ export class MarkersPanel extends Panel {
 
 	private onConfigurationsUpdated(conf: IProblemsConfiguration): void {
 		this.hasToAutoReveal = conf && conf.problems && conf.problems.autoReveal;
+	}
+
+	private onSelected(): void {
+		let selection= this.tree.getSelection();
+		if (selection && selection.length > 0) {
+			this.lastSelectedRelativeTop= this.tree.getRelativeTop(selection[0]);
+		}
 	}
 
 	private updateResources(resources: URI[]) {
@@ -230,18 +246,36 @@ export class MarkersPanel extends Panel {
 	private autoReveal(): void {
 		let conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
 		if (conf && conf.problems && conf.problems.autoReveal) {
-			let resources = this.markersModel.filteredResources.filter((resource): boolean => {
-				return this.currentActiveFile.toString() === resource.uri.toString();
-			});
-			if (resources && resources.length > 0) {
-				if (this.hasSelectedMarkerFor(resources[0])) {
-					// TODO: get previous relative top position of selected element
-					this.tree.reveal(this.tree.getSelection()[0], this.tree.getScrollPosition());
-				} else {
-					this.tree.reveal(resources[0], 0);
+			this.revealProblemsForCurrentActiveEditor();
+		}
+	}
+
+	private revealProblemsForCurrentActiveEditor(focus: boolean= false): void {
+		let currentActiveResource = this.getResourceForCurrentActiveFile();
+		if (currentActiveResource) {
+			if (this.tree.isExpanded(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+				this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
+				if (focus) {
+					this.tree.setFocus(this.tree.getSelection()[0]);
+				}
+			} else {
+				this.tree.reveal(currentActiveResource, 0);
+				if (focus) {
+					this.tree.setFocus(currentActiveResource);
+					this.tree.setSelection([currentActiveResource]);
 				}
 			}
 		}
+	}
+
+	private getResourceForCurrentActiveFile(): Resource {
+		if (this.currentActiveFile) {
+			let resources = this.markersModel.filteredResources.filter((resource): boolean => {
+				return this.currentActiveFile.toString() === resource.uri.toString();
+			});
+			return resources.length > 0 ? resources[0] : null;
+		}
+		return null;
 	}
 
 	private hasSelectedMarkerFor(resource): boolean {
