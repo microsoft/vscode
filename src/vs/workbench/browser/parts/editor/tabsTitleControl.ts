@@ -66,6 +66,15 @@ export class TabsTitleControl extends TitleControl {
 			'class': 'tabs-container'
 		}, (div) => {
 			this.tabsContainer = div;
+
+			// Support to scroll the tabs container with the mouse wheel
+			// if we detect that scrolling happens in Y-axis
+			div.on('wheel', (e: WheelEvent) => {
+				if (e.deltaY && !e.deltaX) {
+					DOM.EventHelper.stop(e);
+					this.tabsContainer.getHTMLElement().scrollLeft += e.deltaY;
+				}
+			});
 		});
 
 		// Group Actions
@@ -188,7 +197,7 @@ export class TabsTitleControl extends TitleControl {
 		tab.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
-			if (!DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
+			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
 			}
 		});
