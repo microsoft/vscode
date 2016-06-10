@@ -422,8 +422,8 @@
     },
     "xterm": {
       "version": "0.33.0",
-      "from": "xterm@latest",
-      "resolved": "https://registry.npmjs.org/xterm/-/xterm-0.33.0.tgz"
+      "from": "https://github.com/sourcelair/xterm.js/tarball/master",
+      "resolved": "https://github.com/sourcelair/xterm.js/tarball/master"
     },
     "yauzl": {
       "version": "2.3.1",
