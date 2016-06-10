@@ -50,6 +50,10 @@ export class RawGitService implements IRawGitService {
 		);
 	}
 
+	statusCount(): TPromise<number> {
+		return this.status().then(r => r.status.length);
+	}
+
 	status(): TPromise<IRawStatus> {
 		return this.repo.getStatus()
 			.then(status => this.repo.getHEAD()

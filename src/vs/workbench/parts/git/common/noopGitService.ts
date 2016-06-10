@@ -30,6 +30,10 @@ export class NoOpGitService implements IRawGitService {
 		return TPromise.as(RawServiceState.OK);
 	}
 
+	statusCount(): TPromise<number> {
+		return TPromise.as(0);
+	}
+
 	status(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}

@@ -13,6 +13,7 @@ import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassServ
 export interface IGitChannel extends IChannel {
 	call(command: 'getVersion'): TPromise<string>;
 	call(command: 'serviceState'): TPromise<RawServiceState>;
+	call(command: 'statusCount'): TPromise<number>;
 	call(command: 'status'): TPromise<IRawStatus>;
 	call(command: 'init'): TPromise<IRawStatus>;
 	call(command: 'add', filesPaths?: string[]): TPromise<IRawStatus>;
@@ -42,7 +43,7 @@ export class GitChannel implements IGitChannel {
 		switch (command) {
 			case 'getVersion': return this.service.then(s => s.getVersion());
 			case 'serviceState': return this.service.then(s => s.serviceState());
-			case 'status': return this.service.then(s => s.status());
+			case 'statusCount': return this.service.then(s => s.statusCount());
 			case 'status': return this.service.then(s => s.status());
 			case 'init': return this.service.then(s => s.init());
 			case 'add': return this.service.then(s => s.add(args));
@@ -88,6 +89,10 @@ export class GitChannelClient implements IRawGitService {
 
 	serviceState(): TPromise<RawServiceState> {
 		return this.channel.call('serviceState');
+	}
+
+	statusCount(): TPromise<number> {
+		return this.channel.call('statusCount');
 	}
 
 	status(): TPromise<IRawStatus> {
