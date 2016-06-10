@@ -26,7 +26,9 @@
 	white-space: nowrap;
 	cursor: pointer;
 	border-left: 1px solid rgba(128, 128, 128, 0.2);
+	border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 	box-sizing: border-box;
+	opacity: 0.7;
 	padding-left: 10px;
 }
 
@@ -34,20 +36,20 @@
 	border-left: 0;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.inactive {
-	border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-	opacity: 0.7;
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active {
+	border-bottom: 0;
+	opacity: 1;
 }
 
 /* Tab Close */
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.inactive > .tab-close,
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab > .tab-close {
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab > .tab-close {
 	opacity: 0;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab:hover > .tab-close,
-.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.dirty > .tab-close {
+.monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab.active > .tab-close,
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.dirty > .tab-close,
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab:hover > .tab-close {
 	opacity: 1;
 }
 
@@ -72,9 +74,6 @@
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label {
 	line-height: 35px;
 	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	position: relative;
 	flex: 1;
 	font-style: italic;
 }
@@ -90,19 +89,19 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
-	color: #333333;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab .tab-label a {
 	color: rgba(51, 51, 51, 0.5);
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
-	color: white;
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab .tab-label a {
+	color: #333333;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive > .tabs-container > .tab .tab-label a {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
 	color: rgba(255, 255, 255, 0.5);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab .tab-label a {
+	color: white;
 }
 
 /* Group Actions */

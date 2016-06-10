@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/tabstitle';
+import nls = require('vs/nls');
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
@@ -94,9 +95,9 @@ export class TabsTitleControl extends TitleControl {
 		// Activity state
 		const isActive = this.stacks.isActive(group);
 		if (isActive) {
-			this.titleContainer.removeClass('inactive');
+			this.titleContainer.addClass('active');
 		} else {
-			this.titleContainer.addClass('inactive');
+			this.titleContainer.removeClass('active');
 		}
 
 		// Refresh Tabs
@@ -144,9 +145,9 @@ export class TabsTitleControl extends TitleControl {
 
 				// Active state
 				if (isActive) {
-					tab.removeClass('inactive');
+					tab.addClass('active');
 				} else {
-					tab.addClass('inactive');
+					tab.removeClass('active');
 				}
 
 				// Dirty State
@@ -167,7 +168,7 @@ export class TabsTitleControl extends TitleControl {
 				tab.div({
 					'class': 'tab-close'
 				}, (div) => {
-					const bar = new ActionBar(div, { context: { editor, group } });
+					const bar = new ActionBar(div, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
 					bar.push(this.closeEditorAction, { icon: true, label: false });
 
 					this.tabActionBars.push(bar);

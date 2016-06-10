@@ -158,9 +158,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Activity state
 		if (isActive) {
-			this.titleContainer.removeClass('inactive');
+			this.titleContainer.addClass('active');
 		} else {
-			this.titleContainer.addClass('inactive');
+			this.titleContainer.removeClass('active');
 		}
 
 		// Editor Title

@@ -54,19 +54,19 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
-	color: #333333;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive .title-label a {
 	color: rgba(51, 51, 51, 0.5);
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
-	color: white;
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a {
+	color: #333333;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive .title-label a {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
 	color: rgba(255, 255, 255, 0.5);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a {
+	color: white;
 }
 
 /* Title Description */
@@ -89,10 +89,11 @@
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
 	display: flex;
 	flex: initial;
+	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.inactive .title-actions {
-	opacity: 0.5;
+.monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-actions {
+	opacity: 1;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label {
