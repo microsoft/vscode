@@ -130,14 +130,14 @@
 .hc-black .monaco-workbench .close-editor-action:before {
 	content: url('close-inverse.svg');
 	position: absolute;
-	top: 12px;
-	left: 8px;
+	top: 10px;
+	left: 4px;
 	height: 16px;
 	width: 16px;
 }
 
 .hc-black .monaco-workbench .split-editor-action:before {
-	content: url('SplitEditor_inverse.svg');
+	content: url('split-editor-inverse.svg');
 	position: absolute;
 	top: 12px;
 	left: 8px;

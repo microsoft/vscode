@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Title Container */
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title {
-	padding-left: 2px;
-}
-
 /* Title Decoration */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration {
@@ -40,6 +34,7 @@
 	position: relative;
 	flex: 1;
 	font-style: italic;
+	padding-left: 2px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {

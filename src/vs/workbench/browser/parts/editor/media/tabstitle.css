@@ -32,6 +32,10 @@
 	padding-left: 10px;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active  {
+	border: 1px solid #6FC3DF;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child {
 	border-left: 0;
 }
@@ -77,6 +81,29 @@
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
 	background: url('close-inverse.svg') center center no-repeat;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
+	background: none;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:before {
+	content: url('close-dirty-inverse.svg');
+	position: absolute;
+	top: 10px;
+	left: 4px;
+	height: 16px;
+	width: 16px;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover:before {
+	content: url('close-inverse.svg');
+	position: absolute;
+	top: 10px;
+	left: 4px;
+	height: 16px;
+	width: 16px;
 }
 
 /* Editor Label */
