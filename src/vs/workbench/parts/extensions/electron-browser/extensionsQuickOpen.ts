@@ -361,7 +361,7 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 
 				return {
 					extension,
-					highlights: getHighlights(input.trim(), extension),
+					highlights,
 					state: outdatedExt
 						? ExtensionState.Outdated
 						: ExtensionState.Installed
