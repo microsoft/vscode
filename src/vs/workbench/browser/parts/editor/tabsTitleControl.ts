@@ -113,9 +113,6 @@ export class TabsTitleControl extends TitleControl {
 			this.titleContainer.removeClass('active');
 		}
 
-		// Refresh Tabs
-		this.refreshTabs(group);
-
 		// Update Group Actions Toolbar
 		const groupActions = this.getGroupActions(group);
 		const primaryGroupActions = prepareActions(groupActions.primary);
@@ -128,6 +125,9 @@ export class TabsTitleControl extends TitleControl {
 			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
 			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
 		}
+
+		// Refresh Tabs
+		this.refreshTabs(group);
 	}
 
 	private refreshTabs(group: IEditorGroup): void {
@@ -137,6 +137,8 @@ export class TabsTitleControl extends TitleControl {
 		while (this.tabActionBars.length) {
 			this.tabActionBars.pop().dispose();
 		}
+
+		let activeTab: HTMLElement;
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
@@ -159,6 +161,7 @@ export class TabsTitleControl extends TitleControl {
 				// Active state
 				if (isActive) {
 					tab.addClass('active');
+					activeTab = tab.getHTMLElement();
 				} else {
 					tab.removeClass('active');
 				}
@@ -188,6 +191,23 @@ export class TabsTitleControl extends TitleControl {
 				});
 			});
 		});
+
+		// Always reveal the active one
+		const container = this.tabsContainer.getHTMLElement();
+		const containerWidth = container.offsetWidth;
+		const containerScrollPosX = container.scrollLeft;
+		const activeTabPosX = activeTab.offsetLeft;
+		const activeTabWidth = activeTab.offsetWidth;
+
+		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
+		if (containerScrollPosX + containerWidth < activeTabPosX + activeTabWidth) {
+			container.scrollLeft += ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + containerWidth) /* right corner of view port */);
+		}
+
+		// Tab is overlflowng to the left: Scroll it into view to the left
+		else if (containerScrollPosX > activeTabPosX) {
+			container.scrollLeft = activeTab.offsetLeft;
+		}
 	}
 
 	private hookTabListeners(tab: Builder, editor: IEditorInput, group: IEditorGroup): void {
