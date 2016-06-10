@@ -59,6 +59,7 @@ export class TerminalPanel extends Panel {
 	public createNewTerminalInstance() : TPromise<void> {
 		return this.createTerminal().then(() => {
 			this.updateFont();
+			this.focus();
 		});
 	}
 
