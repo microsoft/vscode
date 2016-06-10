@@ -44,13 +44,22 @@
 /* Tab Close */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab > .tab-close {
-	opacity: 0;
+	opacity: 0; /* hide the close button  by default */
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab.active > .tab-close,
-.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.dirty > .tab-close,
-.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab:hover > .tab-close {
+.monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab.active > .tab-close,		/* always show it for active tab */
+.monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab:hover > .tab-close,		/* always show it on hover */
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.dirty > .tab-close {			/* always show it for dirty tabs */
 	opacity: 1;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.active > .tab-close,			/* show dimmed for inactive group */
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab.active:hover > .tab-close {		/* show dimmed for inactive group */
+	opacity: 0.5;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab:hover > .tab-close {			/* show more dimmed for inactive group and tab */
+	opacity: 0.4;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
