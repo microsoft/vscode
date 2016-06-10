@@ -12,7 +12,7 @@ import {
 import {Parser} from './parser/cssParser';
 import {CSSCompletion} from './services/cssCompletion';
 import {CSSHover} from './services/cssHover';
-import {CSSSymbols} from './services/cssSymbols';
+import {CSSNavigation} from './services/cssNavigation';
 import {CSSCodeActions} from './services/cssCodeActions';
 import {CSSValidation, Settings} from './services/cssValidation';
 
@@ -55,7 +55,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 let cssCompletion = new CSSCompletion();
 let cssHover = new CSSHover();
 let cssValidation = new CSSValidation();
-let cssSymbols = new CSSSymbols();
+let cssNavigation = new CSSNavigation();
 let cssCodeActions = new CSSCodeActions();
 
 // The content of a text document has changed. This event is emitted
@@ -111,25 +111,25 @@ connection.onHover(textDocumentPosition => {
 connection.onDocumentSymbol(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssSymbols.findDocumentSymbols(document, stylesheet);
+	return cssNavigation.findDocumentSymbols(document, stylesheet);
 });
 
 connection.onDefinition(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssSymbols.findDefinition(document, documentSymbolParams.position, stylesheet);
+	return cssNavigation.findDefinition(document, documentSymbolParams.position, stylesheet);
 });
 
 connection.onDocumentHighlight(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssSymbols.findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
+	return cssNavigation.findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
 });
 
 connection.onReferences(referenceParams => {
 	let document = documents.get(referenceParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssSymbols.findReferences(document, referenceParams.position, stylesheet);
+	return cssNavigation.findReferences(document, referenceParams.position, stylesheet);
 });
 
 connection.onCodeAction(codeActionParams => {

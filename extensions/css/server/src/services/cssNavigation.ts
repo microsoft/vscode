@@ -11,7 +11,7 @@ import {Symbols} from '../parser/cssSymbolScope';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-export class CSSSymbols {
+export class CSSNavigation {
 
 	public findDefinition(document: TextDocument, position: Position, stylesheet: nodes.Node): Location {
 
