@@ -37,7 +37,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 800,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -89,7 +89,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 800,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -140,7 +140,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			height: 800,
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 800,
+
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
 			glyphMarginHeight: 800,
@@ -191,7 +192,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 900,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -243,7 +244,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 900,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -295,7 +296,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 900,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -347,7 +348,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 900,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -399,7 +400,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 900,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -451,7 +452,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 900,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
@@ -503,7 +504,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			gitBlameLeft: 0,
 			gitBlameWidth: 0,
-			gitBlameHeight: 0,
+			gitBlameHeight: 900,
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
