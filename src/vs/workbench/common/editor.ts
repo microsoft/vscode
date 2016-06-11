@@ -657,4 +657,8 @@ export interface IEditorIdentifier {
 	editor: IEditorInput;
 }
 
+export interface IEditorContext extends IEditorIdentifier {
+	event: any;
+}
+
 export type GroupIdentifier = number;
