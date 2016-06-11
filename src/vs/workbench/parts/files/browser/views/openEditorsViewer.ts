@@ -31,7 +31,7 @@ import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction,
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {CloseOtherEditorsInGroupAction, CloseEditorAction, CloseAllEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.emmet;
 
@@ -388,7 +388,7 @@ export class ActionProvider implements IActionProvider {
 
 		return [
 			saveAllAction,
-			this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL)
+			this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, CloseEditorsInGroupAction.LABEL)
 		];
 	}
 
@@ -406,7 +406,7 @@ export class ActionProvider implements IActionProvider {
 				result.push(new Separator());
 			}
 
-			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
+			result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 		} else {
 			const openEditor = <OpenEditor>element;
 			const resource = openEditor.getResource();
@@ -469,7 +469,7 @@ export class ActionProvider implements IActionProvider {
 			const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 			closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
 			result.push(closeOtherEditorsInGroupAction);
-			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
+			result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 		}
 
 		return TPromise.as(result);

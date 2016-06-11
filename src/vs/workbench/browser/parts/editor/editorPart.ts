@@ -1154,8 +1154,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				const visibleEditors: EditorIdentifier[] = [];
 				const hiddenEditors: EditorIdentifier[] = [];
 				this.pendingEditorInputsToClose.forEach(identifier => {
-					const group = identifier.group;
-					const editor = identifier.editor;
+					const {group, editor} = identifier;
 
 					if (group.isActive(editor)) {
 						visibleEditors.push(identifier);

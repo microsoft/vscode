@@ -213,14 +213,15 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private hookTabListeners(tab: Builder, identifier: IEditorIdentifier): void {
-		const position = this.stacks.positionOfGroup(identifier.group);
+		const {editor, group} = identifier;
+		const position = this.stacks.positionOfGroup(group);
 
 		// Open on Click
 		tab.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
-				this.editorService.openEditor(identifier.editor, null, position).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
 			}
 		});
 
@@ -228,7 +229,7 @@ export class TabsTitleControl extends TitleControl {
 		tab.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
-			this.editorGroupService.pinEditor(position, identifier.editor);
+			this.editorGroupService.pinEditor(position, editor);
 		});
 
 		// Close on mouse middle click
@@ -236,7 +237,7 @@ export class TabsTitleControl extends TitleControl {
 			DOM.EventHelper.stop(e);
 
 			if (e.button === 1 /* Middle Button */) {
-				this.editorService.closeEditor(position, identifier.editor).done(null, errors.onUnexpectedError);
+				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
 			}
 		});
 
@@ -267,23 +268,25 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private getTabActions(identifier: IEditorIdentifier): IAction[] {
+		const {editor, group} = identifier;
 
 		// Enablement
-		this.closeOtherEditorsAction.enabled = identifier.group.count > 1;
-		this.pinEditorAction.enabled = !identifier.group.isPinned(identifier.editor);
+		this.closeOtherEditorsAction.enabled = group.count > 1;
+		this.pinEditorAction.enabled = !group.isPinned(editor);
+		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
 
 		// Actions: For all editors
 		const actions: IAction[] = [
 			this.closeEditorAction,
 			this.closeOtherEditorsAction,
-			this.closeAllEditorsAction,
+			this.closeRightEditorsAction,
 			new Separator(),
 			this.pinEditorAction,
 		];
 
 		// Actions: For active editor
-		if (identifier.group.isActive(identifier.editor)) {
-			const editorActions = this.getEditorActions(identifier.group);
+		if (group.isActive(editor)) {
+			const editorActions = this.getEditorActions(group);
 			if (editorActions.primary.length) {
 				actions.push(new Separator(), ...prepareActions(editorActions.primary));
 			}

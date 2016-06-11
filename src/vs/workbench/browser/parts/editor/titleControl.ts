@@ -29,7 +29,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction,
-		MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseAllEditorsInGroupAction}
+		MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction}
 from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
@@ -53,7 +53,7 @@ export abstract class TitleControl {
 	protected closeEditorAction: CloseEditorAction;
 	protected pinEditorAction: PinEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
-	protected closeAllEditorsAction: CloseAllEditorsInGroupAction;
+	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
 	protected showEditorsOfLeftGroup: QuickOpenAction;
 	protected showEditorsOfCenterGroup: QuickOpenAction;
 	protected showEditorsOfRightGroup: QuickOpenAction;
@@ -102,13 +102,13 @@ export abstract class TitleControl {
 	private initActions(): void {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
 		this.closeOtherEditorsAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
-		this.closeAllEditorsAction = this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
+		this.closeRightEditorsAction = this.instantiationService.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
+		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
 		this.pinEditorAction = this.instantiationService.createInstance(PinEditorAction, PinEditorAction.ID, nls.localize('pin', "Pin Editor"));
 		this.showAllEditorsAction = this.instantiationService.createInstance(ShowAllEditorsAction, ShowAllEditorsAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 		this.moveGroupLeftAction = this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, nls.localize('moveLeft', "Move Left"));
 		this.moveGroupRightAction = this.instantiationService.createInstance(MoveGroupRightAction, MoveGroupRightAction.ID, nls.localize('moveRight', "Move Right"));
-		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
 		this.showEditorsOfLeftGroup = this.instantiationService.createInstance(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.showEditorsOfCenterGroup = this.instantiationService.createInstance(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.showEditorsOfRightGroup = this.instantiationService.createInstance(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, nls.localize('showEditors', "Show Editors"));
@@ -298,12 +298,12 @@ export abstract class TitleControl {
 			this.showEditorsOfCenterGroup,
 			this.showEditorsOfRightGroup,
 			this.closeEditorAction,
-			this.pinEditorAction,
+			this.closeRightEditorsAction,
 			this.closeOtherEditorsAction,
-			this.closeAllEditorsAction,
+			this.closeEditorsInGroupAction,
 			this.moveGroupLeftAction,
 			this.moveGroupRightAction,
-			this.closeEditorsInGroupAction
+			this.pinEditorAction
 		].forEach((action) => {
 			action.dispose();
 		});

@@ -466,50 +466,24 @@ export class CloseEditorAction extends Action {
 	}
 }
 
-export class CloseEditorsInGroupAction extends Action {
-
-	public static ID = 'workbench.action.closeEditorsInGroup';
-	public static LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		if (typeof position !== 'number') {
-			let activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				position = activeEditor.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(position);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
 export class CloseLeftEditorsInGroupAction extends Action {
 
 	public static ID = 'workbench.action.closeEditorsToTheLeft';
 	public static LABEL = nls.localize('closeEditorsToTheLeft', "Close Editors to the Left");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private groupService: IEditorGroupService
+	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return this.editorService.closeEditors(activeEditor.position, activeEditor.input, Direction.LEFT);
+	public run(context?: IEditorContext): TPromise<any> {
+		let editor = getTarget(this.editorService, this.groupService, context);
+		if (editor) {
+			return this.editorService.closeEditors(editor.position, editor.input, Direction.LEFT);
 		}
 
 		return TPromise.as(false);
@@ -521,14 +495,19 @@ export class CloseRightEditorsInGroupAction extends Action {
 	public static ID = 'workbench.action.closeEditorsToTheRight';
 	public static LABEL = nls.localize('closeEditorsToTheRight', "Close Editors to the Right");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private groupService: IEditorGroupService
+	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return this.editorService.closeEditors(activeEditor.position, activeEditor.input, Direction.RIGHT);
+	public run(context?: IEditorContext): TPromise<any> {
+		let editor = getTarget(this.editorService, this.groupService, context);
+		if (editor) {
+			return this.editorService.closeEditors(editor.position, editor.input, Direction.RIGHT);
 		}
 
 		return TPromise.as(false);
@@ -613,10 +592,10 @@ export class CloseOtherEditorsInGroupAction extends Action {
 	}
 }
 
-export class CloseAllEditorsInGroupAction extends Action {
+export class CloseEditorsInGroupAction extends Action {
 
-	public static ID = 'workbench.files.action.closeAllEditorsInGroup';
-	public static LABEL = nls.localize('closeAllEditorsInGroup', "Close All Editors in Group");
+	public static ID = 'workbench.action.closeEditorsInGroup';
+	public static LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
 
 	constructor(
 		id: string,
@@ -624,7 +603,7 @@ export class CloseAllEditorsInGroupAction extends Action {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super(id, label, 'action-close-all-files');
+		super(id, label);
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
@@ -639,6 +618,8 @@ export class CloseAllEditorsInGroupAction extends Action {
 		if (typeof position === 'number') {
 			return this.editorService.closeEditors(position);
 		}
+
+		return TPromise.as(false);
 	}
 }
 
