@@ -22,6 +22,32 @@ export class TerminalService implements ITerminalService {
 		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
 	}
 
+	public focusNext(): TPromise<any> {
+		return this.focus().then(() => {
+			let panel = this.panelService.getActivePanel();
+			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
+				return this.toggle().then(() => {
+					panel = this.panelService.getActivePanel();
+					return (<TerminalPanel>panel).focusNext();
+				});
+			}
+			return (<TerminalPanel>panel).focusNext();
+		});
+	}
+
+	public focusPrevious(): TPromise<any> {
+		return this.focus().then(() => {
+			let panel = this.panelService.getActivePanel();
+			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
+				return this.toggle().then(() => {
+					panel = this.panelService.getActivePanel();
+					return (<TerminalPanel>panel).focusPrevious();
+				});
+			}
+			return (<TerminalPanel>panel).focusPrevious();
+		});
+	}
+
 	public toggle(): TPromise<any> {
 		const panel = this.panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {

@@ -75,3 +75,37 @@ export class FocusTerminalAction extends Action {
 		return this.terminalService.focus();
 	}
 }
+
+export class FocusNextTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.focusNext';
+	public static LABEL = nls.localize('workbench.action.terminal.focusNext', "Terminal: Focus Next Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.focusNext();
+	}
+}
+
+export class FocusPreviousTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.focusPrevious';
+	public static LABEL = nls.localize('workbench.action.terminal.focusPrevious', "Terminal: Focus Previous Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.focusPrevious();
+	}
+}

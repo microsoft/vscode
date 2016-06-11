@@ -10,7 +10,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
-import {CloseTerminalAction, CreateNewTerminalAction, FocusTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {CloseTerminalAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
@@ -91,16 +91,15 @@ registerSingleton(ITerminalService, TerminalService);
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
-}), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), FocusTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL), CloseTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
 }), CreateNewTerminalAction.LABEL);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_X }
-}), CloseTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), FocusTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), CloseTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), CloseTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
+}), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));

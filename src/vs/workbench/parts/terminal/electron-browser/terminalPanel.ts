@@ -158,10 +158,31 @@ export class TerminalPanel extends Panel {
 		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
 	}
 
-
 	public focus(): void {
 		if (this.terminalInstances.length > 0) {
 			this.terminalInstances[this.activeTerminalIndex].focus(true);
+		}
+	}
+
+	public focusNext(): void {
+		if (this.terminalInstances.length > 1) {
+			this.activeTerminalIndex++;
+			if (this.activeTerminalIndex >= this.terminalInstances.length) {
+				this.activeTerminalIndex = 0;
+			}
+			this.setActiveTerminal(this.activeTerminalIndex);
+			this.focus();
+		}
+	}
+
+	public focusPrevious(): void {
+		if (this.terminalInstances.length > 1) {
+			this.activeTerminalIndex--;
+			if (this.activeTerminalIndex < 0) {
+				this.activeTerminalIndex = this.terminalInstances.length - 1;
+			}
+			this.setActiveTerminal(this.activeTerminalIndex);
+			this.focus();
 		}
 	}
 
