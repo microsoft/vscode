@@ -453,7 +453,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doCloseEditor(group: EditorGroup, input: EditorInput, focusNext = true): void {
+	private doCloseEditor(group: EditorGroup, input: EditorInput, focusNext?: boolean): void {
+
+		// Only focus next if the group is the active one
+		if (!(typeof focusNext === 'boolean')) {
+			focusNext = this.stacks.isActive(group);
+		}
 
 		// Closing the active editor of the group is a bit more work
 		if (group.activeEditor && group.activeEditor.matches(input)) {
