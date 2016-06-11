@@ -84,9 +84,9 @@ export class ContextMenuService implements IContextMenuService {
 
 				const item = new remote.MenuItem({
 					label: e.label,
-					checked: e.checked,
+					checked: !!e.checked,
 					accelerator,
-					enabled: e.enabled,
+					enabled: !!e.enabled,
 					click: () => {
 						this.runAction(e, delegate);
 					}
