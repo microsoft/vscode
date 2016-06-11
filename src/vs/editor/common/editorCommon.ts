@@ -18,7 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import git = require('vs/workbench/parts/git/common/git');
+import {IBlameData} from 'vs/workbench/parts/git/common/git';
 
 /**
  * @internal
@@ -2087,7 +2087,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	getEditableRange(): Range;
 }
 export interface IGitBlameModel {
-	blameData?: git.IBlameData[];
+	blameData?: IBlameData[];
 }
 /**
  * A model.

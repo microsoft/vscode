@@ -52,6 +52,7 @@ declare module monaco {
 
 declare module monaco.editor {
 
+#include(vs/workbench/parts/git/common/git): IBlameData
 #includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.):
 #include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions
 #include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices

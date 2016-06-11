@@ -747,6 +747,17 @@ declare module monaco {
 declare module monaco.editor {
 
 
+    export interface IBlameData {
+        hash: string;
+        line: number;
+        author: string;
+        date: string;
+        committer: string;
+        committerDate: string;
+        summary: string;
+        noCommit?: boolean;
+    }
+
     /**
      * Create a new editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
@@ -1033,6 +1044,11 @@ declare module monaco.editor {
          * Defaults to true.
          */
         lineNumbers?: any;
+        /**
+         * Control the rendering of git blame.
+         * Defaults to false.
+         */
+        showGitBlame?: boolean;
         /**
          * Should the corresponding line be selected when clicking on the line number?
          * Defaults to true.
@@ -1325,6 +1341,7 @@ declare module monaco.editor {
         rulers: number[];
         ariaLabel: string;
         lineNumbers: any;
+        gitBlame: any;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: number;
@@ -2072,10 +2089,14 @@ declare module monaco.editor {
         applyEdits(operations: IIdentifiedSingleEditOperation[]): IIdentifiedSingleEditOperation[];
     }
 
+    export interface IGitBlameModel {
+        blameData?: IBlameData[];
+    }
+
     /**
      * A model.
      */
-    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel, IGitBlameModel {
         /**
          * @deprecated Please use `onDidChangeContent` instead.
          * An event emitted when the contents of the model have changed.
@@ -2541,6 +2562,18 @@ declare module monaco.editor {
          */
         glyphMarginHeight: number;
         /**
+         * Left position for the git blame.
+         */
+        gitBlameLeft: number;
+        /**
+         * The width of the git blame.
+         */
+        gitBlameWidth: number;
+        /**
+         * The height of the git blame.
+         */
+        gitBlameHeight: number;
+        /**
          * Left position for the line numbers.
          */
         lineNumbersLeft: number;
@@ -2699,45 +2732,45 @@ declare module monaco.editor {
          */
         GUTTER_LINE_NUMBERS = 3,
         /**
+         * Mouse is on top of the git blame annotation
+         */
+        GUTTER_GIT_BLAME = 4,
+        /**
          * Mouse is on top of the line decorations
          */
-        GUTTER_LINE_DECORATIONS = 4,
+        GUTTER_LINE_DECORATIONS = 5,
         /**
          * Mouse is on top of the whitespace left in the gutter by a view zone.
          */
-        GUTTER_VIEW_ZONE = 5,
+        GUTTER_VIEW_ZONE = 6,
         /**
          * Mouse is on top of text in the content.
          */
-        CONTENT_TEXT = 6,
+        CONTENT_TEXT = 7,
         /**
          * Mouse is on top of empty space in the content (e.g. after line text or below last line)
          */
-        CONTENT_EMPTY = 7,
+        CONTENT_EMPTY = 8,
         /**
          * Mouse is on top of a view zone in the content.
          */
-        CONTENT_VIEW_ZONE = 8,
+        CONTENT_VIEW_ZONE = 9,
         /**
          * Mouse is on top of a content widget.
          */
-        CONTENT_WIDGET = 9,
+        CONTENT_WIDGET = 10,
         /**
          * Mouse is on top of the decorations overview ruler.
          */
-        OVERVIEW_RULER = 10,
+        OVERVIEW_RULER = 11,
         /**
          * Mouse is on top of a scrollbar.
          */
-        SCROLLBAR = 11,
+        SCROLLBAR = 12,
         /**
          * Mouse is on top of an overlay widget.
          */
-        OVERLAY_WIDGET = 12,
-        /**
-         * Mouse is on top of the git blame annotation
-         */
-        GUTTER_GIT_BLAME = 13,
+        OVERLAY_WIDGET = 13,
     }
 
     /**
