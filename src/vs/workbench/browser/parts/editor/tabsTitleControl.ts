@@ -270,6 +270,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Enablement
 		this.closeOtherEditorsAction.enabled = group.count > 1;
+		this.pinEditorAction.enabled = !group.isPinned(editor);
 
 		// Actions
 		return [
@@ -277,7 +278,7 @@ export class TabsTitleControl extends TitleControl {
 			this.closeOtherEditorsAction,
 			this.closeAllEditorsAction,
 			new Separator(),
-			(group.isPinned(editor)) ? this.unpinEditorAction : this.pinEditorAction
+			this.pinEditorAction
 		];
 	}
 

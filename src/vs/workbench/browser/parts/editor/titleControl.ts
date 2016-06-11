@@ -29,7 +29,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction,
-		MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, UnpinEditorAction,  CloseOtherEditorsInGroupAction, CloseAllEditorsInGroupAction}
+		MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseAllEditorsInGroupAction}
 from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
@@ -52,7 +52,6 @@ export abstract class TitleControl {
 
 	protected closeEditorAction: CloseEditorAction;
 	protected pinEditorAction: PinEditorAction;
-	protected unpinEditorAction: UnpinEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeAllEditorsAction: CloseAllEditorsInGroupAction;
 	protected showEditorsOfLeftGroup: QuickOpenAction;
@@ -104,7 +103,6 @@ export abstract class TitleControl {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
 		this.closeOtherEditorsAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeAllEditorsAction = this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
-		this.unpinEditorAction =this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, nls.localize('unpin', "Unpin Editor"));
 		this.pinEditorAction = this.instantiationService.createInstance(PinEditorAction, PinEditorAction.ID, nls.localize('pin', "Pin Editor"));
 		this.showAllEditorsAction = this.instantiationService.createInstance(ShowAllEditorsAction, ShowAllEditorsAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
@@ -301,7 +299,6 @@ export abstract class TitleControl {
 			this.showEditorsOfRightGroup,
 			this.closeEditorAction,
 			this.pinEditorAction,
-			this.unpinEditorAction,
 			this.closeOtherEditorsAction,
 			this.closeAllEditorsAction,
 			this.moveGroupLeftAction,

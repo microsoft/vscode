@@ -793,30 +793,6 @@ export class PinEditorAction extends Action {
 	}
 }
 
-export class UnpinEditorAction extends Action {
-
-	public static ID = 'workbench.action.unpinEditor';
-	public static LABEL = nls.localize('unpinEditor', "Unpin Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let target = getTarget(this.editorService, this.editorGroupService, context);
-		if (target) {
-			this.editorGroupService.unpinEditor(target.position, target.input);
-		}
-
-		return TPromise.as(true);
-	}
-}
-
 function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorContext): { input: IEditorInput, position: Position } {
 	if (context) {
 		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(context.group) };
