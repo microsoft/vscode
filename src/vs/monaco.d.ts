@@ -2734,6 +2734,10 @@ declare module monaco.editor {
          * Mouse is on top of an overlay widget.
          */
         OVERLAY_WIDGET = 12,
+        /**
+         * Mouse is on top of the git blame annotation
+         */
+        GUTTER_GIT_BLAME = 13,
     }
 
     /**

@@ -2692,6 +2692,19 @@ export class EditorLayoutInfo {
 	glyphMarginHeight:number;
 
 	/**
+	 * Left position for the git blame.
+	 */
+	gitBlameLeft:number;
+	/**
+	 * The width of the git blame.
+	 */
+	gitBlameWidth:number;
+	/**
+	 * The height of the git blame.
+	 */
+	gitBlameHeight:number;
+
+	/**
 	 * Left position for the line numbers.
 	 */
 	lineNumbersLeft:number;
@@ -2756,6 +2769,9 @@ export class EditorLayoutInfo {
 		lineNumbersLeft:number;
 		lineNumbersWidth:number;
 		lineNumbersHeight:number;
+		gitBlameLeft:number;
+		gitBlameWidth:number;
+		gitBlameHeight:number;
 		decorationsLeft:number;
 		decorationsWidth:number;
 		decorationsHeight:number;
@@ -2774,6 +2790,9 @@ export class EditorLayoutInfo {
 		this.lineNumbersLeft = source.lineNumbersLeft|0;
 		this.lineNumbersWidth = source.lineNumbersWidth|0;
 		this.lineNumbersHeight = source.lineNumbersHeight|0;
+		this.gitBlameLeft = source.gitBlameLeft|0;
+		this.gitBlameWidth = source.gitBlameWidth|0;
+		this.gitBlameHeight = source.gitBlameHeight|0;
 		this.decorationsLeft = source.decorationsLeft|0;
 		this.decorationsWidth = source.decorationsWidth|0;
 		this.decorationsHeight = source.decorationsHeight|0;
@@ -2798,6 +2817,9 @@ export class EditorLayoutInfo {
 			&& this.lineNumbersLeft === other.lineNumbersLeft
 			&& this.lineNumbersWidth === other.lineNumbersWidth
 			&& this.lineNumbersHeight === other.lineNumbersHeight
+			&& this.gitBlameLeft === other.gitBlameLeft
+			&& this.gitBlameWidth === other.gitBlameWidth
+			&& this.gitBlameHeight === other.gitBlameHeight
 			&& this.decorationsLeft === other.decorationsLeft
 			&& this.decorationsWidth === other.decorationsWidth
 			&& this.decorationsHeight === other.decorationsHeight
@@ -2919,6 +2941,10 @@ export enum MouseTargetType {
 	 * Mouse is on top of the line numbers
 	 */
 	GUTTER_LINE_NUMBERS,
+	/**
+	 * Mouse is on top of the git blame annotation
+	 */
+	GUTTER_GIT_BLAME,
 	/**
 	 * Mouse is on top of the line decorations
 	 */

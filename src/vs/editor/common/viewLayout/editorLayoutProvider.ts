@@ -18,6 +18,8 @@ export interface IEditorLayoutProviderOpts {
 	lineDecorationsWidth:number;
 	maxDigitWidth:number;
 
+	showGitBlame:boolean;
+
 	lineCount: number;
 
 	verticalScrollbarWidth:number;
@@ -41,6 +43,13 @@ export class EditorLayoutProvider {
 		const verticalScrollbarHasArrows = Boolean(_opts.verticalScrollbarHasArrows);
 		const scrollbarArrowSize = _opts.scrollbarArrowSize|0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight|0;
+		const showGitBlame = Boolean(_opts.showGitBlame);
+
+		let gitBlameWidth = 0;
+		if (showGitBlame) {
+			let digitCount = 8;
+			gitBlameWidth = Math.round(digitCount * maxDigitWidth);
+		}
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
@@ -53,9 +62,10 @@ export class EditorLayoutProvider {
 			glyphMarginWidth = lineHeight;
 		}
 
-		let contentWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
+		let contentWidth = outerWidth - gitBlameWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
-		let glyphMarginLeft = 0;
+		let gitBlameLeft = 0;
+		let glyphMarginLeft = gitBlameLeft + gitBlameWidth;
 		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
 		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		let contentLeft = decorationsLeft + lineDecorationsWidth;
@@ -69,6 +79,10 @@ export class EditorLayoutProvider {
 			glyphMarginLeft: glyphMarginLeft,
 			glyphMarginWidth: glyphMarginWidth,
 			glyphMarginHeight: outerHeight,
+
+			gitBlameLeft: gitBlameLeft,
+			gitBlameWidth: gitBlameWidth,
+			gitBlameHeight: outerHeight,
 
 			lineNumbersLeft: lineNumbersLeft,
 			lineNumbersWidth: lineNumbersWidth,

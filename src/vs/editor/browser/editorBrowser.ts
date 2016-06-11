@@ -149,6 +149,7 @@ export var ClassNames = {
 	OVERLAY_WIDGETS: 'overlayWidgets',
 	MARGIN_VIEW_OVERLAYS: 'margin-view-overlays',
 	LINE_NUMBERS: 'line-numbers',
+	GIT_BLAME_ANNOTATION: 'git-blame-annotation',
 	GLYPH_MARGIN: 'glyph-margin',
 	SCROLL_DECORATION: 'scroll-decoration',
 	VIEW_CURSORS_LAYER: 'cursors-layer',
