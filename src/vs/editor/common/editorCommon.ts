@@ -205,6 +205,11 @@ export interface IEditorOptions {
 	 */
 	lineNumbers?:any;
 	/**
+	 * Control the rendering of git blame.
+	 * Defaults to false.
+	 */
+	showGitBlame?:boolean;
+	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
 	 */
@@ -599,6 +604,7 @@ export class InternalEditorViewOptions {
 	rulers: number[];
 	ariaLabel: string;
 	lineNumbers:any;
+	gitBlame:any;
 	selectOnLineNumbers:boolean;
 	glyphMargin:boolean;
 	revealHorizontalRightPadding:number;
@@ -624,6 +630,7 @@ export class InternalEditorViewOptions {
 		rulers: number[];
 		ariaLabel: string;
 		lineNumbers:any;
+		gitBlame:any;
 		selectOnLineNumbers:boolean;
 		glyphMargin:boolean;
 		revealHorizontalRightPadding:number;
@@ -645,6 +652,7 @@ export class InternalEditorViewOptions {
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
 		this.lineNumbers = source.lineNumbers;
+		this.gitBlame = source.gitBlame;
 		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
 		this.glyphMargin = Boolean(source.glyphMargin);
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
@@ -700,6 +708,7 @@ export class InternalEditorViewOptions {
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
 			&& this.lineNumbers === other.lineNumbers
+			&& this.gitBlame === other.gitBlame
 			&& this.selectOnLineNumbers === other.selectOnLineNumbers
 			&& this.glyphMargin === other.glyphMargin
 			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
