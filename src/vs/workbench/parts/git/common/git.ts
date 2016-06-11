@@ -55,13 +55,13 @@ export interface IRawStatus {
 }
 
 export interface IBlameData {
-    hash: string;
-    line: number;
-    author: string;
-    date: string;
-    committer: string;
-    committerDate: string;
-    summary: string;
+	hash: string;
+	line: number;
+	author: string;
+	date: string;
+	committer: string;
+	committerDate: string;
+	summary: string;
 	noCommit?: boolean;
 }
 
