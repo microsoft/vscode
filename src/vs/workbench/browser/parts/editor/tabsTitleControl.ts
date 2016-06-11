@@ -268,13 +268,12 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private getTabActions(editor: IEditorInput, group: IEditorGroup): IAction[] {
-		const editorActions = this.getEditorActions(group);
 
 		// Enablement
 		this.closeOtherEditorsAction.enabled = group.count > 1;
 		this.pinEditorAction.enabled = !group.isPinned(editor);
 
-		// Actions
+		// Actions: For all editors
 		const actions:IAction[] = [
 			this.closeEditorAction,
 			this.closeOtherEditorsAction,
@@ -283,12 +282,16 @@ export class TabsTitleControl extends TitleControl {
 			this.pinEditorAction,
 		];
 
-		if (editorActions.primary.length) {
-			actions.push(new Separator(), ...prepareActions(editorActions.primary));
-		}
+		// Actions: For active editor
+		if (group.isActive(editor)) {
+			const editorActions = this.getEditorActions(group);
+			if (editorActions.primary.length) {
+				actions.push(new Separator(), ...prepareActions(editorActions.primary));
+			}
 
-		if (editorActions.secondary.length) {
-			actions.push(new Separator(), ...prepareActions(editorActions.secondary));
+			if (editorActions.secondary.length) {
+				actions.push(new Separator(), ...prepareActions(editorActions.secondary));
+			}
 		}
 
 		return actions;
