@@ -195,7 +195,7 @@ export class RawGitService implements IRawGitService {
 			}
 			return parseBlameOutput(e.stdout);
 		}, err => {
-			throw err;
+			return [];
 		});
 	}
 }
