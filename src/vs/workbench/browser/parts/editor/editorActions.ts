@@ -19,6 +19,7 @@ import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 
 export class SplitEditorAction extends Action {
 
@@ -1215,4 +1216,25 @@ interface IEditorPickOpenEntry extends IPickOpenEntry {
 
 export interface IEditorContext extends IEditorIdentifier {
 	event: any;
+}
+
+export class ToggleGitBlameAction extends Action {
+	public static ID = 'workbench.action.toggleGitBlame';
+	public static LABEL = nls.localize('toggleGitBlame', 'Toggle Git blame annotations');
+
+	constructor(id: string, label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let editorOptions = this.workspaceContextService.getOptions().editor;
+		let showGitBlame = editorOptions && editorOptions.showGitBlame;
+		this.workspaceContextService.updateOptions('editor', {
+			showGitBlame: !showGitBlame
+		});
+		return TPromise.as(true);
+	}
+
 }
