@@ -190,7 +190,6 @@ export class NoTabsTitleControl extends TitleControl {
 		if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primaryEditorActions.push(this.splitEditorAction);
 		}
-		primaryEditorActions.push(this.closeEditorAction);
 
 		const secondaryEditorActions = prepareActions(editorActions.secondary);
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
@@ -198,6 +197,8 @@ export class NoTabsTitleControl extends TitleControl {
 
 		if (!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) || !arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds)) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
+			this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
+			
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
 		}
