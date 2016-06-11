@@ -9,6 +9,7 @@ import 'vs/css!./media/tabstitle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {IAction} from 'vs/base/common/actions';
+import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
@@ -267,19 +268,30 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private getTabActions(editor: IEditorInput, group: IEditorGroup): IAction[] {
+		const editorActions = this.getEditorActions(group);
 
 		// Enablement
 		this.closeOtherEditorsAction.enabled = group.count > 1;
 		this.pinEditorAction.enabled = !group.isPinned(editor);
 
 		// Actions
-		return [
+		const actions:IAction[] = [
 			this.closeEditorAction,
 			this.closeOtherEditorsAction,
 			this.closeAllEditorsAction,
 			new Separator(),
-			this.pinEditorAction
+			this.pinEditorAction,
 		];
+
+		if (editorActions.primary.length) {
+			actions.push(new Separator(), ...prepareActions(editorActions.primary));
+		}
+
+		if (editorActions.secondary.length) {
+			actions.push(new Separator(), ...prepareActions(editorActions.secondary));
+		}
+
+		return actions;
 	}
 
 	public dispose(): void {

@@ -200,9 +200,9 @@ export abstract class TitleControl {
 		return { primary, secondary };
 	}
 
-	protected getEditorActionsForContext(context: BaseEditor): IToolbarActions;
-	protected getEditorActionsForContext(context: IEditorInputActionContext): IToolbarActions;
-	protected getEditorActionsForContext(context: any): IToolbarActions {
+	private getEditorActionsForContext(context: BaseEditor): IToolbarActions;
+	private getEditorActionsForContext(context: IEditorInputActionContext): IToolbarActions;
+	private getEditorActionsForContext(context: any): IToolbarActions {
 		let primaryActions: IAction[] = [];
 		let secondaryActions: IAction[] = [];
 
