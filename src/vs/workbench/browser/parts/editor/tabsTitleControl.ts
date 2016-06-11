@@ -179,7 +179,7 @@ export class TabsTitleControl extends TitleControl {
 				tab.div({
 					'class': 'tab-label'
 				}, (div) => {
-					$(div).a().safeInnerHtml(editor.getName()).title(editor.getDescription(true));
+					$(div).a().safeInnerHtml(editor.getName()).title(editor.getDescription(true) || '');
 				});
 
 				// Tab Close
