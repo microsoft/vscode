@@ -14,7 +14,7 @@ import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import {Builder, $} from 'vs/base/browser/builder';
-import {IEditorGroup} from 'vs/workbench/common/editor';
+import {IEditorGroup, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -26,7 +26,6 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
-import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 export class TabsTitleControl extends TitleControl {
 	private titleContainer: Builder;
@@ -152,7 +151,7 @@ export class TabsTitleControl extends TitleControl {
 			$(this.tabsContainer).div({ 'class': 'tab monaco-editor-background' }, tab => {
 
 				// Eventing
-				this.hookTabListeners(tab, editor, group);
+				this.hookTabListeners(tab, { editor, group });
 
 				// Pinned state
 				if (isPinned) {
@@ -213,15 +212,15 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private hookTabListeners(tab: Builder, editor: IEditorInput, group: IEditorGroup): void {
-		const position = this.stacks.positionOfGroup(group);
+	private hookTabListeners(tab: Builder, identifier: IEditorIdentifier): void {
+		const position = this.stacks.positionOfGroup(identifier.group);
 
 		// Open on Click
 		tab.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
-				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(identifier.editor, null, position).done(null, errors.onUnexpectedError);
 			}
 		});
 
@@ -229,7 +228,7 @@ export class TabsTitleControl extends TitleControl {
 		tab.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
-			this.editorGroupService.pinEditor(position, editor);
+			this.editorGroupService.pinEditor(position, identifier.editor);
 		});
 
 		// Close on mouse middle click
@@ -237,7 +236,7 @@ export class TabsTitleControl extends TitleControl {
 			DOM.EventHelper.stop(e);
 
 			if (e.button === 1 /* Middle Button */) {
-				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
+				this.editorService.closeEditor(position, identifier.editor).done(null, errors.onUnexpectedError);
 			}
 		});
 
@@ -253,8 +252,8 @@ export class TabsTitleControl extends TitleControl {
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
-				getActions: () => TPromise.as(this.getTabActions(editor, group)),
-				getActionsContext: () => { return { editor, group }; },
+				getActions: () => TPromise.as(this.getTabActions(identifier)),
+				getActionsContext: () => identifier,
 				getKeyBinding: (action) => {
 					var opts = this.keybindingService.lookupKeybindings(action.id);
 					if (opts.length > 0) {
@@ -267,14 +266,14 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private getTabActions(editor: IEditorInput, group: IEditorGroup): IAction[] {
+	private getTabActions(identifier: IEditorIdentifier): IAction[] {
 
 		// Enablement
-		this.closeOtherEditorsAction.enabled = group.count > 1;
-		this.pinEditorAction.enabled = !group.isPinned(editor);
+		this.closeOtherEditorsAction.enabled = identifier.group.count > 1;
+		this.pinEditorAction.enabled = !identifier.group.isPinned(identifier.editor);
 
 		// Actions: For all editors
-		const actions:IAction[] = [
+		const actions: IAction[] = [
 			this.closeEditorAction,
 			this.closeOtherEditorsAction,
 			this.closeAllEditorsAction,
@@ -283,8 +282,8 @@ export class TabsTitleControl extends TitleControl {
 		];
 
 		// Actions: For active editor
-		if (group.isActive(editor)) {
-			const editorActions = this.getEditorActions(group);
+		if (identifier.group.isActive(identifier.editor)) {
+			const editorActions = this.getEditorActions(identifier.group);
 			if (editorActions.primary.length) {
 				actions.push(new Separator(), ...prepareActions(editorActions.primary));
 			}
