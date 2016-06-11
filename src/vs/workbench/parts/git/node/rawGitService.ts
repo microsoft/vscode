@@ -9,8 +9,9 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions, IBlameData } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter } from 'vs/base/common/event';
+import { parseBlameOutput } from 'vs/workbench/parts/git/node/blameParser';
 
 export class RawGitService implements IRawGitService {
 
@@ -185,6 +186,16 @@ export class RawGitService implements IRawGitService {
 			}
 
 			return TPromise.wrapError<string>(e);
+		});
+	}
+	blame(filePath: string, content: string): TPromise<IBlameData[]> {
+		return this.repo.blame(filePath, content).then(e => {
+			if (e.stderr || e.exitCode) {
+				return [];
+			}
+			return parseBlameOutput(e.stdout);
+		}, err => {
+			throw err;
 		});
 	}
 }

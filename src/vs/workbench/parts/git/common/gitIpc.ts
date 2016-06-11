@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import Event from 'vs/base/common/event';
-import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials } from './git';
+import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials, IBlameData } from './git';
 
 export interface IGitChannel extends IChannel {
 	call(command: 'getVersion'): TPromise<string>;
@@ -31,6 +31,7 @@ export interface IGitChannel extends IChannel {
 	call(command: 'commit', args: [string, boolean, boolean]): TPromise<IRawStatus>;
 	call(command: 'detectMimetypes', args: [string, string]): TPromise<string[]>;
 	call(command: 'show', args: [string, string]): TPromise<string>;
+	call(command: 'blame', args: [string, string]): TPromise<IBlameData[]>;
 	call(command: 'onOutput'): TPromise<void>;
 	call(command: string, args: any): TPromise<any>;
 }
@@ -61,6 +62,7 @@ export class GitChannel implements IGitChannel {
 			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2]));
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
+			case 'blame': return this.service.then(s => s.blame(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
 		}
 	}
@@ -161,6 +163,10 @@ export class GitChannelClient implements IRawGitService {
 
 	show(path: string, treeish?: string): TPromise<string> {
 		return this.channel.call('show', [path, treeish]);
+	}
+
+	blame(path: string, content:string): TPromise<IBlameData[]> {
+		return this.channel.call('blame', [path, content]);
 	}
 }
 

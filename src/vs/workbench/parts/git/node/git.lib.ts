@@ -324,6 +324,13 @@ export class Repository {
 		return this.stream(['show', object]);
 	}
 
+	blame(filepath: string, content: string): TPromise<IExecutionResult> {
+		return this.run(['blame', filepath, '--line-porcelain', '--contents', '-'], {
+			input: content,
+			log: true
+		});
+	}
+
 	buffer(object: string): TPromise<string> {
 		const child = this.show(object);
 

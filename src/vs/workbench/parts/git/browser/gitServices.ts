@@ -641,6 +641,9 @@ export class GitService extends ee.EventEmitter
 		}
 	}
 
+	public blame(filePath: string, content: string): winjs.Promise {
+		return this.run(git.ServiceOperations.BLAME, () => this.raw.blame(filePath, content));
+	}
 	public commit(message:string, amend: boolean = false, stage: boolean = false): winjs.Promise {
 		return this.run(git.ServiceOperations.COMMIT, () => this.raw.commit(message, amend, stage));
 	}
@@ -683,61 +686,70 @@ export class GitService extends ee.EventEmitter
 			this.emit(git.ServiceEvents.OPERATION, operation);
 		};
 
-		return operation.run().then((status: git.IRawStatus) => {
-			this.model.update(status);
+		return operation.run().then((result: any) => {
+			if (result.status) {
+				let status: git.IRawStatus = result;
+				this.model.update(status);
 
-			onDone();
+				onDone();
 
-			if (status) {
-				this.transition(types.isUndefinedOrNull(status.state) ? git.ServiceState.OK : status.state);
+				if (status) {
+					this.transition(types.isUndefinedOrNull(status.state) ? git.ServiceState.OK : status.state);
+				} else {
+					this.transition(git.ServiceState.NotARepo);
+				}
+
+				return this.model;
 			} else {
-				this.transition(git.ServiceState.NotARepo);
+				onDone();
+				return result;
 			}
-
-			return this.model;
 		}, (e) => {
 			onDone(e);
-
-			if (errors.isPromiseCanceledError(e)) {
-				return winjs.Promise.wrapError(e);
-			}
-
-			var gitErrorCode: string = e.gitErrorCode || null;
-
-			if (gitErrorCode === git.GitErrorCodes.NotAtRepositoryRoot) {
-				this.transition(git.ServiceState.NotAtRepoRoot);
-				return winjs.TPromise.as(this.model);
-			}
-
-			this.emit(git.ServiceEvents.ERROR, e);
-			this.transition(git.ServiceState.OK);
-
-			if (gitErrorCode === git.GitErrorCodes.NoUserNameConfigured || gitErrorCode === git.GitErrorCodes.NoUserEmailConfigured) {
-				this.messageService.show(severity.Warning, nls.localize('configureUsernameEmail', "Please configure your git user name and e-mail."));
-
-				return winjs.TPromise.as(null);
-
-			} else if (gitErrorCode === git.GitErrorCodes.BadConfigFile) {
-				this.messageService.show(severity.Error, nls.localize('badConfigFile', "Git {0}", e.message));
-				return winjs.TPromise.as(null);
-
-			} else if (gitErrorCode === git.GitErrorCodes.UnmergedChanges) {
-				this.messageService.show(severity.Warning, nls.localize('unmergedChanges', "You should first resolve the unmerged changes before committing your changes."));
-				return winjs.TPromise.as(null);
-			}
-
-			var error: Error;
-			var showOutputAction = new actions.Action('show.gitOutput', nls.localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
-			var cancelAction = new actions.Action('close.message', nls.localize('cancel', "Cancel"), null, true, ()=>winjs.TPromise.as(true));
-
-			error = errors.create(
-				nls.localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
-				{ actions: [showOutputAction, cancelAction] }
-			);
-
-			(<any>error).gitErrorCode = gitErrorCode;
-			return winjs.Promise.wrapError(error);
+			this.handleGitError(e);
 		});
+	}
+
+	private handleGitError(e) {
+		if (errors.isPromiseCanceledError(e)) {
+			return winjs.Promise.wrapError(e);
+		}
+
+		var gitErrorCode: string = e.gitErrorCode || null;
+
+		if (gitErrorCode === git.GitErrorCodes.NotAtRepositoryRoot) {
+			this.transition(git.ServiceState.NotAtRepoRoot);
+			return winjs.TPromise.as(this.model);
+		}
+
+		this.emit(git.ServiceEvents.ERROR, e);
+		this.transition(git.ServiceState.OK);
+
+		if (gitErrorCode === git.GitErrorCodes.NoUserNameConfigured || gitErrorCode === git.GitErrorCodes.NoUserEmailConfigured) {
+			this.messageService.show(severity.Warning, nls.localize('configureUsernameEmail', "Please configure your git user name and e-mail."));
+
+			return winjs.TPromise.as(null);
+
+		} else if (gitErrorCode === git.GitErrorCodes.BadConfigFile) {
+			this.messageService.show(severity.Error, nls.localize('badConfigFile', "Git {0}", e.message));
+			return winjs.TPromise.as(null);
+
+		} else if (gitErrorCode === git.GitErrorCodes.UnmergedChanges) {
+			this.messageService.show(severity.Warning, nls.localize('unmergedChanges', "You should first resolve the unmerged changes before committing your changes."));
+			return winjs.TPromise.as(null);
+		}
+
+		var error: Error;
+		var showOutputAction = new actions.Action('show.gitOutput', nls.localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
+		var cancelAction = new actions.Action('close.message', nls.localize('cancel', "Cancel"), null, true, ()=>winjs.TPromise.as(true));
+
+		error = errors.create(
+			nls.localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
+			{ actions: [showOutputAction, cancelAction] }
+		);
+
+		(<any>error).gitErrorCode = gitErrorCode;
+		return winjs.Promise.wrapError(error);
 	}
 
 	private transition(state: git.ServiceState): void {

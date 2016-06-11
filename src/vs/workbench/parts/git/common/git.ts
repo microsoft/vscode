@@ -54,6 +54,17 @@ export interface IRawStatus {
 	remotes: IRemote[];
 }
 
+export interface IBlameData {
+    hash: string;
+    line: number;
+    author: string;
+    date: string;
+    committer: string;
+    committerDate: string;
+    summary: string;
+	noCommit?: boolean;
+}
+
 // Model enums
 
 export enum StatusType {
@@ -222,7 +233,8 @@ export var ServiceOperations = {
 	BACKGROUND_FETCH: 'backgroundfetch',
 	PULL: 'pull',
 	PUSH: 'push',
-	SYNC: 'sync'
+	SYNC: 'sync',
+	BLAME: 'blame'
 };
 
 // Service config
@@ -284,6 +296,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
+	blame(path: string, content: string): TPromise<IBlameData[]>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -311,6 +324,7 @@ export interface IGitService extends IEventEmitter {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IModel>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	buffer(path: string, treeish?: string): TPromise<string>;
+	blame(path: string, content:string): TPromise<IBlameData>;
 
 	getState(): ServiceState;
 	getModel(): IModel;
