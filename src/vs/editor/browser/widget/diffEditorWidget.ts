@@ -841,6 +841,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _adjustOptionsForLeftHandSide(options:editorCommon.IDiffEditorOptions, isEditable:boolean): editorCommon.IDiffEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.readOnly = !isEditable;
+		result.showGitBlame = false;
 		result.overviewRulerLanes = 1;
 		result.theme = this._theme + ' original-in-monaco-diff-editor';
 		return result;
@@ -850,6 +851,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		let result = this._adjustOptionsForSubEditor(options);
 		result.revealHorizontalRightPadding = DefaultConfig.editor.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar.verticalHasArrows = false;
+		result.showGitBlame = false;
 		result.theme = this._theme + ' modified-in-monaco-diff-editor';
 		return result;
 	}
