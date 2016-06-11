@@ -8,7 +8,6 @@
 import 'vs/css!./media/tabstitle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction} from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
@@ -118,8 +117,8 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update Group Actions Toolbar
 		const groupActions = this.getGroupActions(group);
-		const primaryGroupActions = prepareActions(groupActions.primary);
-		const secondaryGroupActions = prepareActions(groupActions.secondary);
+		const primaryGroupActions = groupActions.primary;
+		const secondaryGroupActions = groupActions.secondary;
 		const primaryGroupActionIds = primaryGroupActions.map(a => a.id);
 		const secondaryGroupActionIds = secondaryGroupActions.map(a => a.id);
 
@@ -268,6 +267,11 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private getTabActions(editor: IEditorInput, group: IEditorGroup): IAction[] {
+
+		// Enablement
+		this.closeOtherEditorsAction.enabled = group.count > 1;
+
+		// Actions
 		return [
 			this.closeEditorAction,
 			this.closeOtherEditorsAction,
