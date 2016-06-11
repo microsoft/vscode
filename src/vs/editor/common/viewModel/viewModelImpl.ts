@@ -423,6 +423,16 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return modelLineNumber.toString();
 	}
 
+	public getLineBlameData(lineNumber:number): string {
+		var modelPosition = this.convertViewPositionToModelPosition(lineNumber, 1);
+		if (modelPosition.column !== 1) {
+			return '';
+		}
+		var blameData = this.model.blameData && this.model.blameData[modelPosition.lineNumber];
+		return blameData && !blameData.noCommit? blameData.hash : '';
+	}
+
+
 	public getDecorationsViewportData(startLineNumber:number, endLineNumber:number): IDecorationsViewportData {
 		return this.decorations.getDecorationsViewportData(startLineNumber, endLineNumber);
 	}
