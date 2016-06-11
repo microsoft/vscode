@@ -21,7 +21,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export var language: Types.IMonarchLanguage = <Types.IMonarchLanguage> {
 	defaultToken: '',
@@ -168,7 +168,7 @@ export var language: Types.IMonarchLanguage = <Types.IMonarchLanguage> {
 
 export class LESSMode extends AbstractMode {
 
-	public static LANG_CONFIG:IRichLanguageConfiguration = {
+	public static LANG_CONFIG:LanguageConfiguration = {
 		// TODO@Martin: This definition does not work with umlauts for example
 		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
 		comments: {

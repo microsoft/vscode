@@ -367,13 +367,13 @@ export namespace Command {
 		});
 	}
 
-	export function from(command: vscode.Command, disposables: IDisposable[]): modes.ICommand {
+	export function from(command: vscode.Command, disposables: IDisposable[]): modes.Command {
 
 		if (!command) {
 			return;
 		}
 
-		const result = <modes.ICommand>{
+		const result = <modes.Command>{
 			id: command.command,
 			title: command.title
 		};
@@ -397,7 +397,7 @@ export namespace Command {
 		return result;
 	}
 
-	export function to(command: modes.ICommand): vscode.Command {
+	export function to(command: modes.Command): vscode.Command {
 		let result: vscode.Command;
 		if (command.id === _delegateId) {
 			let [key] = command.arguments;

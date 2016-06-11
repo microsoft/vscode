@@ -20,7 +20,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
@@ -199,7 +199,7 @@ export const language =
 
 export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
 
-	public static LANG_CONFIG:IRichLanguageConfiguration = {
+	public static LANG_CONFIG:LanguageConfiguration = {
 		comments: {
 			blockComment: ['<!--', '-->',]
 		},

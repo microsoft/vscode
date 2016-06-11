@@ -17,7 +17,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CodeLensProviderRegistry, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
+import {CodeLensProviderRegistry, ICodeLensSymbol, Command} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -57,7 +57,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private _symbolRange: Range;
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
 	private _editor: editorBrowser.ICodeEditor;
-	private _commands: { [id: string]: ICommand } = Object.create(null);
+	private _commands: { [id: string]: Command } = Object.create(null);
 
 	public constructor(editor: editorBrowser.ICodeEditor, symbolRange: Range,
 		keybindingService: IKeybindingService, messageService: IMessageService) {

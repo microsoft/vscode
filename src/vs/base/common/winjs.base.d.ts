@@ -43,19 +43,21 @@ export declare class Promise {
 	public cancel():void;
 }
 
-// --- Generic promise
+/**
+ * The value callback to complete a promise
+ */
 export interface TValueCallback<T> {
 	(value:T):void;
 }
 
-export interface TValueCallback<T> {
-	(value:T):void;
-}
 
 export interface TProgressCallback<T> {
 	(progress:T):void;
 }
 
+/**
+ * A Promise implementation that supports progress and cancelation.
+ */
 export declare class TPromise<V> {
 
 	constructor(init:(complete: TValueCallback<V>, error:(err:any)=>void, progress:ProgressCallback)=>void, oncancel?: any);

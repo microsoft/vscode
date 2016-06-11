@@ -799,7 +799,7 @@ class SnippetController implements ISnippetController {
 
 		let cursorOnly = SnippetController._getSnippetCursorOnly(prepared.adaptedSnippet);
 		if (cursorOnly) {
-			this._editor.setSelection(Selection.createSelection(cursorOnly.lineNumber, cursorOnly.column, cursorOnly.lineNumber, cursorOnly.column));
+			this._editor.setSelection(new Selection(cursorOnly.lineNumber, cursorOnly.column, cursorOnly.lineNumber, cursorOnly.column));
 		} else if (prepared.adaptedSnippet.placeHolders.length > 0) {
 			this._inSnippetMode.set(true);
 			this._currentController = new InsertSnippetController(this._editor, prepared.adaptedSnippet, prepared.typeRange.startLineNumber, initialAlternativeVersionId, () => {

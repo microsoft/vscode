@@ -22,11 +22,25 @@ import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatform
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 
+/**
+ * The options to create an editor.
+ */
 export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
+	/**
+	 * The initial value of the auto created model in the editor.
+	 * To not create automatically a model, use `model: null`.
+	 */
 	value?: string;
+	/**
+	 * The initial language of the auto created model in the editor.
+	 * To not create automatically a model, use `model: null`.
+	 */
 	language?: string;
 }
 
+/**
+ * The options to create a diff editor.
+ */
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
@@ -81,7 +95,7 @@ export class StandaloneEditor extends CodeEditorWidget {
 		if (model) {
 			let e: IModelChangedEvent = {
 				oldModelUrl: null,
-				newModelUrl: model.uri.toString()
+				newModelUrl: model.uri
 			};
 			this.emit(EventType.ModelChanged, e);
 		}

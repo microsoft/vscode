@@ -389,7 +389,7 @@ function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearch
 				return null;
 			}
 			searchText = word.word;
-			nextMatch = Selection.createSelection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
+			nextMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
 		} else {
 			searchText = editor.getModel().getValueInRange(s);
 		}
@@ -429,7 +429,7 @@ export class SelectNextFindMatchAction extends EditorAction {
 			return null;
 		}
 
-		return Selection.createSelection(nextMatch.startLineNumber, nextMatch.startColumn, nextMatch.endLineNumber, nextMatch.endColumn);
+		return new Selection(nextMatch.startLineNumber, nextMatch.startColumn, nextMatch.endLineNumber, nextMatch.endColumn);
 	}
 }
 
@@ -502,7 +502,7 @@ export class SelectHighlightsAction extends EditorAction {
 		let matches = this.editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord);
 
 		if (matches.length > 0) {
-			this.editor.setSelections(matches.map(m => Selection.createSelection(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn)));
+			this.editor.setSelections(matches.map(m => new Selection(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn)));
 		}
 		return TPromise.as(true);
 	}

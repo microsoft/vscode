@@ -19,6 +19,9 @@ declare module monaco {
         (listener: (e: T) => any, thisArg?: any): IDisposable;
     }
 
+    /**
+     * A helper that allows to emit and listen to typed events
+     */
     export class Emitter<T> {
         constructor();
         event: Event<T>;
@@ -63,8 +66,8 @@ declare module monaco.editor {
 declare module monaco.languages {
 
 #includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.):
-#include(vs/editor/common/modes/languageConfigurationRegistry): CommentRule, IRichLanguageConfiguration
-#include(vs/editor/common/modes/supports/onEnter): IIndentationRules, IOnEnterRegExpRules
+#include(vs/editor/common/modes/languageConfigurationRegistry): CommentRule, LanguageConfiguration
+#include(vs/editor/common/modes/supports/onEnter): IndentationRule, OnEnterRule
 #include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment
 #includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint

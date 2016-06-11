@@ -668,7 +668,7 @@ export class CommandRunner implements editorCommon.ICommand {
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[inverseEditOperations.length - 1].range;
-		return Selection.createSelection(
+		return new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,
 			srcRange.endLineNumber,

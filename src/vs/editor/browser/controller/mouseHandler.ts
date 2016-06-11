@@ -338,7 +338,7 @@ class MouseDownOperation extends Disposable {
 		this._createMouseTarget = createMouseTarget;
 		this._getMouseColumn = getMouseColumn;
 
-		this._currentSelection = Selection.createSelection(1, 1, 1, 1);
+		this._currentSelection = new Selection(1, 1, 1, 1);
 		this._mouseState = new MouseDownState();
 
 		this._onScrollTimeout = this._register(new TimeoutTimer());

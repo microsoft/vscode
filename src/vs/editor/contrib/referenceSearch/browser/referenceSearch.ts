@@ -119,7 +119,7 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 		let controller = ReferencesController.getController(control);
 
 		return TPromise.as(controller.toggleWidget(
-			Range.lift(Position.asEmptyRange(position)),
+			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			TPromise.as(new ReferencesModel(references)),
 			defaultReferenceSearchOptions)).then(() => true);
 	});

@@ -10,7 +10,7 @@ import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebars
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -107,7 +107,7 @@ export class HandlebarsState extends htmlMode.State {
 
 export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
-	public static LANG_CONFIG:IRichLanguageConfiguration = {
+	public static LANG_CONFIG:LanguageConfiguration = {
 		wordPattern: createWordRegExp('#-?%'),
 
 		comments: {

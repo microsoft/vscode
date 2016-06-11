@@ -12,7 +12,6 @@ import * as dom from 'vs/base/browser/dom';
 import {Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent} from 'vs/base/browser/ui/sash/sash';
 import {EditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
 
 export interface IOptions {
@@ -152,7 +151,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
 		const range = Range.isIRange(rangeOrPos)
 			? rangeOrPos
-			: Position.asEmptyRange(rangeOrPos);
+			: new Range(rangeOrPos.lineNumber, rangeOrPos.column, rangeOrPos.lineNumber, rangeOrPos.column);
 
 		this._showImpl(range, heightInLines);
 	}

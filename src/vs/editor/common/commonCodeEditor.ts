@@ -262,18 +262,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		var detachedModel = this._detachModel();
 		this._attachModel(model);
 
-		var oldModelUrl: string = null;
-		var newModelUrl: string = null;
-
-		if (detachedModel) {
-			oldModelUrl = detachedModel.uri.toString();
-		}
-		if (model) {
-			newModelUrl = model.uri.toString();
-		}
 		var e: editorCommon.IModelChangedEvent = {
-			oldModelUrl: oldModelUrl,
-			newModelUrl: newModelUrl
+			oldModelUrl: detachedModel ? detachedModel.uri : null,
+			newModelUrl: model ? model.uri : null
 		};
 
 		timerEvent.stop();
@@ -450,7 +441,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (!this.cursor) {
 			return;
 		}
-		var selection = Selection.createSelection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
+		var selection = new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
 		this.cursor.setSelections('api', [selection]);
 		if (reveal) {
 			this.revealRange(selection, revealVerticalInCenter, revealHorizontal);

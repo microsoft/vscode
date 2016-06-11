@@ -386,10 +386,10 @@ export class CSSWorker {
 		}
 	}
 
-	private getFixesForUnknownProperty(property: nodes.Property, marker: IMarker) : modes.IQuickFix[] {
+	private getFixesForUnknownProperty(property: nodes.Property, marker: IMarker) : modes.CodeAction[] {
 
 		let propertyName = property.getName();
-		let result: modes.IQuickFix[] = [];
+		let result: modes.CodeAction[] = [];
 		for (let p in languageFacts.getProperties()) {
 			let score = strings.difference(propertyName, p);
 			if (score >= propertyName.length / 2 /*score_lim*/) {
@@ -412,7 +412,7 @@ export class CSSWorker {
 		return result.slice(0, 3 /*max_result*/);
 	}
 
-	private appendFixesForMarker(bucket: modes.IQuickFix[], marker: IMarker): void {
+	private appendFixesForMarker(bucket: modes.CodeAction[], marker: IMarker): void {
 
 		if ((<IMarker>marker).code !== lintRules.Rules.UnknownProperty.id) {
 			return;
@@ -434,10 +434,10 @@ export class CSSWorker {
 		}
 	}
 
-	public provideCodeActions(resource: URI, range: editorCommon.IRange): winjs.TPromise<modes.IQuickFix[]> {
+	public provideCodeActions(resource: URI, range: editorCommon.IRange): winjs.TPromise<modes.CodeAction[]> {
 
 		return this.languageService.join().then(() => {
-			const result: modes.IQuickFix[] = [];
+			const result: modes.CodeAction[] = [];
 
 			this.markerService.read({ resource })
 				.filter(marker => Range.containsRange(range, marker))

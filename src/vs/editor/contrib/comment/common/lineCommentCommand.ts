@@ -341,7 +341,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);
 		}
 
-		return Selection.createSelection(
+		return new Selection(
 			result.startLineNumber,
 			result.startColumn + this._deltaColumn,
 			result.endLineNumber,

@@ -17,7 +17,7 @@ import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 
@@ -278,7 +278,7 @@ export class State extends AbstractState {
 
 export class CSSMode extends AbstractMode {
 
-	public static LANG_CONFIG:IRichLanguageConfiguration = {
+	public static LANG_CONFIG:LanguageConfiguration = {
 		// TODO@Martin: This definition does not work with umlauts for example
 		wordPattern: /(#?-?\d*\.\d\w*%?)|((::|[@#.!:])?[\w-?]+%?)|::|[@#.!:]/g,
 
@@ -365,7 +365,7 @@ export class CSSMode extends AbstractMode {
 		}, true);
 
 		modes.CodeActionProviderRegistry.register(this.getId(), {
-			provideCodeActions: (model, range, token): Thenable<modes.IQuickFix[]> => {
+			provideCodeActions: (model, range, token): Thenable<modes.CodeAction[]> => {
 				return wireCancellationToken(token, this._provideCodeActions(model.uri, range));
 			}
 		}, true);
@@ -441,7 +441,7 @@ export class CSSMode extends AbstractMode {
 	}
 
 	static _provideCodeActions = OneWorkerAttr(CSSMode, CSSMode.prototype._provideCodeActions);
-	private _provideCodeActions(resource: URI, marker: IMarker | editorCommon.IRange): WinJS.TPromise<modes.IQuickFix[]>{
+	private _provideCodeActions(resource: URI, marker: IMarker | editorCommon.IRange): WinJS.TPromise<modes.CodeAction[]>{
 		return this._worker((w) => w.provideCodeActions(resource, marker));
 	}
 }

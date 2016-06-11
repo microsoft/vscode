@@ -99,7 +99,7 @@ class EditTask {
 
 	protected _getInitialSelections(): Selection[] {
 		var firstRange = this._edits[0].range;
-		var initialSelection = Selection.createSelection(
+		var initialSelection = new Selection(
 			firstRange.startLineNumber,
 			firstRange.startColumn,
 			firstRange.endLineNumber,
@@ -122,7 +122,7 @@ class EditTask {
 		}
 
 		var srcRange = inverseEditOperations[relevantEditIndex].range;
-		this._endCursorSelection = Selection.createSelection(
+		this._endCursorSelection = new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,
 			srcRange.endLineNumber,

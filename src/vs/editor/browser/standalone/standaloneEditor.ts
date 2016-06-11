@@ -46,6 +46,11 @@ export function setupServices(services: IEditorOverrideServices): IEditorOverrid
 	return startup.setupServices(services);
 }
 
+/**
+ * Create a new editor under `domElement`.
+ * `domElement` should be empty (not contain other dom nodes).
+ * The editor will read the size of `domElement`.
+ */
 export function create(domElement:HTMLElement, options:IEditorConstructionOptions, services:IEditorOverrideServices):ICodeEditor {
 	startup.initStaticServicesIfNecessary();
 
@@ -66,6 +71,11 @@ export function create(domElement:HTMLElement, options:IEditorConstructionOption
 	return result;
 }
 
+/**
+ * Create a new diff editor under `domElement`.
+ * `domElement` should be empty (not contain other dom nodes).
+ * The editor will read the size of `domElement`.
+ */
 export function createDiffEditor(domElement:HTMLElement, options:IDiffEditorConstructionOptions, services: IEditorOverrideServices):IDiffEditor {
 	startup.initStaticServicesIfNecessary();
 
@@ -112,6 +122,10 @@ function doCreateModel(value:string, mode:TPromise<modes.IMode>, uri?:URI): IMod
 	return modelService.createModel(value, mode, uri);
 }
 
+/**
+ * Create a new editor model.
+ * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
+ */
 export function createModel(value:string, language?:string, uri?:URI): IModel {
 	startup.initStaticServicesIfNecessary();
 
@@ -133,6 +147,9 @@ export function createModel(value:string, language?:string, uri?:URI): IModel {
 	return doCreateModel(value, modeService.getOrCreateMode(language), uri);
 }
 
+/**
+ * Change the language for a model.
+ */
 export function setModelLanguage(model:IModel, language:string): void {
 	startup.initStaticServicesIfNecessary();
 	let modeService = ensureStaticPlatformServices(null).modeService;
@@ -140,36 +157,54 @@ export function setModelLanguage(model:IModel, language:string): void {
 	model.setMode(modeService.getOrCreateMode(language));
 }
 
+/**
+ * Set the markers for a model.
+ */
 export function setModelMarkers(model:IModel, owner:string, markers: IMarkerData[]): void {
 	startup.initStaticServicesIfNecessary();
 	var markerService = ensureStaticPlatformServices(null).markerService;
 	markerService.changeOne(owner, model.uri, markers);
 }
 
+/**
+ * Get the model that has `uri` if it exists.
+ */
 export function getModel(uri: URI): IModel {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.getModel(uri);
 }
 
+/**
+ * Get all the created models.
+ */
 export function getModels(): IModel[] {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.getModels();
 }
 
+/**
+ * Emitted when a model is created.
+ */
 export function onDidCreateModel(listener:(model:IModel)=>void): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.onModelAdded(listener);
 }
 
+/**
+ * Emitted right before a model is disposed.
+ */
 export function onWillDisposeModel(listener:(model:IModel)=>void): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.onModelRemoved(listener);
 }
 
+/**
+ * Emitted when a different language is set to a model.
+ */
 export function onDidChangeModelLanguage(listener:(e:{ model: IModel; oldLanguage: string; })=>void): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
@@ -202,9 +237,22 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
+/**
+ * A web worker that can provide a proxy to an arbitrary file.
+ */
 export interface MonacoWebWorker<T> {
+	/**
+	 * Terminate the web worker, thus invalidating the returned proxy.
+	 */
 	dispose(): void;
+	/**
+	 * Get a proxy to the arbitrary loaded code.
+	 */
 	getProxy(): TPromise<T>;
+	/**
+	 * Synchronize (send) the models at `resources` to the web worker,
+	 * making them available in the monaco.worker.getMirrorModels().
+	 */
 	withSyncedResources(resources: URI[]): TPromise<T>;
 }
 
@@ -263,9 +311,17 @@ export class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements Monaco
 }
 
 export interface IWebWorkerOptions {
+	/**
+	 * The AMD moduleId to load.
+	 * It should export a function `create` that should return the exported proxy.
+	 */
 	moduleId: string;
 }
 
+/**
+ * Create a new web worker that has model syncing capabilities built in.
+ * Specify an AMD module to load that will `create` an object that will be proxied.
+ */
 export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
@@ -274,18 +330,27 @@ export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
 	return new MonacoWebWorkerImpl<T>(modelService, opts);
 }
 
+/**
+ * Colorize the contents of `domNode` using attribute `data-lang`.
+ */
 export function colorizeElement(domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
 	startup.initStaticServicesIfNecessary();
 	var modeService = ensureStaticPlatformServices(null).modeService;
 	return Colorizer.colorizeElement(modeService, domNode, options);
 }
 
-export function colorize(text:string, modeId:string, options:IColorizerOptions): TPromise<string> {
+/**
+ * Colorize `text` using language `languageId`.
+ */
+export function colorize(text:string, languageId:string, options:IColorizerOptions): TPromise<string> {
 	startup.initStaticServicesIfNecessary();
 	var modeService = ensureStaticPlatformServices(null).modeService;
-	return Colorizer.colorize(modeService, text, modeId, options);
+	return Colorizer.colorize(modeService, text, languageId, options);
 }
 
+/**
+ * Colorize a line in a model.
+ */
 export function colorizeModelLine(model:IModel, lineNumber:number, tabSize:number = 4): string {
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }

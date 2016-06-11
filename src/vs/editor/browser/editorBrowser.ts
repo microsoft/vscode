@@ -405,15 +405,41 @@ export interface IOverviewRuler {
  * A rich code editor.
  */
 export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
-
+	/**
+	 * An event emitted on a "mouseup".
+	 */
 	onMouseUp(listener: (e:IEditorMouseEvent)=>void): IDisposable;
+	/**
+	 * An event emitted on a "mousedown".
+	 */
 	onMouseDown(listener: (e:IEditorMouseEvent)=>void): IDisposable;
+	/**
+	 * An event emitted on a "contextmenu".
+	 */
 	onContextMenu(listener: (e:IEditorMouseEvent)=>void): IDisposable;
+	/**
+	 * An event emitted on a "mousemove".
+	 */
 	onMouseMove(listener: (e:IEditorMouseEvent)=>void): IDisposable;
+	/**
+	 * An event emitted on a "mouseleave".
+	 */
 	onMouseLeave(listener: (e:IEditorMouseEvent)=>void): IDisposable;
+	/**
+	 * An event emitted on a "keyup".
+	 */
 	onKeyUp(listener: (e:IKeyboardEvent)=>void): IDisposable;
+	/**
+	 * An event emitted on a "keydown".
+	 */
 	onKeyDown(listener: (e:IKeyboardEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the layout of the editor has changed.
+	 */
 	onDidLayoutChange(listener: (e:editorCommon.EditorLayoutInfo)=>void): IDisposable;
+	/**
+	 * An event emitted when the scroll in the editor has changed.
+	 */
 	onDidScrollChange(listener: (e:editorCommon.IScrollEvent)=>void): IDisposable;
 
 	/**

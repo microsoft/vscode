@@ -16,7 +16,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
-import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -285,7 +285,7 @@ export class State extends AbstractState {
 
 export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode implements ITokenizationCustomization {
 
-	public static LANG_CONFIG:IRichLanguageConfiguration = {
+	public static LANG_CONFIG:LanguageConfiguration = {
 		wordPattern: createWordRegExp('#-?%'),
 
 		comments: {
@@ -488,7 +488,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	}
 
 	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentRangeFormattingEdits);
-	private _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.IFormattingOptions):winjs.TPromise<editorCommon.ISingleEditOperation[]> {
+	private _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.FormattingOptions):winjs.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.provideDocumentRangeFormattingEdits(resource, range, options));
 	}
 
