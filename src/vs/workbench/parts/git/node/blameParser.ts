@@ -45,7 +45,7 @@ function parseCommitter(line) {
  */
 function formatDate(date:number) {
 	var local = new Date(date * 1000);
-	return local.toJSON().slice(0, 10);
+	return local.toString();
 }
 
 /**

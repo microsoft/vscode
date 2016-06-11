@@ -8,6 +8,7 @@ import {IRange} from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {GlyphHoverWidget} from './hoverWidgets';
+import {EOL} from 'os';
 
 export interface IHoverMessage {
 	value?: string;
@@ -40,7 +41,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 		let blameData = this._editor.getModel().blameData[this._lineNumber];
 		if (blameData && !blameData.noCommit) {
 			result.push({
-				value: `${blameData.author} ${blameData.date} ${blameData.summary}`
+				value: `${blameData.author}${EOL}${blameData.date}${EOL}${blameData.summary}`
 			});
 		}
 
