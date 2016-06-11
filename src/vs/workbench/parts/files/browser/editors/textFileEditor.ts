@@ -105,8 +105,7 @@ export class TextFileEditor extends BaseTextEditor {
 			let uri = model.uri;
 			let relativePath = this.contextService.toWorkspaceRelativePath(uri);
 			this.gitService.blame(relativePath.toString(), model.getLinesContent().join(model.getEOL())).then((e: any) => {
-				let result: git.IBlameData[] = <git.IBlameData[]>e;
-				model.blameData = result;
+				model.blameData = <git.IBlameData[]> e;
 				(<any>this.getControl()).getView().render(true, true);
 			});
 		}
