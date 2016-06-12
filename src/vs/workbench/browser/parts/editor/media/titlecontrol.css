@@ -93,3 +93,64 @@
 .monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .monaco-editor .view-lines {
 	cursor: url(data:;base64,AAACAAEAICACAAcABQAwAQAAFgAAACgAAAAgAAAAQAAAAAEAAQAAAAAAAAEAAAAAAAAAAAAAAgAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8AAAA/AAAAfwAAAP+AAAH/gAAB/8AAAH/AAAB/wAAA/0AAANsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////////////////////////////////////////////////////////////////////////////////gH///4B///8Af//+AD///AA///wAH//+AB///wAf//4AH//+AD///yT/////////////////////////////8=), auto;
 }
+
+/* Actions */
+
+.monaco-workbench .close-editor-action {
+	background: url('close.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .close-editor-action {
+	background: url('close-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .split-editor-action {
+	background: url('split-editor.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .split-editor-action {
+	background: url('split-editor-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .show-group-editors-action {
+	background: url('stackview.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .show-group-editors-action {
+	background: url('stackview-inverse.svg') center center no-repeat;
+}
+
+/* High Contrast Icons */
+
+.hc-black .monaco-workbench .close-editor-action,
+.hc-black .monaco-workbench .show-group-editors-action,
+.hc-black .monaco-workbench .split-editor-action {
+	background: none;
+}
+
+.hc-black .monaco-workbench .show-group-editors-action:before {
+	content: url('stackview-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+.hc-black .monaco-workbench .close-editor-action:before {
+	content: url('close-inverse.svg');
+	position: absolute;
+	top: 10px;
+	left: 4px;
+	height: 16px;
+	width: 16px;
+}
+
+.hc-black .monaco-workbench .split-editor-action:before {
+	content: url('split-editor-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
