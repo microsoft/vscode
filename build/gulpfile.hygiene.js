@@ -71,6 +71,7 @@ var copyrightFilter = [
 	'!**/*.bat',
 	'!**/*.cmd',
 	'!resources/win32/bin/code.js',
+	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
