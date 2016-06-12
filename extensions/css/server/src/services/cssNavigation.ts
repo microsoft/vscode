@@ -7,6 +7,7 @@
 import * as nodes from '../parser/cssNodes';
 import {TextDocument, Range, Position, Location, DocumentHighlightKind, DocumentHighlight, SymbolInformation, SymbolKind} from 'vscode-languageserver';
 import {Symbols} from '../parser/cssSymbolScope';
+import {isColorValue} from '../services/languageFacts';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -30,7 +31,7 @@ export class CSSNavigation {
 
 		return {
 			uri: document.uri,
-			range: Range.create(document.positionAt(node.offset), document.positionAt(node.end))
+			range: getRange(node, document)
 		};
 	}
 
@@ -61,7 +62,7 @@ export class CSSNavigation {
 				if (symbols.matchesSymbol(candidate, symbol)) {
 					result.push({
 						kind: getHighlightKind(candidate),
-						range: Range.create(document.positionAt(candidate.offset), document.positionAt(candidate.end))
+						range: getRange(candidate, document)
 					});
 					return false;
 				}
@@ -69,7 +70,7 @@ export class CSSNavigation {
 				// Same node type and data
 				result.push({
 					kind: getHighlightKind(candidate),
-					range: Range.create(document.positionAt(candidate.offset), document.positionAt(candidate.end))
+					range: getRange(candidate, document)
 				});
 			}
 			return true;
@@ -110,7 +111,7 @@ export class CSSNavigation {
 			}
 
 			if (entry.name) {
-				entry.location = Location.create(document.uri, Range.create(document.positionAt(node.offset), document.positionAt(node.end)));
+				entry.location = Location.create(document.uri, getRange(node, document));
 				result.push(entry);
 			}
 
@@ -119,6 +120,21 @@ export class CSSNavigation {
 
 		return result;
 	}
+
+	public findColorSymbols(document: TextDocument, stylesheet: nodes.Stylesheet): Range[] {
+		let result: Range[] = [];
+		stylesheet.accept((node) => {
+			if (isColorValue(node)) {
+				result.push(getRange(node, document));
+			}
+			return true;
+		});
+		return result;
+	}
+}
+
+function getRange(node: nodes.Node, document: TextDocument) : Range {
+	return Range.create(document.positionAt(node.offset), document.positionAt(node.end));
 }
 
 function getHighlightKind(node: nodes.Node): DocumentHighlightKind {

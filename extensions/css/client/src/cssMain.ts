@@ -7,10 +7,11 @@
 import * as path from 'path';
 
 import {languages, window, commands, ExtensionContext} from 'vscode';
-import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, NotificationType, Range, TextEdit, Protocol2Code} from 'vscode-languageclient';
+import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit, Protocol2Code} from 'vscode-languageclient';
+import {activateColorDecorations} from './colorDecorators';
 
-namespace ColorDecorationNotification {
-	export const type: NotificationType<Range[]> = { get method() { return 'css/colorDecorations'; } };
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
 }
 
 // this method is called when vs code is activated
@@ -41,14 +42,15 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('css', serverOptions, clientOptions);
 
-	client.onNotification(ColorDecorationNotification.type, ranges => {
-
-	});
-
 	let disposable = client.start();
-
 	// Push the disposable to the context's subscriptions so that the
 	// client can be deactivated on extension deactivation
+	context.subscriptions.push(disposable);
+
+	let colorRequestor = (uri: string) => {
+		return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(Protocol2Code.asRange));
+	};
+	disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true});
 	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('css', {
@@ -65,7 +67,6 @@ export function activate(context: ExtensionContext) {
 			{ open: '\'', close: '\'', notIn: ['string'] }
 		]
 	});
-
 
 	languages.setLanguageConfiguration('less', {
 		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
@@ -122,76 +123,3 @@ function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]
 	}
 }
 
-// 	let decorationType : vscode.DecorationRenderOptions = {
-// 		before: {
-// //			content: "url(\"data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1.2em' height='0.9em' viewBox='0 0 16 16'%3E%3Crect x='1' y='1' stroke='white' style='stroke-width: 1;' width='14' height='14' fill='#FFB6C1' shape-rendering='crispEdges' /%3E%3C/svg%3E\")",
-// 			content: '" "',
-// 			borderStyle: 'solid',
-// 			borderWidth: '0.1em',
-// 			borderColor: '#000',
-// 			margin: '0.1em 0.2em 0 0.2em',
-// 			width: '0.8em',
-// 			height: '0.8em'
-// 		},
-// 		dark: {
-// 			before: {
-// 				borderColor: '#eee'
-// 			}
-// 		}
-// 	};
-
-// 	var colorsDecorationType = vscode.window.createTextEditorDecorationType(decorationType);
-
-// 	var activeEditor = vscode.window.activeTextEditor;
-// 	if (activeEditor) {
-// 		triggerUpdateDecorations();
-// 	}
-
-// 	vscode.window.onDidChangeActiveTextEditor(editor => {
-// 		activeEditor = editor;
-// 		if (editor) {
-// 			triggerUpdateDecorations();
-// 		}
-// 	}, null, context.subscriptions);
-
-// 	vscode.workspace.onDidChangeTextDocument(event => {
-// 		if (activeEditor && event.document === activeEditor.document) {
-// 			triggerUpdateDecorations();
-// 		}
-// 	}, null, context.subscriptions);
-
-// 	var timeout = null;
-// 	function triggerUpdateDecorations() {
-// 		if (timeout) {
-// 			clearTimeout(timeout);
-// 		}
-// 		timeout = setTimeout(updateDecorations, 500);
-// 	}
-
-// 	function updateDecorations() {
-// 		if (!activeEditor) {
-// 			return;
-// 		}
-// 		var regEx = /#[a-fA-F0-9]{6}/g;
-// 		var text = activeEditor.document.getText();
-// 		var colors : vscode.DecorationOptions[] = [];
-// 		var match;
-// 		while (match = regEx.exec(text)) {
-// 			var startPos = activeEditor.document.positionAt(match.index);
-// 			var endPos = activeEditor.document.positionAt(match.index + 1);
-// 			var decoration : vscode.DecorationOptions = {
-// 				range: new vscode.Range(startPos, endPos),
-// 				hoverMessage: 'Color **' + match[0] + '**',
-// 				renderOptions: {
-// 					before: {
-// 						backgroundColor: match[0]
-// 					}
-// 				}
-// 			};
-// 			colors.push(decoration);
-
-
-// 		}
-// 		activeEditor.setDecorations(colorsDecorationType, colors);
-// 	}
-//}

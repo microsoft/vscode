@@ -5,8 +5,8 @@
 'use strict';
 
 import {
-	IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult
+	IPCMessageReader, IPCMessageWriter, createConnection, IConnection, Range,
+	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
 
 import {Parser} from './parser/cssParser';
@@ -21,6 +21,9 @@ import {Stylesheet} from './parser/cssNodes';
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+}
 
 // Create a connection for the server. The connection uses for
 // stdin / stdout for message passing
@@ -136,6 +139,12 @@ connection.onCodeAction(codeActionParams => {
 	let document = documents.get(codeActionParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
 	return cssCodeActions.doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+});
+
+connection.onRequest(ColorSymbolRequest.type, uri => {
+	let document = documents.get(uri);
+	let stylesheet = getStylesheet(document);
+	return cssNavigation.findColorSymbols(document, stylesheet);
 });
 
 // Listen on the connection
