@@ -19,7 +19,7 @@ export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilt
     formatters.set(yapfFormatter.Id, yapfFormatter);
     formatters.set(autoPep8.Id, autoPep8);
 
-    // TODO: This is really ugly.  I'm not sure we can do better until
+    // This is really ugly.  I'm not sure we can do better until
     // Code supports a pre-save event where we can do the formatting before
     // the file is written to disk.	
     let ignoreNextSave = new WeakSet<vscode.TextDocument>();

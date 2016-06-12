@@ -98,7 +98,6 @@ export interface IPythonProcess extends NodeJS.EventEmitter {
     SetLineNumber(pythonStackFrame: IPythonStackFrame, lineNo: number);
     Threads: Map<number, IPythonThread>;
     ProgramDirectory: string;
-    //TODO:Fix this, shouldn't be exposed    
     PendingChildEnumCommands: Map<number, IChildEnumCommand>;
     PendingExecuteCommands: Map<number, IExecutionCommand>;
 }
