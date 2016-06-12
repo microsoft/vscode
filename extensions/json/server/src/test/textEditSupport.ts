@@ -8,16 +8,16 @@ import {TextDocument, TextEdit} from 'vscode-languageserver';
 import assert = require('assert');
 
 export function applyEdits(document: TextDocument, edits: TextEdit[]) : string {
-	let formatted = document.getText();
+	let text = document.getText();
 	let sortedEdits = edits.sort((a, b) => document.offsetAt(b.range.start) - document.offsetAt(a.range.start));
-	let lastOffset = formatted.length;
+	let lastOffset = text.length;
 	sortedEdits.forEach(e => {
 		let startOffset = document.offsetAt(e.range.start);
 		let endOffset = document.offsetAt(e.range.end);
 		assert.ok(startOffset <= endOffset);
 		assert.ok(endOffset <= lastOffset);
-		formatted = formatted.substring(0, startOffset) + e.newText + formatted.substring(endOffset, formatted.length);
+		text = text.substring(0, startOffset) + e.newText + text.substring(endOffset, text.length);
 		lastOffset = startOffset;
 	});
-	return formatted;
+	return text;
 }
