@@ -222,6 +222,12 @@ export class TabsTitleControl extends TitleControl {
 		else if (containerScrollPosX > activeTabPosX) {
 			this.tabsContainer.scrollLeft = this.activeTab.offsetLeft;
 		}
+
+		// Update enablement of certain actions that depend on overflow
+		const isOverflowing = (this.tabsContainer.scrollWidth > containerWidth);
+		this.showEditorsOfLeftGroup.enabled = isOverflowing;
+		this.showEditorsOfCenterGroup.enabled = isOverflowing;
+		this.showEditorsOfRightGroup.enabled = isOverflowing;
 	}
 
 	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): void {

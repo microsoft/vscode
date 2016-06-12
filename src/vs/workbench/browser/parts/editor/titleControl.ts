@@ -29,7 +29,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction,
-		MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction}
+	MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction}
 from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
@@ -232,33 +232,29 @@ export abstract class TitleControl {
 		const editor = group.activeEditor;
 		const primary: IAction[] = [];
 
-		const isOverflowing = group.count > 1;
 		const groupCount = this.stacks.groups.length;
 
 		// Overflow
-		if (isOverflowing) {
-			let overflowAction: Action;
+		let overflowAction: Action;
+		if (groupCount === 1) {
+			overflowAction = this.showAllEditorsAction;
+		} else {
+			switch (this.stacks.positionOfGroup(group)) {
+				case Position.LEFT:
+					overflowAction = this.showEditorsOfLeftGroup;
+					break;
 
-			if (groupCount === 1) {
-				overflowAction = this.showAllEditorsAction;
-			} else {
-				switch (this.stacks.positionOfGroup(group)) {
-					case Position.LEFT:
-						overflowAction = this.showEditorsOfLeftGroup;
-						break;
+				case Position.CENTER:
+					overflowAction = (groupCount === 2) ? this.showEditorsOfRightGroup : this.showEditorsOfCenterGroup;
+					break;
 
-					case Position.CENTER:
-						overflowAction = (groupCount === 2) ? this.showEditorsOfRightGroup : this.showEditorsOfCenterGroup;
-						break;
-
-					case Position.RIGHT:
-						overflowAction = this.showEditorsOfRightGroup;
-						break;
-				}
+				case Position.RIGHT:
+					overflowAction = this.showEditorsOfRightGroup;
+					break;
 			}
-
-			primary.push(overflowAction);
 		}
+
+		primary.push(overflowAction);
 
 		// Splitting
 		if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
