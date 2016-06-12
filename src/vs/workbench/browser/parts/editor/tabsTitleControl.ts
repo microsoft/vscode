@@ -26,14 +26,15 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export class TabsTitleControl extends TitleControl {
-	private titleContainer: Builder;
-	private tabsContainer: Builder;
-	private activeTab: Builder;
+	private titleContainer: HTMLElement;
+	private tabsContainer: HTMLElement;
+	private activeTab: HTMLElement;
 
 	private groupActionsToolbar: ToolBar;
-	private tabActionBars: ActionBar[];
+	private tabDisposeables: IDisposable[];
 
 	private currentPrimaryGroupActionIds: string[];
 	private currentSecondaryGroupActionIds: string[];
@@ -52,7 +53,7 @@ export class TabsTitleControl extends TitleControl {
 		this.currentPrimaryGroupActionIds = [];
 		this.currentSecondaryGroupActionIds = [];
 
-		this.tabActionBars = [];
+		this.tabDisposeables = [];
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -62,30 +63,26 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	public create(parent: Builder): void {
-		this.titleContainer = $(parent);
+		this.titleContainer = parent.getHTMLElement();
 
 		// Tabs Container
-		parent.div({
-			'class': 'tabs-container'
-		}, (div) => {
-			this.tabsContainer = div;
+		this.tabsContainer = document.createElement('div');
+		DOM.addClass(this.tabsContainer, 'tabs-container');
+		this.titleContainer.appendChild(this.tabsContainer);
 
-			// Support to scroll the tabs container with the mouse wheel
-			// if we detect that scrolling happens in Y-axis
-			div.on('wheel', (e: WheelEvent) => {
-				if (e.deltaY && !e.deltaX) {
-					DOM.EventHelper.stop(e);
-					this.tabsContainer.getHTMLElement().scrollLeft += e.deltaY;
-				}
-			});
-		});
+		// Convert mouse wheel vertical scroll to horizontal
+		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.WHEEL, (e: WheelEvent) => {
+			if (e.deltaY && !e.deltaX) {
+				DOM.EventHelper.stop(e);
+				this.tabsContainer.scrollLeft += e.deltaY;
+			}
+		}));
 
 		// Group Actions
-		parent.div({
-			'class': 'group-actions'
-		}, (div) => {
-			this.groupActionsToolbar = this.doCreateToolbar(div);
-		});
+		const groupActionsContainer = document.createElement('div');
+		DOM.addClass(groupActionsContainer, 'group-actions');
+		this.titleContainer.appendChild(groupActionsContainer);
+		this.groupActionsToolbar = this.doCreateToolbar($(groupActionsContainer));
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
@@ -111,9 +108,9 @@ export class TabsTitleControl extends TitleControl {
 		// Activity state
 		const isActive = this.stacks.isActive(group);
 		if (isActive) {
-			this.titleContainer.addClass('active');
+			DOM.addClass(this.titleContainer, 'active');
 		} else {
-			this.titleContainer.removeClass('active');
+			DOM.removeClass(this.titleContainer, 'active');
 		}
 
 		// Update Group Actions Toolbar
@@ -136,10 +133,11 @@ export class TabsTitleControl extends TitleControl {
 	private refreshTabs(group: IEditorGroup): void {
 
 		// Empty container first
-		this.tabsContainer.empty();
-		while (this.tabActionBars.length) {
-			this.tabActionBars.pop().dispose();
-		}
+		DOM.clearNode(this.tabsContainer);
+		dispose(this.tabDisposeables);
+		this.tabDisposeables = [];
+
+		const tabContainers: HTMLElement[] = [];
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
@@ -147,51 +145,59 @@ export class TabsTitleControl extends TitleControl {
 			const isActive = group.isActive(editor);
 			const isDirty = editor.isDirty();
 
-			$(this.tabsContainer).div({ 'class': 'tab monaco-editor-background' }, tab => {
+			const tabContainer = document.createElement('div');
+			DOM.addClass(tabContainer, 'tab monaco-editor-background');
+			tabContainers.push(tabContainer);
 
-				// Eventing
-				this.hookTabListeners(tab, { editor, group });
+			// Eventing
+			this.hookTabListeners(tabContainer, { editor, group });
 
-				// Pinned state
-				if (isPinned) {
-					tab.addClass('pinned');
-				} else {
-					tab.removeClass('pinned');
-				}
+			// Pinned state
+			if (isPinned) {
+				DOM.addClass(tabContainer, 'pinned');
+			} else {
+				DOM.removeClass(tabContainer, 'pinned');
+			}
 
-				// Active state
-				if (isActive) {
-					tab.addClass('active');
-					this.activeTab = $(tab);
-				} else {
-					tab.removeClass('active');
-				}
+			// Active state
+			if (isActive) {
+				DOM.addClass(tabContainer, 'active');
+				this.activeTab = tabContainer;
+			} else {
+				DOM.removeClass(tabContainer, 'active');
+			}
 
-				// Dirty State
-				if (isDirty) {
-					tab.addClass('dirty');
-				} else {
-					tab.removeClass('dirty');
-				}
+			// Dirty State
+			if (isDirty) {
+				DOM.addClass(tabContainer, 'dirty');
+			} else {
+				DOM.removeClass(tabContainer, 'dirty');
+			}
 
-				// Tab Label
-				tab.div({
-					'class': 'tab-label'
-				}, (div) => {
-					$(div).a().safeInnerHtml(editor.getName()).title(editor.getDescription(true) || '');
-				});
+			// Tab Label Container
+			const tabLabelContainer = document.createElement('div');
+			tabContainer.appendChild(tabLabelContainer);
+			DOM.addClass(tabLabelContainer, 'tab-label');
 
-				// Tab Close
-				tab.div({
-					'class': 'tab-close'
-				}, (div) => {
-					const bar = new ActionBar(div, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
-					bar.push(this.closeEditorAction, { icon: true, label: false });
+			// Tab Label
+			const tabLabel = document.createElement('a');
+			tabLabel.innerText = editor.getName();
+			tabLabel.title = editor.getDescription(true) || '';
+			tabLabelContainer.appendChild(tabLabel);
 
-					this.tabActionBars.push(bar);
-				});
-			});
+			// Tab Close
+			const tabCloseContainer = document.createElement('div');
+			DOM.addClass(tabCloseContainer, 'tab-close');
+			tabContainer.appendChild(tabCloseContainer);
+
+			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
+			bar.push(this.closeEditorAction, { icon: true, label: false });
+
+			this.tabDisposeables.push(bar);
 		});
+
+		// Add to tabs container
+		tabContainers.forEach(tab => this.tabsContainer.appendChild(tab));
 
 		this.layout();
 	}
@@ -202,58 +208,56 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Always reveal the active one
-		const activeTab = this.activeTab.getHTMLElement();
-		const container = this.tabsContainer.getHTMLElement();
-		const containerWidth = container.offsetWidth;
-		const containerScrollPosX = container.scrollLeft;
-		const activeTabPosX = activeTab.offsetLeft;
-		const activeTabWidth = activeTab.offsetWidth;
+		const containerWidth = this.tabsContainer.offsetWidth;
+		const containerScrollPosX = this.tabsContainer.scrollLeft;
+		const activeTabPosX = this.activeTab.offsetLeft;
+		const activeTabWidth = this.activeTab.offsetWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
 		if (containerScrollPosX + containerWidth < activeTabPosX + activeTabWidth) {
-			container.scrollLeft += ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + containerWidth) /* right corner of view port */);
+			this.tabsContainer.scrollLeft += ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + containerWidth) /* right corner of view port */);
 		}
 
 		// Tab is overlflowng to the left: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX) {
-			container.scrollLeft = activeTab.offsetLeft;
+			this.tabsContainer.scrollLeft = this.activeTab.offsetLeft;
 		}
 	}
 
-	private hookTabListeners(tab: Builder, identifier: IEditorIdentifier): void {
+	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): void {
 		const {editor, group} = identifier;
 		const position = this.stacks.positionOfGroup(group);
 
 		// Open on Click
-		tab.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
 			}
-		});
+		}));
 
 		// Pin on double click
-		tab.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => {
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			this.editorGroupService.pinEditor(position, editor);
-		});
+		}));
 
 		// Close on mouse middle click
-		tab.on(DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			if (e.button === 1 /* Middle Button */) {
 				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
 			}
-		});
+		}));
 
 		// Context menu
-		tab.on(DOM.EventType.CONTEXT_MENU, (e) => {
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
 			DOM.EventHelper.stop(e);
 
-			let anchor: HTMLElement | { x: number, y: number } = tab.getHTMLElement();
+			let anchor: HTMLElement | { x: number, y: number } = tab;
 			if (e instanceof MouseEvent) {
 				const event = new StandardMouseEvent(e);
 				anchor = { x: event.posx, y: event.posy };
@@ -272,7 +276,7 @@ export class TabsTitleControl extends TitleControl {
 					return null;
 				}
 			});
-		});
+		}));
 	}
 
 	private getTabActions(identifier: IEditorIdentifier): IAction[] {

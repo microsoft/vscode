@@ -779,6 +779,7 @@ export const EventType = {
 	MOUSE_MOVE: 'mousemove',
 	MOUSE_OUT: 'mouseout',
 	CONTEXT_MENU: 'contextmenu',
+	WHEEL: 'wheel',
 	// Keyboard
 	KEY_DOWN: 'keydown',
 	KEY_PRESS: 'keypress',
