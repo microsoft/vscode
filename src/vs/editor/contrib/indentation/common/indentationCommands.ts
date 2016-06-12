@@ -7,7 +7,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 
-function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
+function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean, selection: Selection): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return;
@@ -17,19 +17,33 @@ function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOper
 	for (let i = 0; i < tabSize; i++) {
 		spaces += ' ';
 	}
+	let doForAllLines = selection.isEmpty();
 
 	const content = model.getLinesContent();
+	const selectionStartLine = selection.startLineNumber - 1;
+	const selectionStartColumn = selection.startColumn - 1;
+	const selectionEndLine = selection.endLineNumber - 1;
+	const selectionEndColumn = selection.endColumn - 1;
 	for (let i = 0; i < content.length; i++) {
-		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(i + 1);
-		if (lastIndentationColumn === 0) {
-			lastIndentationColumn = model.getLineMaxColumn(i + 1);
+		let editedRange = new Range(i + 1, 1, i + 1, model.getLineMaxColumn(i + 1));
+		if (doForAllLines || (selection.intersectRanges(editedRange))) {
+
+			let replaceStart = !doForAllLines && i === selectionStartLine ? selectionStartColumn : 0;
+			let replaceEnd = !doForAllLines && i === selectionEndLine ? selectionEndColumn : model.getLineMaxColumn(i + 1);
+
+			let leftText = content[i].substring(0, replaceStart);
+			let middleText;
+			let endText = content[i].substring(replaceEnd);
+
+			if (tabsToSpaces) {
+				middleText = content[i].substring(replaceStart, replaceEnd).replace(/\t/ig, spaces);
+			} else {
+				middleText = content[i].substring(replaceStart, replaceEnd).replace(new RegExp(spaces, 'gi'), '\t');
+			}
+
+			const text = leftText + middleText + endText;
+			builder.addEditOperation(editedRange, text);
 		}
-
-		const text = (tabsToSpaces ? content[i].substr(0, lastIndentationColumn).replace(/\t/ig, spaces) :
-			content[i].substr(0, lastIndentationColumn).replace(new RegExp(spaces, 'gi'), '\t')) +
-			content[i].substr(lastIndentationColumn);
-
-		builder.addEditOperation(new Range(i + 1, 1, i + 1, model.getLineMaxColumn(i + 1)), text);
 	}
 }
 
@@ -41,7 +55,7 @@ export class IndentationToSpacesCommand implements ICommand {
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
-		getIndentationEditOperations(model, builder, this.tabSize, true);
+		getIndentationEditOperations(model, builder, this.tabSize, true, this.selection);
 	}
 
 	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
@@ -57,7 +71,7 @@ export class IndentationToTabsCommand implements ICommand {
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
-		getIndentationEditOperations(model, builder, this.tabSize, false);
+		getIndentationEditOperations(model, builder, this.tabSize, false, this.selection);
 	}
 
 	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
