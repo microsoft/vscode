@@ -30,6 +30,7 @@ import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 export class TabsTitleControl extends TitleControl {
 	private titleContainer: Builder;
 	private tabsContainer: Builder;
+	private activeTab: Builder;
 
 	private groupActionsToolbar: ToolBar;
 	private tabActionBars: ActionBar[];
@@ -140,8 +141,6 @@ export class TabsTitleControl extends TitleControl {
 			this.tabActionBars.pop().dispose();
 		}
 
-		let activeTab: HTMLElement;
-
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
 			const isPinned = group.isPinned(editor);
@@ -163,7 +162,7 @@ export class TabsTitleControl extends TitleControl {
 				// Active state
 				if (isActive) {
 					tab.addClass('active');
-					activeTab = tab.getHTMLElement();
+					this.activeTab = $(tab);
 				} else {
 					tab.removeClass('active');
 				}
@@ -194,7 +193,16 @@ export class TabsTitleControl extends TitleControl {
 			});
 		});
 
+		this.layout();
+	}
+
+	public layout(): void {
+		if (!this.activeTab) {
+			return;
+		}
+
 		// Always reveal the active one
+		const activeTab = this.activeTab.getHTMLElement();
 		const container = this.tabsContainer.getHTMLElement();
 		const containerWidth = container.offsetWidth;
 		const containerScrollPosX = container.scrollLeft;

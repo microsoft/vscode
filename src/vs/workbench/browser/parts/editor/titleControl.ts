@@ -43,6 +43,7 @@ export interface ITitleAreaControl {
 	allowDragging(element: HTMLElement): boolean;
 	create(parent: Builder): void;
 	refresh(): void;
+	layout(): void;
 	dispose(): void;
 }
 
@@ -94,6 +95,10 @@ export abstract class TitleControl {
 	}
 
 	public abstract refresh();
+
+	public layout(): void {
+		// Subclasses can opt in to react on layout
+	}
 
 	public allowDragging(element: HTMLElement): boolean {
 		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-container');

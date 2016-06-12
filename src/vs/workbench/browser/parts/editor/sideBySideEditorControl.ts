@@ -1278,9 +1278,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 		});
 
-		// Layout active editors
+		// Layout visible editors
 		POSITIONS.forEach(position => {
 			this.layoutEditor(position);
+		});
+
+		// Layout title controls
+		POSITIONS.forEach(position => {
+			this.titleAreaControl[position].layout();
 		});
 	}
 
