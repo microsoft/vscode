@@ -3,6 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Editor Label */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label {
+	line-height: 35px;
+	white-space: nowrap;
+	flex: 1;
+	font-style: italic;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab.pinned .tab-label {
+	font-style: normal;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
+	text-decoration: none;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
+	color: rgba(51, 51, 51, 0.5);
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab .tab-label a {
+	color: #333333;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .tabs-container > .tab .tab-label a {
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active > .tabs-container > .tab .tab-label a {
+	color: white;
+}
+
+/* Title Actions */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container .title > .tabs-container > .tab > .tab-close .action-label {
+	display: block;
+	height: 35px;
+	width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label .label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
+	display: none;
+}
+
 /* Drag Cursor */
 .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title,
 .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label a,
