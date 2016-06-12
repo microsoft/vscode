@@ -70,6 +70,26 @@ export class TabsTitleControl extends TitleControl {
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 		this.titleContainer.appendChild(this.tabsContainer);
 
+		// Drop onto tabs container
+		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
+			const target = e.target;
+			if (target instanceof HTMLElement && target.className === 'tabs-container') {
+				const group = this.context;
+				if (group) {
+					const identifier = this.stringToId(e.dataTransfer.getData('text'));
+					if (identifier) {
+						e.preventDefault();
+
+						const sourcePosition = this.stacks.positionOfGroup(identifier.group);
+						const targetPosition = this.stacks.positionOfGroup(group);
+
+						// Move editor to target position at the end
+						this.editorGroupService.moveEditor(identifier.editor, sourcePosition, targetPosition, group.count);
+					}
+				}
+			}
+		}));
+
 		// Convert mouse wheel vertical scroll to horizontal
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.WHEEL, (e: WheelEvent) => {
 			if (e.deltaY && !e.deltaX) {
@@ -146,11 +166,9 @@ export class TabsTitleControl extends TitleControl {
 			const isDirty = editor.isDirty();
 
 			const tabContainer = document.createElement('div');
+			tabContainer.draggable = true;
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
-
-			// Eventing
-			this.hookTabListeners(tabContainer, { editor, group });
 
 			// Pinned state
 			if (isPinned) {
@@ -194,6 +212,9 @@ export class TabsTitleControl extends TitleControl {
 			bar.push(this.closeEditorAction, { icon: true, label: false });
 
 			this.tabDisposeables.push(bar);
+
+			// Eventing
+			this.hookTabListeners(tabContainer, { editor, group });
 		});
 
 		// Add to tabs container
@@ -236,8 +257,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// Open on Click
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e);
-
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
 			}
@@ -283,6 +302,65 @@ export class TabsTitleControl extends TitleControl {
 				}
 			});
 		}));
+
+		// Drag start
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
+			DOM.addClass(tab, 'dragged');
+			e.dataTransfer.setData('text', this.idToString(identifier));
+			e.dataTransfer.effectAllowed = 'move';
+		}));
+
+		// Drag over
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.addClass(tab, 'dropfeedback');
+		}));
+
+		// Drag leave
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			DOM.removeClass(tab, 'dropfeedback');
+		}));
+
+		// Drag end
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			DOM.removeClass(tab, 'dragged');
+			DOM.removeClass(tab, 'dropfeedback');
+		}));
+
+		// Drop
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+			const identifier = this.stringToId(e.dataTransfer.getData('text'));
+			if (identifier) {
+				e.preventDefault();
+
+				const sourcePosition = this.stacks.positionOfGroup(identifier.group);
+				const targetPosition = this.stacks.positionOfGroup(group);
+				const targetIndex = group.indexOf(editor);
+
+				// Move editor to target position and index
+				this.editorGroupService.moveEditor(identifier.editor, sourcePosition, targetPosition, targetIndex);
+			}
+		}));
+	}
+
+	private idToString(identifier: IEditorIdentifier): string {
+		return [identifier.group.id, identifier.group.indexOf(identifier.editor)].join(',');
+	}
+
+	private stringToId(str: string): IEditorIdentifier {
+		if (str) {
+			const parts = str.split(',');
+			if (parts.length === 2) {
+				const group = this.stacks.getGroup(Number(parts[0]));
+				if (group) {
+					const editor = group.getEditor(Number(parts[1]));
+					if (editor) {
+						return { group, editor };
+					}
+				}
+			}
+		}
+
+		return void 0;
 	}
 
 	private getTabActions(identifier: IEditorIdentifier): IAction[] {
