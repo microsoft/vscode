@@ -1,6 +1,6 @@
-'use strict';
-import * as net from 'net';
-import {DebugProtocol} from 'vscode-debugprotocol';
+"use strict";
+import * as net from "net";
+import {DebugProtocol} from "vscode-debugprotocol";
 
 export const DjangoApp = "DJANGO";
 export enum DebugFlags {
@@ -35,7 +35,7 @@ export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArgum
     cwd?: string;
     debugOptions?: string[];
     env?: Object;
-    exceptionHandling?: ExceptionHandling
+    exceptionHandling?: ExceptionHandling;
 }
 
 export interface AttachRequestArguments extends DebugProtocol.AttachRequestArguments {

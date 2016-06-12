@@ -1,20 +1,20 @@
-'use strict';
+"use strict";
 
-//Solution for auto-formatting borrowed from the "go" language VSCode extension.
+// Solution for auto-formatting borrowed from the "go" language VSCode extension.
 
-import * as vscode from 'vscode';
-import {BaseFormatter} from './../formatters/baseFormatter';
-import {YapfFormatter} from './../formatters/yapfFormatter';
-import {AutoPep8Formatter} from './../formatters/autoPep8Formatter';
-import * as settings from './../common/configSettings';
+import * as vscode from "vscode";
+import {BaseFormatter} from "./../formatters/baseFormatter";
+import {YapfFormatter} from "./../formatters/yapfFormatter";
+import {AutoPep8Formatter} from "./../formatters/autoPep8Formatter";
+import * as settings from "./../common/configSettings";
 
 export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilter, context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
     let rootDir = context.asAbsolutePath(".");
     let formatters = new Map<string, BaseFormatter>();
     let pythonSettings = settings;
 
-    var yapfFormatter = new YapfFormatter(outputChannel);
-    var autoPep8 = new AutoPep8Formatter(outputChannel);
+    let yapfFormatter = new YapfFormatter(outputChannel);
+    let autoPep8 = new AutoPep8Formatter(outputChannel);
 
     formatters.set(yapfFormatter.Id, yapfFormatter);
     formatters.set(autoPep8.Id, autoPep8);
@@ -24,13 +24,13 @@ export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilt
     // the file is written to disk.	
     let ignoreNextSave = new WeakSet<vscode.TextDocument>();
 
-    var subscription = vscode.workspace.onDidSaveTextDocument(document => {
+    let subscription = vscode.workspace.onDidSaveTextDocument(document => {
         if (document.languageId !== languageFilter.language || ignoreNextSave.has(document)) {
             return;
         }
         let textEditor = vscode.window.activeTextEditor;
         if (pythonSettings.formatting.formatOnSave && textEditor.document === document) {
-            var formatter = formatters.get(pythonSettings.formatting.provider);
+            let formatter = formatters.get(pythonSettings.formatting.provider);
             formatter.formatDocument(document, null, null).then(edits => {
                 return textEditor.edit(editBuilder => {
                     edits.forEach(edit => editBuilder.replace(edit.range, edit.newText));
