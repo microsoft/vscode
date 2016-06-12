@@ -37,12 +37,6 @@ export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArgum
     env?: Object;
     exceptionHandling?: ExceptionHandling
 }
-// 
-// export interface LaunchDjangoRequestArguments extends LaunchRequestArguments {
-//     port?: number;
-//     noReload?: boolean;
-//     settings?: string;
-// }
 
 export interface AttachRequestArguments extends DebugProtocol.AttachRequestArguments {
     /** An absolute path to local directory with source. */
@@ -209,14 +203,4 @@ export interface IPythonBreakpoint {
 export interface IPythonException {
     TypeName: string;
     Description: string;
-}
-
-export enum StreamDataType {
-    Int32,
-    Int64,
-    String
-}
-export interface IStreamData {
-    DataType: StreamDataType;
-    RawData: any;
 }

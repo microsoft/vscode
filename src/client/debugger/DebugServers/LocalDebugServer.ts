@@ -1,6 +1,5 @@
 'use strict';
 
-//import {Variable, DebugSession, InitializedEvent, TerminatedEvent, StoppedEvent, OutputEvent, Thread, StackFrame, Scope, Source, Handles} from 'vscode-debugadapter';
 import {DebugSession, OutputEvent} from 'vscode-debugadapter';
 import {IPythonProcess, IDebugServer} from '../Common/Contracts';
 import * as net from 'net';

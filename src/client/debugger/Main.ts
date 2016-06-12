@@ -17,7 +17,6 @@ import {IPythonBreakpoint, PythonBreakpointConditionKind, PythonBreakpointPassCo
 import {BaseDebugServer} from './DebugServers/BaseDebugServer';
 import {DebugClient, DebugType} from './DebugClients/DebugClient';
 import {CreateAttachDebugClient, CreateLaunchDebugClient} from './DebugClients/DebugFactory';
-import {WaitForPortToOpen} from './Common/OnPortOpenedHandler';
 import {DjangoApp, LaunchRequestArguments, AttachRequestArguments, DebugFlags, DebugOptions} from './Common/Contracts';
 
 const CHILD_ENUMEARATION_TIMEOUT = 5000;
@@ -385,7 +384,6 @@ export class PythonDebugger extends DebugSession {
                 this.sendResponse(response);
             },
                 error => {
-                    // this.sendResponse(response);
                     this.sendErrorResponse(response, 2000, error);
                 }
             );

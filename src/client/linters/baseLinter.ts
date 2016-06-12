@@ -103,6 +103,7 @@ export abstract class BaseLinter {
                     }
                     catch (ex) {
                         //Hmm, need to handle this later
+                        //TODO:
                         var y = "";
                     }
                 });

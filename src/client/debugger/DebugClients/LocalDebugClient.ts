@@ -150,7 +150,6 @@ export class LocalDebugClient extends DebugClient {
             }
   
             var currentFileName = module.filename;
-            //var ptVSToolsFilePath = path.join(path.dirname(currentFileName), "..", "..", "..", "..", "pythonFiles", "PythonTools", "visualstudio_py_launcher.py");
 
             this.getPTVSToolsFilePath().then((ptVSToolsFilePath) => {
                 return this.prependShebangToPTVSFile(ptVSToolsFilePath, this.args.program);
