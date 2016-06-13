@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
 import lifecycle = require('vs/base/common/lifecycle');
 import mime = require('vs/base/common/mime');
 import Event, { Emitter } from 'vs/base/common/event';
@@ -879,13 +878,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.continue({ threadId }).then(response => {
-			let allThreadsContinued = response.body ? response.body.allThreadsContinued !== false : true;
-
-			// TODO@Isidor temporary workaround for #1703
-			if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
-				allThreadsContinued = false;
-			}
-
+			const allThreadsContinued = response.body ? response.body.allThreadsContinued !== false : true;
 			this.lazyTransitionToRunningState(allThreadsContinued ? undefined : threadId);
 		});
 	}
