@@ -1,28 +1,28 @@
-'use strict';
+"use strict";
 
-import * as vscode from 'vscode';
-import {PythonCompletionItemProvider} from './providers/completionProvider';
-import {PythonHoverProvider} from './providers/hoverProvider';
-import {PythonDefinitionProvider} from './providers/definitionProvider';
-import {PythonReferenceProvider} from './providers/referenceProvider';
-import {PythonRenameProvider} from './providers/renameProvider';
-import {PythonFormattingEditProvider} from './providers/formatProvider';
-import * as sortImports from './sortImports';
-import {LintProvider} from './providers/lintProvider';
-import {PythonSymbolProvider} from './providers/symbolProvider';
-import {activateFormatOnSaveProvider} from './providers/formatOnSaveProvider';
-import * as path from 'path';
-import * as settings from './common/configSettings'
-import {activateUnitTestProvider} from './providers/testProvider';
+import * as vscode from "vscode";
+import {PythonCompletionItemProvider} from "./providers/completionProvider";
+import {PythonHoverProvider} from "./providers/hoverProvider";
+import {PythonDefinitionProvider} from "./providers/definitionProvider";
+import {PythonReferenceProvider} from "./providers/referenceProvider";
+import {PythonRenameProvider} from "./providers/renameProvider";
+import {PythonFormattingEditProvider} from "./providers/formatProvider";
+import * as sortImports from "./sortImports";
+import {LintProvider} from "./providers/lintProvider";
+import {PythonSymbolProvider} from "./providers/symbolProvider";
+import {activateFormatOnSaveProvider} from "./providers/formatOnSaveProvider";
+import * as path from "path";
+import * as settings from "./common/configSettings";
+import {activateUnitTestProvider} from "./providers/testProvider";
 
-const PYTHON: vscode.DocumentFilter = { language: 'python', scheme: 'file' }
+const PYTHON: vscode.DocumentFilter = { language: "python", scheme: "file" }
 let unitTestOutChannel: vscode.OutputChannel;
 let formatOutChannel: vscode.OutputChannel;
 let lintingOutChannel: vscode.OutputChannel;
 
 export function activate(context: vscode.ExtensionContext) {
-    var rootDir = context.asAbsolutePath(".");
-    var pythonSettings = settings.PythonSettings.getInstance();
+    let rootDir = context.asAbsolutePath(".");
+    let pythonSettings = settings.PythonSettings.getInstance();
     unitTestOutChannel = vscode.window.createOutputChannel(pythonSettings.unitTest.outputWindow);
     unitTestOutChannel.clear();
     formatOutChannel = unitTestOutChannel;
@@ -36,11 +36,11 @@ export function activate(context: vscode.ExtensionContext) {
         lintingOutChannel.clear();
     }
 
-    sortImports.activate(context);
+    sortImports.activate(context, formatOutChannel);
     activateUnitTestProvider(context, pythonSettings, unitTestOutChannel);
     activateFormatOnSaveProvider(PYTHON, context, pythonSettings, formatOutChannel);
 
-    //Enable indentAction
+    // Enable indentAction
     vscode.languages.setLanguageConfiguration(PYTHON.language, {
         onEnterRules: [
             {

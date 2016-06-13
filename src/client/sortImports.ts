@@ -3,7 +3,7 @@
 import * as vscode from "vscode";
 import * as sortProvider from "./providers/importSortProvider";
 
-export function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext, outChannel: vscode.OutputChannel) {
     let rootDir = context.asAbsolutePath(".");
     let disposable = vscode.commands.registerCommand("python.sortImports", () => {
         let activeEditor = vscode.window.activeTextEditor;
@@ -21,6 +21,8 @@ export function activate(context: vscode.ExtensionContext) {
             });
         }).catch(error => {
             let message = typeof error === "string" ? error : (error.message ? error.message : error);
+            outChannel.appendLine(error);
+            outChannel.show();
             vscode.window.showErrorMessage(message);
         });
     });

@@ -1,11 +1,11 @@
-'use strict';
+"use strict";
 
-import * as vscode from 'vscode';
-import * as path from 'path';
-import {BaseFormatter} from './baseFormatter';
-import * as settings from './../common/configSettings';
-import {sendCommand} from './../common/childProc';
-import * as fs from 'fs';
+import * as vscode from "vscode";
+import * as path from "path";
+import {BaseFormatter} from "./baseFormatter";
+import * as settings from "./../common/configSettings";
+import {sendCommand} from "./../common/childProc";
+import * as fs from "fs";
 import {getTextEditsFromPatch} from "./../common/editor";
 
 export class YapfFormatter extends BaseFormatter {

@@ -1,8 +1,8 @@
-'use strict';
+"use strict";
 
-import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+import * as vscode from "vscode";
+import * as path from "path";
+import * as fs from "fs";
 
 export interface IPythonSettings {
     pythonPath: string;
@@ -26,7 +26,7 @@ export interface IPylintCategorySeverity {
 }
 export interface ILintingSettings {
     enabled: boolean;
-    prospectorEnabled: boolean,
+    prospectorEnabled: boolean;
     pylintEnabled: boolean;
     pep8Enabled: boolean;
     flake8Enabled: boolean;
@@ -70,11 +70,11 @@ export class PythonSettings implements IPythonSettings {
         return PythonSettings.pythonSettings;
     }
     private initializeSettings() {
-        var pythonSettings = vscode.workspace.getConfiguration("python");
+        let pythonSettings = vscode.workspace.getConfiguration("python");
         this.pythonPath = pythonSettings.get<string>("pythonPath");
         this.devOptions = pythonSettings.get<any[]>("devOptions");
         this.devOptions = Array.isArray(this.devOptions) ? this.devOptions : [];
-        var lintingSettings = pythonSettings.get<ILintingSettings>("linting");
+        let lintingSettings = pythonSettings.get<ILintingSettings>("linting");
         if (this.linting) {
             Object.assign<ILintingSettings, ILintingSettings>(this.linting, lintingSettings);
         }
@@ -82,7 +82,7 @@ export class PythonSettings implements IPythonSettings {
             this.linting = lintingSettings;
         }
 
-        var formattingSettings = pythonSettings.get<IFormattingSettings>("formatting");
+        let formattingSettings = pythonSettings.get<IFormattingSettings>("formatting");
         if (this.formatting) {
             Object.assign<IFormattingSettings, IFormattingSettings>(this.formatting, formattingSettings);
         }
@@ -90,7 +90,7 @@ export class PythonSettings implements IPythonSettings {
             this.formatting = formattingSettings;
         }
 
-        var autoCompleteSettings = pythonSettings.get<IAutoCompeteSettings>("autoComplete");
+        let autoCompleteSettings = pythonSettings.get<IAutoCompeteSettings>("autoComplete");
         if (this.autoComplete) {
             Object.assign<IAutoCompeteSettings, IAutoCompeteSettings>(this.autoComplete, autoCompleteSettings);
         }
@@ -98,7 +98,7 @@ export class PythonSettings implements IPythonSettings {
             this.autoComplete = autoCompleteSettings;
         }
 
-        var unitTestSettings = pythonSettings.get<IUnitTestSettings>("unitTest");
+        let unitTestSettings = pythonSettings.get<IUnitTestSettings>("unitTest");
         if (this.unitTest) {
             Object.assign<IUnitTestSettings, IUnitTestSettings>(this.unitTest, unitTestSettings);
         }

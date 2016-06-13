@@ -21,8 +21,8 @@ export abstract class BaseFormatter {
     public abstract formatDocument(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken): Thenable<vscode.TextEdit[]>;
 
     protected provideDocumentFormattingEdits(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken, cmdLine: string): Thenable<vscode.TextEdit[]> {
-        //Todo: Save the contents of the file to a temporary file and format that instead saving the actual file
-        //This could unnecessarily trigger other behaviours
+        // Todo: Save the contents of the file to a temporary file and format that instead saving the actual file
+        // This could unnecessarily trigger other behaviours
         return document.save().then(saved => {
             let filePath = document.uri.fsPath;
             if (!fs.existsSync(filePath)) {
