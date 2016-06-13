@@ -70,10 +70,30 @@ export class TabsTitleControl extends TitleControl {
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 		this.titleContainer.appendChild(this.tabsContainer);
 
+		// Drag over
+		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			const target = e.target;
+			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
+				DOM.addClass(this.tabsContainer, 'dropfeedback');
+			}
+		}));
+
+		// Drag leave
+		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		}));
+
+		// Drag end
+		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+		}));
+
 		// Drop onto tabs container
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+
 			const target = e.target;
-			if (target instanceof HTMLElement && target.className === 'tabs-container') {
+			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				const group = this.context;
 				if (group) {
 					const identifier = this.stringToId(e.dataTransfer.getData('text'));

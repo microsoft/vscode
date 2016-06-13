@@ -45,14 +45,17 @@
 	opacity: 1;
 }
 
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
 	background-color: #DDECFF;
 }
 
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
 	background-color: #383B3D;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
 	background: none !important;
 	border: 1px dashed #f38518;
