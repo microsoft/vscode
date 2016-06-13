@@ -27,7 +27,7 @@ import Tree = require('vs/base/parts/tree/browser/tree');
 
 export class ToggleProblemsPanelAction extends TogglePanelAction {
 
-	public static ID:string = 'workbench.action.markers.panel.toggle';
+	public static ID:string = 'workbench.actions.view.problems';
 
 	constructor(id: string, label: string,
 		@IPartService private partService: IPartService,
@@ -64,7 +64,7 @@ export class CollapseAllAction extends TreeCollapseAction {
 export class FilterAction extends Action {
 
 	constructor(private markersPanel: MarkersPanel) {
-		super('workbench.markers.panel.action.filter', Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
+		super('workbench.actions.problems.filter', Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
 	}
 
 }

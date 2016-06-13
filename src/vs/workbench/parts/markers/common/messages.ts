@@ -11,7 +11,7 @@ import { IMarker } from 'vs/platform/markers/common/markers';
 export default class Messages {
 
 	public static MARKERS_PANEL_VIEW_CATEGORY:string= nls.localize('viewCategory', "View");
-	public static MARKERS_PANEL_TOGGLE_LABEL:string= nls.localize('markers.panel.toggle.label', "Toggle Problems");
+	public static MARKERS_PANEL_TOGGLE_LABEL:string= nls.localize('problems.view.show.label', "Show Problems");
 
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE:string= nls.localize('problems.panel.configuration.title', "Problems view configuration");
 	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL:string= nls.localize('problems.panel.configuration.autoreveal', "Controls if Problems view should automatically reveal files when opening them");
