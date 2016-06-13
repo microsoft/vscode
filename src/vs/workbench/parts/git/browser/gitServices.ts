@@ -393,7 +393,8 @@ export class GitService extends ee.EventEmitter
 	private inputCache: EditorInputCache;
 	private toDispose: lifecycle.IDisposable[];
 	private needsRefresh: boolean;
-	private refreshDelayer: async.ThrottledDelayer<void>;
+	private statusDelayer: async.ThrottledDelayer<void>;
+	private reactiveStatusDelayer: async.PeriodThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
 	allowHugeRepositories: boolean;
 
@@ -428,7 +429,8 @@ export class GitService extends ee.EventEmitter
 		this.toDispose = [];
 
 		this.needsRefresh = false;
-		this.refreshDelayer = new async.PeriodThrottledDelayer<void>(500, 10000);
+		this.statusDelayer = new async.ThrottledDelayer<void>(500);
+		this.reactiveStatusDelayer = new async.PeriodThrottledDelayer<void>(500, 10000);
 		this.autoFetcher = this.instantiationService.createInstance(AutoFetcher, this);
 		this.allowHugeRepositories = false;
 
@@ -436,7 +438,7 @@ export class GitService extends ee.EventEmitter
 
 		this.inputCache = this.instantiationService.createInstance(EditorInputCache, this);
 
-		this.triggerStatus(true); // trigger initial status
+		this.triggerStatus(); // trigger initial status
 
 		if (!storageService.getBoolean(IgnoreOldGitStorageKey, StorageScope.GLOBAL, false)) {
 			this.raw.serviceState().done(state => {
@@ -483,25 +485,10 @@ export class GitService extends ee.EventEmitter
 			this.allowHugeRepositories = config.allowLargeRepositories;
 
 			if (this.allowHugeRepositories) {
-				this.triggerStatus(true);
+				this.triggerStatus();
 			}
 		}));
 		this.lifecycleService.onShutdown(this.dispose, this);
-	}
-
-	private triggerStatus(force: boolean = false): void {
-		if (this.isInitialized() && !this.isIdle() && !force) {
-			this.refreshDelayer.cancel();
-			return;
-		}
-
-		var onError = async.once<any, void>(e => {
-			if (!errors.isPromiseCanceledError(e)) {
-				this.messageService.show(severity.Error, e);
-			}
-		});
-
-		this.refreshDelayer.trigger(() => this.status()).done(null, onError);
 	}
 
 	private onTextFileChange(e:filesCommon.TextFileChangeEvent): void {
@@ -563,6 +550,10 @@ export class GitService extends ee.EventEmitter
 	}
 
 	public status(): winjs.Promise {
+		return this.statusDelayer.trigger(() => this._status());
+	}
+
+	private _status(): winjs.Promise {
 		const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
 
 		if (this.allowHugeRepositories || config.allowLargeRepositories) {
@@ -580,6 +571,16 @@ export class GitService extends ee.EventEmitter
 			}
 
 			return this.run(git.ServiceOperations.STATUS, () => this.raw.status());
+		});
+	}
+
+	private triggerStatus(): void {
+		this.reactiveStatusDelayer.trigger(() => this.status()).done(null, e => {
+			if (errors.isPromiseCanceledError(e)) {
+				return;
+			}
+
+			this.messageService.show(severity.Error, e);
 		});
 	}
 
