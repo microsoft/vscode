@@ -110,6 +110,7 @@
 			target.contentDocument.write(newDocument.documentElement.innerHTML);
 			target.contentDocument.close();
 
+			ipcRenderer.sendToHost('did-set-content');
 		});
 
 		// forward messages from the embedded iframe

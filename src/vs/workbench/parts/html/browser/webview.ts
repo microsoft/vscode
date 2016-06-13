@@ -55,6 +55,7 @@ export default class Webview {
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
 		this._webview.style.outline = '0';
+		this._webview.style.opacity = '0';
 		this._webview.autoSize = 'on';
 		this._webview.nodeintegration = 'on';
 		this._webview.src = require.toUrl('./webview.html');
@@ -83,6 +84,12 @@ export default class Webview {
 				if (event.channel === 'did-click-link') {
 					let [uri] = event.args;
 					onDidClickLink(URI.parse(uri));
+					return;
+				}
+
+				if (event.channel === 'did-set-content') {
+					this._webview.style.opacity = '';
+					return;
 				}
 			})
 		];
