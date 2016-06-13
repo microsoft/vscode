@@ -29,7 +29,7 @@ import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
+export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor{
 
 	public onMouseUp(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.MouseUp, listener);
@@ -121,10 +121,12 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
 		let oldTheme = this._configuration.editor.viewInfo.theme;
+		let oldBlame = this._configuration.editor.viewInfo.gitBlame;
 		super.updateOptions(newOptions);
 		let newTheme = this._configuration.editor.viewInfo.theme;
+		let newBlame = this._configuration.editor.viewInfo.gitBlame;
 
-		if (oldTheme !== newTheme) {
+		if (oldTheme !== newTheme || oldBlame !== newBlame) {
 			this.render();
 		}
 	}
@@ -414,7 +416,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		var layoutInfo = this._configuration.editor.layoutInfo;
 
 		var top = helper.getVerticalOffsetForPosition(position.lineNumber, position.column) - helper.getScrollTop();
-		var left = helper.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - helper.getScrollLeft();
+		var left = helper.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.gitBlameWidth + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - helper.getScrollLeft();
 
 		return {
 			top: top,

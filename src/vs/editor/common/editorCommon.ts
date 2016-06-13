@@ -18,6 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {IBlameData} from 'vs/workbench/parts/git/common/git';
 
 /**
  * @internal
@@ -204,6 +205,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	lineNumbers?:any;
+	/**
+	 * Control the rendering of git blame.
+	 * Defaults to false.
+	 */
+	showGitBlame?:boolean;
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -599,6 +605,7 @@ export class InternalEditorViewOptions {
 	rulers: number[];
 	ariaLabel: string;
 	lineNumbers:any;
+	gitBlame:any;
 	selectOnLineNumbers:boolean;
 	glyphMargin:boolean;
 	revealHorizontalRightPadding:number;
@@ -624,6 +631,7 @@ export class InternalEditorViewOptions {
 		rulers: number[];
 		ariaLabel: string;
 		lineNumbers:any;
+		gitBlame:any;
 		selectOnLineNumbers:boolean;
 		glyphMargin:boolean;
 		revealHorizontalRightPadding:number;
@@ -645,6 +653,7 @@ export class InternalEditorViewOptions {
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
 		this.lineNumbers = source.lineNumbers;
+		this.gitBlame = source.gitBlame;
 		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
 		this.glyphMargin = Boolean(source.glyphMargin);
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
@@ -700,6 +709,7 @@ export class InternalEditorViewOptions {
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
 			&& this.lineNumbers === other.lineNumbers
+			&& this.gitBlame === other.gitBlame
 			&& this.selectOnLineNumbers === other.selectOnLineNumbers
 			&& this.glyphMargin === other.glyphMargin
 			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
@@ -2076,11 +2086,13 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	 */
 	getEditableRange(): Range;
 }
-
+export interface IGitBlameModel {
+	blameData?: IBlameData[];
+}
 /**
  * A model.
  */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel, IGitBlameModel {
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
@@ -2680,6 +2692,19 @@ export class EditorLayoutInfo {
 	glyphMarginHeight:number;
 
 	/**
+	 * Left position for the git blame.
+	 */
+	gitBlameLeft:number;
+	/**
+	 * The width of the git blame.
+	 */
+	gitBlameWidth:number;
+	/**
+	 * The height of the git blame.
+	 */
+	gitBlameHeight:number;
+
+	/**
 	 * Left position for the line numbers.
 	 */
 	lineNumbersLeft:number;
@@ -2744,6 +2769,9 @@ export class EditorLayoutInfo {
 		lineNumbersLeft:number;
 		lineNumbersWidth:number;
 		lineNumbersHeight:number;
+		gitBlameLeft:number;
+		gitBlameWidth:number;
+		gitBlameHeight:number;
 		decorationsLeft:number;
 		decorationsWidth:number;
 		decorationsHeight:number;
@@ -2762,6 +2790,9 @@ export class EditorLayoutInfo {
 		this.lineNumbersLeft = source.lineNumbersLeft|0;
 		this.lineNumbersWidth = source.lineNumbersWidth|0;
 		this.lineNumbersHeight = source.lineNumbersHeight|0;
+		this.gitBlameLeft = source.gitBlameLeft|0;
+		this.gitBlameWidth = source.gitBlameWidth|0;
+		this.gitBlameHeight = source.gitBlameHeight|0;
 		this.decorationsLeft = source.decorationsLeft|0;
 		this.decorationsWidth = source.decorationsWidth|0;
 		this.decorationsHeight = source.decorationsHeight|0;
@@ -2786,6 +2817,9 @@ export class EditorLayoutInfo {
 			&& this.lineNumbersLeft === other.lineNumbersLeft
 			&& this.lineNumbersWidth === other.lineNumbersWidth
 			&& this.lineNumbersHeight === other.lineNumbersHeight
+			&& this.gitBlameLeft === other.gitBlameLeft
+			&& this.gitBlameWidth === other.gitBlameWidth
+			&& this.gitBlameHeight === other.gitBlameHeight
 			&& this.decorationsLeft === other.decorationsLeft
 			&& this.decorationsWidth === other.decorationsWidth
 			&& this.decorationsHeight === other.decorationsHeight
@@ -2907,6 +2941,10 @@ export enum MouseTargetType {
 	 * Mouse is on top of the line numbers
 	 */
 	GUTTER_LINE_NUMBERS,
+	/**
+	 * Mouse is on top of the git blame annotation
+	 */
+	GUTTER_GIT_BLAME,
 	/**
 	 * Mouse is on top of the line decorations
 	 */

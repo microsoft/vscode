@@ -32,6 +32,7 @@ export interface IViewModel extends IEventEmitter {
 	getLineTokens(lineNumber:number): ViewLineTokens;
 	getDecorationsViewportData(startLineNumber:number, endLineNumber:number): IDecorationsViewportData;
 	getLineRenderLineNumber(lineNumber:number): string;
+	getLineBlameData(lineNumber:number): string;
 	getAllDecorations(): IModelDecoration[];
 	getEOL(): string;
 	getValueInRange(range:IRange, eol:EndOfLinePreference): string;

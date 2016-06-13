@@ -22,6 +22,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ModesContentHoverWidget} from './modesContentHover';
+import {GitBlameHoverWidget} from './gitBlameHover';
 import {ModesGlyphHoverWidget} from './modesGlyphHover';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
@@ -34,6 +35,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;
+	private _gitBlameHoverWidget: GitBlameHoverWidget;
 
 	static getModesHoverController(editor: editorCommon.ICommonCodeEditor): ModesHoverController {
 		return <ModesHoverController>editor.getContribution(ModesHoverController.ID);
@@ -62,12 +64,14 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 
 			this._contentWidget = new ModesContentHoverWidget(editor, openerService, modeService);
 			this._glyphWidget = new ModesGlyphHoverWidget(editor);
+			this._gitBlameHoverWidget = new GitBlameHoverWidget(editor);
 		}
 	}
 
 	private _onModelDecorationsChanged(): void {
 		this._contentWidget.onModelDecorationsChanged();
 		this._glyphWidget.onModelDecorationsChanged();
+		this._gitBlameHoverWidget.onModelDecorationsChanged();
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
@@ -100,12 +104,23 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 			return;
 		}
 
+		if (targetType === editorCommon.MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === GitBlameHoverWidget.ID && !mouseEvent.event[stopKey]) {
+			// mouse moved on top of overlay hover widget
+			return;
+		}
+
 		if (this._editor.getConfiguration().contribInfo.hover && targetType === editorCommon.MouseTargetType.CONTENT_TEXT) {
 			this._glyphWidget.hide();
+			this._gitBlameHoverWidget.hide();
 			this._contentWidget.startShowingAt(mouseEvent.target.range, false);
 		} else if (targetType === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this._contentWidget.hide();
+			this._gitBlameHoverWidget.hide();
 			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+		} else if (targetType === editorCommon.MouseTargetType.GUTTER_GIT_BLAME) {
+			this._contentWidget.hide();
+			this._glyphWidget.hide();
+			this._gitBlameHoverWidget.startShowingAt(mouseEvent.target.position.lineNumber);
 		} else {
 			this._hideWidgets();
 		}
@@ -122,6 +137,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	private _hideWidgets(): void {
 		this._glyphWidget.hide();
 		this._contentWidget.hide();
+		this._gitBlameHoverWidget.hide();
 	}
 
 	public showContentHover(range: Range, focus: boolean): void {
@@ -141,6 +157,10 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 		if (this._contentWidget) {
 			this._contentWidget.dispose();
 			this._contentWidget = null;
+		}
+		if (this._gitBlameHoverWidget) {
+			this._gitBlameHoverWidget.dispose();
+			this._gitBlameHoverWidget = null;
 		}
 	}
 }

@@ -14,7 +14,7 @@ import paths = require('vs/base/common/paths');
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
 import {Action} from 'vs/base/common/actions';
 import {Scope} from 'vs/workbench/common/memento';
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
+import {IEditorOptions, IModel} from 'vs/editor/common/editorCommon';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -37,6 +37,10 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {IGitService} from 'vs/workbench/parts/git/common/git';
+import git = require('vs/workbench/parts/git/common/git');
+
 const LEGACY_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState'; // TODO@Ben migration
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -52,6 +56,7 @@ interface ITextEditorViewState {
 export class TextFileEditor extends BaseTextEditor {
 
 	public static ID = TEXT_FILE_EDITOR_ID;
+	private gitBlameScheduler: RunOnceScheduler;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -60,6 +65,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IGitService private gitService: IGitService,
 		@IStorageService storageService: IStorageService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -75,6 +81,9 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
+		this.toUnbind.push(this.gitBlameScheduler = new RunOnceScheduler(() => {
+			this.updateBlameData();
+		}, 200));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -86,6 +95,20 @@ export class TextFileEditor extends BaseTextEditor {
 
 	public getTitle(): string {
 		return this.getInput() ? this.getInput().getName() : nls.localize('textFileEditor', "Text File Editor");
+	}
+
+	private updateBlameData() {
+		let editorOptions = this.contextService.getOptions().editor;
+		let showGitBlame = editorOptions && editorOptions.showGitBlame;
+		if (showGitBlame && this.getControl() && this.getControl().getModel()) {
+			let model = (<IModel>this.getControl().getModel());
+			let uri = model.uri;
+			let relativePath = this.contextService.toWorkspaceRelativePath(uri);
+			this.gitService.blame(relativePath.toString(), model.getLinesContent().join(model.getEOL())).then((e: any) => {
+				model.blameData = <git.IBlameData[]> e;
+				(<any>this.getControl()).getView().render(true, true);
+			});
+		}
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
@@ -153,6 +176,9 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// stop the event
 			setModelEvent.stop();
+
+			this.gitBlameScheduler.schedule();
+			textFileModel.textEditorModel.onDidChangeContent(() => this.gitBlameScheduler.schedule());
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
 			let optionsGotApplied = false;
@@ -269,6 +295,7 @@ export class TextFileEditor extends BaseTextEditor {
 		let inputName = input && input.getName();
 		options.ariaLabel = inputName ? nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName) : nls.localize('fileEditorAriaLabel', "Text file editor.");
 
+		this.gitBlameScheduler.schedule();
 		return options;
 	}
 

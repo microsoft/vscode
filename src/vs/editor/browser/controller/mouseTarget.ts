@@ -54,6 +54,9 @@ class MouseTarget implements IMouseTarget {
 		if (this.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 			return 'GUTTER_LINE_NUMBERS';
 		}
+		if (this.type === MouseTargetType.GUTTER_GIT_BLAME) {
+			return 'GUTTER_GIT_BLAME';
+		}
 		if (this.type === MouseTargetType.GUTTER_LINE_DECORATIONS) {
 			return 'GUTTER_LINE_DECORATIONS';
 		}
@@ -294,7 +297,12 @@ export class MouseTargetFactory {
 
 		if (REGEX.IS_CHILD_OF_VIEW_OVERLAYS.test(path)) {
 			var offset = Math.abs(e.posx - editorContent.left);
+			if (offset <= layoutInfo.gitBlameWidth) {
+				// On the git blame annotation
+				return this.createMouseTargetFromGitBlame(t, mouseVerticalOffset, mouseColumn);
+			}
 
+			offset -= layoutInfo.gitBlameWidth;
 			if (offset <= layoutInfo.glyphMarginWidth) {
 				// On the glyph margin
 				return this.createMouseTargetFromGlyphMargin(t, mouseVerticalOffset, mouseColumn);
@@ -718,6 +726,16 @@ export class MouseTargetFactory {
 
 		var res = this._getFullLineRangeAtCoord(mouseVerticalOffset);
 		return new MouseTarget(target, MouseTargetType.GUTTER_GLYPH_MARGIN, mouseColumn, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
+	}
+
+	private createMouseTargetFromGitBlame(target: Element, mouseVerticalOffset: number, mouseColumn:number): MouseTarget {
+		var viewZoneData = this._getZoneAtCoord(mouseVerticalOffset);
+		if (viewZoneData) {
+			return new MouseTarget(target, MouseTargetType.GUTTER_GIT_BLAME, mouseColumn, viewZoneData.position, null, viewZoneData);
+		}
+
+		var res = this._getFullLineRangeAtCoord(mouseVerticalOffset);
+		return new MouseTarget(target, MouseTargetType.GUTTER_GIT_BLAME, mouseColumn, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
 	}
 
 	private createMouseTargetFromScrollbar(target: Element, mouseVerticalOffset: number, mouseColumn:number): MouseTarget {

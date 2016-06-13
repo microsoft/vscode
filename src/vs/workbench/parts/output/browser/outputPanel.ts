@@ -80,6 +80,7 @@ export class OutputPanel extends StringEditor {
 		const options = super.getCodeEditorOptions();
 		options.wrappingColumn = 0;				// all output editors wrap
 		options.lineNumbers = false;			// all output editors hide line numbers
+		options.showGitBlame = false;
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
 		options.rulers = [];

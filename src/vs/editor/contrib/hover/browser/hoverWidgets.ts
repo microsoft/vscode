@@ -173,7 +173,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		var topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
 		var editorScrollTop = this._editor.getScrollTop();
 
-		this._domNode.style.left = (editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth) + 'px';
+		this._domNode.style.left = (editorLayout.gitBlameLeft + editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth) + 'px';
 		this._domNode.style.top = (topForLineNumber - editorScrollTop) + 'px';
 	}
 

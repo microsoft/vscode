@@ -10,7 +10,7 @@ import {EditorLayoutProvider, IEditorLayoutProviderOpts} from 'vs/editor/common/
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
-	function doTest(input:IEditorLayoutProviderOpts, expected:EditorLayoutInfo): void {
+	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
 		let actual = EditorLayoutProvider.compute(input);
 		assert.deepEqual(actual, expected);
 	}
@@ -22,6 +22,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			showGlyphMargin: false,
 			lineHeight: 16,
 			showLineNumbers: false,
+			showGitBlame: false,
 			lineNumbersMinChars: 0,
 			lineDecorationsWidth: 10,
 			maxDigitWidth: 10,
@@ -31,24 +32,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:1000,
-			height:800,
+			width: 1000,
+			height: 800,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 800,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:800,
+			glyphMarginHeight: 800,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:0,
-			lineNumbersHeight:800,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 800,
 
-			decorationsLeft:0,
-			decorationsWidth:10,
-			decorationsHeight:800,
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 800,
 
-			contentLeft:10,
-			contentWidth:990,
-			contentHeight:800,
+			contentLeft: 10,
+			contentWidth: 990,
+			contentHeight: 800,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -69,6 +74,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			showGlyphMargin: false,
 			lineHeight: 16,
 			showLineNumbers: false,
+			showGitBlame: false,
 			lineNumbersMinChars: 0,
 			lineDecorationsWidth: 10,
 			maxDigitWidth: 10,
@@ -78,24 +84,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 13,
 			verticalScrollbarHasArrows: true
 		}, new EditorLayoutInfo({
-			width:1000,
-			height:800,
+			width: 1000,
+			height: 800,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 800,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:800,
+			glyphMarginHeight: 800,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:0,
-			lineNumbersHeight:800,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 800,
 
-			decorationsLeft:0,
-			decorationsWidth:10,
-			decorationsHeight:800,
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 800,
 
-			contentLeft:10,
-			contentWidth:990,
-			contentHeight:800,
+			contentLeft: 10,
+			contentWidth: 990,
+			contentHeight: 800,
 
 			verticalScrollbarWidth: 11,
 			horizontalScrollbarHeight: 12,
@@ -116,6 +126,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			showGlyphMargin: false,
 			lineHeight: 16,
 			showLineNumbers: false,
+			showGitBlame: false,
 			lineNumbersMinChars: 0,
 			lineDecorationsWidth: 10,
 			maxDigitWidth: 10,
@@ -125,24 +136,27 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:800,
+			width: 900,
+			height: 800,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 800,
 
-			glyphMarginLeft:0,
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:800,
+			glyphMarginHeight: 800,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:0,
-			lineNumbersHeight:800,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 800,
 
-			decorationsLeft:0,
-			decorationsWidth:10,
-			decorationsHeight:800,
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 800,
 
-			contentLeft:10,
-			contentWidth:890,
-			contentHeight:800,
+			contentLeft: 10,
+			contentWidth: 890,
+			contentHeight: 800,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -163,6 +177,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			showGlyphMargin: false,
 			lineHeight: 16,
 			showLineNumbers: false,
+			showGitBlame: false,
 			lineNumbersMinChars: 0,
 			lineDecorationsWidth: 10,
 			maxDigitWidth: 10,
@@ -172,24 +187,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:900,
+			width: 900,
+			height: 900,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 900,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:900,
+			glyphMarginHeight: 900,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:0,
-			lineNumbersHeight:900,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 900,
 
-			decorationsLeft:0,
-			decorationsWidth:10,
-			decorationsHeight:900,
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 900,
 
-			contentLeft:10,
-			contentWidth:890,
-			contentHeight:900,
+			contentLeft: 10,
+			contentWidth: 890,
+			contentHeight: 900,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -210,6 +229,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			showGlyphMargin: false,
 			lineHeight: 16,
 			showLineNumbers: false,
+			showGitBlame: false,
 			lineNumbersMinChars: 5,
 			lineDecorationsWidth: 10,
 			maxDigitWidth: 10,
@@ -219,24 +239,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:900,
+			width: 900,
+			height: 900,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 900,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:900,
+			glyphMarginHeight: 900,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:0,
-			lineNumbersHeight:900,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 0,
+			lineNumbersHeight: 900,
 
-			decorationsLeft:0,
-			decorationsWidth:10,
-			decorationsHeight:900,
+			decorationsLeft: 0,
+			decorationsWidth: 10,
+			decorationsHeight: 900,
 
-			contentLeft:10,
-			contentWidth:890,
-			contentHeight:900,
+			contentLeft: 10,
+			contentWidth: 890,
+			contentHeight: 900,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -255,6 +279,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			outerWidth: 900,
 			outerHeight: 900,
 			showGlyphMargin: false,
+			showGitBlame: false,
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
@@ -266,24 +291,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:900,
+			width: 900,
+			height: 900,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 900,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:900,
+			glyphMarginHeight: 900,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:50,
-			lineNumbersHeight:900,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 50,
+			lineNumbersHeight: 900,
 
-			decorationsLeft:50,
-			decorationsWidth:10,
-			decorationsHeight:900,
+			decorationsLeft: 50,
+			decorationsWidth: 10,
+			decorationsHeight: 900,
 
-			contentLeft:60,
-			contentWidth:840,
-			contentHeight:900,
+			contentLeft: 60,
+			contentWidth: 840,
+			contentHeight: 900,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -302,6 +331,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			outerWidth: 900,
 			outerHeight: 900,
 			showGlyphMargin: false,
+			showGitBlame: false,
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
@@ -313,24 +343,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:900,
+			width: 900,
+			height: 900,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 900,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:900,
+			glyphMarginHeight: 900,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:50,
-			lineNumbersHeight:900,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 50,
+			lineNumbersHeight: 900,
 
-			decorationsLeft:50,
-			decorationsWidth:10,
-			decorationsHeight:900,
+			decorationsLeft: 50,
+			decorationsWidth: 10,
+			decorationsHeight: 900,
 
-			contentLeft:60,
-			contentWidth:840,
-			contentHeight:900,
+			contentLeft: 60,
+			contentWidth: 840,
+			contentHeight: 900,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -349,6 +383,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			outerWidth: 900,
 			outerHeight: 900,
 			showGlyphMargin: false,
+			showGitBlame: false,
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
@@ -360,24 +395,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:900,
+			width: 900,
+			height: 900,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 900,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:900,
+			glyphMarginHeight: 900,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:60,
-			lineNumbersHeight:900,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 60,
+			lineNumbersHeight: 900,
 
-			decorationsLeft:60,
-			decorationsWidth:10,
-			decorationsHeight:900,
+			decorationsLeft: 60,
+			decorationsWidth: 10,
+			decorationsHeight: 900,
 
-			contentLeft:70,
-			contentWidth:830,
-			contentHeight:900,
+			contentLeft: 70,
+			contentWidth: 830,
+			contentHeight: 900,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -396,6 +435,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			outerWidth: 900,
 			outerHeight: 900,
 			showGlyphMargin: false,
+			showGitBlame: false,
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
@@ -407,24 +447,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:900,
+			width: 900,
+			height: 900,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 900,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:900,
+			glyphMarginHeight: 900,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:30,
-			lineNumbersHeight:900,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 30,
+			lineNumbersHeight: 900,
 
-			decorationsLeft:30,
-			decorationsWidth:10,
-			decorationsHeight:900,
+			decorationsLeft: 30,
+			decorationsWidth: 10,
+			decorationsHeight: 900,
 
-			contentLeft:40,
-			contentWidth:860,
-			contentHeight:900,
+			contentLeft: 40,
+			contentWidth: 860,
+			contentHeight: 900,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -443,6 +487,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			outerWidth: 900,
 			outerHeight: 900,
 			showGlyphMargin: false,
+			showGitBlame: false,
 			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
@@ -454,24 +499,28 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
 		}, new EditorLayoutInfo({
-			width:900,
-			height:900,
+			width: 900,
+			height: 900,
 
-			glyphMarginLeft:0,
+			gitBlameLeft: 0,
+			gitBlameWidth: 0,
+			gitBlameHeight: 900,
+
+			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
-			glyphMarginHeight:900,
+			glyphMarginHeight: 900,
 
-			lineNumbersLeft:0,
-			lineNumbersWidth:30,
-			lineNumbersHeight:900,
+			lineNumbersLeft: 0,
+			lineNumbersWidth: 30,
+			lineNumbersHeight: 900,
 
-			decorationsLeft:30,
-			decorationsWidth:10,
-			decorationsHeight:900,
+			decorationsLeft: 30,
+			decorationsWidth: 10,
+			decorationsHeight: 900,
 
-			contentLeft:40,
-			contentWidth:860,
-			contentHeight:900,
+			contentLeft: 40,
+			contentWidth: 860,
+			contentHeight: 900,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,

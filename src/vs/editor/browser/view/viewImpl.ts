@@ -28,6 +28,7 @@ import {CurrentLineHighlightOverlay} from 'vs/editor/browser/viewParts/currentLi
 import {DecorationsOverlay} from 'vs/editor/browser/viewParts/decorations/decorations';
 import {GlyphMarginOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import {LineNumbersOverlay} from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import {GitBlameOverlay} from 'vs/editor/browser/viewParts/gitblame/gitBlameOverlay';
 import {ViewLines} from 'vs/editor/browser/viewParts/lines/viewLines';
 import {LinesDecorationsOverlay} from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
 import {ViewOverlayWidgets} from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
@@ -238,6 +239,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		var marginViewOverlays = new MarginViewOverlays(this._context, this.layoutProvider);
 		this.viewParts.push(marginViewOverlays);
+		marginViewOverlays.addDynamicOverlay(new GitBlameOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
