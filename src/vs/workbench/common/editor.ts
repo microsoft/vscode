@@ -665,6 +665,7 @@ export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
-		showTabs: boolean;
+		showEditorTabs: boolean;
+		previewEditors: boolean;
 	};
 }

@@ -20,10 +20,11 @@ import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, ConfirmResult, EditorInputEvent} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, POSITIONS, Direction} from 'vs/platform/editor/common/editor';
@@ -80,6 +81,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private sideBySideControl: ISideBySideEditorControl;
 	private memento: any;
 	private stacks: EditorStacksModel;
+	private previewEditors: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorOpening: Emitter<EditorInputEvent>;
@@ -102,6 +104,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService,
 		@IPartService private partService: IPartService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
@@ -131,6 +134,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private registerListeners(): void {
 		this.toUnbind.push(this.stacks.onEditorDirty(identifier => this.onEditorDirty(identifier)));
 		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		this.previewEditors = configuration.workbench.previewEditors;
 	}
 
 	private onEditorDirty(identifier: EditorIdentifier): void {
@@ -213,7 +221,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
 		// stacks model gets updated if any of the UI updating fails with an error.
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
-		const pinned = (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
+		const pinned = !this.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
 		group.openEditor(input, { active: true, pinned, index: options && options.index });
 
 		// Progress Monitor & Ref Counting

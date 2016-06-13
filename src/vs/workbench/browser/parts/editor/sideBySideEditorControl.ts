@@ -161,7 +161,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const titleControl = this.titleAreaControl[position];
 			if (titleControl) {
 				const usingTabs = (titleControl instanceof TabsTitleControl);
-				const useTabs = configuration.workbench.showTabs;
+				const useTabs = configuration.workbench.showEditorTabs;
 				if (usingTabs !== useTabs) {
 
 					// Dispose old
@@ -751,7 +751,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private createTitleControl(position: Position): void {
-		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showTabs;
+		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showEditorTabs;
 
 		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
 		this.titleAreaControl[position].create($(this.titleContainer[position]));

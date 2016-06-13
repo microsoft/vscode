@@ -404,10 +404,15 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench configuration"),
 	'type': 'object',
 	'properties': {
-		'workbench.showTabs': {
+		'workbench.showEditorTabs': {
 			'type': 'boolean',
-			'description': nls.localize('showTabs', "Controls if opened editors should show in tabs or not."),
+			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 			'default': false
+		},
+		'workbench.previewEditors': {
+			'type': 'boolean',
+			'description': nls.localize('previewEditors', "Controls if opened editors show as preview until getting pinned."),
+			'default': true
 		}
 	}
 });
