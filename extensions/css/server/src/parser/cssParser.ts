@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import scanner = require('./cssScanner');
-import nodes = require('./cssNodes');
-import errors = require('./cssErrors');
-import languageFacts = require('../services/languageFacts');
+import {TokenType, Scanner, IToken} from './cssScanner';
+import * as nodes from './cssNodes';
+import {ParseError, CSSIssueType} from './cssErrors';
+import * as languageFacts from '../services/languageFacts';
 import {TextDocument} from 'vscode-languageserver';
 
 export interface IMark {
-	prev: scanner.IToken;
-	curr: scanner.IToken;
+	prev: IToken;
+	curr: IToken;
 	pos: number;
 }
 
@@ -21,19 +21,19 @@ export interface IMark {
 /// </summary>
 export class Parser {
 
-	public scanner: scanner.Scanner;
-	public token: scanner.IToken;
-	public prevToken: scanner.IToken;
+	public scanner: Scanner;
+	public token: IToken;
+	public prevToken: IToken;
 
-	private lastErrorToken: scanner.IToken;
+	private lastErrorToken: IToken;
 
-	constructor(scnr: scanner.Scanner = new scanner.Scanner()) {
+	constructor(scnr: Scanner = new Scanner()) {
 		this.scanner = scnr;
 		this.token = null;
 		this.prevToken = null;
 	}
 
-	public peek(type: scanner.TokenType, text?: string, ignoreCase: boolean = true): boolean {
+	public peek(type: TokenType, text?: string, ignoreCase: boolean = true): boolean {
 		if (type !== this.token.type) {
 			return false;
 		}
@@ -47,7 +47,7 @@ export class Parser {
 		return true;
 	}
 
-	public peekRegExp(type: scanner.TokenType, regEx: RegExp): boolean {
+	public peekRegExp(type: TokenType, regEx: RegExp): boolean {
 		if (type !== this.token.type) {
 			return false;
 		}
@@ -77,7 +77,7 @@ export class Parser {
 		this.scanner.goBackTo(mark.pos);
 	}
 
-	public acceptOne(type: scanner.TokenType, text?: string[], ignoreCase: boolean = true): boolean {
+	public acceptOne(type: TokenType, text?: string[], ignoreCase: boolean = true): boolean {
 		for (let i = 0; i < text.length; i++) {
 			if (this.peek(type, text[i], ignoreCase)) {
 				this.consumeToken();
@@ -87,7 +87,7 @@ export class Parser {
 		return false;
 	}
 
-	public accept(type: scanner.TokenType, text?: string, ignoreCase: boolean = true): boolean {
+	public accept(type: TokenType, text?: string, ignoreCase: boolean = true): boolean {
 		if (this.peek(type, text, ignoreCase)) {
 			this.consumeToken();
 			return true;
@@ -95,7 +95,7 @@ export class Parser {
 		return false;
 	}
 
-	public resync(resyncTokens: scanner.TokenType[], resyncStopTokens: scanner.TokenType[]): boolean {
+	public resync(resyncTokens: TokenType[], resyncStopTokens: TokenType[]): boolean {
 		while (true) {
 			if (resyncTokens && resyncTokens.indexOf(this.token.type) !== -1) {
 				this.consumeToken();
@@ -103,7 +103,7 @@ export class Parser {
 			} else if (resyncStopTokens && resyncStopTokens.indexOf(this.token.type) !== -1) {
 				return true;
 			} else {
-				if (this.token.type === scanner.TokenType.EOF) {
+				if (this.token.type === TokenType.EOF) {
 					return false;
 				}
 				this.token = this.scanner.scan();
@@ -121,7 +121,7 @@ export class Parser {
 		return obj;
 	}
 
-	public finish<T extends nodes.Node>(node: T, error?: errors.CSSIssueType, resyncTokens?: scanner.TokenType[], resyncStopTokens?: scanner.TokenType[]): T {
+	public finish<T extends nodes.Node>(node: T, error?: CSSIssueType, resyncTokens?: TokenType[], resyncStopTokens?: TokenType[]): T {
 		// parseNumeric misuses error for boolean flagging (however the real error mustn't be a false)
 		// + nodelist offsets mustn't be modified, because there is a offset hack in rulesets for smartselection
 		if (!(node instanceof nodes.Nodelist)) {
@@ -139,7 +139,7 @@ export class Parser {
 		return node;
 	}
 
-	public markError<T extends nodes.Node>(node: T, error: errors.CSSIssueType, resyncTokens?: scanner.TokenType[], resyncStopTokens?: scanner.TokenType[]): void {
+	public markError<T extends nodes.Node>(node: T, error: CSSIssueType, resyncTokens?: TokenType[], resyncStopTokens?: TokenType[]): void {
 		if (this.token !== this.lastErrorToken) { // do not report twice on the same token
 			node.addIssue(new nodes.Marker(node, error, nodes.Level.Error, null, this.token.offset, this.token.len));
 			this.lastErrorToken = this.token;
@@ -189,31 +189,31 @@ export class Parser {
 					node.addChild(statement);
 					hasMatch = true;
 					inRecovery = false;
-					if (!this.peek(scanner.TokenType.EOF) && this._needsSemicolonAfter(statement) && !this.accept(scanner.TokenType.SemiColon)) {
-						this.markError(node, errors.ParseError.SemiColonExpected);
+					if (!this.peek(TokenType.EOF) && this._needsSemicolonAfter(statement) && !this.accept(TokenType.SemiColon)) {
+						this.markError(node, ParseError.SemiColonExpected);
 					}
 				}
-				while (this.accept(scanner.TokenType.SemiColon) || this.accept(scanner.TokenType.CDO) || this.accept(scanner.TokenType.CDC)) {
+				while (this.accept(TokenType.SemiColon) || this.accept(TokenType.CDO) || this.accept(TokenType.CDC)) {
 					// accept empty statements
 					hasMatch = true;
 					inRecovery = false;
 				}
 			} while (hasMatch);
 
-			if (this.peek(scanner.TokenType.EOF)) {
+			if (this.peek(TokenType.EOF)) {
 				break;
 			}
 
 			if (!inRecovery) {
-				if (this.peek(scanner.TokenType.AtKeyword)) {
-					this.markError(node, errors.ParseError.UnknownAtRule);
+				if (this.peek(TokenType.AtKeyword)) {
+					this.markError(node, ParseError.UnknownAtRule);
 				} else {
-					this.markError(node, errors.ParseError.RuleOrSelectorExpected);
+					this.markError(node, ParseError.RuleOrSelectorExpected);
 				}
 				inRecovery = true;
 			}
 			this.consumeToken();
-		} while (!this.peek(scanner.TokenType.EOF));
+		} while (!this.peek(TokenType.EOF));
 
 		return this.finish(node);
 	}
@@ -233,10 +233,10 @@ export class Parser {
 	public _tryParseRuleset(isNested: boolean): nodes.RuleSet {
 		let mark = this.mark();
 		if (this._parseSelector(isNested)) {
-			while (this.accept(scanner.TokenType.Comma) && this._parseSelector(isNested)) {
+			while (this.accept(TokenType.Comma) && this._parseSelector(isNested)) {
 				// loop
 			}
-			if (this.accept(scanner.TokenType.CurlyL)) {
+			if (this.accept(TokenType.CurlyL)) {
 				this.restoreAtMark(mark);
 				return this._parseRuleset(isNested);
 			}
@@ -252,7 +252,7 @@ export class Parser {
 			return null;
 		}
 
-		while (this.accept(scanner.TokenType.Comma) && node.getSelectors().addChild(this._parseSelector(isNested))) {
+		while (this.accept(TokenType.Comma) && node.getSelectors().addChild(this._parseSelector(isNested))) {
 			// loop
 		}
 
@@ -295,33 +295,33 @@ export class Parser {
 
 	public _parseDeclarations(parseDeclaration: () => nodes.Node): nodes.Declarations {
 		let node = <nodes.Declarations>this.create(nodes.Declarations);
-		if (!this.accept(scanner.TokenType.CurlyL)) {
+		if (!this.accept(TokenType.CurlyL)) {
 			return null;
 		}
 
 		let decl = parseDeclaration();
 		while (node.addChild(decl)) {
-			if (this.peek(scanner.TokenType.CurlyR)) {
+			if (this.peek(TokenType.CurlyR)) {
 				break;
 			}
-			if (this._needsSemicolonAfter(decl) && !this.accept(scanner.TokenType.SemiColon)) {
-				return this.finish(node, errors.ParseError.SemiColonExpected, [scanner.TokenType.SemiColon, scanner.TokenType.CurlyR]);
+			if (this._needsSemicolonAfter(decl) && !this.accept(TokenType.SemiColon)) {
+				return this.finish(node, ParseError.SemiColonExpected, [TokenType.SemiColon, TokenType.CurlyR]);
 			}
-			while (this.accept(scanner.TokenType.SemiColon)) {
+			while (this.accept(TokenType.SemiColon)) {
 				// accept empty statements
 			}
 			decl = parseDeclaration();
 		}
 
-		if (!this.accept(scanner.TokenType.CurlyR)) {
-			return this.finish(node, errors.ParseError.RightCurlyExpected, [scanner.TokenType.CurlyR, scanner.TokenType.SemiColon]);
+		if (!this.accept(TokenType.CurlyR)) {
+			return this.finish(node, ParseError.RightCurlyExpected, [TokenType.CurlyR, TokenType.SemiColon]);
 		}
 		return this.finish(node);
 	}
 
 	public _parseBody<T extends nodes.BodyDeclaration>(node: T, parseDeclaration: () => nodes.Node): T {
 		if (!node.setDeclarations(this._parseDeclarations(parseDeclaration))) {
-			return this.finish(node, errors.ParseError.LeftCurlyExpected, [scanner.TokenType.CurlyR, scanner.TokenType.SemiColon]);
+			return this.finish(node, ParseError.LeftCurlyExpected, [TokenType.CurlyR, TokenType.SemiColon]);
 		}
 		return this.finish(node);
 	}
@@ -341,23 +341,23 @@ export class Parser {
 		return hasContent ? this.finish(node) : null;
 	}
 
-	public _parseDeclaration(resyncStopTokens?: scanner.TokenType[]): nodes.Declaration {
+	public _parseDeclaration(resyncStopTokens?: TokenType[]): nodes.Declaration {
 		let node = <nodes.Declaration>this.create(nodes.Declaration);
 		if (!node.setProperty(this._parseProperty())) {
 			return null;
 		}
 
-		if (!this.accept(scanner.TokenType.Colon)) {
-			return <nodes.Declaration>this.finish(node, errors.ParseError.ColonExpected, [scanner.TokenType.Colon], resyncStopTokens);
+		if (!this.accept(TokenType.Colon)) {
+			return <nodes.Declaration>this.finish(node, ParseError.ColonExpected, [TokenType.Colon], resyncStopTokens);
 		}
 		node.colonPosition = this.prevToken.offset;
 
 		if (!node.setValue(this._parseExpr())) {
-			return this.finish(node, errors.ParseError.PropertyValueExpected);
+			return this.finish(node, ParseError.PropertyValueExpected);
 		}
 		node.addChild(this._parsePrio());
 
-		if (this.peek(scanner.TokenType.SemiColon)) {
+		if (this.peek(TokenType.SemiColon)) {
 			node.semicolonPosition = this.token.offset; // not part of the declaration, but useful information for code assist
 		}
 
@@ -366,7 +366,7 @@ export class Parser {
 
 	public _tryToParseDeclaration(): nodes.Declaration {
 		let mark = this.mark();
-		if (this._parseProperty() && this.accept(scanner.TokenType.Colon)) {
+		if (this._parseProperty() && this.accept(TokenType.Colon)) {
 			// looks like a declaration, go ahead
 			this.restoreAtMark(mark);
 			return this._parseDeclaration();
@@ -380,7 +380,7 @@ export class Parser {
 		let node = <nodes.Property>this.create(nodes.Property);
 
 		let mark = this.mark();
-		if (this.accept(scanner.TokenType.Delim, '*') || this.accept(scanner.TokenType.Delim, '_')) {
+		if (this.accept(TokenType.Delim, '*') || this.accept(TokenType.Delim, '_')) {
 			// support for  IE 5.x, 6 and 7 star hack: see http://en.wikipedia.org/wiki/CSS_filter#Star_hack
 			if (this.hasWhitespace()) {
 				this.restoreAtMark(mark);
@@ -395,14 +395,14 @@ export class Parser {
 
 	public _parseCharset(): nodes.Node {
 		let node = this.create(nodes.Node);
-		if (!this.accept(scanner.TokenType.Charset)) {
+		if (!this.accept(TokenType.Charset)) {
 			return null;
 		}
-		if (!this.accept(scanner.TokenType.String)) {
-			return this.finish(node, errors.ParseError.IdentifierExpected);
+		if (!this.accept(TokenType.String)) {
+			return this.finish(node, ParseError.IdentifierExpected);
 		}
-		if (!this.accept(scanner.TokenType.SemiColon)) {
-			return this.finish(node, errors.ParseError.SemiColonExpected);
+		if (!this.accept(TokenType.SemiColon)) {
+			return this.finish(node, ParseError.SemiColonExpected);
 		}
 		return this.finish(node);
 	}
@@ -411,12 +411,12 @@ export class Parser {
 
 	public _parseImport(): nodes.Node {
 		let node = <nodes.Import>this.create(nodes.Import);
-		if (!this.accept(scanner.TokenType.AtKeyword, '@import')) {
+		if (!this.accept(TokenType.AtKeyword, '@import')) {
 			return null;
 		}
 
-		if (!this.accept(scanner.TokenType.URI) && !this.accept(scanner.TokenType.String)) {
-			return this.finish(node, errors.ParseError.URIOrStringExpected);
+		if (!this.accept(TokenType.URI) && !this.accept(TokenType.String)) {
+			return this.finish(node, ParseError.URIOrStringExpected);
 		}
 
 		node.setMedialist(this._parseMediaList());
@@ -429,25 +429,25 @@ export class Parser {
 		// namespace  : NAMESPACE_SYM S* [IDENT S*]? [STRING|URI] S* ';' S*
 
 		let node = <nodes.Namespace>this.create(nodes.Namespace);
-		if (!this.accept(scanner.TokenType.AtKeyword, '@namespace')) {
+		if (!this.accept(TokenType.AtKeyword, '@namespace')) {
 			return null;
 		}
 
 		node.addChild(this._parseIdent()); // optional prefix
 
-		if (!this.accept(scanner.TokenType.URI) && !this.accept(scanner.TokenType.String)) {
-			return this.finish(node, errors.ParseError.URIExpected, [scanner.TokenType.SemiColon]);
+		if (!this.accept(TokenType.URI) && !this.accept(TokenType.String)) {
+			return this.finish(node, ParseError.URIExpected, [TokenType.SemiColon]);
 		}
 
-		if (!this.accept(scanner.TokenType.SemiColon)) {
-			return this.finish(node, errors.ParseError.SemiColonExpected);
+		if (!this.accept(TokenType.SemiColon)) {
+			return this.finish(node, ParseError.SemiColonExpected);
 		}
 
 		return this.finish(node);
 	}
 
 	public _parseFontFace(): nodes.Node {
-		if (!this.peek(scanner.TokenType.AtKeyword, '@font-face')) {
+		if (!this.peek(TokenType.AtKeyword, '@font-face')) {
 			return null;
 		}
 		let node = <nodes.FontFace>this.create(nodes.FontFace);
@@ -457,9 +457,9 @@ export class Parser {
 	}
 
 	public _parseViewPort(): nodes.Node {
-		if (!this.peek(scanner.TokenType.AtKeyword, '@-ms-viewport') &&
-			!this.peek(scanner.TokenType.AtKeyword, '@-o-viewport') &&
-			!this.peek(scanner.TokenType.AtKeyword, '@viewport')
+		if (!this.peek(TokenType.AtKeyword, '@-ms-viewport') &&
+			!this.peek(TokenType.AtKeyword, '@-o-viewport') &&
+			!this.peek(TokenType.AtKeyword, '@viewport')
 		) {
 			return null;
 		}
@@ -474,21 +474,21 @@ export class Parser {
 
 		let atNode = this.create(nodes.Node);
 
-		if (!this.accept(scanner.TokenType.AtKeyword, '@keyframes') &&
-			!this.accept(scanner.TokenType.AtKeyword, '@-webkit-keyframes') &&
-			!this.accept(scanner.TokenType.AtKeyword, '@-ms-keyframes') &&
-			!this.accept(scanner.TokenType.AtKeyword, '@-moz-keyframes') &&
-			!this.accept(scanner.TokenType.AtKeyword, '@-o-keyframes')) {
+		if (!this.accept(TokenType.AtKeyword, '@keyframes') &&
+			!this.accept(TokenType.AtKeyword, '@-webkit-keyframes') &&
+			!this.accept(TokenType.AtKeyword, '@-ms-keyframes') &&
+			!this.accept(TokenType.AtKeyword, '@-moz-keyframes') &&
+			!this.accept(TokenType.AtKeyword, '@-o-keyframes')) {
 
 			return null;
 		}
 		node.setKeyword(this.finish(atNode));
 		if (atNode.getText() === '@-ms-keyframes') { // -ms-keyframes never existed
-			this.markError(atNode, errors.ParseError.UnknownKeyword);
+			this.markError(atNode, ParseError.UnknownKeyword);
 		}
 
 		if (!node.setIdentifier(this._parseIdent([nodes.ReferenceType.Keyframe]))) {
-			return this.finish(node, errors.ParseError.IdentifierExpected, [scanner.TokenType.CurlyR]);
+			return this.finish(node, ParseError.IdentifierExpected, [TokenType.CurlyR]);
 		}
 
 		return this._parseBody(node, this._parseKeyframeSelector.bind(this));
@@ -497,13 +497,13 @@ export class Parser {
 	public _parseKeyframeSelector(): nodes.Node {
 		let node = <nodes.KeyframeSelector>this.create(nodes.KeyframeSelector);
 
-		if (!node.addChild(this._parseIdent()) && !this.accept(scanner.TokenType.Percentage)) {
+		if (!node.addChild(this._parseIdent()) && !this.accept(TokenType.Percentage)) {
 			return null;
 		}
 
-		while (this.accept(scanner.TokenType.Comma)) {
-			if (!node.addChild(this._parseIdent()) && !this.accept(scanner.TokenType.Percentage)) {
-				return this.finish(node, errors.ParseError.PercentageExpected);
+		while (this.accept(TokenType.Comma)) {
+			if (!node.addChild(this._parseIdent()) && !this.accept(TokenType.Percentage)) {
+				return this.finish(node, ParseError.PercentageExpected);
 			}
 		}
 
@@ -518,22 +518,22 @@ export class Parser {
 		// MEDIA_SYM S* media_query_list '{' S* ruleset* '}' S*
 		// media_query_list : S* [media_query [ ',' S* media_query ]* ]?
 		let node = <nodes.Media>this.create(nodes.Media);
-		if (!this.accept(scanner.TokenType.AtKeyword, '@media')) {
+		if (!this.accept(TokenType.AtKeyword, '@media')) {
 			return null;
 		}
-		if (!node.addChild(this._parseMediaQuery([scanner.TokenType.CurlyL]))) {
-			return this.finish(node, errors.ParseError.IdentifierExpected);
+		if (!node.addChild(this._parseMediaQuery([TokenType.CurlyL]))) {
+			return this.finish(node, ParseError.IdentifierExpected);
 		}
-		while (this.accept(scanner.TokenType.Comma)) {
-			if (!node.addChild(this._parseMediaQuery([scanner.TokenType.CurlyL]))) {
-				return this.finish(node, errors.ParseError.IdentifierExpected);
+		while (this.accept(TokenType.Comma)) {
+			if (!node.addChild(this._parseMediaQuery([TokenType.CurlyL]))) {
+				return this.finish(node, ParseError.IdentifierExpected);
 			}
 		}
 
 		return this._parseBody(node, this._parseMediaDeclaration.bind(this));
 	}
 
-	public _parseMediaQuery(resyncStopToken: scanner.TokenType[]): nodes.Node {
+	public _parseMediaQuery(resyncStopToken: TokenType[]): nodes.Node {
 		// http://www.w3.org/TR/css3-mediaqueries/
 		// media_query : [ONLY | NOT]? S* IDENT S* [ AND S* expression ]* | expression [ AND S* expression ]*
 		// expression : '(' S* IDENT S* [ ':' S* expr ]? ')' S*
@@ -542,35 +542,35 @@ export class Parser {
 
 		let parseExpression = true;
 		let hasContent = false;
-		if (!this.peek(scanner.TokenType.ParenthesisL)) {
-			if (this.accept(scanner.TokenType.Ident, 'only', true) || this.accept(scanner.TokenType.Ident, 'not', true)) {
+		if (!this.peek(TokenType.ParenthesisL)) {
+			if (this.accept(TokenType.Ident, 'only', true) || this.accept(TokenType.Ident, 'not', true)) {
 				// optional
 			}
 			if (!node.addChild(this._parseIdent())) {
 				return null;
 			}
 			hasContent = true;
-			parseExpression = this.accept(scanner.TokenType.Ident, 'and', true);
+			parseExpression = this.accept(TokenType.Ident, 'and', true);
 		}
 		while (parseExpression) {
-			if (!this.accept(scanner.TokenType.ParenthesisL)) {
+			if (!this.accept(TokenType.ParenthesisL)) {
 				if (hasContent) {
-					return this.finish(node, errors.ParseError.LeftParenthesisExpected, [], resyncStopToken);
+					return this.finish(node, ParseError.LeftParenthesisExpected, [], resyncStopToken);
 				}
 				return null;
 			}
 			if (!node.addChild(this._parseMediaFeatureName())) {
-				return this.finish(node, errors.ParseError.IdentifierExpected, [], resyncStopToken);
+				return this.finish(node, ParseError.IdentifierExpected, [], resyncStopToken);
 			}
-			if (this.accept(scanner.TokenType.Colon)) {
+			if (this.accept(TokenType.Colon)) {
 				if (!node.addChild(this._parseExpr())) {
-					return this.finish(node, errors.ParseError.TermExpected, [], resyncStopToken);
+					return this.finish(node, ParseError.TermExpected, [], resyncStopToken);
 				}
 			}
-			if (!this.accept(scanner.TokenType.ParenthesisR)) {
-				return this.finish(node, errors.ParseError.RightParenthesisExpected, [], resyncStopToken);
+			if (!this.accept(TokenType.ParenthesisR)) {
+				return this.finish(node, ParseError.RightParenthesisExpected, [], resyncStopToken);
 			}
-			parseExpression = this.accept(scanner.TokenType.Ident, 'and', true);
+			parseExpression = this.accept(TokenType.Ident, 'and', true);
 		}
 		return node;
 	}
@@ -582,9 +582,9 @@ export class Parser {
 	public _parseMediaList(): nodes.Medialist {
 		let node = <nodes.Medialist>this.create(nodes.Medialist);
 		if (node.getMediums().addChild(this._parseMedium())) {
-			while (this.accept(scanner.TokenType.Comma)) {
+			while (this.accept(TokenType.Comma)) {
 				if (!node.getMediums().addChild(this._parseMedium())) {
-					return this.finish(node, errors.ParseError.IdentifierExpected);
+					return this.finish(node, ParseError.IdentifierExpected);
 				}
 			}
 			return <nodes.Medialist>this.finish(node);
@@ -611,13 +611,13 @@ export class Parser {
 		// page_body :  /* Can be empty */ declaration? [ ';' S* page_body ]? | page_margin_box page_body
 
 		let node = <nodes.Page>this.create(nodes.Page);
-		if (!this.accept(scanner.TokenType.AtKeyword, '@Page')) {
+		if (!this.accept(TokenType.AtKeyword, '@Page')) {
 			return null;
 		}
 		if (node.addChild(this._parsePageSelector())) {
-			while (this.accept(scanner.TokenType.Comma)) {
+			while (this.accept(TokenType.Comma)) {
 				if (!node.addChild(this._parsePageSelector())) {
-					return this.finish(node, errors.ParseError.IdentifierExpected);
+					return this.finish(node, ParseError.IdentifierExpected);
 				}
 			}
 		}
@@ -628,12 +628,12 @@ export class Parser {
 	public _parsePageMarginBox(): nodes.Node {
 		// page_margin_box :  margin_sym S* '{' S* declaration? [ ';' S* declaration? ]* '}' S*
 		let node = <nodes.PageBoxMarginBox>this.create(nodes.PageBoxMarginBox);
-		if (!this.peek(scanner.TokenType.AtKeyword)) {
+		if (!this.peek(TokenType.AtKeyword)) {
 			return null;
 		}
 
-		if (!this.acceptOne(scanner.TokenType.AtKeyword, languageFacts.getPageBoxDirectives())) {
-			this.markError(node, errors.ParseError.UnknownAtRule, [], [scanner.TokenType.CurlyL]);
+		if (!this.acceptOne(TokenType.AtKeyword, languageFacts.getPageBoxDirectives())) {
+			this.markError(node, ParseError.UnknownAtRule, [], [TokenType.CurlyL]);
 		}
 
 		return this._parseBody(node, this._parseRuleSetDeclaration.bind(this));
@@ -645,14 +645,14 @@ export class Parser {
 		// pseudo_page :  ':' [ "left" | "right" | "first" | "blank" ];
 
 		let node = this.create(nodes.Node);
-		if (!this.peek(scanner.TokenType.Ident) && !this.peek(scanner.TokenType.Colon)) {
+		if (!this.peek(TokenType.Ident) && !this.peek(TokenType.Colon)) {
 			return null;
 		}
 		node.addChild(this._parseIdent()); // optional ident
 
-		if (this.accept(scanner.TokenType.Colon)) {
+		if (this.accept(TokenType.Colon)) {
 			if (!node.addChild(this._parseIdent())) { // optional ident
-				return this.finish(node, errors.ParseError.IdentifierExpected);
+				return this.finish(node, ParseError.IdentifierExpected);
 			}
 		}
 		return this.finish(node);
@@ -662,26 +662,26 @@ export class Parser {
 		// -moz-document is experimental but has been pushed to css4
 
 		let node = <nodes.Document>this.create(nodes.Document);
-		if (!this.accept(scanner.TokenType.AtKeyword, '@-moz-document')) {
+		if (!this.accept(TokenType.AtKeyword, '@-moz-document')) {
 			return null;
 		}
-		this.resync([], [scanner.TokenType.CurlyL]); // ignore all the rules
+		this.resync([], [TokenType.CurlyL]); // ignore all the rules
 		return this._parseBody(node, this._parseStylesheetStatement.bind(this));
 	}
 
 	public _parseOperator(): nodes.Node {
 		// these are operators for binary expressions
 		let node = this.createNode(nodes.NodeType.Operator);
-		if (this.accept(scanner.TokenType.Delim, '/') ||
-			this.accept(scanner.TokenType.Delim, '*') ||
-			this.accept(scanner.TokenType.Delim, '+') ||
-			this.accept(scanner.TokenType.Delim, '-') ||
-			this.accept(scanner.TokenType.Dashmatch) ||
-			this.accept(scanner.TokenType.Includes) ||
-			this.accept(scanner.TokenType.SubstringOperator) ||
-			this.accept(scanner.TokenType.PrefixOperator) ||
-			this.accept(scanner.TokenType.SuffixOperator) ||
-			this.accept(scanner.TokenType.Delim, '=')) { // doesn't stick to the standard here
+		if (this.accept(TokenType.Delim, '/') ||
+			this.accept(TokenType.Delim, '*') ||
+			this.accept(TokenType.Delim, '+') ||
+			this.accept(TokenType.Delim, '-') ||
+			this.accept(TokenType.Dashmatch) ||
+			this.accept(TokenType.Includes) ||
+			this.accept(TokenType.SubstringOperator) ||
+			this.accept(TokenType.PrefixOperator) ||
+			this.accept(TokenType.SuffixOperator) ||
+			this.accept(TokenType.Delim, '=')) { // doesn't stick to the standard here
 
 			return this.finish(node);
 
@@ -692,7 +692,7 @@ export class Parser {
 
 	public _parseUnaryOperator(): nodes.Node {
 		let node = this.create(nodes.Node);
-		if (this.accept(scanner.TokenType.Delim, '+') || this.accept(scanner.TokenType.Delim, '-')) {
+		if (this.accept(TokenType.Delim, '+') || this.accept(TokenType.Delim, '-')) {
 			return this.finish(node);
 		} else {
 			return null;
@@ -701,13 +701,13 @@ export class Parser {
 
 	public _parseCombinator(): nodes.Node {
 		let node = this.create(nodes.Node);
-		if (this.accept(scanner.TokenType.Delim, '>')) {
+		if (this.accept(TokenType.Delim, '>')) {
 			node.type = nodes.NodeType.SelectorCombinatorParent;
 			return this.finish(node);
-		} else if (this.accept(scanner.TokenType.Delim, '+')) {
+		} else if (this.accept(TokenType.Delim, '+')) {
 			node.type = nodes.NodeType.SelectorCombinatorSibling;
 			return this.finish(node);
-		} else if (this.accept(scanner.TokenType.Delim, '~')) {
+		} else if (this.accept(TokenType.Delim, '~')) {
 			node.type = nodes.NodeType.SelectorCombinatorAllSiblings;
 			return this.finish(node);
 		} else {
@@ -739,13 +739,13 @@ export class Parser {
 	}
 
 	public _parseHash(): nodes.Node {
-		if (!this.peek(scanner.TokenType.Hash) && !this.peek(scanner.TokenType.Delim, '#')) {
+		if (!this.peek(TokenType.Hash) && !this.peek(TokenType.Delim, '#')) {
 			return null;
 		}
 		let node = this.createNode(nodes.NodeType.IdentifierSelector);
-		if (this.accept(scanner.TokenType.Delim, '#')) {
+		if (this.accept(TokenType.Delim, '#')) {
 			if (this.hasWhitespace() || !node.addChild(this._parseSelectorIdent())) {
-				return this.finish(node, errors.ParseError.IdentifierExpected);
+				return this.finish(node, ParseError.IdentifierExpected);
 			}
 		} else {
 			this.consumeToken(); // TokenType.Hash
@@ -755,13 +755,13 @@ export class Parser {
 
 	public _parseClass(): nodes.Node {
 		// class: '.' IDENT ;
-		if (!this.peek(scanner.TokenType.Delim, '.')) {
+		if (!this.peek(TokenType.Delim, '.')) {
 			return null;
 		}
 		let node = this.createNode(nodes.NodeType.ClassSelector);
 		this.consumeToken(); // '.'
 		if (this.hasWhitespace() || !node.addChild(this._parseSelectorIdent())) {
-			return this.finish(node, errors.ParseError.IdentifierExpected);
+			return this.finish(node, ParseError.IdentifierExpected);
 		}
 		return this.finish(node);
 	}
@@ -769,7 +769,7 @@ export class Parser {
 	public _parseElementName(): nodes.Node {
 		// element_name: IDENT | '*';
 		let node = this.createNode(nodes.NodeType.ElementNameSelector);
-		if (node.addChild(this._parseSelectorIdent()) || this.accept(scanner.TokenType.Delim, '*')) {
+		if (node.addChild(this._parseSelectorIdent()) || this.accept(TokenType.Delim, '*')) {
 			return this.finish(node);
 		}
 		return null;
@@ -777,7 +777,7 @@ export class Parser {
 
 	public _parseAttrib(): nodes.Node {
 		// attrib : '[' S* IDENT S* [ [ '=' | INCLUDES | DASHMATCH ] S*   [ IDENT | STRING ] S* ]? ']'
-		if (!this.peek(scanner.TokenType.BracketL)) {
+		if (!this.peek(TokenType.BracketL)) {
 			return null;
 		}
 		let node = this.createNode(nodes.NodeType.AttributeSelector);
@@ -785,31 +785,31 @@ export class Parser {
 		if (!node.addChild(this._parseBinaryExpr())) {
 			// is this bad?
 		}
-		if (!this.accept(scanner.TokenType.BracketR)) {
-			return this.finish(node, errors.ParseError.RightSquareBracketExpected);
+		if (!this.accept(TokenType.BracketR)) {
+			return this.finish(node, ParseError.RightSquareBracketExpected);
 		}
 		return this.finish(node);
 	}
 
 	public _parsePseudo(): nodes.Node {
 		// pseudo: ':' [ IDENT | FUNCTION S* [IDENT S*]? ')' ]
-		if (!this.peek(scanner.TokenType.Colon)) {
+		if (!this.peek(TokenType.Colon)) {
 			return null;
 		}
 		let pos = this.mark();
 		let node = this.createNode(nodes.NodeType.PseudoSelector);
 		this.consumeToken(); // Colon
-		if (!this.hasWhitespace() && this.accept(scanner.TokenType.Colon)) {
+		if (!this.hasWhitespace() && this.accept(TokenType.Colon)) {
 			// optional, support ::
 		}
 		if (!this.hasWhitespace()) {
 			if (!node.addChild(this._parseIdent())) {
-				return this.finish(node, errors.ParseError.IdentifierExpected);
+				return this.finish(node, ParseError.IdentifierExpected);
 			}
-			if (!this.hasWhitespace() && this.accept(scanner.TokenType.ParenthesisL)) {
+			if (!this.hasWhitespace() && this.accept(TokenType.ParenthesisL)) {
 				node.addChild(this._parseBinaryExpr() || this._parseSimpleSelector());
-				if (!this.accept(scanner.TokenType.ParenthesisR)) {
-					return this.finish(node, errors.ParseError.RightParenthesisExpected);
+				if (!this.accept(TokenType.ParenthesisR)) {
+					return this.finish(node, ParseError.RightParenthesisExpected);
 				}
 			}
 			return this.finish(node);
@@ -819,12 +819,12 @@ export class Parser {
 	}
 
 	public _parsePrio(): nodes.Node {
-		if (!this.peek(scanner.TokenType.Exclamation)) {
+		if (!this.peek(TokenType.Exclamation)) {
 			return null;
 		}
 
 		let node = this.createNode(nodes.NodeType.Prio);
-		if (this.accept(scanner.TokenType.Exclamation) && this.accept(scanner.TokenType.Ident, 'important', true)) {
+		if (this.accept(TokenType.Exclamation) && this.accept(TokenType.Ident, 'important', true)) {
 			return this.finish(node);
 		}
 		return null;
@@ -837,7 +837,7 @@ export class Parser {
 		}
 
 		while (true) {
-			if (this.peek(scanner.TokenType.Comma)) { // optional
+			if (this.peek(TokenType.Comma)) { // optional
 				if (stopOnComma) {
 					return this.finish(node);
 				}
@@ -863,7 +863,7 @@ export class Parser {
 		}
 
 		if (!node.setRight(this._parseTerm())) {
-			return this.finish(node, errors.ParseError.TermExpected);
+			return this.finish(node, ParseError.TermExpected);
 		}
 
 		// things needed for multiple binary expressions
@@ -897,28 +897,28 @@ export class Parser {
 
 	public _parseOperation(): nodes.Node {
 		let node = this.create(nodes.Node);
-		if (!this.accept(scanner.TokenType.ParenthesisL)) {
+		if (!this.accept(TokenType.ParenthesisL)) {
 			return null;
 		}
 		node.addChild(this._parseExpr());
-		if (!this.accept(scanner.TokenType.ParenthesisR)) {
-			return this.finish(node, errors.ParseError.RightParenthesisExpected);
+		if (!this.accept(TokenType.ParenthesisR)) {
+			return this.finish(node, ParseError.RightParenthesisExpected);
 		}
 		return this.finish(node);
 	}
 
 	public _parseNumeric(): nodes.NumericValue {
 		let node = <nodes.NumericValue>this.create(nodes.NumericValue);
-		if (this.accept(scanner.TokenType.Num) ||
-			this.accept(scanner.TokenType.Percentage) ||
-			this.accept(scanner.TokenType.Resolution) ||
-			this.accept(scanner.TokenType.Length) ||
-			this.accept(scanner.TokenType.EMS) ||
-			this.accept(scanner.TokenType.EXS) ||
-			this.accept(scanner.TokenType.Angle) ||
-			this.accept(scanner.TokenType.Time) ||
-			this.accept(scanner.TokenType.Dimension) ||
-			this.accept(scanner.TokenType.Freq)) {
+		if (this.accept(TokenType.Num) ||
+			this.accept(TokenType.Percentage) ||
+			this.accept(TokenType.Resolution) ||
+			this.accept(TokenType.Length) ||
+			this.accept(TokenType.EMS) ||
+			this.accept(TokenType.EXS) ||
+			this.accept(TokenType.Angle) ||
+			this.accept(TokenType.Time) ||
+			this.accept(TokenType.Dimension) ||
+			this.accept(TokenType.Freq)) {
 
 			return <nodes.NumericValue>this.finish(node);
 		}
@@ -928,7 +928,7 @@ export class Parser {
 
 	public _parseStringLiteral(): nodes.Node {
 		let node = this.createNode(nodes.NodeType.StringLiteral);
-		if (this.accept(scanner.TokenType.String) || this.accept(scanner.TokenType.BadString)) {
+		if (this.accept(TokenType.String) || this.accept(TokenType.BadString)) {
 			return this.finish(node);
 		}
 		return null;
@@ -936,7 +936,7 @@ export class Parser {
 
 	public _parseURILiteral(): nodes.Node {
 		let node = this.createNode(nodes.NodeType.URILiteral);
-		if (this.accept(scanner.TokenType.URI) || this.accept(scanner.TokenType.BadUri)) {
+		if (this.accept(TokenType.URI) || this.accept(TokenType.BadUri)) {
 			return this.finish(node);
 		}
 		return null;
@@ -947,7 +947,7 @@ export class Parser {
 		if (referenceTypes) {
 			node.referenceTypes = referenceTypes;
 		}
-		if (this.accept(scanner.TokenType.Ident)) {
+		if (this.accept(TokenType.Ident)) {
 			return this.finish(node);
 		}
 		return null;
@@ -962,21 +962,21 @@ export class Parser {
 			return null;
 		}
 
-		if (this.hasWhitespace() || !this.accept(scanner.TokenType.ParenthesisL)) {
+		if (this.hasWhitespace() || !this.accept(TokenType.ParenthesisL)) {
 			this.restoreAtMark(pos);
 			return null;
 		}
 
 		if (node.getArguments().addChild(this._parseFunctionArgument())) {
-			while (this.accept(scanner.TokenType.Comma)) {
+			while (this.accept(TokenType.Comma)) {
 				if (!node.getArguments().addChild(this._parseFunctionArgument())) {
-					this.markError(node, errors.ParseError.ExpressionExpected);
+					this.markError(node, ParseError.ExpressionExpected);
 				}
 			}
 		}
 
-		if (!this.accept(scanner.TokenType.ParenthesisR)) {
-			return <nodes.Function>this.finish(node, errors.ParseError.RightParenthesisExpected);
+		if (!this.accept(TokenType.ParenthesisR)) {
+			return <nodes.Function>this.finish(node, ParseError.RightParenthesisExpected);
 		}
 		return <nodes.Function>this.finish(node);
 	}
@@ -985,15 +985,15 @@ export class Parser {
 		let node = <nodes.Identifier>this.create(nodes.Identifier);
 		node.referenceTypes = [nodes.ReferenceType.Function];
 
-		if (this.accept(scanner.TokenType.Ident, 'progid')) {
+		if (this.accept(TokenType.Ident, 'progid')) {
 			// support for IE7 specific filters: 'progid:DXImageTransform.Microsoft.MotionBlur(strength=13, direction=310)'
-			if (this.accept(scanner.TokenType.Colon)) {
-				while (this.accept(scanner.TokenType.Ident) && this.accept(scanner.TokenType.Delim, '.')) {
+			if (this.accept(TokenType.Colon)) {
+				while (this.accept(TokenType.Ident) && this.accept(TokenType.Delim, '.')) {
 					// loop
 				}
 			}
 			return this.finish(node);
-		} else if (this.accept(scanner.TokenType.Ident)) {
+		} else if (this.accept(TokenType.Ident)) {
 			return this.finish(node);
 		}
 		return null;
@@ -1008,7 +1008,7 @@ export class Parser {
 	}
 
 	public _parseHexColor(): nodes.Node {
-		if (this.peekRegExp(scanner.TokenType.Hash, /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/g)) {
+		if (this.peekRegExp(TokenType.Hash, /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/g)) {
 			let node = this.create(nodes.HexColorValue);
 			this.consumeToken();
 			return this.finish(node);
