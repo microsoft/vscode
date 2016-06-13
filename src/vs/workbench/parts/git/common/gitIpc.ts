@@ -8,27 +8,82 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import Event from 'vs/base/common/event';
-import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials } from './git';
+import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials,
+	ServiceState, IRawFileStatus, IBranch, RefType, IRef, IRemote } from './git';
+
+type ISerializer<A,B> = { to(a: A): B; from(b: B): A; };
+
+export type IPCRawFileStatus = [string, string, string, string, string];
+const RawFileStatusSerializer: ISerializer<IRawFileStatus, IPCRawFileStatus> = {
+	to: a => [a.x, a.y, a.path, a.mimetype, a.rename],
+	from: b => ({ x: b[0], y: b[1], path: b[2], mimetype: b[3], rename: b[4] })
+};
+
+export type IPCBranch = [string, string, RefType, string, string, number, number];
+const BranchSerializer: ISerializer<IBranch, IPCBranch> = {
+	to: a => [a.name, a.commit, a.type, a.remote, a.upstream, a.ahead, a.behind],
+	from: b => ({ name: b[0], commit: b[1], type: b[2], remote: b[3], upstream: b[4], ahead: b[5], behind: b[6] })
+};
+
+export type IPCRef = [string, string, RefType, string];
+const RefSerializer: ISerializer<IRef, IPCRef> = {
+	to: a => [a.name, a.commit, a.type, a.remote],
+	from: b => ({ name: b[0], commit: b[1], type: b[2], remote: b[3] })
+};
+
+export type IPCRemote = [string, string];
+const RemoteSerializer: ISerializer<IRemote, IPCRemote> = {
+	to: a => [a.name, a.url],
+	from: b => ({ name: b[0], url: b[1] })
+};
+
+export type IPCRawStatus = [
+	string,
+	ServiceState,
+	IPCRawFileStatus[],
+	IPCBranch,
+	IPCRef[],
+	IPCRemote[]
+];
+
+const RawStatusSerializer: ISerializer<IRawStatus, IPCRawStatus> = {
+	to: a => !a ? null : [
+		a.repositoryRoot,
+		a.state,
+		a.status.map(RawFileStatusSerializer.to),
+		BranchSerializer.to(a.HEAD),
+		a.refs.map(RefSerializer.to),
+		a.remotes.map(RemoteSerializer.to)
+	],
+	from: b => !b ? null : {
+		repositoryRoot: b[0],
+		state: b[1],
+		status: b[2].map(RawFileStatusSerializer.from),
+		HEAD: BranchSerializer.from(b[3]),
+		refs: b[4].map(RefSerializer.from),
+		remotes: b[5].map(RemoteSerializer.from)
+	}
+};
 
 export interface IGitChannel extends IChannel {
 	call(command: 'getVersion'): TPromise<string>;
 	call(command: 'serviceState'): TPromise<RawServiceState>;
 	call(command: 'statusCount'): TPromise<number>;
-	call(command: 'status'): TPromise<IRawStatus>;
-	call(command: 'init'): TPromise<IRawStatus>;
-	call(command: 'add', filesPaths?: string[]): TPromise<IRawStatus>;
-	call(command: 'stage', args: [string, string]): TPromise<IRawStatus>;
-	call(command: 'branch', args: [string, boolean]): TPromise<IRawStatus>;
-	call(command: 'checkout', args: [string, string[]]): TPromise<IRawStatus>;
-	call(command: 'clean', filePaths: string[]): TPromise<IRawStatus>;
-	call(command: 'undo'): TPromise<IRawStatus>;
-	call(command: 'reset', args: [string, boolean]): TPromise<IRawStatus>;
-	call(command: 'revertFiles', args: [string, string[]]): TPromise<IRawStatus>;
-	call(command: 'fetch'): TPromise<IRawStatus>;
-	call(command: 'pull', rebase?: boolean): TPromise<IRawStatus>;
-	call(command: 'push', args: [string, string, IPushOptions]): TPromise<IRawStatus>;
-	call(command: 'sync'): TPromise<IRawStatus>;
-	call(command: 'commit', args: [string, boolean, boolean]): TPromise<IRawStatus>;
+	call(command: 'status'): TPromise<IPCRawStatus>;
+	call(command: 'init'): TPromise<IPCRawStatus>;
+	call(command: 'add', filesPaths?: string[]): TPromise<IPCRawStatus>;
+	call(command: 'stage', args: [string, string]): TPromise<IPCRawStatus>;
+	call(command: 'branch', args: [string, boolean]): TPromise<IPCRawStatus>;
+	call(command: 'checkout', args: [string, string[]]): TPromise<IPCRawStatus>;
+	call(command: 'clean', filePaths: string[]): TPromise<IPCRawStatus>;
+	call(command: 'undo'): TPromise<IPCRawStatus>;
+	call(command: 'reset', args: [string, boolean]): TPromise<IPCRawStatus>;
+	call(command: 'revertFiles', args: [string, string[]]): TPromise<IPCRawStatus>;
+	call(command: 'fetch'): TPromise<IPCRawStatus>;
+	call(command: 'pull', rebase?: boolean): TPromise<IPCRawStatus>;
+	call(command: 'push', args: [string, string, IPushOptions]): TPromise<IPCRawStatus>;
+	call(command: 'sync'): TPromise<IPCRawStatus>;
+	call(command: 'commit', args: [string, boolean, boolean]): TPromise<IPCRawStatus>;
 	call(command: 'detectMimetypes', args: [string, string]): TPromise<string[]>;
 	call(command: 'show', args: [string, string]): TPromise<string>;
 	call(command: 'onOutput'): TPromise<void>;
@@ -44,21 +99,21 @@ export class GitChannel implements IGitChannel {
 			case 'getVersion': return this.service.then(s => s.getVersion());
 			case 'serviceState': return this.service.then(s => s.serviceState());
 			case 'statusCount': return this.service.then(s => s.statusCount());
-			case 'status': return this.service.then(s => s.status());
-			case 'init': return this.service.then(s => s.init());
-			case 'add': return this.service.then(s => s.add(args));
-			case 'stage': return this.service.then(s => s.stage(args[0], args[1]));
-			case 'branch': return this.service.then(s => s.branch(args[0], args[1]));
-			case 'checkout': return this.service.then(s => s.checkout(args[0], args[1]));
-			case 'clean': return this.service.then(s => s.clean(args));
-			case 'undo': return this.service.then(s => s.undo());
-			case 'reset': return this.service.then(s => s.reset(args[0], args[1]));
-			case 'revertFiles': return this.service.then(s => s.revertFiles(args[0], args[1]));
-			case 'fetch': return this.service.then(s => s.fetch());
-			case 'pull': return this.service.then(s => s.pull(args));
-			case 'push': return this.service.then(s => s.push(args[0], args[1], args[2]));
-			case 'sync': return this.service.then(s => s.sync());
-			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2]));
+			case 'status': return this.service.then(s => s.status()).then(RawStatusSerializer.to);
+			case 'init': return this.service.then(s => s.init()).then(RawStatusSerializer.to);
+			case 'add': return this.service.then(s => s.add(args)).then(RawStatusSerializer.to);
+			case 'stage': return this.service.then(s => s.stage(args[0], args[1])).then(RawStatusSerializer.to);
+			case 'branch': return this.service.then(s => s.branch(args[0], args[1])).then(RawStatusSerializer.to);
+			case 'checkout': return this.service.then(s => s.checkout(args[0], args[1])).then(RawStatusSerializer.to);
+			case 'clean': return this.service.then(s => s.clean(args)).then(RawStatusSerializer.to);
+			case 'undo': return this.service.then(s => s.undo()).then(RawStatusSerializer.to);
+			case 'reset': return this.service.then(s => s.reset(args[0], args[1])).then(RawStatusSerializer.to);
+			case 'revertFiles': return this.service.then(s => s.revertFiles(args[0], args[1])).then(RawStatusSerializer.to);
+			case 'fetch': return this.service.then(s => s.fetch()).then(RawStatusSerializer.to);
+			case 'pull': return this.service.then(s => s.pull(args)).then(RawStatusSerializer.to);
+			case 'push': return this.service.then(s => s.push(args[0], args[1], args[2])).then(RawStatusSerializer.to);
+			case 'sync': return this.service.then(s => s.sync()).then(RawStatusSerializer.to);
+			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2])).then(RawStatusSerializer.to);
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
@@ -96,63 +151,63 @@ export class GitChannelClient implements IRawGitService {
 	}
 
 	status(): TPromise<IRawStatus> {
-		return this.channel.call('status');
+		return this.channel.call('status').then(RawStatusSerializer.from);
 	}
 
 	init(): TPromise<IRawStatus> {
-		return this.channel.call('init');
+		return this.channel.call('init').then(RawStatusSerializer.from);
 	}
 
 	add(filesPaths?: string[]): TPromise<IRawStatus> {
-		return this.channel.call('add', filesPaths);
+		return this.channel.call('add', filesPaths).then(RawStatusSerializer.from);
 	}
 
 	stage(filePath: string, content: string): TPromise<IRawStatus> {
-		return this.channel.call('stage', [filePath, content]);
+		return this.channel.call('stage', [filePath, content]).then(RawStatusSerializer.from);
 	}
 
 	branch(name: string, checkout?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('branch', [name, checkout]);
+		return this.channel.call('branch', [name, checkout]).then(RawStatusSerializer.from);
 	}
 
 	checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus> {
-		return this.channel.call('checkout', [treeish, filePaths]);
+		return this.channel.call('checkout', [treeish, filePaths]).then(RawStatusSerializer.from);
 	}
 
 	clean(filePaths: string[]): TPromise<IRawStatus> {
-		return this.channel.call('clean', filePaths);
+		return this.channel.call('clean', filePaths).then(RawStatusSerializer.from);
 	}
 
 	undo(): TPromise<IRawStatus> {
-		return this.channel.call('undo');
+		return this.channel.call('undo').then(RawStatusSerializer.from);
 	}
 
 	reset(treeish:string, hard?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('reset', [treeish, hard]);
+		return this.channel.call('reset', [treeish, hard]).then(RawStatusSerializer.from);
 	}
 
 	revertFiles(treeish:string, filePaths?: string[]): TPromise<IRawStatus> {
-		return this.channel.call('revertFiles', [treeish, filePaths]);
+		return this.channel.call('revertFiles', [treeish, filePaths]).then(RawStatusSerializer.from);
 	}
 
 	fetch(): TPromise<IRawStatus> {
-		return this.channel.call('fetch');
+		return this.channel.call('fetch').then(RawStatusSerializer.from);
 	}
 
 	pull(rebase?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('pull', rebase);
+		return this.channel.call('pull', rebase).then(RawStatusSerializer.from);
 	}
 
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> {
-		return this.channel.call('push', [remote, name, options]);
+		return this.channel.call('push', [remote, name, options]).then(RawStatusSerializer.from);
 	}
 
 	sync(): TPromise<IRawStatus> {
-		return this.channel.call('sync');
+		return this.channel.call('sync').then(RawStatusSerializer.from);
 	}
 
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('commit', [message, amend, stage]);
+		return this.channel.call('commit', [message, amend, stage]).then(RawStatusSerializer.from);
 	}
 
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> {
