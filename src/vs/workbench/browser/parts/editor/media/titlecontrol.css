@@ -48,8 +48,7 @@
 /* Title Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label,
-.monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab > .tab-close .action-label {
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label {
 	display: block;
 	height: 35px;
 	width: 28px;

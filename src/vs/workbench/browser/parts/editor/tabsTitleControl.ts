@@ -17,6 +17,8 @@ import {Builder, $} from 'vs/base/browser/builder';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -243,6 +245,7 @@ export class TabsTitleControl extends TitleControl {
 		this.context.getEditors().forEach(editor => {
 			const tabContainer = document.createElement('div');
 			tabContainer.draggable = true;
+			tabContainer.tabIndex = 0;
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
@@ -323,6 +326,19 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
+			}
+		}));
+
+		// Open on Keyboard Enter/Space
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+
+			// Run action on Enter/Space
+			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
+
+				event.preventDefault();
+				event.stopPropagation();
 			}
 		}));
 
