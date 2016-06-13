@@ -114,6 +114,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ToggleReplA
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.AddFunctionBreakpointAction, dbgactions.AddFunctionBreakpointAction.ID, dbgactions.AddFunctionBreakpointAction.LABEL), 'Debug: Add Function Breakpoint', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ReapplyBreakpointsAction, dbgactions.ReapplyBreakpointsAction.ID, dbgactions.ReapplyBreakpointsAction.LABEL), 'Debug: Reapply All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.RunAction, dbgactions.RunAction.ID, dbgactions.RunAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.F5 }, KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE)), 'Debug: Start Without Debugging', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.RemoveAllBreakpointsAction, dbgactions.RemoveAllBreakpointsAction.ID, dbgactions.RemoveAllBreakpointsAction.LABEL), 'Debug: Remove All Breakpoints', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.DisableAllBreakpointsAction, dbgactions.DisableAllBreakpointsAction.ID, dbgactions.DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
 
 KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.startDebug',
