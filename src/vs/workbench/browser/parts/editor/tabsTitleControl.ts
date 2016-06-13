@@ -178,6 +178,9 @@ export class TabsTitleControl extends TitleControl {
 				}
 			}
 		});
+
+		// Ensure active tab is always revealed
+		this.layout();
 	}
 
 	protected doRefresh(): void {
@@ -259,9 +262,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add to tabs container
 		tabContainers.forEach(tab => this.tabsContainer.appendChild(tab));
-
-		// Ensure active tab is always revealed
-		this.layout();
 	}
 
 	public layout(): void {
