@@ -226,15 +226,17 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
 			.withPage(1, pageSize)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withSort(SortBy.InstallCount);
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
 
 		if (text) {
-			query = query.withFilter(FilterType.SearchText, text);
+			query = query.withFilter(FilterType.SearchText, text)
+				.withSort(SortBy.NoneOrRelevance);
 		} else if (options.ids) {
 			options.ids.forEach(id => {
 				query = query.withFilter(FilterType.ExtensionName, id);
 			});
+		} else {
+			query = query.withSort(SortBy.InstallCount);
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
