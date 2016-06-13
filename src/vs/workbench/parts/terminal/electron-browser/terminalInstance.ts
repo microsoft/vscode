@@ -153,9 +153,6 @@ export class TerminalInstance {
 		let text = window.getSelection().toString();
 		if (!text || force) {
 			this.terminal.focus();
-			if (this.terminal._textarea) {
-				this.terminal._textarea.focus();
-			}
 		}
 	}
 
