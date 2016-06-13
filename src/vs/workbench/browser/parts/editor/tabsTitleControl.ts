@@ -14,7 +14,8 @@ import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import {Builder, $} from 'vs/base/browser/builder';
-import {IEditorGroup, IEditorIdentifier} from 'vs/workbench/common/editor';
+import {MIME_BINARY} from 'vs/base/common/mime';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -29,6 +30,9 @@ import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export class TabsTitleControl extends TitleControl {
+
+	private static draggedEditor: IEditorIdentifier;
+
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private activeTab: HTMLElement;
@@ -96,15 +100,14 @@ export class TabsTitleControl extends TitleControl {
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				const group = this.context;
 				if (group) {
-					const identifier = this.stringToId(e.dataTransfer.getData('text'));
-					if (identifier) {
+					if (TabsTitleControl.draggedEditor) {
 						e.preventDefault();
 
-						const sourcePosition = this.stacks.positionOfGroup(identifier.group);
+						const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
 						const targetPosition = this.stacks.positionOfGroup(group);
 
 						// Move editor to target position at the end
-						this.editorGroupService.moveEditor(identifier.editor, sourcePosition, targetPosition, group.count);
+						this.editorGroupService.moveEditor(TabsTitleControl.draggedEditor.editor, sourcePosition, targetPosition, group.count);
 					}
 				}
 			}
@@ -344,8 +347,14 @@ export class TabsTitleControl extends TitleControl {
 		// Drag start
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
 			DOM.addClass(tab, 'dragged');
-			e.dataTransfer.setData('text', this.idToString(identifier));
+			TabsTitleControl.draggedEditor = { editor, group };
 			e.dataTransfer.effectAllowed = 'move';
+
+			// Enable support to drag a file to desktop
+			const fileInput = asFileEditorInput(editor, true);
+			if (fileInput) {
+				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), fileInput.getResource().toString()].join(':'));
+			}
 		}));
 
 		// Drag over
@@ -362,43 +371,22 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			DOM.removeClass(tab, 'dragged');
 			DOM.removeClass(tab, 'dropfeedback');
+			TabsTitleControl.draggedEditor = void 0;
 		}));
 
 		// Drop
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
-			const identifier = this.stringToId(e.dataTransfer.getData('text'));
-			if (identifier) {
+			if (TabsTitleControl.draggedEditor) {
 				e.preventDefault();
 
-				const sourcePosition = this.stacks.positionOfGroup(identifier.group);
+				const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
 				const targetPosition = this.stacks.positionOfGroup(group);
 				const targetIndex = group.indexOf(editor);
 
 				// Move editor to target position and index
-				this.editorGroupService.moveEditor(identifier.editor, sourcePosition, targetPosition, targetIndex);
+				this.editorGroupService.moveEditor(TabsTitleControl.draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
 			}
 		}));
-	}
-
-	private idToString(identifier: IEditorIdentifier): string {
-		return [identifier.group.id, identifier.group.indexOf(identifier.editor)].join(',');
-	}
-
-	private stringToId(str: string): IEditorIdentifier {
-		if (str) {
-			const parts = str.split(',');
-			if (parts.length === 2) {
-				const group = this.stacks.getGroup(Number(parts[0]));
-				if (group) {
-					const editor = group.getEditor(Number(parts[1]));
-					if (editor) {
-						return { group, editor };
-					}
-				}
-			}
-		}
-
-		return void 0;
 	}
 
 	private getTabActions(identifier: IEditorIdentifier): IAction[] {
