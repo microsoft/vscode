@@ -28,7 +28,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 
 const useTabs = true;
@@ -152,12 +152,21 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.stacks.onModelChanged(() => this.onStacksChanged()));
+		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
 	}
 
-	private onStacksChanged(): void {
+	private onStacksChanged(e: IStacksModelChangeEvent): void {
 		POSITIONS.forEach(position => {
+
+			// Up to date context
 			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
+
+			// Refresh / update
+			if (e.structural) {
+				this.titleAreaControl[position].refresh();
+			} else {
+				this.titleAreaControl[position].update();
+			}
 		});
 	}
 
@@ -705,6 +714,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
 			this.titleAreaControl[position].create($(this.titleContainer[position]));
 			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
+			this.titleAreaControl[position].refresh(true);
 		});
 
 		// Progress Bars per position
@@ -896,8 +906,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move to valid position if any
 				if (moveTo !== null) {
 					this.editorGroupService.moveGroup(position, moveTo);
-					this.titleAreaControl[position].refresh();
-					this.titleAreaControl[moveTo].refresh();
+					this.titleAreaControl[position].refresh(true);
+					this.titleAreaControl[moveTo].refresh(true);
 				}
 
 				// Otherwise layout to restore proper positioning

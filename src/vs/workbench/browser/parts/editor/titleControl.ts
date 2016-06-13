@@ -42,7 +42,8 @@ export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	allowDragging(element: HTMLElement): boolean;
 	create(parent: Builder): void;
-	refresh(): void;
+	refresh(instant?: boolean): void;
+	update(instant?: boolean): void;
 	layout(): void;
 	dispose(): void;
 }
@@ -50,6 +51,7 @@ export interface ITitleAreaControl {
 export abstract class TitleControl {
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
+	protected toDispose: IDisposable[];
 
 	protected closeEditorAction: CloseEditorAction;
 	protected pinEditorAction: PinEditorAction;
@@ -65,9 +67,8 @@ export abstract class TitleControl {
 	protected showAllEditorsAction: ShowAllEditorsAction;
 
 	private mapActionsToEditors: { [editorId: string]: IToolbarActions; };
-
 	private scheduler: RunOnceScheduler;
-	protected toDispose: IDisposable[];
+	private refreshScheduled: boolean;
 
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -82,19 +83,51 @@ export abstract class TitleControl {
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
-		this.scheduler = new RunOnceScheduler(() => this.refresh(), 0);
+		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
 		this.toDispose.push(this.scheduler);
 
 		this.initActions();
 	}
 
-	public setContext(group: IEditorGroup): void {
-		this.context = group;
+	private onSchedule(): void {
+		if (this.refreshScheduled) {
+			this.doRefresh();
+		} else {
+			this.doUpdate();
+		}
 
-		this.scheduler.schedule();
+		this.refreshScheduled = false;
 	}
 
-	public abstract refresh();
+	public setContext(group: IEditorGroup): void {
+		this.context = group;
+	}
+
+	public update(instant?: boolean): void {
+		if (instant) {
+			this.scheduler.cancel();
+			this.onSchedule();
+		} else {
+			this.scheduler.schedule();
+		}
+	}
+
+	public refresh(instant?: boolean) {
+		this.refreshScheduled = true;
+
+		if (instant) {
+			this.scheduler.cancel();
+			this.onSchedule();
+		} else {
+			this.scheduler.schedule();
+		}
+	}
+
+	protected abstract doRefresh(): void;
+
+	protected doUpdate(): void {
+		this.doRefresh();
+	}
 
 	public layout(): void {
 		// Subclasses can opt in to react on layout

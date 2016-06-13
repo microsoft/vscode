@@ -130,7 +130,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	public refresh(): void {
+	protected doRefresh(): void {
 		if (!this.context) {
 			return;
 		}
@@ -198,7 +198,7 @@ export class NoTabsTitleControl extends TitleControl {
 		if (!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) || !arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds)) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
 			this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
-			
+
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
 		}

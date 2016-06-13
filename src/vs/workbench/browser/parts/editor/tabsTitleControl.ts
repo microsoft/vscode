@@ -129,7 +129,55 @@ export class TabsTitleControl extends TitleControl {
 		return (element.className === 'tabs-container');
 	}
 
-	public refresh(): void {
+	protected doUpdate(): void {
+		if (!this.context) {
+			return;
+		}
+
+		const group = this.context;
+
+		// Tabs container activity state
+		const isActive = this.stacks.isActive(group);
+		if (isActive) {
+			DOM.addClass(this.titleContainer, 'active');
+		} else {
+			DOM.removeClass(this.titleContainer, 'active');
+		}
+
+		// Tab styles
+		this.context.getEditors().forEach((editor, index) => {
+			const tabContainer = this.tabsContainer.children[index];
+			if (tabContainer instanceof HTMLElement) {
+				const isPinned = group.isPinned(editor);
+				const isActive = group.isActive(editor);
+				const isDirty = editor.isDirty();
+
+				// Pinned state
+				if (isPinned) {
+					DOM.addClass(tabContainer, 'pinned');
+				} else {
+					DOM.removeClass(tabContainer, 'pinned');
+				}
+
+				// Active state
+				if (isActive) {
+					DOM.addClass(tabContainer, 'active');
+					this.activeTab = tabContainer;
+				} else {
+					DOM.removeClass(tabContainer, 'active');
+				}
+
+				// Dirty State
+				if (isDirty) {
+					DOM.addClass(tabContainer, 'dirty');
+				} else {
+					DOM.removeClass(tabContainer, 'dirty');
+				}
+			}
+		});
+	}
+
+	protected doRefresh(): void {
 		if (!this.context) {
 			return;
 		}
@@ -145,15 +193,7 @@ export class TabsTitleControl extends TitleControl {
 			return; // return early if we are being closed
 		}
 
-		// Activity state
-		const isActive = this.stacks.isActive(group);
-		if (isActive) {
-			DOM.addClass(this.titleContainer, 'active');
-		} else {
-			DOM.removeClass(this.titleContainer, 'active');
-		}
-
-		// Update Group Actions Toolbar
+		// Refresh Group Actions Toolbar
 		const groupActions = this.getGroupActions(group);
 		const primaryGroupActions = groupActions.primary;
 		const secondaryGroupActions = groupActions.secondary;
@@ -168,6 +208,9 @@ export class TabsTitleControl extends TitleControl {
 
 		// Refresh Tabs
 		this.refreshTabs(group);
+
+		// Update styles
+		this.doUpdate();
 	}
 
 	private refreshTabs(group: IEditorGroup): void {
@@ -181,36 +224,10 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
-			const isPinned = group.isPinned(editor);
-			const isActive = group.isActive(editor);
-			const isDirty = editor.isDirty();
-
 			const tabContainer = document.createElement('div');
 			tabContainer.draggable = true;
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
-
-			// Pinned state
-			if (isPinned) {
-				DOM.addClass(tabContainer, 'pinned');
-			} else {
-				DOM.removeClass(tabContainer, 'pinned');
-			}
-
-			// Active state
-			if (isActive) {
-				DOM.addClass(tabContainer, 'active');
-				this.activeTab = tabContainer;
-			} else {
-				DOM.removeClass(tabContainer, 'active');
-			}
-
-			// Dirty State
-			if (isDirty) {
-				DOM.addClass(tabContainer, 'dirty');
-			} else {
-				DOM.removeClass(tabContainer, 'dirty');
-			}
 
 			// Tab Label Container
 			const tabLabelContainer = document.createElement('div');
@@ -240,6 +257,7 @@ export class TabsTitleControl extends TitleControl {
 		// Add to tabs container
 		tabContainers.forEach(tab => this.tabsContainer.appendChild(tab));
 
+		// Ensure active tab is always revealed
 		this.layout();
 	}
 
