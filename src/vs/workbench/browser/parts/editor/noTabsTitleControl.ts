@@ -125,16 +125,12 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Focus editor group unless click on toolbar
-		else if (this.stacks.groups.length === 1 && !this.targetInToolbar(<any>e.target || e.srcElement)) {
+		else if (this.stacks.groups.length === 1 && !DOM.isAncestor(<any>e.target || e.srcElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
 			this.editorGroupService.focusGroup(position);
 		}
 	}
 
-	private targetInToolbar(target: HTMLElement): boolean {
-		return DOM.isAncestor(target, this.editorActionsToolbar.getContainer().getHTMLElement());
-	}
-
-	public refresh(): void {
+	protected doRefresh(): void {
 		if (!this.context) {
 			return;
 		}
@@ -162,9 +158,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Activity state
 		if (isActive) {
-			this.titleContainer.removeClass('inactive');
+			this.titleContainer.addClass('active');
 		} else {
-			this.titleContainer.addClass('inactive');
+			this.titleContainer.removeClass('active');
 		}
 
 		// Editor Title
@@ -194,7 +190,6 @@ export class NoTabsTitleControl extends TitleControl {
 		if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primaryEditorActions.push(this.splitEditorAction);
 		}
-		primaryEditorActions.push(this.closeEditorAction);
 
 		const secondaryEditorActions = prepareActions(editorActions.secondary);
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
@@ -202,6 +197,8 @@ export class NoTabsTitleControl extends TitleControl {
 
 		if (!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) || !arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds)) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
+			this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
+
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
 		}

@@ -26,6 +26,7 @@ import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binary
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
+import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
@@ -33,7 +34,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
+import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
 	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInLeftGroupAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_LEFT_GROUP_PREFIX,
 	GlobalQuickOpenAction, OpenPreviousEditorFromHistoryAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction, ShowEditorsInCenterGroupAction,
@@ -356,7 +357,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditor, Op
 }), 'View: Open Previous Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ReopenClosedEditorAction, ReopenClosedEditorAction.ID, ReopenClosedEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T }), 'View: Reopen Closed Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(PinEditorAction, PinEditorAction.ID, PinEditorAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), 'View: Pin Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL), 'View: Unpin Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_W) }), 'View: Close All Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseLeftEditorsInGroupAction, CloseLeftEditorsInGroupAction.ID, CloseLeftEditorsInGroupAction.LABEL), 'View: Close Editors to the Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, CloseRightEditorsInGroupAction.LABEL), 'View: Close Editors to the Right', category);
@@ -395,3 +395,19 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ClearEditorHistoryActi
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistoryAction, RemoveFromEditorHistoryAction.ID, RemoveFromEditorHistoryAction.LABEL), 'Remove From Editor History');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), KbExpr.has('inQuickOpen'), KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
+
+// Configuration
+let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': 'workbench',
+	'order': 7,
+	'title': nls.localize('workbenchConfigurationTitle', "Workbench configuration"),
+	'type': 'object',
+	'properties': {
+		'workbench.showTabs': {
+			'type': 'boolean',
+			'description': nls.localize('showTabs', "Controls if opened editors should show in tabs or not."),
+			'default': false
+		}
+	}
+});

@@ -5,12 +5,14 @@
 
 'use strict';
 
+import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import {Builder} from 'vs/base/browser/builder';
+import DOM = require('vs/base/browser/dom');
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {IEditorStacksModel, IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
@@ -26,7 +28,9 @@ import {QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction,
+	MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction}
+from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export interface IToolbarActions {
@@ -36,16 +40,23 @@ export interface IToolbarActions {
 
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
+	allowDragging(element: HTMLElement): boolean;
 	create(parent: Builder): void;
-	refresh(): void;
+	refresh(instant?: boolean): void;
+	update(instant?: boolean): void;
+	layout(): void;
 	dispose(): void;
 }
 
 export abstract class TitleControl {
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
+	protected toDispose: IDisposable[];
 
 	protected closeEditorAction: CloseEditorAction;
+	protected pinEditorAction: PinEditorAction;
+	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
+	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
 	protected showEditorsOfLeftGroup: QuickOpenAction;
 	protected showEditorsOfCenterGroup: QuickOpenAction;
 	protected showEditorsOfRightGroup: QuickOpenAction;
@@ -56,9 +67,8 @@ export abstract class TitleControl {
 	protected showAllEditorsAction: ShowAllEditorsAction;
 
 	private mapActionsToEditors: { [editorId: string]: IToolbarActions; };
-
 	private scheduler: RunOnceScheduler;
-	protected toDispose: IDisposable[];
+	private refreshScheduled: boolean;
 
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -73,27 +83,70 @@ export abstract class TitleControl {
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
-		this.scheduler = new RunOnceScheduler(() => this.refresh(), 0);
+		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
 		this.toDispose.push(this.scheduler);
 
 		this.initActions();
 	}
 
-	public setContext(group: IEditorGroup): void {
-		this.context = group;
+	private onSchedule(): void {
+		if (this.refreshScheduled) {
+			this.doRefresh();
+		} else {
+			this.doUpdate();
+		}
 
-		this.scheduler.schedule();
+		this.refreshScheduled = false;
 	}
 
-	public abstract refresh();
+	public setContext(group: IEditorGroup): void {
+		this.context = group;
+	}
+
+	public update(instant?: boolean): void {
+		if (instant) {
+			this.scheduler.cancel();
+			this.onSchedule();
+		} else {
+			this.scheduler.schedule();
+		}
+	}
+
+	public refresh(instant?: boolean) {
+		this.refreshScheduled = true;
+
+		if (instant) {
+			this.scheduler.cancel();
+			this.onSchedule();
+		} else {
+			this.scheduler.schedule();
+		}
+	}
+
+	protected abstract doRefresh(): void;
+
+	protected doUpdate(): void {
+		this.doRefresh();
+	}
+
+	public layout(): void {
+		// Subclasses can opt in to react on layout
+	}
+
+	public allowDragging(element: HTMLElement): boolean {
+		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-container');
+	}
 
 	private initActions(): void {
 		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
+		this.closeOtherEditorsAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
+		this.closeRightEditorsAction = this.instantiationService.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
+		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
+		this.pinEditorAction = this.instantiationService.createInstance(PinEditorAction, PinEditorAction.ID, nls.localize('pin', "Pin Editor"));
 		this.showAllEditorsAction = this.instantiationService.createInstance(ShowAllEditorsAction, ShowAllEditorsAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 		this.moveGroupLeftAction = this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, nls.localize('moveLeft', "Move Left"));
 		this.moveGroupRightAction = this.instantiationService.createInstance(MoveGroupRightAction, MoveGroupRightAction.ID, nls.localize('moveRight', "Move Right"));
-		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
 		this.showEditorsOfLeftGroup = this.instantiationService.createInstance(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.showEditorsOfCenterGroup = this.instantiationService.createInstance(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.showEditorsOfRightGroup = this.instantiationService.createInstance(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, nls.localize('showEditors', "Show Editors"));
@@ -185,9 +238,9 @@ export abstract class TitleControl {
 		return { primary, secondary };
 	}
 
-	protected getEditorActionsForContext(context: BaseEditor): IToolbarActions;
-	protected getEditorActionsForContext(context: IEditorInputActionContext): IToolbarActions;
-	protected getEditorActionsForContext(context: any): IToolbarActions {
+	private getEditorActionsForContext(context: BaseEditor): IToolbarActions;
+	private getEditorActionsForContext(context: IEditorInputActionContext): IToolbarActions;
+	private getEditorActionsForContext(context: any): IToolbarActions {
 		let primaryActions: IAction[] = [];
 		let secondaryActions: IAction[] = [];
 
@@ -212,33 +265,29 @@ export abstract class TitleControl {
 		const editor = group.activeEditor;
 		const primary: IAction[] = [];
 
-		const isOverflowing = group.count > 1;
 		const groupCount = this.stacks.groups.length;
 
 		// Overflow
-		if (isOverflowing) {
-			let overflowAction: Action;
+		let overflowAction: Action;
+		if (groupCount === 1) {
+			overflowAction = this.showAllEditorsAction;
+		} else {
+			switch (this.stacks.positionOfGroup(group)) {
+				case Position.LEFT:
+					overflowAction = this.showEditorsOfLeftGroup;
+					break;
 
-			if (groupCount === 1) {
-				overflowAction = this.showAllEditorsAction;
-			} else {
-				switch (this.stacks.positionOfGroup(group)) {
-					case Position.LEFT:
-						overflowAction = this.showEditorsOfLeftGroup;
-						break;
+				case Position.CENTER:
+					overflowAction = (groupCount === 2) ? this.showEditorsOfRightGroup : this.showEditorsOfCenterGroup;
+					break;
 
-					case Position.CENTER:
-						overflowAction = (groupCount === 2) ? this.showEditorsOfRightGroup : this.showEditorsOfCenterGroup;
-						break;
-
-					case Position.RIGHT:
-						overflowAction = this.showEditorsOfRightGroup;
-						break;
-				}
+				case Position.RIGHT:
+					overflowAction = this.showEditorsOfRightGroup;
+					break;
 			}
-
-			primary.push(overflowAction);
 		}
+
+		primary.push(overflowAction);
 
 		// Splitting
 		if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
@@ -283,9 +332,12 @@ export abstract class TitleControl {
 			this.showEditorsOfCenterGroup,
 			this.showEditorsOfRightGroup,
 			this.closeEditorAction,
+			this.closeRightEditorsAction,
+			this.closeOtherEditorsAction,
+			this.closeEditorsInGroupAction,
 			this.moveGroupLeftAction,
 			this.moveGroupRightAction,
-			this.closeEditorsInGroupAction
+			this.pinEditorAction
 		].forEach((action) => {
 			action.dispose();
 		});

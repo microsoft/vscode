@@ -13,12 +13,11 @@ import errors = require('vs/base/common/errors');
 import nls = require('vs/nls');
 import {FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import {getUntitledOrFileResource, IEditorContext} from 'vs/workbench/common/editor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IEditorContext} from 'vs/workbench/browser/parts/editor/editorActions';
 
 export class GlobalTogglePreviewMarkdownAction extends Action {
 

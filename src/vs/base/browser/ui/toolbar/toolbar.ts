@@ -86,6 +86,9 @@ export class ToolBar {
 
 	public set context(context: any) {
 		this.actionBar.context = context;
+		if (this.toggleMenuActionItem) {
+			this.toggleMenuActionItem.setActionContext(context);
+		}
 	}
 
 	public getContainer(): Builder {
@@ -226,6 +229,14 @@ export class DropdownMenuActionItem extends BaseActionItem {
 
 		// Reemit events for running actions
 		this.toUnbind = this.addEmitter2(this.dropdownMenu);
+	}
+
+	public setActionContext(newContext: any): void {
+		super.setActionContext(newContext);
+
+		if (this.dropdownMenu) {
+			this.dropdownMenu.menuOptions.context = newContext;
+		}
 	}
 
 	public show(): void {

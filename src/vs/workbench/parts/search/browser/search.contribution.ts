@@ -166,7 +166,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'search',
-	'order': 10,
+	'order': 13,
 	'title': nls.localize('searchConfigurationTitle', "Search configuration"),
 	'type': 'object',
 	'properties': {

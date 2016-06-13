@@ -23,11 +23,13 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 
 export enum Rochade {
@@ -120,6 +122,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -149,13 +152,45 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.stacks.onModelChanged(() => this.onStacksChanged()));
+		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
-	private onStacksChanged(): void {
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		POSITIONS.forEach(position => {
+			const titleControl = this.titleAreaControl[position];
+			if (titleControl) {
+				const usingTabs = (titleControl instanceof TabsTitleControl);
+				const useTabs = configuration.workbench.showTabs;
+				if (usingTabs !== useTabs) {
+
+					// Dispose old
+					titleControl.dispose();
+					this.titleContainer[position].empty();
+
+					// Create new
+					this.createTitleControl(position);
+				}
+			}
+		});
+	}
+
+	private onStacksChanged(e: IStacksModelChangeEvent): void {
+
+		// Up to date context
 		POSITIONS.forEach(position => {
 			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
 		});
+
+		// Refresh / update if group is visible and has a position
+		const position = this.stacks.positionOfGroup(e.group);
+		if (position >= 0) {
+			if (e.structural) {
+				this.titleAreaControl[position].refresh();
+			} else {
+				this.titleAreaControl[position].update();
+			}
+		}
 	}
 
 	public get onGroupFocusChanged(): Event<void> {
@@ -699,9 +734,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
 			this.hookTitleDragListener(position);
 
-			this.titleAreaControl[position] = this.instantiationService.createInstance(NoTabsTitleControl);
-			this.titleAreaControl[position].create($(this.titleContainer[position]));
-			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
+			// Title Control
+			this.createTitleControl(position);
 		});
 
 		// Progress Bars per position
@@ -716,17 +750,29 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 	}
 
+	private createTitleControl(position: Position): void {
+		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showTabs;
+
+		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
+		this.titleAreaControl[position].create($(this.titleContainer[position]));
+		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
+		this.titleAreaControl[position].refresh(true);
+	}
+
 	private hookTitleDragListener(position: Position): void {
 		let wasDragged = false;
 
 		// Allow to reorder positions by dragging the title
 		this.titleContainer[position].on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (!this.titleAreaControl[position].allowDragging(<any>e.target || e.srcElement)) {
+				return; // return early if we are not in the drag zone of the title widget
+			}
 
 			// Reset flag
 			wasDragged = false;
 
 			// Return early if there is only one editor active or the user clicked into the toolbar
-			if (this.getVisibleEditorCount() <= 1 || !!DOM.findParentWithClass((<any>e.target || e.srcElement), 'monaco-action-bar', 'one-editor-container')) {
+			if (this.getVisibleEditorCount() <= 1) {
 				return;
 			}
 
@@ -890,8 +936,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move to valid position if any
 				if (moveTo !== null) {
 					this.editorGroupService.moveGroup(position, moveTo);
-					this.titleAreaControl[position].refresh();
-					this.titleAreaControl[moveTo].refresh();
+					this.titleAreaControl[position].refresh(true);
+					this.titleAreaControl[moveTo].refresh(true);
 				}
 
 				// Otherwise layout to restore proper positioning
@@ -1272,9 +1318,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 		});
 
-		// Layout active editors
+		// Layout visible editors
 		POSITIONS.forEach(position => {
 			this.layoutEditor(position);
+		});
+
+		// Layout title controls
+		POSITIONS.forEach(position => {
+			this.titleAreaControl[position].layout();
 		});
 	}
 
