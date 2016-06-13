@@ -41,7 +41,7 @@ if (platform.isWindows || platform.isLinux) {
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'window',
-	'order': 6,
+	'order': 8,
 	'title': nls.localize('windowConfigurationTitle', "Window configuration"),
 	'type': 'object',
 	'properties': {
@@ -72,7 +72,7 @@ configurationRegistry.registerConfiguration({
 // Configuration: Update
 configurationRegistry.registerConfiguration({
 	'id': 'update',
-	'order': 10,
+	'order': 15,
 	'title': nls.localize('updateConfigurationTitle', "Update configuration"),
 	'type': 'object',
 	'properties': {

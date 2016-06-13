@@ -145,7 +145,7 @@ export class RequestService extends BaseRequestService {
 let confRegistry = <IConfigurationRegistry>platform.Registry.as(Extensions.Configuration);
 confRegistry.registerConfiguration({
 	id: 'http',
-	order: 9,
+	order: 15,
 	title: nls.localize('httpConfigurationTitle', "HTTP configuration"),
 	type: 'object',
 	properties: {

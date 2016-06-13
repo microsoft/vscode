@@ -161,7 +161,7 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExt
 
 configurationRegistry.registerConfiguration({
 	'id': 'files',
-	'order': 7,
+	'order': 9,
 	'title': nls.localize('filesConfigurationTitle', "Files configuration"),
 	'type': 'object',
 	'properties': {
@@ -234,7 +234,7 @@ configurationRegistry.registerConfiguration({
 
 configurationRegistry.registerConfiguration({
 	'id': 'explorer',
-	'order': 8,
+	'order': 10,
 	'title': nls.localize('explorerConfigurationTitle', "File Explorer configuration"),
 	'type': 'object',
 	'properties': {

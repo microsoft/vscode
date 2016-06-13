@@ -26,6 +26,7 @@ import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binary
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
+import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
@@ -394,3 +395,19 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ClearEditorHistoryActi
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistoryAction, RemoveFromEditorHistoryAction.ID, RemoveFromEditorHistoryAction.LABEL), 'Remove From Editor History');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), KbExpr.has('inQuickOpen'), KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
+
+// Configuration
+let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': 'workbench',
+	'order': 7,
+	'title': nls.localize('workbenchConfigurationTitle', "Workbench configuration"),
+	'type': 'object',
+	'properties': {
+		'workbench.showTabs': {
+			'type': 'boolean',
+			'description': nls.localize('showTabs', "Controls if opened editors should show in tabs or not."),
+			'default': false
+		}
+	}
+});

@@ -509,7 +509,7 @@ export function registerContributions(): void {
 	var configurationRegistry = <confregistry.IConfigurationRegistry>platform.Registry.as(confregistry.Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		id: 'git',
-		order: 10,
+		order: 15,
 		title: nls.localize('gitConfigurationTitle', "Git configuration"),
 		type: 'object',
 		properties: {

@@ -38,7 +38,7 @@ KeybindingsRegistry.registerCommandRule({
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'emmet',
-	'order': 7,
+	'order': 6,
 	'title': nls.localize('emmetConfigurationTitle', "Emmet configuration"),
 	'type': 'object',
 	'properties': {

@@ -662,3 +662,9 @@ export interface IEditorContext extends IEditorIdentifier {
 }
 
 export type GroupIdentifier = number;
+
+export interface IWorkbenchEditorConfiguration {
+	workbench: {
+		showTabs: boolean;
+	};
+}

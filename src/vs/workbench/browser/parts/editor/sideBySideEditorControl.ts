@@ -23,15 +23,14 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
-
-const useTabs = true;
 
 export enum Rochade {
 	NONE,
@@ -123,6 +122,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -153,6 +153,26 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private registerListeners(): void {
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		POSITIONS.forEach(position => {
+			const titleControl = this.titleAreaControl[position];
+			if (titleControl) {
+				const usingTabs = (titleControl instanceof TabsTitleControl);
+				const useTabs = configuration.workbench.showTabs;
+				if (usingTabs !== useTabs) {
+
+					// Dispose old
+					titleControl.dispose();
+					this.titleContainer[position].empty();
+
+					// Create new
+					this.createTitleControl(position);
+				}
+			}
+		});
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
@@ -714,10 +734,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
 			this.hookTitleDragListener(position);
 
-			this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
-			this.titleAreaControl[position].create($(this.titleContainer[position]));
-			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
-			this.titleAreaControl[position].refresh(true);
+			// Title Control
+			this.createTitleControl(position);
 		});
 
 		// Progress Bars per position
@@ -730,6 +748,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (isWindows) {
 			parent.addClass('custom-drag-cursor');
 		}
+	}
+
+	private createTitleControl(position: Position): void {
+		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showTabs;
+
+		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
+		this.titleAreaControl[position].create($(this.titleContainer[position]));
+		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
+		this.titleAreaControl[position].refresh(true);
 	}
 
 	private hookTitleDragListener(position: Position): void {
