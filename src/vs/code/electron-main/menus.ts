@@ -9,13 +9,13 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import * as env from 'vs/code/electron-main/env';
-import os = require('os');
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
 import { IWindowsService, WindowsManager, IOpenedPathsList } from 'vs/code/electron-main/windows';
 import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
 import { Keybinding } from 'vs/base/common/keyCodes';
+import { generateNewIssueUrl } from 'vs/code/electron-main/utils';
 
 interface IResolvedKeybinding {
 	id: string;
@@ -643,17 +643,6 @@ export class VSCodeMenu {
 		}
 	}
 
-	private generateNewIssueUrl(): string {
-		let quality = process.env['VSCODE_DEV'] ? 'dev' : this.envService.product.quality;
-		let version = `${app.getVersion()}-${quality}`;
-		if (this.envService.product.commit || this.envService.product.date) {
-			version += ` (${this.envService.product.commit || 'Unknown'}, ${this.envService.product.date || 'Unknown'})`;
-		}
-		return `${this.envService.product.reportIssueUrl}?body=- VSCode Version: ${version}%0A` +
-			`- OS Version: ${os.type()} ${os.arch()}%0A%0A` +
-			'Steps to Reproduce:%0A%0A1.%0A2.';
-	}
-
 	private setHelpMenu(helpMenu: Electron.Menu): void {
 		let toggleDevToolsItem = new MenuItem({
 			label: mnemonicLabel(nls.localize({ key: 'miToggleDevTools', comment: ['&& denotes a mnemonic'] }, "&&Toggle Developer Tools")),
@@ -668,7 +657,7 @@ export class VSCodeMenu {
 			(this.envService.product.documentationUrl || this.envService.product.releaseNotesUrl) ? __separator__() : null,
 			this.envService.product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(this.envService.product.twitterUrl, 'openTwitterUrl') }) : null,
 			this.envService.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Request Features")), click: () => this.openUrl(this.envService.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
-			this.envService.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues")), click: () => this.openUrl(this.generateNewIssueUrl(), 'openReportIssues') }) : null,
+			this.envService.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues")), click: () => this.openUrl(generateNewIssueUrl(app.getVersion(), this.envService.product), 'openReportIssues') }) : null,
 			(this.envService.product.twitterUrl || this.envService.product.requestFeatureUrl || this.envService.product.reportIssueUrl) ? __separator__() : null,
 			this.envService.product.licenseUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "&&View License")), click: () => {
