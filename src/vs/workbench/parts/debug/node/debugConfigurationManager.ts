@@ -26,6 +26,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingServ
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -166,7 +167,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
@@ -339,7 +341,10 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					return false;
 				}
 
-				return this.fileService.updateContent(resource, content).then(() => true);
+				return this.fileService.updateContent(resource, content).then(() => {
+					// On first launch.json creation open debug viewlet #7291
+					return this.viewletService.openViewlet(debug.VIEWLET_ID);
+				});
 			}
 		)).then(configFileCreated => {
 			if (!configFileCreated) {
