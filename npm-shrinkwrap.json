@@ -422,8 +422,8 @@
     },
     "xterm": {
       "version": "0.33.0",
-      "from": "https://github.com/sourcelair/xterm.js/tarball/master",
-      "resolved": "https://github.com/sourcelair/xterm.js/tarball/master"
+      "from": "git+https://github.com/sourcelair/xterm.js.git#9d34ed8",
+      "resolved": "git+https://github.com/sourcelair/xterm.js.git#9d34ed8781b2993dd209aca02d5ff9ab98d4a9b9"
     },
     "yauzl": {
       "version": "2.3.1",
