@@ -4,57 +4,38 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import * as child_process from "child_process";
+import {getTextEditsFromPatch} from "../common/editor";
 
 export class PythonImportSortProvider {
-    public sortImports(extensionDir: string, document: vscode.TextDocument): Thenable<vscode.TextEdit[]> {
+    public sortImports(extensionDir: string, document: vscode.TextDocument): Promise<vscode.TextEdit[]> {
+        if (document.lineCount === 1) {
+            return Promise.resolve([]);
+        }
+        let filePath = document.uri.fsPath;
+        let importScript = path.join(extensionDir, "pythonFiles", "sortImports.py");
         return new Promise<vscode.TextEdit[]>((resolve, reject) => {
-            let filePath = document.uri.fsPath;
-            let importScript = path.join(extensionDir, "pythonFiles", "sortImports.py");
-            if (!fs.existsSync(filePath)) {
-                vscode.window.showErrorMessage(`File ${filePath} does not exist`);
-                return resolve([]);
-            }
-
             let ext = path.extname(filePath);
             let tmp = require("tmp");
-            tmp.file({ postfix: ext }, function _tempFileCreated(err, tmpFilePath, fd) {
+            tmp.file({ postfix: ext }, function (err, tmpFilePath, fd) {
                 if (err) {
-                    reject(err);
-                    return;
+                    return reject(err);
                 }
-                let documentText = document.getText();
-                fs.writeFile(tmpFilePath, documentText, ex => {
+                fs.writeFile(tmpFilePath, document.getText(), ex => {
                     if (ex) {
-                        vscode.window.showErrorMessage(`Failed to create a temporary file, ${ex.message}`);
-                        return;
+                        return reject(`Failed to create a temporary file, ${ex.message}`);
                     }
 
-                    child_process.exec(`python "${importScript}" "${tmpFilePath}"`, (error, stdout, stderr) => {
-                        if (error || stderr) {
-                            vscode.window.showErrorMessage(`File ${filePath} does not exist`);
-                            return resolve([]);
+                    child_process.exec(`python "${importScript}" "${tmpFilePath}" --diff`, (error, stdout, stderr) => {
+                        if (error || (stderr && stderr.length > 0)) {
+                            return reject(error ? error : stderr);
                         }
 
-                        fs.readFile(tmpFilePath, (ex, data) => {
-                            if (ex) {
-                                vscode.window.showErrorMessage(`Failed to create a temporary file for sorting, ${ex.message}`);
-                                return;
-                            }
-
-                            let formattedText = data.toString("utf-8");
-                            // Nothing to do 
-                            if (document.getText() === formattedText) {
-                                return resolve([]);
-                            }
-
-                            let range = new vscode.Range(document.lineAt(0).range.start, document.lineAt(document.lineCount - 1).range.end);
-                            let txtEdit = new vscode.TextEdit(range, formattedText);
-                            resolve([txtEdit]);
-                        });
+                        let formattedText = stdout;
+                        let edits = getTextEditsFromPatch(document.getText(), stdout);
+                        resolve(edits);
                     });
                 });
             });
-
         });
     }
 }
