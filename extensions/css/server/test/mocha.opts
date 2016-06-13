@@ -1,4 +1,5 @@
 --ui tdd
 --useColors true
 ./out/test/css
+./out/test/less
 ./out/test/scss

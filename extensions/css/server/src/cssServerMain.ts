@@ -9,7 +9,7 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
 
-import {getCSSLanguageService, getSCSSLanguageService, LanguageSettings, LanguageService} from './cssLanguageService';
+import {getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService} from './cssLanguageService';
 import {Stylesheet} from './parser/cssNodes';
 
 import * as nls from 'vscode-nls';
@@ -57,7 +57,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 let languageServices : { [id:string]: LanguageService} = {
 	css: getCSSLanguageService(),
-	scss: getSCSSLanguageService()
+	scss: getSCSSLanguageService(),
+	less: getLESSLanguageService()
 };
 
 function getLanguageService(document: TextDocument) {

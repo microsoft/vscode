@@ -17,6 +17,8 @@ import {CSSValidation} from './services/cssValidation';
 
 import {SCSSParser} from './parser/scssParser';
 import {SCSSCompletion} from './services/scssCompletion';
+import {LESSParser} from './parser/lessParser';
+import {LESSCompletion} from './services/lessCompletion';
 
 export interface LanguageService {
 	configure(raw: LanguageSettings): void;
@@ -37,12 +39,12 @@ export interface LanguageSettings {
 	lint?: any;
 }
 
-	let cssParser = new Parser();
-	let cssCompletion = new CSSCompletion();
-	let cssHover = new CSSHover();
-	let cssValidation = new CSSValidation();
-	let cssNavigation = new CSSNavigation();
-	let cssCodeActions = new CSSCodeActions();
+let cssParser = new Parser();
+let cssCompletion = new CSSCompletion();
+let cssHover = new CSSHover();
+let cssValidation = new CSSValidation();
+let cssNavigation = new CSSNavigation();
+let cssCodeActions = new CSSCodeActions();
 
 export function getCSSLanguageService() : LanguageService {
 	return {
@@ -67,5 +69,15 @@ export function getSCSSLanguageService() : LanguageService {
 	let languageService = getCSSLanguageService();
 	languageService.parseStylesheet = scssParser.parseStylesheet.bind(scssParser);
 	languageService.doComplete = scssCompletion.doComplete.bind(scssCompletion);
+	return languageService;
+}
+
+let lessParser = new LESSParser();
+let lessCompletion = new LESSCompletion();
+
+export function getLESSLanguageService() : LanguageService {
+	let languageService = getCSSLanguageService();
+	languageService.parseStylesheet = lessParser.parseStylesheet.bind(lessParser);
+	languageService.doComplete = lessCompletion.doComplete.bind(lessCompletion);
 	return languageService;
 }
