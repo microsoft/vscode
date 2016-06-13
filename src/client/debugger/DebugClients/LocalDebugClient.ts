@@ -169,6 +169,7 @@ export class LocalDebugClient extends DebugClient {
                             return;
                         }
                         this.displayError(error);
+                        reject(error);
                     });
 
                     return;

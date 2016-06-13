@@ -109,18 +109,25 @@ export class PythonDebugger extends DebugSession {
     }
     private onPythonModuleLoaded(module: IPythonModule) {
     }
+    private debuggerHasLoaded: boolean;
     private onPythonProcessLoaded(pyThread: IPythonThread) {
+        this.debuggerHasLoaded = true;
         this.sendResponse(this.entryResponse);
         this.debuggerLoadedPromiseResolve();
         if (this.launchArgs && this.launchArgs.stopOnEntry === true) {
             this.sendEvent(new StoppedEvent("entry", pyThread.Id));
         }
         else {
+            // Is this the right place to do this?
             this.pythonProcess.SendResumeThread(pyThread.Id);
         }
     }
 
     private onDebuggerOutput(pyThread: IPythonThread, output: string) {
+        if (!this.debuggerHasLoaded) {
+            this.sendResponse(this.entryResponse);
+            this.debuggerLoadedPromiseResolve();
+        }
         this.sendEvent(new OutputEvent(output, "stdout"));
     }
     private entryResponse: DebugProtocol.LaunchResponse;
@@ -144,16 +151,9 @@ export class PythonDebugger extends DebugSession {
         this.entryResponse = response;
         let that = this;
 
-        this.canStartDebugger().then(() => {
-            this.startDebugServer().then(dbgServer => {
-                that.debugClient.LaunchApplicationToDebug(dbgServer).then(() => {
-
-                }, error => {
-                    this.sendEvent(new OutputEvent(error + "\n", "stderr"));
-                    this.sendErrorResponse(that.entryResponse, 2000, error);
-                });
-            });
-        }, error => {
+        this.startDebugServer().then(dbgServer => {
+            return that.debugClient.LaunchApplicationToDebug(dbgServer);
+        }).catch(error => {
             this.sendEvent(new OutputEvent(error + "\n", "stderr"));
             this.sendErrorResponse(that.entryResponse, 2000, error);
         });
@@ -170,10 +170,10 @@ export class PythonDebugger extends DebugSession {
         let that = this;
 
         this.canStartDebugger().then(() => {
-            this.startDebugServer().then(dbgServer => {
-                that.debugClient.LaunchApplicationToDebug(dbgServer);
+            return this.startDebugServer().then(dbgServer => {
+                return that.debugClient.LaunchApplicationToDebug(dbgServer);
             });
-        }, error => {
+        }).catch(error => {
             this.sendEvent(new OutputEvent(error + "\n", "stderr"));
             this.sendErrorResponse(that.entryResponse, 2000, error);
         });
@@ -245,7 +245,7 @@ export class PythonDebugger extends DebugSession {
                         breakpoints.push({ verified: true, line: bk.line });
                         registeredBks.push(breakpoint);
                         resolve();
-                    }, reason => {
+                    }).catch(reason => {
                         this.registeredBreakpoints.set(breakpoint.Id, breakpoint);
                         breakpoints.push({ verified: false, line: bk.line });
                         registeredBks.push(breakpoint);

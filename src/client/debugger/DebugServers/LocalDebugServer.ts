@@ -38,7 +38,6 @@ export class LocalDebugServer extends BaseDebugServer {
                     }
                 });
                 c.on("close", d => {
-                    let msg = "Debugger client closed, " + d;
                     that.emit("detach", d);
                 });
                 c.on("timeout", d => {
