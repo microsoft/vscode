@@ -27,7 +27,11 @@
 }
 
 .markers-panel .markers-panel-container .message-box-container {
-	padding-left: 20px;
+	padding: 20px 0 0 20px;
+}
+
+.markers-panel .markers-panel-container .message-box-container span:focus {
+	outline: none;
 }
 
 .markers-panel  .markers-panel-container .hidden {

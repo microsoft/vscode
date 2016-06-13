@@ -6,7 +6,7 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IDataSource, ITree, IRenderer} from 'vs/base/parts/tree/browser/tree';
+import {IDataSource, ITree, IRenderer, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -174,4 +174,18 @@ export class Renderer implements IRenderer {
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 	}
+}
+
+export class ProblemsTreeAccessibilityProvider implements IAccessibilityProvider {
+
+	public getAriaLabel(tree: ITree, element: any): string {
+		if (element instanceof Resource) {
+			return Messages.PROBLEMS_TREE_ARIA_LABEL_RESOURCE(element.name, element.markers.length);
+		}
+		if (element instanceof Marker) {
+			return Messages.PROBLEMS_TREE_ARIA_LABEL_MARKER(element.marker);
+		}
+		return null;
+	}
+
 }

@@ -109,6 +109,8 @@ export class MarkersPanel extends Panel {
 		if (this.markersModel.hasFilteredResources()) {
 			this.tree.DOMFocus();
 			this.revealProblemsForCurrentActiveEditor(true);
+		} else {
+			this.messageBox.focus();
 		}
 	}
 
@@ -135,7 +137,8 @@ export class MarkersPanel extends Panel {
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.emmet('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.emmet('p'));
+		this.messageBox = dom.append(this.messageBoxContainer, dom.emmet('span'));
+		this.messageBox.setAttribute('tabindex', '0');
 	}
 
 	private createTree(parent: HTMLElement): void {
@@ -146,7 +149,8 @@ export class MarkersPanel extends Panel {
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer: renderer,
-			controller: controller
+			controller: controller,
+			accessibilityProvider: new Viewer.ProblemsTreeAccessibilityProvider()
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
@@ -260,6 +264,9 @@ export class MarkersPanel extends Panel {
 					this.tree.setSelection([currentActiveResource]);
 				}
 			}
+		} else if (focus) {
+			this.tree.setSelection([]);
+			this.tree.focusFirst();
 		}
 	}
 
