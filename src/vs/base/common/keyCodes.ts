@@ -503,6 +503,9 @@ export class CommonKeybindings {
 
 	public static RIGHT_ARROW: number = KeyCode.RightArrow;
 
+	public static HOME: number = KeyCode.Home;
+	public static END: number = KeyCode.End;
+
 	public static PAGE_UP: number = KeyCode.PageUp;
 	public static SHIFT_PAGE_UP: number = KeyMod.Shift | KeyCode.PageUp;
 

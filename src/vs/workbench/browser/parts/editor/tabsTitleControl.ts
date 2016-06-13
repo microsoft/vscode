@@ -349,10 +349,20 @@ export class TabsTitleControl extends TitleControl {
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
 			}
 
-			// Next / Previous editor
-			else if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW)) {
+			// Navigate in editors
+			else if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.HOME) || event.equals(CommonKeybindings.END)) {
 				const index = group.indexOf(editor);
-				const targetIndex = event.equals(CommonKeybindings.LEFT_ARROW) ? index - 1 : index + 1;
+				let targetIndex: number;
+				if (event.equals(CommonKeybindings.LEFT_ARROW)) {
+					targetIndex = index - 1;
+				} else if (event.equals(CommonKeybindings.RIGHT_ARROW)) {
+					targetIndex = index + 1;
+				} else if (event.equals(CommonKeybindings.HOME)) {
+					targetIndex = 0;
+				} else {
+					targetIndex = group.count - 1;
+				}
+
 				const target = group.getEditor(targetIndex);
 				if (target) {
 					handled = true;
