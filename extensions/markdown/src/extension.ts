@@ -6,9 +6,8 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as path from 'path';
-import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, TextDocument, ViewColumn } from "vscode";
+import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from "vscode";
 
 const hljs = require('highlight.js');
 const mdnh = require('markdown-it-named-headers');
@@ -33,39 +32,37 @@ export function activate(context: ExtensionContext) {
 
 	context.subscriptions.push(d1, d2, registration);
 
-	vscode.workspace.onDidSaveTextDocument((e: TextDocument) => {
-		if (isMarkdownFile(e.fileName)) {
-			let markdownPreviewUri = Uri.parse(`markdown://${e.uri.path}`);
-			provider.update(markdownPreviewUri);
+	vscode.workspace.onDidSaveTextDocument(document => {
+		if (isMarkdownFile(document)) {
+			const uri = getMarkdownUri(document);
+			provider.update(uri);
+		}
+	});
+
+	vscode.workspace.onDidChangeTextDocument(event => {
+		if (isMarkdownFile(event.document)) {
+			const uri = getMarkdownUri(event.document);
+			provider.update(uri);
+
 		}
 	});
 
 	vscode.workspace.onDidChangeConfiguration(() => {
 		vscode.workspace.textDocuments.forEach((document) => {
-			if ('markdown' === document.uri.scheme) {
+			if (isMarkdownFile) {
 				provider.update(document.uri);
 			}
 		});
 	});
 }
 
-// copy from src/vs/base/common/strings.ts
-function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
-	}
+function isMarkdownFile(document: vscode.TextDocument) {
+	return document.languageId === 'markdown'
+		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
 }
 
-function isMarkdownFile(fileName: string) {
-	return fileName && (endsWith(fileName,'.md')
-		|| endsWith(fileName, '.mdown')
-		|| endsWith(fileName, '.markdown')
-		|| endsWith(fileName, '.markdn'));
+function getMarkdownUri(document: vscode.TextDocument) {
+	return document.uri.with({ scheme: 'markdown', query: document.uri.toString() });
 }
 
 function openPreview(sideBySide?: boolean): void {
@@ -75,7 +72,7 @@ function openPreview(sideBySide?: boolean): void {
 		return;
 	}
 
-	let markdownPreviewUri = Uri.parse(`markdown://${activeEditor.document.uri.path}`);
+	let markdownPreviewUri = getMarkdownUri(activeEditor.document);
 	vscode.commands.executeCommand('vscode.previewHtml', markdownPreviewUri, getViewColumn(sideBySide));
 }
 
@@ -101,15 +98,15 @@ function getViewColumn(sideBySide): ViewColumn {
 
 
 class MDDocumentContentProvider implements TextDocumentContentProvider {
-	private context;
+	private _context: ExtensionContext;
 	private _onDidChange = new EventEmitter<Uri>();
 
 	constructor(context: ExtensionContext) {
-		this.context = context;
+		this._context = context;
 	}
 
 	private getMediaPath(mediaFile) {
-		return this.context.asAbsolutePath(path.join('media', mediaFile));
+		return this._context.asAbsolutePath(path.join('media', mediaFile));
 	}
 
 	private fixHref(resource: Uri, href: string) {
@@ -124,7 +121,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		return href;
 	}
 
-	private computeCustomStyleSheetIncludes(uri) : string[] {
+	private computeCustomStyleSheetIncludes(uri: Uri): string[] {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
 		if (styles && Array.isArray(styles)) {
 			return styles.map((style) => {
@@ -135,33 +132,28 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 	}
 
 	public provideTextDocumentContent(uri: Uri): Thenable<string> {
-		return new Promise((approve, reject) => {
-			fs.readFile(uri.fsPath, (error, buffer) => {
-				if (error) {
-					return reject(error);
-				}
 
-				const head = [].concat(
-					'<!DOCTYPE html>',
-					'<html>',
-					'<head>',
-					'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
-					`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
-					`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
-					this.computeCustomStyleSheetIncludes(uri),
-					'</head>',
-					'<body>'
-				).join('\n');
+		return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
+			const head = [].concat(
+				'<!DOCTYPE html>',
+				'<html>',
+				'<head>',
+				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
+				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
+				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
+				this.computeCustomStyleSheetIncludes(uri),
+				'</head>',
+				'<body>'
+			).join('\n');
 
-				const body = md.render(buffer.toString());
+			const body = md.render(document.getText());
 
-				const tail = [
-					'</body>',
-					'</html>'
-				].join('\n');
+			const tail = [
+				'</body>',
+				'</html>'
+			].join('\n');
 
-				approve(head + body + tail);
-			});
+			return head + body + tail;
 		});
 	}
 
