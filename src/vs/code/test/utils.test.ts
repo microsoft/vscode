@@ -50,6 +50,10 @@ class MockProductConfiguration implements IProductConfiguration {
 
 suite('utils', () => {
 	test('generateNewIssueUrl', () => {
+		if (process.env['VSCODE_DEV']) {
+			delete process.env['VSCODE_DEV'];
+		}
+
 		let product = new MockProductConfiguration();
 		product.commit = 'COMMIT';
 		product.quality = 'QUALITY';
@@ -83,5 +87,11 @@ suite('utils', () => {
 		assert.equal(Utils.generateNewIssueUrl(version, product),
 			`URL?foo=bar&body=- VSCode Version: VERSION-QUALITY%0A- OS Version: ${osVersion}%0A%0ASteps to Reproduce:%0A%0A1.%0A2.`,
 			'generateNewIssueUrl should use an & to join the query string parameter if a ? is in reportIssueUrl');
+
+		process.env['VSCODE_DEV'] = 1;
+		product.quality = null;
+		assert.equal(Utils.generateNewIssueUrl(version, product),
+			`URL?foo=bar&body=- VSCode Version: VERSION-dev%0A- OS Version: ${osVersion}%0A%0ASteps to Reproduce:%0A%0A1.%0A2.`,
+			'generateNewIssueUrl should use a quality of \'dev\' if the VSCODE_DEV environment variable is set');
 	});
 });
