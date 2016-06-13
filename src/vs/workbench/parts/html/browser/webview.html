@@ -40,6 +40,7 @@
 		// update iframe-contents
 		ipcRenderer.on('content', function(event, value) {
 
+			// parse content, assume content is html
 			const parser = new DOMParser();
 			const newDocument = parser.parseFromString(value.join('\n'), 'text/html');
 
@@ -76,9 +77,9 @@
 				});`
 			newDocument.body.appendChild(defaultScripts);
 
-			// write new content onto iframe
+			// write new content onto iframe, add doctype since `.innerHTML` strips doctype
 			target.contentDocument.open('text/html', 'replace');
-			target.contentDocument.write(newDocument.documentElement.innerHTML);
+			target.contentDocument.write('<!DOCTYPE html>' + newDocument.documentElement.innerHTML);
 			target.contentDocument.close();
 
 		});
