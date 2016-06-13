@@ -244,6 +244,11 @@ export class ScrollableElement extends Widget {
 				deltaX = e.deltaY;
 			}
 
+			if (this._options.scrollYToX && !deltaX) {
+				deltaX = e.deltaY;
+				deltaY = 0;
+			}
+
 			if (Platform.isMacintosh) {
 				// Give preference to vertical scrolling
 				if (deltaY && Math.abs(deltaX) < 0.2) {
@@ -412,6 +417,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
 		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
 		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
+		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 

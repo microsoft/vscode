@@ -36,9 +36,14 @@ export interface ScrollableElementCreationOptions {
 	handleMouseWheel?: boolean;
 	/**
 	 * Flip axes. Treat vertical scrolling like horizontal and vice-versa.
-	 * Defaults to false;
+	 * Defaults to false.
 	 */
 	flipAxes?: boolean;
+	/**
+	 * If enabled, will scroll horizontally when scrolling vertical.
+	 * Defaults to false.
+	 */
+	scrollYToX?: boolean;
 	/**
 	 * A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.
 	 * Defaults to 1.
@@ -115,6 +120,7 @@ export interface ScrollableElementResolvedOptions {
 	useShadows: boolean;
 	handleMouseWheel: boolean;
 	flipAxes: boolean;
+	scrollYToX: boolean;
 	mouseWheelScrollSensitivity: number;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement;

@@ -28,6 +28,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export class TabsTitleControl extends TitleControl {
 
@@ -36,6 +38,7 @@ export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private activeTab: HTMLElement;
+	private scrollbar: ScrollableElement;
 
 	private groupActionsToolbar: ToolBar;
 	private tabDisposeables: IDisposable[];
@@ -72,7 +75,23 @@ export class TabsTitleControl extends TitleControl {
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
 		DOM.addClass(this.tabsContainer, 'tabs-container');
-		this.titleContainer.appendChild(this.tabsContainer);
+
+		// Custom Scrollbar
+		this.scrollbar = new ScrollableElement(this.tabsContainer, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			scrollYToX: true,
+			useShadows: false,
+			canUseTranslate3d: true,
+			horizontalScrollbarSize: 3
+		});
+		this.tabsContainer.style.overflow = 'scroll'; // custom scrollbar is eager on removing this style but we want it for DND scroll feedback
+
+		this.scrollbar.onScroll(e => {
+			this.tabsContainer.scrollLeft = e.scrollLeft;
+		});
+
+		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
@@ -110,14 +129,6 @@ export class TabsTitleControl extends TitleControl {
 						this.editorGroupService.moveEditor(TabsTitleControl.draggedEditor.editor, sourcePosition, targetPosition, group.count);
 					}
 				}
-			}
-		}));
-
-		// Convert mouse wheel vertical scroll to horizontal
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.WHEEL, (e: WheelEvent) => {
-			if (e.deltaY && !e.deltaX) {
-				DOM.EventHelper.stop(e);
-				this.tabsContainer.scrollLeft += e.deltaY;
 			}
 		}));
 
@@ -269,24 +280,36 @@ export class TabsTitleControl extends TitleControl {
 			return;
 		}
 
+		const visibleContainerWidth = this.tabsContainer.offsetWidth;
+		const totalContainerWidth = this.tabsContainer.scrollWidth;
+
+		// Update scrollbar
+		this.scrollbar.updateState({
+			width: visibleContainerWidth,
+			scrollWidth: totalContainerWidth
+		});
+
 		// Always reveal the active one
-		const containerWidth = this.tabsContainer.offsetWidth;
 		const containerScrollPosX = this.tabsContainer.scrollLeft;
 		const activeTabPosX = this.activeTab.offsetLeft;
 		const activeTabWidth = this.activeTab.offsetWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
-		if (containerScrollPosX + containerWidth < activeTabPosX + activeTabWidth) {
-			this.tabsContainer.scrollLeft += ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + containerWidth) /* right corner of view port */);
+		if (containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
+			this.scrollbar.updateState({
+				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
+			});
 		}
 
 		// Tab is overlflowng to the left: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX) {
-			this.tabsContainer.scrollLeft = this.activeTab.offsetLeft;
+			this.scrollbar.updateState({
+				scrollLeft: this.activeTab.offsetLeft
+			});
 		}
 
 		// Update enablement of certain actions that depend on overflow
-		const isOverflowing = (this.tabsContainer.scrollWidth > containerWidth);
+		const isOverflowing = (totalContainerWidth > visibleContainerWidth);
 		this.showEditorsOfLeftGroup.enabled = isOverflowing;
 		this.showEditorsOfCenterGroup.enabled = isOverflowing;
 		this.showEditorsOfRightGroup.enabled = isOverflowing;
