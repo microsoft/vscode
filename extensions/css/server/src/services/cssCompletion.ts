@@ -32,7 +32,7 @@ export class CSSCompletion {
 	}
 
 
-	public doComplete(document: TextDocument, position: Position, styleSheet: nodes.Stylesheet): CompletionList {
+	public doComplete(document: TextDocument, position: Position, styleSheet: nodes.Stylesheet): Thenable<CompletionList> {
 		this.offset = document.offsetAt(position);
 		this.position = position;
 		this.currentWord = getCurrentWord(document, this.offset);
@@ -67,23 +67,23 @@ export class CSSCompletion {
 				this.getCompletionsForFunctionArgument(null, <nodes.Function>node, result);
 			}
 			if (result.items.length > 0) {
-				return result;
+				return Promise.resolve(result);
 			}
 		}
 		this.getCompletionsForStylesheet(result);
 		if (result.items.length > 0) {
-			return result;
+			return Promise.resolve(result);
 		}
 
 		if (this.variablePrefix && this.currentWord.indexOf(this.variablePrefix) === 0) {
 			this.getVariableProposals(result);
 			if (result.items.length > 0) {
-				return result;
+				return Promise.resolve(result);
 			}
 		}
 
 		// no match, don't show text matches
-		return result;
+		return Promise.resolve(result);
 	}
 
 	public getCompletionsForDeclarationProperty(result: CompletionList): CompletionList {

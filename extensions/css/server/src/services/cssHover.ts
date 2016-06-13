@@ -40,7 +40,7 @@ export class CSSHover {
 			if (node instanceof nodes.Declaration) {
 				let propertyName = node.getFullPropertyName();
 				let entry = languageFacts.getProperties()[propertyName];
-				if (entry) {
+				if (entry && entry.description) {
 					return Promise.resolve({
 						contents: entry.description,
 						range: getRange(node)

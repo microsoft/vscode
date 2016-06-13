@@ -14,7 +14,7 @@ const localize = nls.loadMessageBundle();
 
 export class CSSNavigation {
 
-	public findDefinition(document: TextDocument, position: Position, stylesheet: nodes.Node): Location {
+	public findDefinition(document: TextDocument, position: Position, stylesheet: nodes.Node): Thenable<Location> {
 
 		let symbols = new Symbols(stylesheet);
 		let offset = document.offsetAt(position);
@@ -29,35 +29,35 @@ export class CSSNavigation {
 			return null;
 		}
 
-		return {
+		return Promise.resolve({
 			uri: document.uri,
-			range: getRange(node, document)
-		};
+			range: getRange(symbol.node, document)
+		});
 	}
 
-	public findReferences(document: TextDocument, position: Position, stylesheet: nodes.Node): Location[] {
-		return this.findDocumentHighlights(document, position, stylesheet).map(h => {
+	public findReferences(document: TextDocument, position: Position, stylesheet: nodes.Stylesheet): Thenable<Location[]> {
+		return this.findDocumentHighlights(document, position, stylesheet).then(highlights => highlights.map(h => {
 			return {
 				uri: document.uri,
 				range: h.range
 			};
-		});
+		}));
 	}
 
-	public findDocumentHighlights(document: TextDocument, position: Position, stylesheet: nodes.Node): DocumentHighlight[] {
+	public findDocumentHighlights(document: TextDocument, position: Position, stylesheet: nodes.Stylesheet): Thenable<DocumentHighlight[]> {
 		let result: DocumentHighlight[] = [];
 
 		let offset = document.offsetAt(position);
 		let node = nodes.getNodeAtOffset(stylesheet, offset);
 		if (!node || node.type === nodes.NodeType.Stylesheet || node.type === nodes.NodeType.Declarations) {
-			return result;
+			return Promise.resolve(result);
 		}
 
 		let symbols = new Symbols(stylesheet);
 		let symbol = symbols.findSymbolFromNode(node);
 		let name = node.getText();
 
-		stylesheet.accept((candidate) => {
+		stylesheet.accept(candidate => {
 			if (symbol) {
 				if (symbols.matchesSymbol(candidate, symbol)) {
 					result.push({
@@ -76,12 +76,10 @@ export class CSSNavigation {
 			return true;
 		});
 
-		return result;
+		return Promise.resolve(result);
 	}
 
-
-
-	public findDocumentSymbols(document: TextDocument, stylesheet: nodes.Stylesheet): SymbolInformation[] {
+	public findDocumentSymbols(document: TextDocument, stylesheet: nodes.Stylesheet): Thenable<SymbolInformation[]> {
 
 		let result: SymbolInformation[] = [];
 
@@ -118,10 +116,10 @@ export class CSSNavigation {
 			return true;
 		});
 
-		return result;
+		return Promise.resolve(result);
 	}
 
-	public findColorSymbols(document: TextDocument, stylesheet: nodes.Stylesheet): Range[] {
+	public findColorSymbols(document: TextDocument, stylesheet: nodes.Stylesheet): Thenable<Range[]> {
 		let result: Range[] = [];
 		stylesheet.accept((node) => {
 			if (isColorValue(node)) {
@@ -129,7 +127,7 @@ export class CSSNavigation {
 			}
 			return true;
 		});
-		return result;
+		return Promise.resolve(result);
 	}
 }
 

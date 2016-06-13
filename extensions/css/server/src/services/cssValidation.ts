@@ -8,18 +8,7 @@ import * as nodes from '../parser/cssNodes';
 import {TextDocument, Range, Diagnostic, DiagnosticSeverity} from 'vscode-languageserver';
 import {ILintConfigurationSettings, sanitize} from './lintRules';
 import {LintVisitor} from './lint';
-
-export interface LanguageSettings {
-	validate?: boolean;
-	lint?: ILintConfigurationSettings;
-}
-
-// The settings interface describe the server relevant settings part
-export interface Settings {
-	css: LanguageSettings;
-	less: LanguageSettings;
-	scss: LanguageSettings;
-}
+import {LanguageSettings} from '../cssLanguageService';
 
 export class CSSValidation {
 

@@ -17,7 +17,7 @@ export function assertScopesAndSymbols(p: Parser, input: string, expected: strin
 	assert.equal(scopeToString(global), expected);
 }
 
-export function assertHighlights(p: Parser, input: string, marker: string, expectedMatches: number, expectedWrites: number): void {
+export function assertHighlights(p: Parser, input: string, marker: string, expectedMatches: number, expectedWrites: number): Thenable<void> {
 	let document = TextDocument.create('test://test/test.css', 'css', 0, input);
 
 	let stylesheet = p.parseStylesheet(document);
@@ -26,19 +26,20 @@ export function assertHighlights(p: Parser, input: string, marker: string, expec
 	let index = input.indexOf(marker) + marker.length;
 	let position = document.positionAt(index);
 
-	let highlights = new CSSNavigation().findDocumentHighlights(document, position, stylesheet);
-	assert.equal(highlights.length, expectedMatches);
+	return new CSSNavigation().findDocumentHighlights(document, position, stylesheet).then(highlights => {
+		assert.equal(highlights.length, expectedMatches);
 
-	let nWrites = 0;
-	for (let highlight of highlights) {
-		if (highlight.kind === DocumentHighlightKind.Write) {
-			nWrites++;
+		let nWrites = 0;
+		for (let highlight of highlights) {
+			if (highlight.kind === DocumentHighlightKind.Write) {
+				nWrites++;
+			}
+			let range = highlight.range;
+			let start = document.offsetAt(range.start), end = document.offsetAt(range.end);
+			assert.equal(document.getText().substring(start, end), marker);
 		}
-		let range = highlight.range;
-		let start = document.offsetAt(range.start), end = document.offsetAt(range.end);
-		assert.equal(document.getText().substring(start, end), marker);
-	}
-	assert.equal(nWrites, expectedWrites);
+		assert.equal(nWrites, expectedWrites);
+	});
 }
 
 
@@ -169,10 +170,12 @@ suite('CSS - Symbols', () => {
 		assertScopesAndSymbols(p, '@font-face { font-family: "Bitstream Vera Serif Bold"; }', '[]');
 	});
 
-	test('mark occurrences', function () {
+	test('mark occurrences', function (testDone) {
 		let p = new Parser();
-		assertHighlights(p, '@keyframes id {}; #main { animation: id 4s linear 0s infinite alternate; }', 'id', 2, 1);
-		assertHighlights(p, '@keyframes id {}; #main { animation-name: id; foo: id;}', 'id', 2, 1);
+		Promise.all([
+			assertHighlights(p, '@keyframes id {}; #main { animation: id 4s linear 0s infinite alternate; }', 'id', 2, 1),
+			assertHighlights(p, '@keyframes id {}; #main { animation-name: id; foo: id;}', 'id', 2, 1)
+		]).then(() => testDone(), (error) => testDone(error));
 	});
 
 	test('test variables in root scope', function () {
@@ -195,33 +198,45 @@ suite('CSS - Symbols', () => {
 		assertSymbolsInScope(p, '.a{ --var1: abc; } .b{ --var2: abc; } :root{ --var3: abc;}', 2, { name: '--var1', type: nodes.ReferenceType.Variable }, { name: '--var2', type: nodes.ReferenceType.Variable }, { name: '--var3', type: nodes.ReferenceType.Variable });
 	});
 
-	test('mark occurrences for variable defined in root and used in a rule', function () {
+	test('mark occurrences for variable defined in root and used in a rule', function (testDone) {
 		let p = new Parser();
-		assertHighlights(p, '.a{ background: let(--var1); } :root{ --var1: abc;}', '--var1', 2, 1);
+		Promise.all([
+			assertHighlights(p, '.a{ background: let(--var1); } :root{ --var1: abc;}', '--var1', 2, 1)
+		]).then(() => testDone(), (error) => testDone(error));
 	});
 
-	test('mark occurrences for variable defined in a rule and used in a different rule', function () {
+	test('mark occurrences for variable defined in a rule and used in a different rule', function (testDone) {
 		let p = new Parser();
-		assertHighlights(p, '.a{ background: let(--var1); } :b{ --var1: abc;}', '--var1', 2, 1);
+		Promise.all([
+			assertHighlights(p, '.a{ background: let(--var1); } :b{ --var1: abc;}', '--var1', 2, 1)
+		]).then(() => testDone(), (error) => testDone(error));
 	});
 
-	test('mark occurrences for property', function () {
+	test('mark occurrences for property', function (testDone) {
 		let p = new Parser();
-		assertHighlights(p, 'body { display: inline } #foo { display: inline }', 'display', 2, 0);
+		Promise.all([
+			assertHighlights(p, 'body { display: inline } #foo { display: inline }', 'display', 2, 0)
+		]).then(() => testDone(), (error) => testDone(error));
 	});
 
-	test('mark occurrences for value', function () {
+	test('mark occurrences for value', function (testDone) {
 		let p = new Parser();
-		assertHighlights(p, 'body { display: inline } #foo { display: inline }', 'inline', 2, 0);
+		Promise.all([
+			assertHighlights(p, 'body { display: inline } #foo { display: inline }', 'inline', 2, 0)
+		]).then(() => testDone(), (error) => testDone(error));
 	});
 
-	test('mark occurrences for selector', function () {
+	test('mark occurrences for selector', function (testDone) {
 		let p = new Parser();
-		assertHighlights(p, 'body { display: inline } #foo { display: inline }', 'body', 1, 1);
+		Promise.all([
+			assertHighlights(p, 'body { display: inline } #foo { display: inline }', 'body', 1, 1)
+		]).then(() => testDone(), (error) => testDone(error));
 	});
 
-	test('mark occurrences for comment', function () {
+	test('mark occurrences for comment', function (testDone) {
 		let p = new Parser();
-		assertHighlights(p, '/* comment */body { display: inline } ', 'comment', 0, 0);
+		Promise.all([
+			assertHighlights(p, '/* comment */body { display: inline } ', 'comment', 0, 0)
+		]).then(() => testDone(), (error) => testDone(error));
 	});
 });

@@ -9,13 +9,7 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
 
-import {Parser} from './parser/cssParser';
-import {CSSCompletion} from './services/cssCompletion';
-import {CSSHover} from './services/cssHover';
-import {CSSNavigation} from './services/cssNavigation';
-import {CSSCodeActions} from './services/cssCodeActions';
-import {CSSValidation, Settings} from './services/cssValidation';
-
+import {getCSSLanguageService, LanguageSettings, LanguageService} from './cssLanguageService';
 import {Stylesheet} from './parser/cssNodes';
 
 import * as nls from 'vscode-nls';
@@ -23,6 +17,12 @@ nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
+}
+
+export interface Settings {
+	css: LanguageSettings;
+	less: LanguageSettings;
+	scss: LanguageSettings;
 }
 
 // Create a connection for the server. The connection uses for
@@ -55,11 +55,15 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 });
 
-let cssCompletion = new CSSCompletion();
-let cssHover = new CSSHover();
-let cssValidation = new CSSValidation();
-let cssNavigation = new CSSNavigation();
-let cssCodeActions = new CSSCodeActions();
+let languageServices : { [id:string]: LanguageService} = {
+	css: getCSSLanguageService()
+};
+
+function getLanguageService(document: TextDocument) {
+	let service = languageServices[document.languageId];
+	// todo handle unknown servce
+	return service;
+}
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
@@ -73,78 +77,71 @@ connection.onDidChangeConfiguration((change) => {
 });
 
 function updateConfiguration(settings: Settings) {
-	cssValidation.configure(settings.css);
+	for (let languageId in languageServices) {
+		languageServices[languageId].configure(settings[languageId]);
+	}
 	// Revalidate any open text documents
 	documents.all().forEach(validateTextDocument);
 }
 
-
 function validateTextDocument(textDocument: TextDocument): void {
-	if (textDocument.getText().length === 0) {
-		// ignore empty documents
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
-		return;
-	}
-
 	let stylesheet = getStylesheet(textDocument);
-	cssValidation.doValidation(textDocument, stylesheet).then(diagnostics => {
+	getLanguageService(textDocument).doValidation(textDocument, stylesheet).then(diagnostics => {
 		// Send the computed diagnostics to VSCode.
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 	});
 }
 
-let parser = new Parser();
-
 function getStylesheet(document: TextDocument): Stylesheet {
-	return parser.parseStylesheet(document);
+	return getLanguageService(document).parseStylesheet(document);
 }
 
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssCompletion.doComplete(document, textDocumentPosition.position, stylesheet);
+	return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheet);
 });
 
 connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let styleSheet = getStylesheet(document);
-	return cssHover.doHover(document, textDocumentPosition.position, styleSheet);
+	return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
 });
 
 connection.onDocumentSymbol(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssNavigation.findDocumentSymbols(document, stylesheet);
+	return getLanguageService(document).findDocumentSymbols(document, stylesheet);
 });
 
 connection.onDefinition(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssNavigation.findDefinition(document, documentSymbolParams.position, stylesheet);
+	return getLanguageService(document).findDefinition(document, documentSymbolParams.position, stylesheet);
 });
 
 connection.onDocumentHighlight(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssNavigation.findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
+	return getLanguageService(document).findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
 });
 
 connection.onReferences(referenceParams => {
 	let document = documents.get(referenceParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssNavigation.findReferences(document, referenceParams.position, stylesheet);
+	return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
 });
 
 connection.onCodeAction(codeActionParams => {
 	let document = documents.get(codeActionParams.textDocument.uri);
 	let stylesheet = getStylesheet(document);
-	return cssCodeActions.doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+	return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
 });
 
 connection.onRequest(ColorSymbolRequest.type, uri => {
 	let document = documents.get(uri);
 	let stylesheet = getStylesheet(document);
-	return cssNavigation.findColorSymbols(document, stylesheet);
+	return getLanguageService(document).findColorSymbols(document, stylesheet);
 });
 
 // Listen on the connection

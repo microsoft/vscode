@@ -36,7 +36,7 @@ suite('CSS - Completion', () => {
 		}
 	};
 
-	let testCompletionFor = function (value: string, stringBefore: string, expected: { count?: number, items?: ItemDescription[] }): Thenable<CompletionList> {
+	let testCompletionFor = function (value: string, stringBefore: string, expected: { count?: number, items?: ItemDescription[] }): Thenable<void> {
 		let idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
 
 		let completionProvider = new CSSCompletion();
@@ -44,16 +44,16 @@ suite('CSS - Completion', () => {
 		let document = TextDocument.create('test://test/test.css', 'css', 0, value);
 		let position = Position.create(0, idx);
 		let jsonDoc = new Parser().parseStylesheet(document);
-		let list = completionProvider.doComplete(document, position, jsonDoc);
-		if (expected.count) {
-			assert.equal(list.items, expected.count);
-		}
-		if (expected.items) {
-			for (let item of expected.items) {
-				assertCompletion(list, item, document);
+		return completionProvider.doComplete(document, position, jsonDoc).then(list => {
+			if (expected.count) {
+				assert.equal(list.items, expected.count);
 			}
-		}
-		return Promise.resolve(null);
+			if (expected.items) {
+				for (let item of expected.items) {
+					assertCompletion(list, item, document);
+				}
+			}
+		});
 	};
 
 	test('sylesheet', function (testDone): any {
