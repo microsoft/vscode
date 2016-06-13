@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'xterm' {
-	function init(options: any): TermJsTerminal;
+	function init(options?: any): TermJsTerminal;
 
 	// There seems to be no way to export this so it can be referenced outside of this file when a
 	// module is a function.

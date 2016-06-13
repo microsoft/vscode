@@ -47,9 +47,7 @@ export class TerminalInstance {
 			vertical: ScrollbarVisibility.Auto
 		});
 		this.toDispose.push(terminalScrollbar);
-		this.terminal = xterm({
-			cursorBlink: false // term.js' blinking cursor breaks selection
-		});
+		this.terminal = xterm();
 
 		this.ptyProcess.on('message', (data) => {
 			this.terminal.write(data);
