@@ -10,8 +10,8 @@ import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/ter
 
 export class ToggleTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.toggle';
-	public static LABEL = nls.localize('workbench.action.terminal.toggle', "Toggle Integrated Terminal");
+	public static ID = 'workbench.action.terminal.toggleTerminal';
+	public static LABEL = nls.localize('workbench.action.terminal.toggleTerminal', "Toggle Integrated Terminal");
 
 	constructor(
 		id: string, label: string,
