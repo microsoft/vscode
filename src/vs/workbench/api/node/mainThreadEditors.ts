@@ -241,7 +241,7 @@ export class MainThreadTextEditor {
 		}
 	}
 
-	public setDecorations(key: string, ranges:EditorCommon.IRangeWithMessage[]): void {
+	public setDecorations(key: string, ranges:EditorCommon.IDecorationOptions[]): void {
 		if (!this._codeEditor) {
 			console.warn('setDecorations on invisible editor');
 			return;

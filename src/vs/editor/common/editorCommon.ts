@@ -138,13 +138,33 @@ export interface IEditorScrollbarOptions {
 	 * Defaults to 10 (px).
 	 */
 	verticalScrollbarSize?: number;
+	/**
+	 * Width in pixels for the vertical slider.
+	 * Defaults to `verticalScrollbarSize`.
+	 */
 	verticalSliderSize?: number;
+	/**
+	 * Height in pixels for the horizontal slider.
+	 * Defaults to `horizontalScrollbarSize`.
+	 */
 	horizontalSliderSize?: number;
 }
 
+/**
+ * Describes how to indent wrapped lines.
+ */
 export enum WrappingIndent {
+	/**
+	 * No indentation => wrapped lines begin at column 1.
+	 */
 	None = 0,
+	/**
+	 * Same => wrapped lines get the same indentation as the parent.
+	 */
 	Same = 1,
+	/**
+	 * Indent => wrapped lines get +1 indentation as the parent.
+	 */
 	Indent = 2
 }
 
@@ -152,7 +172,14 @@ export enum WrappingIndent {
  * Configuration options for the editor.
  */
 export interface IEditorOptions {
+	/**
+	 * Enable experimental screen reader support.
+	 * Defaults to `true`.
+	 */
 	experimentalScreenReader?: boolean;
+	/**
+	 * The aria label for the editor's textarea (when it is focused).
+	 */
 	ariaLabel?: string;
 	/**
 	 * Render vertical lines at the specified columns.
@@ -1028,6 +1055,14 @@ export interface IModelDecorationOptions {
 	 * to have a background color decoration.
 	 */
 	inlineClassName?:string;
+	/**
+	 * If set, the decoration will be rendered before the text with this CSS class name.
+	 */
+	beforeContentClassName?:string;
+	/**
+	 * If set, the decoration will be rendered after the text with this CSS class name.
+	 */
+	afterContentClassName?:string;
 }
 
 /**
@@ -1467,10 +1502,19 @@ export interface ITextModel {
 	 */
 	getValue(eol?:EndOfLinePreference, preserveBOM?:boolean): string;
 
+	/**
+	 * Get the length of the text stored in this model.
+	 */
 	getValueLength(eol?:EndOfLinePreference, preserveBOM?:boolean): number;
 
+	/**
+	 * Get the raw text stored in this model.
+	 */
 	toRawText(): IRawText;
 
+	/**
+	 * Check if the raw text stored in this model equals another raw text.
+	 */
 	equals(other:IRawText): boolean;
 
 	/**
@@ -1513,11 +1557,14 @@ export interface ITextModel {
 	getLinesContent(): string[];
 
 	/**
-	 * Get the end of line character predominantly used in the text buffer.
+	 * Get the end of line sequence predominantly used in the text buffer.
 	 * @return EOL char sequence (e.g.: '\n' or '\r\n').
 	 */
 	getEOL(): string;
 
+	/**
+	 * Change the end of line sequence used in the text buffer.
+	 */
 	setEOL(eol: EndOfLineSequence): void;
 
 	/**
@@ -1613,6 +1660,9 @@ export interface IReadOnlyModel extends ITextModel {
 	 */
 	uri: URI;
 
+	/**
+	 * Get the language associated with this model.
+	 */
 	getModeId(): string;
 
 	/**
@@ -1797,6 +1847,9 @@ export interface IChangedTrackedRanges {
 	[key:string]:IRange;
 }
 
+/**
+ * Describes the behaviour of decorations when typing/editing near their edges.
+ */
 export enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
 	NeverGrowsWhenTypingAtEdges = 1,
@@ -1946,12 +1999,24 @@ export interface ITextModelWithDecorations {
  */
 export interface IEditableTextModel extends ITextModelWithMarkers {
 
+	/**
+	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
+	 */
 	normalizeIndentation(str:string): string;
 
+	/**
+	 * Get what is considered to be one indent (e.g. a tab character or 4 spaces, etc.).
+	 */
 	getOneIndent(): string;
 
+	/**
+	 * Change the options of this model.
+	 */
 	updateOptions(newOpts:ITextModelUpdateOptions): void;
 
+	/**
+	 * Detect the indentation options for this model from its content.
+	 */
 	detectIndentation(defaultInsertSpaces:boolean, defaultTabSize:number): void;
 
 	/**
@@ -2016,16 +2081,34 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
  * A model.
  */
 export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
-
+	/**
+	 * @deprecated Please use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the model have changed.
+	 */
 	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the contents of the model have changed.
+	 */
 	onDidChangeContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
 	/**
 	 * @internal
 	 */
 	onDidChangeModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when decorations of the model have changed.
+	 */
 	onDidChangeDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the model options have changed.
+	 */
 	onDidChangeOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the language associated with the model has changed.
+	 */
 	onDidChangeMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted right before disposing the model.
+	 */
 	onWillDispose(listener: ()=>void): IDisposable;
 
 	/**
@@ -2212,13 +2295,33 @@ export interface IModelContentChangedEvent {
 	 */
 	isRedoing: boolean;
 }
+
+/**
+ * The raw text backing a model.
+ */
 export interface IRawText {
+	/**
+	 * The entire text length.
+	 */
 	length: number;
+	/**
+	 * The text split into lines.
+	 */
 	lines: string[];
+	/**
+	 * The BOM (leading character sequence of the file).
+	 */
 	BOM: string;
+	/**
+	 * The end of line sequence.
+	 */
 	EOL: string;
+	/**
+	 * The options associated with this text.
+	 */
 	options: ITextModelResolvedOptions;
 }
+
 /**
  * An event describing that a model has been reset to a new value.
  */
@@ -2275,10 +2378,25 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
  * Decoration data associated with a model decorations changed event.
  */
 export interface IModelDecorationsChangedEventDecorationData {
+	/**
+	 * The id of the decoration.
+	 */
 	id:string;
+	/**
+	 * The owner id of the decoration.
+	 */
 	ownerId:number;
+	/**
+	 * The range of the decoration.
+	 */
 	range:IRange;
+	/**
+	 * A flag describing if this is a problem decoration (e.g. warning/error).
+	 */
 	isForValidation:boolean;
+	/**
+	 * The options for this decoration.
+	 */
 	options:IModelDecorationOptions;
 }
 /**
@@ -2290,11 +2408,20 @@ export interface IModelDecorationsChangedEvent {
 	 */
 	ids:string[];
 	/**
-	 * Lists of details
+	 * Lists of details for added or changed decorations.
 	 */
 	addedOrChangedDecorations:IModelDecorationsChangedEventDecorationData[];
+	/**
+	 * List of ids for removed decorations.
+	 */
 	removedDecorations:string[];
+	/**
+	 * Details regarding old options.
+	 */
 	oldOptions:{[decorationId:string]:IModelDecorationOptions;};
+	/**
+	 * Details regarding old ranges.
+	 */
 	oldRanges:{[decorationId:string]:IRange;};
 }
 /**
@@ -2310,13 +2437,38 @@ export interface IModelTokensChangedEvent {
 	 */
 	toLineNumber:number;
 }
+
+/**
+ * Describes the reason the cursor has changed its position.
+ */
 export enum CursorChangeReason {
+	/**
+	 * Unknown or not set.
+	 */
 	NotSet = 0,
+	/**
+	 * A `model.setValue()` was called.
+	 */
 	ContentFlush = 1,
+	/**
+	 * The `model` has been changed outside of this cursor and the cursor recovers its position from associated markers.
+	 */
 	RecoverFromMarkers = 2,
+	/**
+	 * There was an explicit user gesture.
+	 */
 	Explicit = 3,
+	/**
+	 * There was a Paste.
+	 */
 	Paste = 4,
+	/**
+	 * There was an Undo.
+	 */
 	Undo = 5,
+	/**
+	 * There was a Redo.
+	 */
 	Redo = 6,
 }
 /**
@@ -2418,9 +2570,18 @@ export interface ICursorScrollRequestEvent {
 	deltaLines: number;
 }
 
+/**
+ * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
+ */
 export interface IModelChangedEvent {
-	oldModelUrl: string;
-	newModelUrl: string;
+	/**
+	 * The `uri` of the previous model or null.
+	 */
+	oldModelUrl: URI;
+	/**
+	 * The `uri` of the new model or null.
+	 */
+	newModelUrl: URI;
 }
 
 /**
@@ -2649,6 +2810,9 @@ export class EditorLayoutInfo {
  * Options for creating the editor.
  */
 export interface ICodeEditorWidgetCreationOptions extends IEditorOptions {
+	/**
+	 * The initial model associated with this code editor.
+	 */
 	model?:IModel;
 }
 
@@ -2833,14 +2997,30 @@ export interface IDiffLineInformation {
 	equivalentLineNumber: number;
 }
 
+/**
+ * A context key that is set when the editor's text has focus (cursor is blinking).
+ */
 export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
+
+/**
+ * A context key that is set when the editor's text or an editor's widget has focus.
+ */
 export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
 /**
  * @internal
  */
 export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
+/**
+ * A context key that is set when the editor has multiple selections (multiple cursors).
+ */
 export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
+/**
+ * A context key that is set when the editor has a non-collapsed selection.
+ */
 export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
+/**
+ * A context key that is set to the language associated with the model associated with the editor.
+ */
 export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
 /**
  * @internal
@@ -3151,6 +3331,9 @@ export interface IActionDescriptor {
 	 * An array of keybindings for the action.
 	 */
 	keybindings?: number[];
+	/**
+	 * The keybinding rule.
+	 */
 	keybindingContext?: string;
 	/**
 	 * A set of enablement conditions.
@@ -3209,24 +3392,52 @@ export interface ICommonEditorContributionDescriptor {
  * An editor.
  */
 export interface IEditor {
-
+	/**
+	 * @deprecated. Please use `onDidChangeModelContent` instead.
+	 * An event emitted when the content of the current model has changed.
+	 */
 	onDidChangeModelRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the content of the current model has changed.
+	 */
 	onDidChangeModelContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
+	/**
+	 * An event emitted when the language of the current model has changed.
+	 */
 	onDidChangeModelMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the options of the current model has changed.
+	 */
 	onDidChangeModelOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+	 */
 	onDidChangeConfiguration(listener: (e:IConfigurationChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the cursor position has changed.
+	 */
 	onDidChangeCursorPosition(listener: (e:ICursorPositionChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the cursor selection has changed.
+	 */
 	onDidChangeCursorSelection(listener: (e:ICursorSelectionChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the editor has been disposed.
+	 */
 	onDidDispose(listener: ()=>void): IDisposable;
 
+	/**
+	 * Dispose the editor.
+	 */
 	dispose(): void;
 
+	/**
+	 * Get a unique id for this editor instance.
+	 */
 	getId(): string;
 
 	/**
-	 * Get the editor type. Current supported types:
-	 * 			EditorCommon.EditorType.ICodeEditor => ICodeEditor;
-	 * 			EditorCommon.EditorType.IDiffEditor => IDiffEditor;
+	 * Get the editor type. Please see `EditorType`.
 	 * This is to avoid an instanceof check
 	 */
 	getEditorType(): string;
@@ -3351,8 +3562,20 @@ export interface IEditor {
 	 * @param selection The new selection
 	 */
 	setSelection(selection:IRange): void;
+	/**
+	 * Set the primary selection of the editor. This will remove any secondary cursors.
+	 * @param selection The new selection
+	 */
 	setSelection(selection:Range): void;
+	/**
+	 * Set the primary selection of the editor. This will remove any secondary cursors.
+	 * @param selection The new selection
+	 */
 	setSelection(selection:ISelection): void;
+	/**
+	 * Set the primary selection of the editor. This will remove any secondary cursors.
+	 * @param selection The new selection
+	 */
 	setSelection(selection:Selection): void;
 
 	/**
@@ -3470,10 +3693,12 @@ export interface IEditorContribution {
 export interface IThemeDecorationRenderOptions {
 	backgroundColor?: string;
 
+	outline?: string;
 	outlineColor?: string;
 	outlineStyle?: string;
 	outlineWidth?: string;
 
+	border?:string;
 	borderColor?: string;
 	borderRadius?: string;
 	borderSpacing?: string;
@@ -3488,6 +3713,26 @@ export interface IThemeDecorationRenderOptions {
 	gutterIconPath?: string;
 
 	overviewRulerColor?: string;
+
+	before?: IContentDecorationRenderOptions;
+	after?: IContentDecorationRenderOptions;
+}
+
+/**
+ * @internal
+ */
+export interface IContentDecorationRenderOptions {
+	contentText?: string;
+	contentIconPath?: string;
+
+	border?: string;
+	textDecoration?: string;
+	color?: string;
+	backgroundColor?: string;
+
+	margin?: string;
+	width?: string;
+	height?: string;
 }
 
 /**
@@ -3504,24 +3749,57 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
 /**
  * @internal
  */
-export interface IRangeWithMessage {
-	range: IRange;
-	hoverMessage?: IHTMLContentElement[];
+export interface IThemeDecorationInstanceRenderOptions {
+	before?: IContentDecorationRenderOptions;
+	after?: IContentDecorationRenderOptions;
 }
 
-export interface ICommonCodeEditor extends IEditor {
+/**
+ * @internal
+ */
+export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstanceRenderOptions {
+	light?: IThemeDecorationInstanceRenderOptions;
+	dark?: IThemeDecorationInstanceRenderOptions;
+}
 
+/**
+ * @internal
+ */
+export interface IDecorationOptions {
+	range: IRange;
+	hoverMessage?: IHTMLContentElement[];
+	renderOptions? : IDecorationInstanceRenderOptions;
+}
+
+
+export interface ICommonCodeEditor extends IEditor {
+	/**
+	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
+	 */
 	onDidChangeModel(listener: (e:IModelChangedEvent)=>void): IDisposable;
 	/**
 	 * @internal
 	 */
 	onDidChangeModelModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
+	/**
+	 * An event emitted when the decorations of the current model have changed.
+	 */
 	onDidChangeModelDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
-
+	/**
+	 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+	 */
 	onDidFocusEditorText(listener: ()=>void): IDisposable;
+	/**
+	 * An event emitted when the text inside this editor lost focus.
+	 */
 	onDidBlurEditorText(listener: ()=>void): IDisposable;
-
+	/**
+	 * An event emitted when the text inside this editor or an editor widget gained focus.
+	 */
 	onDidFocusEditor(listener: ()=>void): IDisposable;
+	/**
+	 * An event emitted when the text inside this editor or an editor widget lost focus.
+	 */
 	onDidBlurEditor(listener: ()=>void): IDisposable;
 
 	/**
@@ -3642,7 +3920,7 @@ export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * @internal
 	 */
-	setDecorations(decorationTypeKey: string, ranges:IRangeWithMessage[]): void;
+	setDecorations(decorationTypeKey: string, ranges: IDecorationOptions[]): void;
 
 	/**
 	 * @internal
@@ -3680,6 +3958,9 @@ export interface ICommonCodeEditor extends IEditor {
 }
 
 export interface ICommonDiffEditor extends IEditor {
+	/**
+	 * An event emitted when the diff information computed by this diff editor has been updated.
+	 */
 	onDidUpdateDiff(listener: ()=>void): IDisposable;
 
 	/**
@@ -3687,9 +3968,19 @@ export interface ICommonDiffEditor extends IEditor {
 	 */
 	getModel(): IDiffEditorModel;
 
+	/**
+	 * Get the `original` editor.
+	 */
 	getOriginalEditor(): ICommonCodeEditor;
+
+	/**
+	 * Get the `modified` editor.
+	 */
 	getModifiedEditor(): ICommonCodeEditor;
 
+	/**
+	 * Get the computed diff information.
+	 */
 	getLineChanges(): ILineChange[];
 
 	/**
@@ -3698,6 +3989,7 @@ export interface ICommonDiffEditor extends IEditor {
 	 * @internal
 	 */
 	getDiffLineInformationForOriginal(lineNumber:number): IDiffLineInformation;
+
 	/**
 	 * Get information based on computed diff about a line number from the modified model.
 	 * If the diff computation is not finished or the model is missing, will return null.
@@ -3715,6 +4007,7 @@ export interface ICommonDiffEditor extends IEditor {
 	 * @internal
 	 */
 	ignoreTrimWhitespace: boolean;
+
 	/**
 	 * Returns whether the diff editor is rendering side by side or not.
 	 * @internal
@@ -3722,6 +4015,9 @@ export interface ICommonDiffEditor extends IEditor {
 	renderSideBySide: boolean;
 }
 
+/**
+ * The type of the `IEditor`.
+ */
 export var EditorType = {
 	ICodeEditor: 'vs.editor.ICodeEditor',
 	IDiffEditor: 'vs.editor.IDiffEditor'
@@ -3791,6 +4087,9 @@ export var EventType = {
 	DiffUpdated: 'diffUpdated'
 };
 
+/**
+ * Built-in commands.
+ */
 export var Handler = {
 	ExecuteCommand:				'executeCommand',
 	ExecuteCommands:			'executeCommands',
@@ -3909,9 +4208,21 @@ export var Handler = {
 	ScrollPageDown:				'scrollPageDown'
 };
 
+/**
+ * The style in which the editor's cursor should be rendered.
+ */
 export enum TextEditorCursorStyle {
+	/**
+	 * As a vertical line (sitting between two characters).
+	 */
 	Line = 1,
+	/**
+	 * As a block (sitting on top of a character).
+	 */
 	Block = 2,
+	/**
+	 * As a horizontal line (sitting under a character).
+	 */
 	Underline = 3
 }
 

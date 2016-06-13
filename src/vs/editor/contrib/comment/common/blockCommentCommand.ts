@@ -143,7 +143,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			var startTokenEditOperation = inverseEditOperations[0];
 			var endTokenEditOperation = inverseEditOperations[1];
 
-			return Selection.createSelection(
+			return new Selection(
 				startTokenEditOperation.range.endLineNumber,
 				startTokenEditOperation.range.endColumn,
 				endTokenEditOperation.range.startLineNumber,
@@ -152,7 +152,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		} else {
 			var srcRange = inverseEditOperations[0].range;
 			var deltaColumn = this._usedEndToken ? -this._usedEndToken.length : 0;
-			return Selection.createSelection(
+			return new Selection(
 				srcRange.endLineNumber,
 				srcRange.endColumn + deltaColumn,
 				srcRange.endLineNumber,

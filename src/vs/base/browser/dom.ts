@@ -742,7 +742,7 @@ export function getCSSRule(selector: string, style: HTMLStyleElement = sharedSty
 	return null;
 }
 
-export function removeCSSRulesWithPrefix(ruleName: string, style = sharedStyle): void {
+export function removeCSSRulesContainingSelector(ruleName: string, style = sharedStyle): void {
 	if (!style) {
 		return;
 	}
@@ -752,7 +752,7 @@ export function removeCSSRulesWithPrefix(ruleName: string, style = sharedStyle):
 	for (let i = 0; i < rules.length; i++) {
 		let rule = rules[i];
 		let normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
-		if (normalizedSelectorText.indexOf(ruleName) === 0) {
+		if (normalizedSelectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}

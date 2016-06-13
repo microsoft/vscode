@@ -27,6 +27,7 @@ import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {Position} from 'vs/editor/common/core/position';
 import {Selection} from 'vs/editor/common/core/selection';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
 interface IEditorDiffDecorations {
 	decorations:editorCommon.IModelDeltaDecoration[];
@@ -1786,19 +1787,19 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 
 	_produceModifiedFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone {
-		var decorations:editorCommon.IModelDecoration[] = [],
+		var decorations:InlineDecoration[] = [],
 			j:number,
 			lengthJ:number,
-			charChange:editorCommon.ICharChange,
-			tempDecoration:editorCommon.IModelDecoration;
+			charChange:editorCommon.ICharChange;
 
 		if (lineChange.charChanges) {
 			for (j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
 				charChange = lineChange.charChanges[j];
 				if (isChangeOrDelete(charChange)) {
-					tempDecoration = <any>createDecoration(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn, 'char-delete', false);
-					tempDecoration.options.inlineClassName = tempDecoration.options.className;
-					decorations.push(tempDecoration);
+					decorations.push(new InlineDecoration(
+						new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
+						'char-delete'
+					));
 				}
 			}
 		}
@@ -1822,7 +1823,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.InternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
+	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.InternalEditorOptions, tabSize:number, lineNumber:number, decorations:InlineDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
 		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
@@ -1862,7 +1863,7 @@ function isChangeOrDelete(lineChange:editorCommon.IChange): boolean {
 	return lineChange.originalEndLineNumber > 0;
 }
 
-function createDecoration(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, className:string, isWholeLine:boolean): editorCommon.IModelDeltaDecoration {
+function createDecoration(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, className:string, isWholeLine:boolean) {
 	return {
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		options: {

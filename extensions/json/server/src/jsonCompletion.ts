@@ -46,7 +46,7 @@ export class JSONCompletion {
 		return Promise.resolve(item);
 	}
 
-	public doSuggest(document: TextDocument, position: Position, doc: Parser.JSONDocument): Thenable<CompletionList> {
+	public doComplete(document: TextDocument, position: Position, doc: Parser.JSONDocument): Thenable<CompletionList> {
 
 		let offset = document.offsetAt(position);
 		let node = doc.getNodeFromOffsetEndInclusive(offset);

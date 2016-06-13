@@ -8,7 +8,7 @@ import {IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/commo
 import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
 
 export class MockCodeEditorService extends AbstractCodeEditorService {
-	public registerDecorationType(key:string, options: IDecorationRenderOptions): void { }
+	public registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key:string): void { }
-	public resolveDecorationType(key:string): IModelDecorationOptions { return null; }
+	public resolveDecorationOptions(decorationTypeKey:string, writable: boolean): IModelDecorationOptions { return null; }
 }

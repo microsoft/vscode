@@ -20,8 +20,10 @@ import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {TelemetryService} from  'vs/platform/telemetry/browser/telemetryService';
-import {createAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
+import {ITelemetryAppenderChannel,TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
+import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
+import {IdleMonitor, UserStatus} from  'vs/platform/telemetry/browser/idleMonitor';
+import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
@@ -46,7 +48,6 @@ import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
@@ -195,6 +196,16 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
+		const sharedProcess = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+		sharedProcess.done(service => {
+			service.onClose(() => {
+				this.messageService.show(Severity.Error, {
+					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
+					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
+				});
+			});
+		}, errors.onUnexpectedError);
+
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IEventService, this.eventService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
@@ -213,14 +224,26 @@ export class WorkbenchShell {
 
 		// Telemetry
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
-			const config = {
-				appender: createAppender(this.configuration.env),
+			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+			const config: ITelemetryServiceConfig = {
+				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
 			};
-			let telemetryService = instantiationService.createInstance(TelemetryService, config);
+
+			const telemetryService = instantiationService.createInstance(TelemetryService, config);
 			this.telemetryService = telemetryService;
-			disposables.add(telemetryService, ...config.appender);
+
+			const errorTelemetry = new ErrorTelemetry(telemetryService);
+			const idleMonitor = new IdleMonitor(2 * 60 * 1000); // 2 minutes
+
+			const listener = idleMonitor.onStatusChange(status =>
+				this.telemetryService.publicLog(status === UserStatus.Active
+					? TelemetryService.IDLE_STOP_EVENT_NAME
+					: TelemetryService.IDLE_START_EVENT_NAME
+			));
+
+			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
@@ -273,28 +296,11 @@ export class WorkbenchShell {
 		let codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
 		serviceCollection.set(ICodeEditorService, codeEditorService);
 
-		let extensionManagementChannelClient = instantiationService.createInstance(ExtensionManagementChannelClient, this.initSharedProcessChannel(instantiationService, this.messageService));
+		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
+		const extensionManagementChannelClient = instantiationService.createInstance(ExtensionManagementChannelClient, extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		return [instantiationService, serviceCollection];
-	}
-
-	private initSharedProcessChannel(instantiationService: IInstantiationService, messageService: IMessageService): IExtensionManagementChannel {
-		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
-
-		sharedProcessClientPromise.done(service => {
-			service.onClose(() => {
-				messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
-					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
-				});
-			});
-		}, errors.onUnexpectedError);
-
-		const extensionManagementChannelPromise = sharedProcessClientPromise
-			.then(client => client.getChannel<IExtensionManagementChannel>('extensions'));
-
-		return getDelayedChannel<IExtensionManagementChannel>(extensionManagementChannelPromise);
 	}
 
 	public open(): void {

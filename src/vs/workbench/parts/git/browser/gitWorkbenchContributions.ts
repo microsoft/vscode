@@ -527,6 +527,16 @@ export function registerContributions(): void {
 				type: 'boolean',
 				description: nls.localize('gitAutoFetch', "Whether auto fetching is enabled."),
 				default: true
+			},
+			'git.enableLongCommitWarning': {
+				type: 'boolean',
+				description: nls.localize('gitLongCommit', "Whether long commit messages should be warned about."),
+				default: true
+			},
+			'git.allowLargeRepositories': {
+				type: 'boolean',
+				description: nls.localize('gitLargeRepos', "Always allow large repositories to be managed by Code."),
+				default: false
 			}
 		}
 	});

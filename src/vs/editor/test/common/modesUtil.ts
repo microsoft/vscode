@@ -7,12 +7,8 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {IMonarchLanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {RichEditSupport, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ITestItem {
 	line: string;
@@ -43,7 +39,7 @@ export interface IOnEnterAsserter {
 	indentsOutdents(oneLineAboveText:string, beforeText:string, afterText:string): void;
 }
 
-export function createOnEnterAsserter(modeId:string, conf: IRichLanguageConfiguration): IOnEnterAsserter {
+export function createOnEnterAsserter(modeId:string, conf: LanguageConfiguration): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),

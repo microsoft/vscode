@@ -108,7 +108,7 @@ suite('Validation - CSS', () => {
 		return env.worker.provideDocumentHighlights(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
-	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
+	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.CodeAction[]; model: mm.MirrorModel; }> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -140,7 +140,7 @@ suite('Validation - CSS', () => {
 		});
 	};
 
-	var assertQuickFix= function(fixes: Modes.IQuickFix[], model: mm.MirrorModel, expectedContent:string[]) {
+	var assertQuickFix= function(fixes: Modes.CodeAction[], model: mm.MirrorModel, expectedContent:string[]) {
 		var labels = fixes.map(f => f.command.title);
 
 		for (var index = 0; index < expectedContent.length; index++) {

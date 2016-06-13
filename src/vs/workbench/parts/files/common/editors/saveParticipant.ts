@@ -58,7 +58,7 @@ export class SaveParticipant implements IWorkbenchContribution {
 	 * Trim trailing whitespace on a model and ignore lines on which cursors are sitting if triggered via auto save.
 	 */
 	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
-		let prevSelection: Selection[] = [Selection.createSelection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
 		let cursors: IPosition[] = [];
 
 		// Find `prevSelection` in any case do ensure a good undo stack when pushing the edit

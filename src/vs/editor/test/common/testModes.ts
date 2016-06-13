@@ -56,7 +56,7 @@ export abstract class AbstractIndentingMode extends MockMode {
 		return null;
 	}
 
-	public onEnter(context:modes.ILineContext, offset:number):modes.IEnterAction {
+	public onEnter(context:modes.ILineContext, offset:number):modes.EnterAction {
 		return null;
 	}
 

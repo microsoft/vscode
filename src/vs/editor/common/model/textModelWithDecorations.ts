@@ -654,6 +654,8 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 	glyphMarginClassName:string;
 	linesDecorationsClassName:string;
 	inlineClassName:string;
+	beforeContentClassName:string;
+	afterContentClassName:string;
 
 	constructor(options:editorCommon.IModelDecorationOptions) {
 		this.stickiness = options.stickiness||editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
@@ -665,6 +667,8 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 		this.glyphMarginClassName = cleanClassName(options.glyphMarginClassName||strings.empty);
 		this.linesDecorationsClassName = cleanClassName(options.linesDecorationsClassName||strings.empty);
 		this.inlineClassName = cleanClassName(options.inlineClassName||strings.empty);
+		this.beforeContentClassName = cleanClassName(options.beforeContentClassName||strings.empty);
+		this.afterContentClassName = cleanClassName(options.afterContentClassName||strings.empty);
 	}
 
 	private static _overviewRulerEquals(a:editorCommon.IModelDecorationOverviewRulerOptions, b:editorCommon.IModelDecorationOverviewRulerOptions): boolean {
@@ -685,6 +689,8 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 			&& this.glyphMarginClassName === other.glyphMarginClassName
 			&& this.linesDecorationsClassName === other.linesDecorationsClassName
 			&& this.inlineClassName === other.inlineClassName
+			&& this.beforeContentClassName === other.beforeContentClassName
+			&& this.afterContentClassName === other.afterContentClassName
 			&& htmlContentElementArrEquals(this.htmlMessage, other.htmlMessage)
 			&& ModelDecorationOptions._overviewRulerEquals(this.overviewRuler, other.overviewRuler)
 		);

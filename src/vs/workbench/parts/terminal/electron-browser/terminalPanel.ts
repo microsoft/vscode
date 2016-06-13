@@ -19,11 +19,13 @@ import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/ter
 
 export class TerminalPanel extends Panel {
 
-	private toDispose: lifecycle.IDisposable[];
+	private toDispose: lifecycle.IDisposable[] = [];
+	private terminalInstances: TerminalInstance[] = [];
+
 	private parentDomElement: HTMLElement;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
-	private terminalInstance: TerminalInstance;
+	private activeTerminalIndex: number;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -33,12 +35,11 @@ export class TerminalPanel extends Panel {
 		@IThemeService private themeService: IThemeService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
-		this.toDispose = [];
 	}
 
 	public layout(dimension?: Dimension): void {
-		if (this.terminalInstance) {
-			this.terminalInstance.layout(dimension);
+		if (this.terminalInstances.length > 0) {
+			this.terminalInstances[this.activeTerminalIndex].layout(dimension);
 		}
 	}
 
@@ -49,15 +50,28 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
-			this.terminalInstance.dispatchEvent(new WheelEvent(event.type, event));
+			this.terminalInstances[this.activeTerminalIndex].dispatchEvent(new WheelEvent(event.type, event));
 		}));
 
 		return this.createTerminal();
 	}
 
+	public createNewTerminalInstance(): TPromise<void> {
+		return this.createTerminal().then(() => {
+			this.updateFont();
+			this.focus();
+		});
+	}
+
+	public closeActiveTerminal(): TPromise<void> {
+		return new TPromise<void>(resolve => {
+			this.onTerminalInstanceExit(this.terminalInstances[this.activeTerminalIndex]);
+		});
+	}
+
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
-			if (this.terminalInstance) {
+			if (this.terminalInstances.length > 0) {
 				this.updateFont();
 				this.updateTheme();
 			} else {
@@ -74,24 +88,40 @@ export class TerminalPanel extends Panel {
 
 	private createTerminal(): TPromise<void> {
 		return new TPromise<void>(resolve => {
-			this.terminalInstance = new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this));
+			this.terminalInstances.push(new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this)));
+			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
 			resolve(void 0);
 		});
 	}
 
+	private setActiveTerminal(index: number) {
+		this.activeTerminalIndex = index;
+		this.terminalInstances.forEach((terminalInstance, i) => {
+			terminalInstance.toggleVisibility(i === this.activeTerminalIndex);
+		});
+	}
+
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
-		if (this.terminalInstance === terminalInstance) {
-			this.terminalInstance = null;
+		for (var i = 0; i < this.terminalInstances.length; i++) {
+			if (this.terminalInstances[i] === terminalInstance) {
+				if (this.activeTerminalIndex > i) {
+					this.activeTerminalIndex--;
+				}
+				let killedTerminal = this.terminalInstances.splice(i, 1)[0];
+				killedTerminal.dispose();
+			}
 		}
-		this.terminalService.toggle();
+		if (this.terminalInstances.length === 0) {
+			this.activeTerminalIndex = -1;
+			this.terminalService.toggle();
+		} else {
+			this.setActiveTerminal(Math.min(this.activeTerminalIndex, this.terminalInstances.length - 1));
+		}
 	}
 
 	private updateTheme(themeId?: string): void {
-		if (!this.terminalInstance) {
-			return;
-		}
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
@@ -121,25 +151,45 @@ export class TerminalPanel extends Panel {
 	}
 
 	private updateFont(): void {
-		if (!this.terminalInstance) {
+		if (this.terminalInstances.length === 0) {
 			return;
 		}
-		this.terminalInstance.setFont(this.configurationHelper.getFont());
+		this.terminalInstances[this.activeTerminalIndex].setFont(this.configurationHelper.getFont());
 		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
 	}
 
-
 	public focus(): void {
-		if (this.terminalInstance) {
-			this.terminalInstance.focus(true);
+		if (this.terminalInstances.length > 0) {
+			this.terminalInstances[this.activeTerminalIndex].focus(true);
+		}
+	}
+
+	public focusNext(): void {
+		if (this.terminalInstances.length > 1) {
+			this.activeTerminalIndex++;
+			if (this.activeTerminalIndex >= this.terminalInstances.length) {
+				this.activeTerminalIndex = 0;
+			}
+			this.setActiveTerminal(this.activeTerminalIndex);
+			this.focus();
+		}
+	}
+
+	public focusPrevious(): void {
+		if (this.terminalInstances.length > 1) {
+			this.activeTerminalIndex--;
+			if (this.activeTerminalIndex < 0) {
+				this.activeTerminalIndex = this.terminalInstances.length - 1;
+			}
+			this.setActiveTerminal(this.activeTerminalIndex);
+			this.focus();
 		}
 	}
 
 	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
-		if (this.terminalInstance) {
-			this.terminalInstance.dispose();
-			this.terminalInstance = null;
+		while (this.terminalInstances.length > 0) {
+			this.terminalInstances.pop().dispose();
 		}
 		super.dispose();
 	}

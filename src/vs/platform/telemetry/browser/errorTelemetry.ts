@@ -36,13 +36,15 @@ namespace ErrorEvent {
 
 export default class ErrorTelemetry {
 
+	public static ERROR_FLUSH_TIMEOUT: number = 5 * 1000;
+
 	private _telemetryService: ITelemetryService;
 	private _flushDelay: number;
 	private _flushHandle = -1;
 	private _buffer: ErrorEvent[] = [];
 	private _disposables: IDisposable[] = [];
 
-	constructor(telemetryService: ITelemetryService, flushDelay) {
+	constructor(telemetryService: ITelemetryService, flushDelay = ErrorTelemetry.ERROR_FLUSH_TIMEOUT) {
 		this._telemetryService = telemetryService;
 		this._flushDelay = flushDelay;
 

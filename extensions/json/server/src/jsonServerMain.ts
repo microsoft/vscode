@@ -7,9 +7,7 @@
 import {
 	IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
 	TextDocuments, TextDocument, Diagnostic, DiagnosticSeverity,
-	InitializeParams, InitializeResult, TextDocumentPositionParams, CompletionList,
-	CompletionItem, Hover, SymbolInformation, DocumentFormattingParams, DocumentSymbolParams,
-	DocumentRangeFormattingParams, NotificationType, RequestType
+	InitializeParams, InitializeResult, NotificationType, RequestType
 } from 'vscode-languageserver';
 
 import {xhr, XHROptions, XHRResponse, configure as configureHttpRequests} from 'request-light';
@@ -267,34 +265,34 @@ function getJSONDocument(document: TextDocument): JSONDocument {
 	return parseJSON(document.getText());
 }
 
-connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Thenable<CompletionList> => {
+connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
-	return jsonCompletion.doSuggest(document, textDocumentPosition.position, jsonDocument);
+	return jsonCompletion.doComplete(document, textDocumentPosition.position, jsonDocument);
 });
 
-connection.onCompletionResolve((item: CompletionItem) : Thenable<CompletionItem> => {
-	return jsonCompletion.doResolve(item);
+connection.onCompletionResolve(completionItem => {
+	return jsonCompletion.doResolve(completionItem);
 });
 
-connection.onHover((textDocumentPosition: TextDocumentPositionParams): Thenable<Hover> => {
-	let document = documents.get(textDocumentPosition.textDocument.uri);
+connection.onHover(textDocumentPositionParams => {
+	let document = documents.get(textDocumentPositionParams.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
-	return jsonHover.doHover(document, textDocumentPosition.position, jsonDocument);
+	return jsonHover.doHover(document, textDocumentPositionParams.position, jsonDocument);
 });
 
-connection.onDocumentSymbol((documentSymbolParams: DocumentSymbolParams): Thenable<SymbolInformation[]> => {
+connection.onDocumentSymbol(documentSymbolParams => {
 	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
 	return jsonDocumentSymbols.compute(document, jsonDocument);
 });
 
-connection.onDocumentFormatting((formatParams: DocumentFormattingParams) => {
+connection.onDocumentFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
 	return formatJSON(document, null, formatParams.options);
 });
 
-connection.onDocumentRangeFormatting((formatParams: DocumentRangeFormattingParams) => {
+connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
 	return formatJSON(document, formatParams.range, formatParams.options);
 });

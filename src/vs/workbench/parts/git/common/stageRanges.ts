@@ -48,6 +48,19 @@ export function stageRanges(diff:editorbrowser.IDiffEditor): string {
 	return applyChangesToModel(diff.getModel().original, diff.getModel().modified, changes);
 }
 
+export function unstageRanges(diff:editorbrowser.IDiffEditor): string {
+	const selections = diff.getSelections();
+	const changes = getSelectedChanges(diff.getLineChanges(), selections)
+		.map(c => ({
+			modifiedStartLineNumber: c.originalStartLineNumber,
+			modifiedEndLineNumber: c.originalEndLineNumber,
+			originalStartLineNumber: c.modifiedStartLineNumber,
+			originalEndLineNumber: c.modifiedEndLineNumber
+		}));
+
+	return applyChangesToModel(diff.getModel().modified, diff.getModel().original, changes);
+}
+
 /**
  * Returns an intersection between a change and a selection.
  * Returns null if intersection does not exist.

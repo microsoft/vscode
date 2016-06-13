@@ -8,7 +8,6 @@ import {IAction, IActionProvider, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +29,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
+import {hash} from 'vs/base/common/hash';
 
 var EDITOR_ID = 0;
 
@@ -103,7 +103,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	protected _instantiationService: IInstantiationService;
 	protected _keybindingService: IKeybindingService;
 
-	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[];};
+	/**
+	 * map from "parent" decoration type to live decoration ids.
+	 */
+	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[]};
+	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
 
 	private _codeEditorService: ICodeEditorService;
 	private _editorIdContextKey: IKeybindingContextKey<string>;
@@ -130,6 +134,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 		var timerEvent = timer.start(timer.Topic.EDITOR, 'CodeEditor.ctor');
 
+		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
 		this._keybindingService = keybindingService.createScoped(domElement);
@@ -140,8 +145,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this._hasNonEmptySelectionKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION, false);
 		this._langIdKey = this._keybindingService.createKey<string>(editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, undefined);
 
-		// listeners that are kept during the whole editor lifetime
 		this._decorationTypeKeysToIds = {};
+		this._decorationTypeSubtypes = {};
 
 		options = options || {};
 		if (typeof options.ariaLabel === 'undefined') {
@@ -257,18 +262,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		var detachedModel = this._detachModel();
 		this._attachModel(model);
 
-		var oldModelUrl: string = null;
-		var newModelUrl: string = null;
-
-		if (detachedModel) {
-			oldModelUrl = detachedModel.uri.toString();
-		}
-		if (model) {
-			newModelUrl = model.uri.toString();
-		}
 		var e: editorCommon.IModelChangedEvent = {
-			oldModelUrl: oldModelUrl,
-			newModelUrl: newModelUrl
+			oldModelUrl: detachedModel ? detachedModel.uri : null,
+			newModelUrl: model ? model.uri : null
 		};
 
 		timerEvent.stop();
@@ -445,7 +441,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (!this.cursor) {
 			return;
 		}
-		var selection = Selection.createSelection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
+		var selection = new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
 		this.cursor.setSelections('api', [selection]);
 		if (reveal) {
 			this.revealRange(selection, revealVerticalInCenter, revealHorizontal);
@@ -651,29 +647,53 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		return this.model.deltaDecorations(oldDecorations, newDecorations, this.id);
 	}
 
-	public setDecorations(decorationTypeKey: string, ranges:editorCommon.IRangeWithMessage[]): void {
-		var opts = this._codeEditorService.resolveDecorationType(decorationTypeKey);
-		var oldDecorationIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationIds, ranges.map((r) : editorCommon.IModelDeltaDecoration => {
-			let decOpts: editorCommon.IModelDecorationOptions;
-			if (r.hoverMessage) {
-				// TODO@Alex: avoid objects.clone
-				decOpts = objects.clone(opts);
-				decOpts.htmlMessage = r.hoverMessage;
-			} else {
-				decOpts = opts;
+	public setDecorations(decorationTypeKey: string, decorationOptions:editorCommon.IDecorationOptions[]): void {
+
+		let newDecorationsSubTypes: {[key:string]:boolean}= {};
+		let oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
+		this._decorationTypeSubtypes[decorationTypeKey] = newDecorationsSubTypes;
+
+		let newModelDecorations :editorCommon.IModelDeltaDecoration[] = [];
+
+		for (let decorationOption of decorationOptions) {
+			let typeKey = decorationTypeKey;
+			if (decorationOption.renderOptions) {
+				// identify custom reder options by a hash code over all keys and values
+				// For custom render options register a decoration type if necessary
+				let subType = hash(decorationOption.renderOptions).toString(16);
+				// The fact that `decorationTypeKey` appears in the typeKey has no influence
+				// it is just a mechanism to get predictable and unique keys (repeatable for the same options and unique across clients)
+				typeKey = decorationTypeKey + '-' + subType;
+				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
+					// decoration type did not exist before, register new one
+					this._codeEditorService.registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
+				}
+				newDecorationsSubTypes[subType] = true;
 			}
-			return {
-				range: r.range,
-				options: decOpts
-			};
-		}));
+			let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
+			if (decorationOption.hoverMessage) {
+				opts.htmlMessage = decorationOption.hoverMessage;
+			}
+			newModelDecorations.push({ range: decorationOption.range, options: opts });
+		}
+
+		// remove decoration sub types that are no longer used, deregister decoration type if necessary
+		for (let subType in oldDecorationsSubTypes) {
+			if (!newDecorationsSubTypes[subType]) {
+				this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
+			}
+		}
+
+		// update all decorations
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
+		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
 	public removeDecorations(decorationTypeKey: string): void {
-		if (this._decorationTypeKeysToIds.hasOwnProperty(decorationTypeKey)) {
-			this.deltaDecorations(this._decorationTypeKeysToIds[decorationTypeKey], []);
-			delete this._decorationTypeKeysToIds[decorationTypeKey];
+		// remove decorations for type and sub type
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
+		if (oldDecorationsIds) {
+			this.deltaDecorations(oldDecorationsIds, []);
 		}
 	}
 
@@ -936,6 +956,15 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	_postDetachModelCleanup(detachedModel:editorCommon.IModel): void {
 		if (detachedModel) {
 			this._decorationTypeKeysToIds = {};
+			if (this._decorationTypeSubtypes) {
+				for (let decorationType in this._decorationTypeSubtypes) {
+					let subTypes = this._decorationTypeSubtypes[decorationType];
+					for (let subType in subTypes) {
+						this._codeEditorService.removeDecorationType(decorationType + '-' + subType);
+					}
+				}
+				this._decorationTypeSubtypes = {};
+			}
 			detachedModel.removeAllDecorationsWithOwnerId(this.id);
 		}
 	}

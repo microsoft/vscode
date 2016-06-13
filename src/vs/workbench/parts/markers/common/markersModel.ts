@@ -295,3 +295,9 @@ export class MarkersModel {
 		return title;
 	}
 }
+
+export interface IProblemsConfiguration {
+	problems: {
+		autoReveal: boolean
+	};
+}

@@ -9,6 +9,7 @@ import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
 export interface IVisibleLineData {
 	getDomNode(): HTMLElement;
@@ -24,7 +25,7 @@ export interface IVisibleLineData {
 	getLineOuterHTML(out:string[], lineNumber: number, deltaTop: number): void;
 	getLineInnerHTML(lineNumber: number): string;
 
-	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:editorCommon.IModelDecoration[]): boolean;
+	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean;
 	layoutLine(lineNumber: number, deltaTop:number): void;
 }
 
@@ -33,7 +34,7 @@ interface IRendererContext {
 	rendLineNumberStart: number;
 	lines: IVisibleLineData[];
 	linesLength: number;
-	getInlineDecorationsForLineInViewport(lineNumber:number): editorCommon.IModelDecoration[];
+	getInlineDecorationsForLineInViewport(lineNumber:number): InlineDecoration[];
 	viewportTop: number;
 	viewportHeight: number;
 	scrollDomNode: HTMLElement;
@@ -501,8 +502,8 @@ class ViewLayerRenderer {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
-	private static _resolveInlineDecorations(ctx: IRendererContext): editorCommon.IModelDecoration[][] {
-		let result: editorCommon.IModelDecoration[][] = [];
+	private static _resolveInlineDecorations(ctx: IRendererContext): InlineDecoration[][] {
+		let result: InlineDecoration[][] = [];
 		for (let i = 0, len = ctx.linesLength; i < len; i++) {
 			let lineNumber = i + ctx.rendLineNumberStart;
 			result[i] = ctx.getInlineDecorationsForLineInViewport(lineNumber);

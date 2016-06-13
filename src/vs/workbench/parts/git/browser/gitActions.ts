@@ -212,7 +212,7 @@ export class RefreshAction extends GitAction {
 }
 
 export abstract class BaseStageAction extends GitAction {
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
@@ -283,7 +283,10 @@ export class StageAction extends BaseStageAction {
 	static ID = 'workbench.action.git.stage';
 	static LABEL = nls.localize('stageChanges', "Stage");
 
-	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+	constructor(
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
 		super(StageAction.ID, StageAction.LABEL, 'git-action stage', gitService, editorService);
 	}
 }
@@ -485,7 +488,7 @@ export class GlobalUndoAction extends BaseUndoAction {
 
 export abstract class BaseUnstageAction extends GitAction {
 
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
@@ -559,9 +562,13 @@ export abstract class BaseUnstageAction extends GitAction {
 
 export class UnstageAction extends BaseUnstageAction {
 	static ID = 'workbench.action.git.unstage';
+	static LABEL = nls.localize('unstage', "Unstage");
 
-	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(UnstageAction.ID, nls.localize('unstage', "Unstage"), 'git-action unstage', gitService, editorService);
+	constructor(
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(UnstageAction.ID, UnstageAction.LABEL, 'git-action unstage', gitService, editorService);
 	}
 }
 

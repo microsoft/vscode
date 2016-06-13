@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TimeoutTimer} from 'vs/base/common/async';
-import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable} from 'vs/base/common/lifecycle';
+import { TimeoutTimer } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 
 export enum UserStatus {
@@ -14,14 +14,7 @@ export enum UserStatus {
 	Active
 }
 
-export interface IIdleMonitor {
-	status: UserStatus;
-	onStatusChange: Event<UserStatus>;
-}
-
-export const DEFAULT_IDLE_TIME = 60 * 60 * 1000; // 60 minutes
-
-export class IdleMonitor extends Disposable implements IIdleMonitor {
+export class IdleMonitor extends Disposable {
 
 	private _lastActiveTime: number;
 	private _idleCheckTimeout: TimeoutTimer;
@@ -31,7 +24,7 @@ export class IdleMonitor extends Disposable implements IIdleMonitor {
 	private _onStatusChange: Emitter<UserStatus>;
 	get onStatusChange(): Event<UserStatus> { return this._onStatusChange.event; }
 
-	constructor(idleTime: number = DEFAULT_IDLE_TIME) {
+	constructor(idleTime) {
 		super();
 
 		this._status = null;

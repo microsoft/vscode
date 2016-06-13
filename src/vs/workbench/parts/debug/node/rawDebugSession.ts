@@ -13,7 +13,6 @@ import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import { IAIAdapter } from 'vs/base/parts/ai/node/ai';
 import stdfork = require('vs/base/node/stdFork');
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -66,7 +65,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	constructor(
 		private debugServerPort: number,
 		private adapter: Adapter,
-		private telemtryAdapter: IAIAdapter,
+		private customTelemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService
@@ -146,8 +145,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
 				if (error && error.sendTelemetry) {
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
-					if (this.telemtryAdapter) {
-						this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
+					if (this.customTelemetryService) {
+						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: message });
 					}
 				}
 				if (error && error.showUser === false) {

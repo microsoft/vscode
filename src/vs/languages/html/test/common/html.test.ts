@@ -718,7 +718,7 @@ suite('Colorizing - HTML', () => {
 	});
 
 	test('onEnter 2', function() {
-		function onEnter(line:string, offset:number): Modes.IEnterAction {
+		function onEnter(line:string, offset:number): Modes.EnterAction {
 			let model = new TextModelWithTokens([], TextModel.toRawText(line, Model.DEFAULT_CREATION_OPTIONS), false, _mode);
 			let result = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, 1, offset + 1);
 			model.dispose();

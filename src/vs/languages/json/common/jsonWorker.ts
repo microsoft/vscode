@@ -411,7 +411,7 @@ export class JSONWorker {
 		return WinJS.TPromise.as(result);
 	}
 
-	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	public format(resource: URI, range: EditorCommon.IRange, options: Modes.FormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		let model = this.resourceService.get(resource);
 		let formatRange = range ? model.getOffsetAndLengthFromRange(range) : void 0;
 		let edits = JSONFormatter.format(model.getValue(), formatRange, { insertSpaces: options.insertSpaces, tabSize: options.tabSize, eol: model.getEOL() });

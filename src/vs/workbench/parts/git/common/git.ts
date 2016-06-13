@@ -154,6 +154,7 @@ export enum ServiceState {
 	NotARepo,
 	NotAtRepoRoot,
 	OK,
+	Huge,
 	NoGit,
 	Disabled,
 	NotAWorkspace
@@ -227,8 +228,11 @@ export var ServiceOperations = {
 // Service config
 
 export interface IGitConfiguration {
+	enabled: boolean;
 	path: string;
 	autofetch: boolean;
+	enableLongCommitWarning: boolean;
+	allowLargeRepositories: boolean;
 }
 
 // Service interfaces
@@ -262,6 +266,7 @@ export interface IRawGitService {
 	onOutput: Event<string>;
 	getVersion(): TPromise<string>;
 	serviceState(): TPromise<RawServiceState>;
+	statusCount(): TPromise<number>;
 	status(): TPromise<IRawStatus>;
 	init(): TPromise<IRawStatus>;
 	add(filesPaths?: string[]): TPromise<IRawStatus>;
@@ -287,6 +292,7 @@ export var IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
 
 export interface IGitService extends IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
+	allowHugeRepositories: boolean;
 	onOutput: Event<string>;
 	status(): TPromise<IModel>;
 	init(): TPromise<IModel>;

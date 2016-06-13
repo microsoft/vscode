@@ -32,6 +32,9 @@ export enum MarkerType {
 	permanent = 2
 }
 
+/**
+ * A structure defining a problem/warning/etc.
+ */
 export interface IMarkerData {
 	code?: string;
 	severity: Severity;

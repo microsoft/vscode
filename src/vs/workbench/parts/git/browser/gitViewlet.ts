@@ -21,6 +21,7 @@ import gitless = require('vs/workbench/parts/git/browser/views/gitless/gitlessVi
 import notroot = require('vs/workbench/parts/git/browser/views/notroot/notrootView');
 import noworkspace = require('vs/workbench/parts/git/browser/views/noworkspace/noworkspaceView');
 import { DisabledView } from './views/disabled/disabledView';
+import { HugeView } from './views/huge/hugeView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -61,7 +62,8 @@ export class GitViewlet
 			this.instantiationService.createInstance(gitless.GitlessView),
 			new notroot.NotRootView(),
 			new noworkspace.NoWorkspaceView(),
-			new DisabledView()
+			new DisabledView(),
+			this.instantiationService.createInstance(HugeView)
 		];
 
 		views.forEach(v => {
@@ -191,6 +193,9 @@ export class GitViewlet
 			this.progressRunner = null;
 		} else if (this.gitService.getState() === git.ServiceState.NotAtRepoRoot) {
 			this.setView('notroot');
+			this.progressRunner = null;
+		} else if (this.gitService.getState() === git.ServiceState.Huge) {
+			this.setView('huge');
 			this.progressRunner = null;
 		} else if (this.gitService.isIdle()) {
 			this.setView('changes');

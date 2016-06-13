@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { registerAIChannel } from 'vs/base/parts/ai/node/ai.app';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -18,10 +17,18 @@ import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+
+import product from 'vs/platform/product';
+import { ITelemetryService, combinedAppender } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 
 function quit(err?: Error) {
 	if (err) {
-		console.error(err);
+		console.error(err.stack || err);
 	}
 
 	process.exit(err ? 1 : 0);
@@ -40,23 +47,57 @@ function setupPlanB(parentPid: number): void {
 	}, 5000);
 }
 
+const eventPrefix = 'monacoworkbench';
+
 function main(server: Server): void {
 	const services = new ServiceCollection();
 
 	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
 
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const channel = new ExtensionManagementChannel(extensionManagementService);
-		server.registerChannel('extensions', channel);
-		registerAIChannel(server);
+		const appenders: AppInsightsAppender[] = [];
 
-		// eventually clean up old extensions
-		setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
+		if (product.aiConfig && product.aiConfig.key) {
+			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
+		}
+
+		if (product.aiConfig && product.aiConfig.asimovKey) {
+			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+		}
+
+		// It is important to dispose the AI adapter properly because
+		// only then they flush remaining data.
+		process.once('exit', () => appenders.forEach(a => a.dispose()));
+
+		const appender = combinedAppender(...appenders);
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
+
+		const { appRoot, extensionsPath } = accessor.get(IEnvironmentService);
+		const config: ITelemetryServiceConfig = {
+			appender,
+			commonProperties: TPromise.as({}),
+			piiPaths: [appRoot, extensionsPath]
+		};
+
+		const services = new ServiceCollection();
+		services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+		const instantiationService2 = instantiationService.createChild(services);
+
+		instantiationService2.invokeFunction(accessor => {
+			// const telemetryService = accessor.get(ITelemetryService);
+
+			const extensionManagementService = accessor.get(IExtensionManagementService);
+			const channel = new ExtensionManagementChannel(extensionManagementService);
+			server.registerChannel('extensions', channel);
+
+			// eventually clean up old extensions
+			setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
+		});
 	});
 }
 

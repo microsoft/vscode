@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {parse} from 'vs/base/common/json';
 import {readFile} from 'vs/base/node/pfs';
-import {IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IAutoClosingPair} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -71,7 +71,7 @@ export class LanguageConfigurationFileHandler {
 
 	private _handleConfig(modeId:string, configuration:ILanguageConfiguration): void {
 
-		let richEditConfig:IRichLanguageConfiguration = {};
+		let richEditConfig:LanguageConfiguration = {};
 
 		if (configuration.comments) {
 			richEditConfig.comments = configuration.comments;

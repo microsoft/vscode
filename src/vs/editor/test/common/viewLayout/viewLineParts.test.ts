@@ -5,20 +5,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import {DecorationSegment, ILineDecoration, LineDecorationsNormalizer, getColumnOfLinePartOffset, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
+import {DecorationSegment, LineDecorationsNormalizer, getColumnOfLinePartOffset, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {Range} from 'vs/editor/common/core/range';
 import {RenderLineInput, renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
-	function newDecoration(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, inlineClassName:string): ILineDecoration {
-		return {
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			options: {
-				inlineClassName: inlineClassName
-			}
-		};
+	function newDecoration(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, inlineClassName:string): InlineDecoration {
+		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName);
 	}
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {

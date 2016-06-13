@@ -16,12 +16,12 @@ import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadSer
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export class JSONMode extends AbstractMode {
 
-	public static LANG_CONFIG:IRichLanguageConfiguration = {
+	public static LANG_CONFIG:LanguageConfiguration = {
 		wordPattern: createWordRegExp('.-'),
 
 		comments: {
@@ -166,12 +166,12 @@ export class JSONMode extends AbstractMode {
 	}
 
 	static $_provideDocumentFormattingEdits = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentFormattingEdits);
-	public _provideDocumentFormattingEdits(resource:URI, options:modes.IFormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
+	public _provideDocumentFormattingEdits(resource:URI, options:modes.FormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, null, options));
 	}
 
 	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentRangeFormattingEdits);
-	public _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.IFormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
+	public _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.FormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
 	}
 }

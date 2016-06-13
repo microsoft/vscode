@@ -11,13 +11,16 @@ import * as path from 'path';
 import types = require('vs/base/common/types');
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionManagementService, IExtension, IExtensionManifest, IGalleryMetadata, IGalleryVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { UserSettings } from 'vs/workbench/node/userSettings';
@@ -90,12 +93,13 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private extensionsPath: string;
 	private obsoletePath: string;
 	private obsoleteFileLimiter: Limiter<void>;
+	private disposables: IDisposable[];
 
 	private _onInstallExtension = new Emitter<IExtensionManifest>();
 	onInstallExtension: Event<IExtensionManifest> = this._onInstallExtension.event;
 
-	private _onDidInstallExtension = new Emitter<{ extension: IExtension; error?: Error; }>();
-	onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }> = this._onDidInstallExtension.event;
+	private _onDidInstallExtension = new Emitter<{ extension: IExtension; isUpdate: boolean; error?: Error; }>();
+	onDidInstallExtension: Event<{ extension: IExtension; isUpdate: boolean; error?: Error; }> = this._onDidInstallExtension.event;
 
 	private _onUninstallExtension = new Emitter<IExtension>();
 	onUninstallExtension: Event<IExtension> = this._onUninstallExtension.event;
@@ -104,11 +108,23 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	onDidUninstallExtension: Event<IExtension> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
 		this.obsoleteFileLimiter = new Limiter(1);
+
+		this.disposables = [
+			this.onDidInstallExtension(({ extension, isUpdate, error }) => telemetryService.publicLog(
+				isUpdate ? 'extensionGallery2:update' : 'extensionGallery2:install',
+				assign(getTelemetryData(extension), { success: !error })
+			)),
+			this.onDidUninstallExtension(extension => telemetryService.publicLog(
+				'extensionGallery2:uninstall',
+				assign(getTelemetryData(extension), { success: true })
+			))
+		];
 	}
 
 	install(extension: IExtension): TPromise<IExtension>;
@@ -138,22 +154,26 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		this._onInstallExtension.fire(extension);
 
 		return this.getLastValidExtensionVersion(extension, extension.galleryInformation.versions).then(versionInfo => {
-			const version = versionInfo.version;
-			const url = versionInfo.downloadUrl;
-			const headers = versionInfo.downloadHeaders;
-			const zipPath = path.join(tmpdir(), galleryInformation.id);
-			const extensionPath = path.join(this.extensionsPath, getExtensionId(extension, version));
-			const manifestPath = path.join(extensionPath, 'package.json');
+			return this.getInstalled()
+				.then(installed => installed.some(e => extensionEquals(e, extension)))
+				.then(isUpdate => {
+					const version = versionInfo.version;
+					const url = versionInfo.downloadUrl;
+					const headers = versionInfo.downloadHeaders;
+					const zipPath = path.join(tmpdir(), galleryInformation.id);
+					const extensionPath = path.join(this.extensionsPath, getExtensionId(extension, version));
+					const manifestPath = path.join(extensionPath, 'package.json');
 
-			return this.request(url)
-				.then(opts => assign(opts, { headers }))
-				.then(opts => download(zipPath, opts))
-				.then(() => validate(zipPath, extension, version))
-				.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
-				.then(manifest => assign({ __metadata: galleryInformation }, manifest))
-				.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
-				.then(() => { this._onDidInstallExtension.fire({ extension }); return extension; })
-				.then(null, error => { this._onDidInstallExtension.fire({ extension, error }); return TPromise.wrapError(error); });
+					return this.request(url)
+						.then(opts => assign(opts, { headers }))
+						.then(opts => download(zipPath, opts))
+						.then(() => validate(zipPath, extension, version))
+						.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
+						.then(manifest => assign({ __metadata: galleryInformation }, manifest))
+						.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+						.then(() => { this._onDidInstallExtension.fire({ extension, isUpdate }); return extension; })
+						.then(null, error => { this._onDidInstallExtension.fire({ extension, isUpdate, error }); return TPromise.wrapError(error); });
+				});
 		});
 	}
 
@@ -185,9 +205,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			const extensionPath = path.join(this.extensionsPath, getExtensionId(manifest));
 			this._onInstallExtension.fire(manifest);
 
-			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-				.then(() => createExtension(manifest, (<any> manifest).__metadata, extensionPath))
-				.then(extension => { this._onDidInstallExtension.fire({ extension }); return extension; });
+			return this.getInstalled()
+				.then(installed => installed.some(e => extensionEquals(e, manifest)))
+				.then(isUpdate => {
+
+					return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
+						.then(() => createExtension(manifest, (<any> manifest).__metadata, extensionPath))
+						.then(extension => { this._onDidInstallExtension.fire({ extension, isUpdate }); return extension; });
+			});
 		});
 	}
 
@@ -318,5 +343,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 			return { url, agent, strictSSL };
 		});
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
 	}
 }

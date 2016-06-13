@@ -67,11 +67,11 @@ export class HTMLWorker {
 		providers.push(htmlTags.getIonicTagProvider());
 	}
 
-	public provideDocumentRangeFormattingEdits(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
+	public provideDocumentRangeFormattingEdits(resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this.formatHTML(resource, range, options);
 	}
 
-	private formatHTML(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
+	private formatHTML(resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
 		let model = this.resourceService.get(resource);
 		let value = range ? model.getValueInRange(range) : model.getValue();
 

@@ -28,7 +28,7 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction } from './gitActions';
+import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction } from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 
@@ -244,13 +244,129 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 	}
 }
 
-export class StageRangesAction extends baseeditor.EditorInputAction {
+export class WorkbenchStageAction extends BaseStageAction {
+
+	static ID = 'workbench.action.git.stage';
+	static LABEL = nls.localize('workbenchStage', "Stage");
+	private contextService: IWorkspaceContextService;
+
+	constructor(
+		id = WorkbenchStageAction.ID,
+		label = WorkbenchStageAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(id, label, '', gitService, editorService);
+		this.contextService = contextService;
+		this.onGitServiceChange();
+	}
+
+	protected updateEnablement(): void {
+		if (this.contextService) {
+			this.enabled = this.isEnabled();
+		} else {
+			this.enabled = super.isEnabled();
+		}
+	}
+
+	isEnabled():boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		const editor = this.editorService.getActiveEditor();
+		if (!editor || !(editor instanceof baseeditor.BaseEditor)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	run(context?: any): TPromise<void> {
+		const input = this.editorService.getActiveEditor().input;
+		let fileStatus: IFileStatus;
+
+		if (gitei.isGitEditorInput(input)) {
+			const gitInput = input as gitei.GitDiffEditorInput;
+			fileStatus = gitInput.getFileStatus();
+		} else {
+			fileStatus = getStatus(this.gitService, this.contextService, input as WorkbenchEditorCommon.IFileEditorInput);
+		}
+
+		if (!fileStatus) {
+			return TPromise.as<void>(null);
+		}
+
+		return super.run(fileStatus);
+	}
+}
+
+export class WorkbenchUnstageAction extends BaseUnstageAction {
+
+	static ID = 'workbench.action.git.unstage';
+	static LABEL = nls.localize('workbenchUnstage', "Unstage");
+	private contextService: IWorkspaceContextService;
+
+	constructor(
+		id = WorkbenchUnstageAction.ID,
+		label = WorkbenchUnstageAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(id, label, '', gitService, editorService);
+		this.contextService = contextService;
+		this.onGitServiceChange();
+	}
+
+	protected updateEnablement(): void {
+		if (this.contextService) {
+			this.enabled = this.isEnabled();
+		} else {
+			this.enabled = super.isEnabled();
+		}
+	}
+
+	isEnabled():boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		const editor = this.editorService.getActiveEditor();
+		if (!editor || !(editor instanceof baseeditor.BaseEditor)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	run(context?: any): TPromise<void> {
+		const input = this.editorService.getActiveEditor().input;
+		let fileStatus: IFileStatus;
+
+		if (gitei.isGitEditorInput(input)) {
+			const gitInput = input as gitei.GitDiffEditorInput;
+			fileStatus = gitInput.getFileStatus();
+		} else {
+			fileStatus = getStatus(this.gitService, this.contextService, input as WorkbenchEditorCommon.IFileEditorInput);
+		}
+
+		if (!fileStatus) {
+			return TPromise.as<void>(null);
+		}
+
+		return super.run(fileStatus);
+	}
+}
+
+export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction {
 	private gitService: IGitService;
 	private editorService: IWorkbenchEditorService;
 	private editor:editorbrowser.IDiffEditor;
 
-	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
-		super('workbench.action.git.stageRanges', nls.localize('stageSelectedLines', "Stage Selected Lines"));
+	constructor(id: string, label: string, editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+		super(id, label);
 
 		this.editorService = editorService;
 		this.gitService = gitService;
@@ -279,8 +395,12 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 		return stageranges.getSelectedChanges(changes, selections).length > 0;
 	}
 
+	protected getRangesAppliedResult(editor: editorbrowser.IDiffEditor) {
+		return stageranges.stageRanges(editor);
+	}
+
 	public run():TPromise<any> {
-		var result = stageranges.stageRanges(this.editor);
+		var result = this.getRangesAppliedResult(this.editor);
 
 		var status = (<gitei.GitWorkingTreeDiffEditorInput>this.input).getFileStatus();
 		var path = status.getPath();
@@ -307,6 +427,28 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 
 	private updateEnablement():void {
 		this.enabled = this.isEnabled();
+	}
+}
+
+export class StageRangesAction extends BaseStageRangesAction {
+	static ID = 'workbench.action.git.stageRanges';
+	static LABEL = nls.localize('stageSelectedLines', "Stage Selected Lines");
+
+	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+		super(StageRangesAction.ID, StageRangesAction.LABEL, editor, gitService, editorService);
+	}
+}
+
+export class UnstageRangesAction extends BaseStageRangesAction {
+	static ID = 'workbench.action.git.unstageRanges';
+	static LABEL = nls.localize('unstageSelectedLines', "Unstage Selected Lines");
+
+	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+		super(UnstageRangesAction.ID, UnstageRangesAction.LABEL, editor, gitService, editorService);
+	}
+
+	protected getRangesAppliedResult(editor: editorbrowser.IDiffEditor) {
+		return stageranges.unstageRanges(editor);
 	}
 }
 
@@ -356,10 +498,14 @@ class GitWorkingTreeDiffEditorActionContributor extends baseeditor.EditorInputAc
 	}
 
 	public hasSecondaryActionsForEditorInput(context:baseeditor.IEditorInputActionContext):boolean {
-		return (context.input instanceof gitei.GitWorkingTreeDiffEditorInput && context.editor instanceof tdeditor.TextDiffEditor);
+		return (context.input instanceof gitei.GitDiffEditorInput && context.editor instanceof tdeditor.TextDiffEditor);
 	}
 
 	public getSecondaryActionsForEditorInput(context:baseeditor.IEditorInputActionContext):baseeditor.IEditorInputAction[] {
+		if (context.input instanceof gitei.GitIndexDiffEditorInput) {
+			return [ this.instantiationService.createInstance(UnstageRangesAction, <tdeditor.TextDiffEditor>context.editor) ];
+		}
+
 		return [ this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor) ];
 	}
 }
@@ -480,3 +626,5 @@ workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGi
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitCheckoutAction, StartGitCheckoutAction.ID, StartGitCheckoutAction.LABEL), 'Git: Checkout', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InputCommitAction, InputCommitAction.ID, InputCommitAction.LABEL), 'Git: Commit', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UndoLastCommitAction, UndoLastCommitAction.ID, UndoLastCommitAction.LABEL), 'Git: Undo Last Commit', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchStageAction, WorkbenchStageAction.ID, WorkbenchStageAction.LABEL), 'Git: Stage', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchUnstageAction, WorkbenchUnstageAction.ID, WorkbenchUnstageAction.LABEL), 'Git: Unstage', category);
