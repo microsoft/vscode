@@ -572,6 +572,10 @@ export class GitService extends ee.EventEmitter
 			return this.run(git.ServiceOperations.STATUS, () => this.raw.status());
 		}
 
+		if (this.state === git.ServiceState.Huge) {
+			return winjs.TPromise.as(this.model);
+		}
+
 		return this.raw.statusCount().then(count => {
 			if (count > 5000 && !this.allowHugeRepositories) {
 				this.transition(git.ServiceState.Huge);
