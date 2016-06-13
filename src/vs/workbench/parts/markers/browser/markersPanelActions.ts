@@ -6,6 +6,7 @@
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import * as lifecycle from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -20,7 +21,9 @@ import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
+import Tree = require('vs/base/parts/tree/browser/tree');
 
 export class ToggleProblemsPanelAction extends TogglePanelAction {
 
@@ -34,6 +37,28 @@ export class ToggleProblemsPanelAction extends TogglePanelAction {
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, editorService);
 	}
+
+	public run(): TPromise<any> {
+		let promise= super.run();
+		if (this.isPanelFocussed()) {
+			this.telemetryService.publicLog('problems.used');
+		}
+		return promise;
+	}
+}
+
+export class CollapseAllAction extends TreeCollapseAction {
+
+	constructor(viewer: Tree.ITree, enabled: boolean,
+				@ITelemetryService private telemetryService: ITelemetryService) {
+		super(viewer, enabled);
+	}
+
+	public run(context?: any): TPromise<any> {
+		this.telemetryService.publicLog('problems.collapseAll.used');
+		return super.run(context);
+	}
+
 }
 
 export class FilterAction extends Action {
@@ -75,8 +100,11 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 	}
 
 	private reportFilteringUsed(): void {
-		// Report only filtering is used, do not use the input from the user
-		// this.telemetryService.publicLog('problems.filtered');
+		let data= {};
+		data['errors']= this.markersPanel.markersModel.filterOptions.filterErrors;
+		data['warnings']= this.markersPanel.markersModel.filterOptions.filterWarnings;
+		data['infos']= this.markersPanel.markersModel.filterOptions.filterInfos;
+		this.telemetryService.publicLog('problems.filter', data);
 	}
 
 	public dispose(): void {

@@ -73,7 +73,7 @@ export abstract class TogglePanelAction extends Action {
 		id: string,
 		label: string,
 		panelId: string,
-		private panelService: IPanelService,
+		protected panelService: IPanelService,
 		private editorService: IWorkbenchEditorService
 	) {
 		super(id, name);
@@ -100,7 +100,7 @@ export abstract class TogglePanelAction extends Action {
 		return panel && panel.getId() === this.panelId;
 	}
 
-	private isPanelFocussed(): boolean {
+	protected isPanelFocussed(): boolean {
 		let activePanel = this.panelService.getActivePanel();
 		let activeElement = document.activeElement;
 

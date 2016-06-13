@@ -27,12 +27,11 @@ import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IProblemsConfiguration, MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
-import {CollapseAllAction} from 'vs/base/parts/tree/browser/treeDefaults';
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
-import { FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MarkersPanel extends Panel {
@@ -89,8 +88,6 @@ export class MarkersPanel extends Panel {
 		this.createListeners();
 
 		this.render();
-
-		// this.telemetryService.publicLog('problems.used');
 
 		return TPromise.as(null);
 	}

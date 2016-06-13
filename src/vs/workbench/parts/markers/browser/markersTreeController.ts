@@ -12,10 +12,12 @@ import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMarker } from 'vs/platform/markers/common/markers';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class Controller extends treedefaults.DefaultController {
 
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+				@ITelemetryService private telemetryService: ITelemetryService) {
 		super();
 	}
 
@@ -46,6 +48,7 @@ export class Controller extends treedefaults.DefaultController {
 
 	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean) {
 		if (element instanceof Marker) {
+			this.telemetryService.publicLog('problems.marker.opened', {source: element.source});
 			let marker = <IMarker>element.marker;
 			this.editorService.openEditor({
 				resource: marker.resource,
