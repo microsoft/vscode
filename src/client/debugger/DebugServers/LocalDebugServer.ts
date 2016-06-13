@@ -1,9 +1,9 @@
-'use strict';
+"use strict";
 
-import {DebugSession, OutputEvent} from 'vscode-debugadapter';
-import {IPythonProcess, IDebugServer} from '../Common/Contracts';
-import * as net from 'net';
-import {BaseDebugServer} from './BaseDebugServer';
+import {DebugSession, OutputEvent} from "vscode-debugadapter";
+import {IPythonProcess, IDebugServer} from "../Common/Contracts";
+import * as net from "net";
+import {BaseDebugServer} from "./BaseDebugServer";
 
 export class LocalDebugServer extends BaseDebugServer {
     private debugSocketServer: net.Server = null;
@@ -23,31 +23,32 @@ export class LocalDebugServer extends BaseDebugServer {
 
     public Start(): Promise<IDebugServer> {
         return new Promise<IDebugServer>((resolve, reject) => {
-            var that = this;
-            this.debugSocketServer = net.createServer(c => { //'connection' listener
-                var connected = false;
+            let that = this;
+            this.debugSocketServer = net.createServer(c => {
+                // "connection" listener
+                let connected = false;
                 c.on("data", (buffer: Buffer) => {
                     if (!connected) {
                         connected = true;
                         that.pythonProcess.Connect(buffer, c, false);
                     }
                     else {
-                        that.pythonProcess.HandleIncomingData(buffer)
+                        that.pythonProcess.HandleIncomingData(buffer);
                         that.isRunning = true;
                     }
                 });
-                c.on("close", d=> {
-                    var msg = "Debugger client closed, " + d;
+                c.on("close", d => {
+                    let msg = "Debugger client closed, " + d;
                     that.emit("detach", d);
                 });
-                c.on("timeout", d=> {
-                    var msg = "Debugger client timedout, " + d;
+                c.on("timeout", d => {
+                    let msg = "Debugger client timedout, " + d;
                     that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
                 });
             });
-            this.debugSocketServer.on("error", ex=> {
-                var exMessage = JSON.stringify(ex);
-                var msg = "";
+            this.debugSocketServer.on("error", ex => {
+                let exMessage = JSON.stringify(ex);
+                let msg = "";
                 if (ex.code === "EADDRINUSE") {
                     msg = `The port used for debugging is in use, please try again or try restarting Visual Studio Code, Error = ${exMessage}`;
                 }
@@ -59,7 +60,7 @@ export class LocalDebugServer extends BaseDebugServer {
             });
 
             this.debugSocketServer.listen(0, () => {
-                var server = that.debugSocketServer.address();
+                let server = that.debugSocketServer.address();
                 resolve({ port: server.port });
             });
         });

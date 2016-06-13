@@ -1,9 +1,9 @@
-'use strict';
+"use strict";
 
-import {DebugSession, OutputEvent} from 'vscode-debugadapter';
-import {IPythonProcess, IDebugServer} from '../Common/Contracts';
-import * as net from 'net';
-import {EventEmitter} from 'events';
+import {DebugSession, OutputEvent} from "vscode-debugadapter";
+import {IPythonProcess, IDebugServer} from "../Common/Contracts";
+import * as net from "net";
+import {EventEmitter} from "events";
 
 export abstract class BaseDebugServer extends EventEmitter {
     protected pythonProcess: IPythonProcess;

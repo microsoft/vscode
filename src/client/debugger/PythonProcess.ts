@@ -1,14 +1,14 @@
-'use strict';
+"use strict";
 
-import * as net from 'net';
-import {EventEmitter} from 'events';
-import {FrameKind, IPythonProcess, IPythonThread, IPythonModule, IPythonEvaluationResult, IPythonStackFrame, IStepCommand} from './Common/Contracts';
-import {IPythonBreakpoint, PythonBreakpointConditionKind, PythonBreakpointPassCountKind, IBreakpointCommand, IChildEnumCommand} from './Common/Contracts';
-import {PythonEvaluationResultReprKind, IExecutionCommand, enum_EXCEPTION_STATE} from './Common/Contracts';
-import {Commands} from './ProxyCommands';
-import * as utils from './Common/Utils';
-import {PythonProcessCallbackHandler} from './PythonProcessCallbackHandler';
-import {SocketStream} from './Common/SocketStream';
+import * as net from "net";
+import {EventEmitter} from "events";
+import {FrameKind, IPythonProcess, IPythonThread, IPythonModule, IPythonEvaluationResult, IPythonStackFrame, IStepCommand} from "./Common/Contracts";
+import {IPythonBreakpoint, PythonBreakpointConditionKind, PythonBreakpointPassCountKind, IBreakpointCommand, IChildEnumCommand} from "./Common/Contracts";
+import {PythonEvaluationResultReprKind, IExecutionCommand, enum_EXCEPTION_STATE} from "./Common/Contracts";
+import {Commands} from "./ProxyCommands";
+import * as utils from "./Common/Utils";
+import {PythonProcessCallbackHandler} from "./PythonProcessCallbackHandler";
+import {SocketStream} from "./Common/SocketStream";
 
 export class PythonProcess extends EventEmitter implements IPythonProcess {
     private id: number;
@@ -62,7 +62,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     public Kill() {
         if (!this.isRemoteProcess && typeof this.pid === "number") {
             try {
-                var kill = require('tree-kill');
+                let kill = require("tree-kill");
                 kill(this.pid);
                 this.pid = null;
             }
@@ -88,7 +88,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this.stream = new SocketStream(socket, buffer);
         if (!isRemoteProcess) {
             this.stream.BeginTransaction();
-            var guid = this.stream.ReadString();
+            let guid = this.stream.ReadString();
             if (this.stream.HasInsufficientDataForReading) {
                 this.stream.RollBackTransaction();
                 return;
@@ -97,7 +97,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
             this.stream.EndTransaction();
 
             this.stream.BeginTransaction();
-            var result = this.stream.ReadInt32();
+            let result = this.stream.ReadInt32();
             if (this.stream.HasInsufficientDataForReading) {
                 this.stream.RollBackTransaction();
                 return;
@@ -118,20 +118,20 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this.callbackHandler = new PythonProcessCallbackHandler(this, this.stream, this._idDispenser);
         this.callbackHandler.on("detach", () => this.emit("detach"));
         this.callbackHandler.on("last", () => this.emit("last"));
-        this.callbackHandler.on("moduleLoaded", arg=> this.emit("moduleLoaded", arg));
-        this.callbackHandler.on("asyncBreakCompleted", arg=> this.emit("asyncBreakCompleted", arg));
-        this.callbackHandler.on("threadCreated", arg=> this.emit("threadCreated", arg));
-        this.callbackHandler.on("threadExited", arg=> this.emit("threadExited", arg));
-        this.callbackHandler.on("stepCompleted", arg=> this.onPythonStepCompleted(arg));
-        this.callbackHandler.on("breakpointSet", arg=> this.onBreakpointSet(arg, true));
-        this.callbackHandler.on("breakpointNotSet", arg=> this.onBreakpointSet(arg, false));
+        this.callbackHandler.on("moduleLoaded", arg => this.emit("moduleLoaded", arg));
+        this.callbackHandler.on("asyncBreakCompleted", arg => this.emit("asyncBreakCompleted", arg));
+        this.callbackHandler.on("threadCreated", arg => this.emit("threadCreated", arg));
+        this.callbackHandler.on("threadExited", arg => this.emit("threadExited", arg));
+        this.callbackHandler.on("stepCompleted", arg => this.onPythonStepCompleted(arg));
+        this.callbackHandler.on("breakpointSet", arg => this.onBreakpointSet(arg, true));
+        this.callbackHandler.on("breakpointNotSet", arg => this.onBreakpointSet(arg, false));
         this.callbackHandler.on("output", (pyThread, output) => this.emit("output", pyThread, output));
         this.callbackHandler.on("exceptionRaised", (pyThread, ex, brkType) => {
             this._lastExecutedThread = pyThread;
             this.emit("exceptionRaised", pyThread, ex, brkType);
         });
         this.callbackHandler.on("breakpointHit", (pyThread, breakpointId) => this.onBreakpointHit(pyThread, breakpointId));
-        this.callbackHandler.on("processLoaded", arg=> {
+        this.callbackHandler.on("processLoaded", arg => {
             this._mainThread = <IPythonThread>arg;
             this._lastExecutedThread = this._mainThread;
             this.emit("processLoaded", arg);
@@ -145,7 +145,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         if (!this.isRemoteProcess) {
             if (!this.guidRead) {
                 this.stream.RollBackTransaction();
-                var guid = this.stream.ReadString();
+                let guid = this.stream.ReadString();
                 if (this.stream.HasInsufficientDataForReading) {
                     return;
                 }
@@ -154,7 +154,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
             }
             if (!this.statusRead) {
                 this.stream.BeginTransaction();
-                var result = this.stream.ReadInt32();
+                let result = this.stream.ReadInt32();
                 if (this.stream.HasInsufficientDataForReading) {
                     this.stream.RollBackTransaction();
                     return;
@@ -176,8 +176,8 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
 
         this.callbackHandler.HandleIncomingData();
     }
-    
-    //#region Step Commands
+
+    // #region Step Commands
     private onPythonStepCompleted(pyThread: IPythonThread) {
         this._lastExecutedThread = pyThread;
         this.emit("stepCompleted", pyThread);
@@ -195,7 +195,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         }
         else {
             this.stream.WriteInt32(breakOn.size);
-            breakOn.forEach((value,key)=>{
+            breakOn.forEach((value, key) => {
                 this.stream.WriteInt32(value);
                 this.stream.WriteString(key);
             });
@@ -211,21 +211,21 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     public SendStepInto(threadId: number) {
         return this.sendStepCommand(threadId, Commands.StepIntoCommandBytes);
     }
-    //#endregion    
+    // #endregion    
     private onBreakpointHit(pyThread: IPythonThread, breakpointId: number) {
         this._lastExecutedThread = pyThread;
         this.emit("breakpointHit", pyThread, breakpointId);
     }
     private onBreakpointSet(breakpointId: number, success: boolean) {
-        //Find the last breakpoint command associated with this breakpoint
-        var index = this.breakpointCommands.findIndex(cmd=> cmd.Id === breakpointId);
+        // Find the last breakpoint command associated with this breakpoint
+        let index = this.breakpointCommands.findIndex(cmd => cmd.Id === breakpointId);
         if (index === -1) {
-            //Hmm this is not possible, log this exception and carry on
+            // Hmm this is not possible, log this exception and carry on
             this.emit("error", "command.breakpoint.hit", `Uknown Breakpoit Id ${breakpointId}`);
             return;
         }
 
-        var cmd = this.breakpointCommands.splice(index, 1)[0];
+        let cmd = this.breakpointCommands.splice(index, 1)[0];
         if (success) {
             cmd.PromiseResolve();
         }
@@ -250,7 +250,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
 
     public BindBreakpoint(brkpoint: IPythonBreakpoint): Promise<any> {
         return new Promise<IPythonThread>((resolve, reject) => {
-            var bkCmd: IBreakpointCommand = {
+            let bkCmd: IBreakpointCommand = {
                 Id: brkpoint.Id,
                 PromiseResolve: resolve,
                 PromiseReject: reject
@@ -291,7 +291,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         return new Promise<IPythonThread>(resolve => {
             this.stream.Write(Commands.ResumeAllCommandBytes);
             resolve();
-        })
+        });
     }
     public AutoResumeThread(threadId: number) {
 
@@ -304,8 +304,8 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     }
     public ExecuteText(text: string, reprKind: PythonEvaluationResultReprKind, stackFrame: IPythonStackFrame): Promise<IPythonEvaluationResult> {
         return new Promise<IPythonEvaluationResult>((resolve, reject) => {
-            var executeId = this._idDispenser.Allocate();
-            var cmd: IExecutionCommand = {
+            let executeId = this._idDispenser.Allocate();
+            let cmd: IExecutionCommand = {
                 Id: executeId,
                 Text: text,
                 Frame: stackFrame,
@@ -325,11 +325,11 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
 
     public EnumChildren(text: string, stackFrame: IPythonStackFrame, timeout: number): Promise<IPythonEvaluationResult[]> {
         return new Promise<IPythonEvaluationResult[]>((resolve, reject) => {
-            var executeId = this._idDispenser.Allocate();
+            let executeId = this._idDispenser.Allocate();
             if (typeof (executeId) !== "number") {
-                var y = "";
+                let y = "";
             }
-            var cmd: IChildEnumCommand = {
+            let cmd: IChildEnumCommand = {
                 Id: executeId,
                 Frame: stackFrame,
                 PromiseResolve: resolve,
@@ -340,7 +340,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 if (this.PendingChildEnumCommands.has(executeId)) {
                     this.PendingChildEnumCommands.delete(executeId);
                 }
-                var seconds = timeout / 1000;
+                let seconds = timeout / 1000;
                 reject(`Enumerating children for ${text} timed out after ${seconds} seconds.`);
             }, timeout);
 

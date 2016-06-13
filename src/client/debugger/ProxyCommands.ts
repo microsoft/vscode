@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 export class Commands {
     public static ExitCommandBytes: Buffer = new Buffer("exit");
