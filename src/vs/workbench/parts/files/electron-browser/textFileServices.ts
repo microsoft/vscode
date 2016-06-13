@@ -241,43 +241,43 @@ export class TextFileService extends AbstractTextFileService {
 
 	private doSaveAll(fileResources: URI[], untitledResources: URI[]): TPromise<ITextFileOperationResult> {
 
-		// Preflight for untitled to handle cancellation from the dialog
-		let targetsForUntitled: URI[] = [];
-		for (let i = 0; i < untitledResources.length; i++) {
-			let untitled = this.untitledEditorService.get(untitledResources[i]);
-			if (untitled) {
-				let targetPath: string;
+		// Handle files first that can just be saved
+		return super.saveAll(fileResources).then(result => {
 
-				// Untitled with associated file path don't need to prompt
-				if (this.untitledEditorService.hasAssociatedFilePath(untitled.getResource())) {
-					targetPath = untitled.getResource().fsPath;
-				}
+			// Preflight for untitled to handle cancellation from the dialog
+			let targetsForUntitled: URI[] = [];
+			for (let i = 0; i < untitledResources.length; i++) {
+				let untitled = this.untitledEditorService.get(untitledResources[i]);
+				if (untitled) {
+					let targetPath: string;
 
-				// Otherwise ask user
-				else {
-					targetPath = this.promptForPath(this.suggestFileName(untitledResources[i]));
-					if (!targetPath) {
-						return TPromise.as({
-							results: [...fileResources, ...untitledResources].map((r) => {
-								return {
-									source: r
-								};
-							})
-						});
+					// Untitled with associated file path don't need to prompt
+					if (this.untitledEditorService.hasAssociatedFilePath(untitled.getResource())) {
+						targetPath = untitled.getResource().fsPath;
 					}
+
+					// Otherwise ask user
+					else {
+						targetPath = this.promptForPath(this.suggestFileName(untitledResources[i]));
+						if (!targetPath) {
+							return TPromise.as({
+								results: [...fileResources, ...untitledResources].map(r => {
+									return {
+										source: r
+									};
+								})
+							});
+						}
+					}
+
+					targetsForUntitled.push(URI.file(targetPath));
 				}
-
-				targetsForUntitled.push(URI.file(targetPath));
 			}
-		}
-
-		// Handle files
-		return super.saveAll(fileResources).then((result) => {
 
 			// Handle untitled
 			let untitledSaveAsPromises: TPromise<void>[] = [];
 			targetsForUntitled.forEach((target, index) => {
-				let untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then((uri) => {
+				let untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then(uri => {
 					result.results.push({
 						source: untitledResources[index],
 						target: uri,
@@ -335,7 +335,7 @@ export class TextFileService extends AbstractTextFileService {
 			}
 		}
 
-		return modelPromise.then((model) => {
+		return modelPromise.then(model => {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
