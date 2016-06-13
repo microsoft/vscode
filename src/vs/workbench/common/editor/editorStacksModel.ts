@@ -626,6 +626,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupClosed: Emitter<EditorGroup>;
 	private _onGroupMoved: Emitter<EditorGroup>;
 	private _onGroupActivated: Emitter<EditorGroup>;
+	private _onGroupDeactivated: Emitter<EditorGroup>;
 	private _onGroupRenamed: Emitter<EditorGroup>;
 	private _onEditorDisposed: Emitter<EditorIdentifier>;
 	private _onEditorDirty: Emitter<EditorIdentifier>;
@@ -647,13 +648,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupOpened = new Emitter<EditorGroup>();
 		this._onGroupClosed = new Emitter<EditorGroup>();
 		this._onGroupActivated = new Emitter<EditorGroup>();
+		this._onGroupDeactivated = new Emitter<EditorGroup>();
 		this._onGroupMoved = new Emitter<EditorGroup>();
 		this._onGroupRenamed = new Emitter<EditorGroup>();
 		this._onModelChanged = new Emitter<IStacksModelChangeEvent>();
 		this._onEditorDisposed = new Emitter<EditorIdentifier>();
 		this._onEditorDirty = new Emitter<EditorIdentifier>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty);
 
 		this.registerListeners();
 	}
@@ -672,6 +674,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onGroupActivated(): Event<EditorGroup> {
 		return this._onGroupActivated.event;
+	}
+
+	public get onGroupDeactivated(): Event<EditorGroup> {
+		return this._onGroupDeactivated.event;
 	}
 
 	public get onGroupMoved(): Event<EditorGroup> {
@@ -816,9 +822,13 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return;
 		}
 
+		const oldActiveGroup = this._activeGroup;
 		this._activeGroup = group;
 
 		this.fireEvent(this._onGroupActivated, group, false);
+		if (oldActiveGroup) {
+			this.fireEvent(this._onGroupDeactivated, oldActiveGroup, false);
+		}
 	}
 
 	public moveGroup(group: EditorGroup, toIndex: number): void {

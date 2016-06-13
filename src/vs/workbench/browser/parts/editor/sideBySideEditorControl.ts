@@ -156,18 +156,21 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
+
+		// Up to date context
 		POSITIONS.forEach(position => {
-
-			// Up to date context
 			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
+		});
 
-			// Refresh / update
+		// Refresh / update if group is visible and has a position
+		const position = this.stacks.positionOfGroup(e.group);
+		if (position >= 0) {
 			if (e.structural) {
 				this.titleAreaControl[position].refresh();
 			} else {
 				this.titleAreaControl[position].update();
 			}
-		});
+		}
 	}
 
 	public get onGroupFocusChanged(): Event<void> {
