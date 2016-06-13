@@ -5,6 +5,7 @@
 'use strict';
 
 import {clone} from 'vs/base/common/objects';
+import {illegalState} from 'vs/base/common/errors';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -34,7 +35,7 @@ export class ExtHostConfiguration {
 
 	public getConfiguration(section?: string): WorkspaceConfiguration {
 		if (!this._hasConfig) {
-			return;
+			throw illegalState('missing config');
 		}
 
 		const config = section
