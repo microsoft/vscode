@@ -396,7 +396,16 @@ export class GitService extends ee.EventEmitter
 	private statusDelayer: async.ThrottledDelayer<void>;
 	private reactiveStatusDelayer: async.PeriodThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
-	allowHugeRepositories: boolean;
+
+	private _allowHugeRepositories: boolean;
+	get allowHugeRepositories(): boolean { return this._allowHugeRepositories; }
+	set allowHugeRepositories(value: boolean) {
+		this._allowHugeRepositories = value;
+
+		if (value && this.state === git.ServiceState.Huge) {
+			this.transition(git.ServiceState.OK);
+		}
+	}
 
 	get onOutput(): Event<string> { return this.raw.onOutput; }
 
@@ -432,7 +441,7 @@ export class GitService extends ee.EventEmitter
 		this.statusDelayer = new async.ThrottledDelayer<void>(500);
 		this.reactiveStatusDelayer = new async.PeriodThrottledDelayer<void>(500, 10000);
 		this.autoFetcher = this.instantiationService.createInstance(AutoFetcher, this);
-		this.allowHugeRepositories = false;
+		this._allowHugeRepositories = false;
 
 		this.registerListeners();
 
@@ -477,14 +486,14 @@ export class GitService extends ee.EventEmitter
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVED, (e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_REVERTED, (e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {
-			if (this.allowHugeRepositories) {
+			if (this._allowHugeRepositories) {
 				return;
 			}
 
 			const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
-			this.allowHugeRepositories = config.allowLargeRepositories;
+			this._allowHugeRepositories = config.allowLargeRepositories;
 
-			if (this.allowHugeRepositories) {
+			if (this._allowHugeRepositories) {
 				this.triggerStatus();
 			}
 		}));
@@ -556,7 +565,7 @@ export class GitService extends ee.EventEmitter
 	private _status(): winjs.Promise {
 		const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
 
-		if (this.allowHugeRepositories || config.allowLargeRepositories) {
+		if (this._allowHugeRepositories || config.allowLargeRepositories) {
 			return this.run(git.ServiceOperations.STATUS, () => this.raw.status());
 		}
 
@@ -565,7 +574,7 @@ export class GitService extends ee.EventEmitter
 		}
 
 		return this.raw.statusCount().then(count => {
-			if (count > 5000 && !this.allowHugeRepositories) {
+			if (count > 5000 && !this._allowHugeRepositories) {
 				this.transition(git.ServiceState.Huge);
 				return winjs.TPromise.as(this.model);
 			}
