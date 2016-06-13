@@ -470,6 +470,7 @@
     "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "dependencies": {
+    "diff-match-patch": "^1.0.0",
     "fs-extra": "^0.26.5",
     "line-by-line": "^0.1.4",
     "named-js-regexp": "^1.3.1",
@@ -483,6 +484,7 @@
     "vscode-languageserver": "^1.1.0"
   },
   "devDependencies": {
+    "retyped-diff-match-patch-tsd-ambient": "^1.0.0-0",
     "typescript": "^1.7.5",
     "vscode": "^0.11.0"
   }
