@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as languageFacts from '../services/languageFacts';
-import {Parser} from '../parser/cssParser';
-import * as nodes from '../parser/cssNodes';
+import * as languageFacts from '../../services/languageFacts';
+import {Parser} from '../../parser/cssParser';
+import * as nodes from '../../parser/cssNodes';
 import {TextDocument} from 'vscode-languageserver';
 
 export function assertColor(parser: Parser, text: string, selection: string, isColor: boolean): void {

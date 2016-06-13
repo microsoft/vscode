@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Parser} from '../parser/cssParser';
-import {CSSCompletion} from '../services/cssCompletion';
-import {CSSCodeActions} from '../services/cssCodeActions';
-import {CSSValidation} from '../services/cssValidation';
+import {Parser} from '../../parser/cssParser';
+import {CSSCompletion} from '../../services/cssCompletion';
+import {CSSCodeActions} from '../../services/cssCodeActions';
+import {CSSValidation} from '../../services/cssValidation';
 
 import {CompletionList, TextDocument, TextEdit, Position, Range, Command} from 'vscode-languageserver';
-import {applyEdits} from './textEditSupport';
+import {applyEdits} from '../textEditSupport';
 
 suite('CSS - Code Actions', () => {
 	let testCodeActions = function (value: string, tokenBefore: string): Thenable<{ commands: Command[]; document: TextDocument; }> {

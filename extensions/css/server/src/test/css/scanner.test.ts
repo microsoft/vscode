@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Scanner, TokenType} from '../parser/cssScanner';
+import {Scanner, TokenType} from '../../parser/cssScanner';
 
 suite('CSS - Scanner', () => {
 

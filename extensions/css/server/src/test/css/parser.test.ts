@@ -5,10 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Parser} from '../parser/cssParser';
-import {TokenType} from '../parser/cssScanner';
-import * as nodes from '../parser/cssNodes';
-import {ParseError} from '../parser/cssErrors';
+import {Parser} from '../../parser/cssParser';
+import {TokenType} from '../../parser/cssScanner';
+import * as nodes from '../../parser/cssNodes';
+import {ParseError} from '../../parser/cssErrors';
 
 export function assertNode(text: string, parser: Parser, f: () => nodes.Node): nodes.Node {
 	let node = parser.internalParse(text, f);

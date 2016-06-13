@@ -15,6 +15,9 @@ import {CSSNavigation} from './services/cssNavigation';
 import {CSSCodeActions} from './services/cssCodeActions';
 import {CSSValidation} from './services/cssValidation';
 
+import {SCSSParser} from './parser/scssParser';
+import {SCSSCompletion} from './services/scssCompletion';
+
 export interface LanguageService {
 	configure(raw: LanguageSettings): void;
 	doValidation(document: TextDocument, stylesheet: Stylesheet): Thenable<Diagnostic[]>;
@@ -34,17 +37,18 @@ export interface LanguageSettings {
 	lint?: any;
 }
 
-export function getCSSLanguageService() : LanguageService {
-	let parser = new Parser();
+	let cssParser = new Parser();
 	let cssCompletion = new CSSCompletion();
 	let cssHover = new CSSHover();
 	let cssValidation = new CSSValidation();
 	let cssNavigation = new CSSNavigation();
 	let cssCodeActions = new CSSCodeActions();
+
+export function getCSSLanguageService() : LanguageService {
 	return {
 		configure: cssValidation.configure.bind(cssValidation),
 		doValidation: cssValidation.doValidation.bind(cssValidation),
-		parseStylesheet: parser.parseStylesheet.bind(parser),
+		parseStylesheet: cssParser.parseStylesheet.bind(cssParser),
 		doComplete: cssCompletion.doComplete.bind(cssCompletion),
 		doHover: cssHover.doHover.bind(cssHover),
 		findDefinition: cssNavigation.findDefinition.bind(cssNavigation),
@@ -54,4 +58,14 @@ export function getCSSLanguageService() : LanguageService {
 		doCodeActions: cssCodeActions.doCodeActions.bind(cssCodeActions),
 		findColorSymbols: cssNavigation.findColorSymbols.bind(cssNavigation)
 	};
+}
+
+let scssParser = new SCSSParser();
+let scssCompletion = new SCSSCompletion();
+
+export function getSCSSLanguageService() : LanguageService {
+	let languageService = getCSSLanguageService();
+	languageService.parseStylesheet = scssParser.parseStylesheet.bind(scssParser);
+	languageService.doComplete = scssCompletion.doComplete.bind(scssCompletion);
+	return languageService;
 }

@@ -5,36 +5,36 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Parser} from '../parser/cssParser';
-import {CSSCompletion} from '../services/cssCompletion';
+import {Parser} from '../../parser/cssParser';
+import {CSSCompletion} from '../../services/cssCompletion';
 
 import {CompletionList, TextDocument, TextEdit, Position, CompletionItemKind} from 'vscode-languageserver';
-import {applyEdits} from './textEditSupport';
+import {applyEdits} from '../textEditSupport';
+
+export interface ItemDescription {
+	label: string;
+	documentation?: string;
+	kind?: CompletionItemKind;
+	resultText?: string;
+}
+
+export let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document?: TextDocument) {
+	let matches = completions.items.filter(completion => {
+		return completion.label === expected.label;
+	});
+	assert.equal(matches.length, 1, expected.label + " should only existing once: Actual: " + completions.items.map(c => c.label).join(', '));
+	if (expected.documentation) {
+		assert.equal(matches[0].documentation, expected.documentation);
+	}
+	if (expected.kind) {
+		assert.equal(matches[0].kind, expected.kind);
+	}
+	if (document && expected.resultText) {
+		assert.equal(applyEdits(document, [matches[0].textEdit]), expected.resultText);
+	}
+};
 
 suite('CSS - Completion', () => {
-
-	interface ItemDescription {
-		label: string;
-		documentation?: string;
-		kind?: CompletionItemKind;
-		resultText?: string;
-	}
-
-	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document?: TextDocument) {
-		let matches = completions.items.filter(completion => {
-			return completion.label === expected.label;
-		});
-		assert.equal(matches.length, 1, expected.label + " should only existing once: Actual: " + completions.items.map(c => c.label).join(', '));
-		if (expected.documentation) {
-			assert.equal(matches[0].documentation, expected.documentation);
-		}
-		if (expected.kind) {
-			assert.equal(matches[0].kind, expected.kind);
-		}
-		if (document && expected.resultText) {
-			assert.equal(applyEdits(document, [matches[0].textEdit]), expected.resultText);
-		}
-	};
 
 	let testCompletionFor = function (value: string, stringBefore: string, expected: { count?: number, items?: ItemDescription[] }): Thenable<void> {
 		let idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;

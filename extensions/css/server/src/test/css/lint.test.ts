@@ -5,10 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as nodes from '../parser/cssNodes';
-import {Parser} from '../parser/cssParser';
-import {LintVisitor} from '../services/lint';
-import {Rule, Rules} from '../services/lintRules';
+import * as nodes from '../../parser/cssNodes';
+import {Parser} from '../../parser/cssParser';
+import {LintVisitor} from '../../services/lint';
+import {Rule, Rules} from '../../services/lintRules';
 import {TextDocument} from 'vscode-languageserver';
 
 export function assertEntries(node: nodes.Node, rules: nodes.IRule[]): void {

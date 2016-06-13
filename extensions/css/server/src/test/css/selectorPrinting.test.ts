@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Parser} from '../parser/cssParser';
-import * as nodes from '../parser/cssNodes';
-import * as selectorPrinter from '../services/selectorPrinting';
+import {Parser} from '../../parser/cssParser';
+import * as nodes from '../../parser/cssNodes';
+import * as selectorPrinter from '../../services/selectorPrinting';
 import {TextDocument} from 'vscode-languageserver';
 
 function elementToString(element: selectorPrinter.Element): string {

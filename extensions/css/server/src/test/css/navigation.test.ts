@@ -5,10 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Scope, GlobalScope, ScopeBuilder} from '../parser/cssSymbolScope';
-import * as nodes from '../parser/cssNodes';
-import {Parser} from '../parser/cssParser';
-import {CSSNavigation} from '../services/cssNavigation';
+import {Scope, GlobalScope, ScopeBuilder} from '../../parser/cssSymbolScope';
+import * as nodes from '../../parser/cssNodes';
+import {Parser} from '../../parser/cssParser';
+import {CSSNavigation} from '../../services/cssNavigation';
 
 import {TextDocument, DocumentHighlightKind} from 'vscode-languageserver';
 
@@ -17,7 +17,7 @@ export function assertScopesAndSymbols(p: Parser, input: string, expected: strin
 	assert.equal(scopeToString(global), expected);
 }
 
-export function assertHighlights(p: Parser, input: string, marker: string, expectedMatches: number, expectedWrites: number): Thenable<void> {
+export function assertHighlights(p: Parser, input: string, marker: string, expectedMatches: number, expectedWrites: number, elementName?: string): Thenable<void> {
 	let document = TextDocument.create('test://test/test.css', 'css', 0, input);
 
 	let stylesheet = p.parseStylesheet(document);
@@ -27,7 +27,7 @@ export function assertHighlights(p: Parser, input: string, marker: string, expec
 	let position = document.positionAt(index);
 
 	return new CSSNavigation().findDocumentHighlights(document, position, stylesheet).then(highlights => {
-		assert.equal(highlights.length, expectedMatches);
+		assert.equal(highlights.length, expectedMatches, input);
 
 		let nWrites = 0;
 		for (let highlight of highlights) {
@@ -36,7 +36,7 @@ export function assertHighlights(p: Parser, input: string, marker: string, expec
 			}
 			let range = highlight.range;
 			let start = document.offsetAt(range.start), end = document.offsetAt(range.end);
-			assert.equal(document.getText().substring(start, end), marker);
+			assert.equal(document.getText().substring(start, end), elementName || marker);
 		}
 		assert.equal(nWrites, expectedWrites);
 	});
@@ -170,7 +170,7 @@ suite('CSS - Symbols', () => {
 		assertScopesAndSymbols(p, '@font-face { font-family: "Bitstream Vera Serif Bold"; }', '[]');
 	});
 
-	test('mark occurrences', function (testDone) {
+	test('mark highlights', function (testDone) {
 		let p = new Parser();
 		Promise.all([
 			assertHighlights(p, '@keyframes id {}; #main { animation: id 4s linear 0s infinite alternate; }', 'id', 2, 1),
