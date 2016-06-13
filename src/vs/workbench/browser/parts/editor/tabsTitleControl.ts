@@ -338,14 +338,30 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
-		// Open on Keyboard Enter/Space
+		// Keyboard accessibility
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
+			let handled = false;
 
 			// Run action on Enter/Space
 			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+				handled = true;
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
+			}
 
+			// Next / Previous editor
+			else if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW)) {
+				const index = group.indexOf(editor);
+				const targetIndex = event.equals(CommonKeybindings.LEFT_ARROW) ? index - 1 : index + 1;
+				const target = group.getEditor(targetIndex);
+				if (target) {
+					handled = true;
+					this.editorService.openEditor(target, EditorOptions.create({ preserveFocus: true }), position).done(null, errors.onUnexpectedError);
+					(<HTMLElement>this.tabsContainer.childNodes[targetIndex]).focus();
+				}
+			}
+
+			if (handled) {
 				event.preventDefault();
 				event.stopPropagation();
 			}
