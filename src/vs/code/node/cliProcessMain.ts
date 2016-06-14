@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 import { ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
@@ -19,11 +21,14 @@ import { IExtensionManagementService, IExtensionGalleryService, IQueryResult } f
 import { getExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { NodeRequestService } from 'vs/platform/request/node/nodeRequestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -116,18 +121,53 @@ class Main {
 	}
 }
 
+const eventPrefix = 'monacoworkbench';
+
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-
-	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
-	services.set(ITelemetryService, NullTelemetryService);
-	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
-	services.set(IRequestService, new SyncDescriptor(NodeRequestService));
-	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
-	const main = instantiationService.createInstance(Main);
-	return main.run(argv);
+
+	return instantiationService.invokeFunction(accessor => {
+		const services = new ServiceCollection();
+		services.set(IEventService, new SyncDescriptor(EventService));
+		services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+		services.set(IRequestService, new SyncDescriptor(NodeRequestService));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = accessor.get(IEnvironmentService);
+
+		if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+			const appenders: AppInsightsAppender[] = [];
+
+			if (product.aiConfig && product.aiConfig.key) {
+				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
+			}
+
+			if (product.aiConfig && product.aiConfig.asimovKey) {
+				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+			}
+
+			// It is important to dispose the AI adapter properly because
+			// only then they flush remaining data.
+			process.once('exit', () => appenders.forEach(a => a.dispose()));
+
+			const config: ITelemetryServiceConfig = {
+				appender: combinedAppender(...appenders),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version),
+				piiPaths: [appRoot, extensionsPath]
+			};
+
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+		} else {
+			services.set(ITelemetryService, NullTelemetryService);
+		}
+
+		const instantiationService2 = instantiationService.createChild(services);
+		const main = instantiationService2.createInstance(Main);
+
+		return main.run(argv);
+	});
 }
