@@ -1,6 +1,8 @@
 import {TextEdit, Position, Range, TextDocument} from "vscode";
 import dmp = require("diff-match-patch");
 import {EOL} from "os";
+import * as fs from "fs";
+import * as path from "path";
 const tmp = require("tmp");
 
 // Code borrowed from goFormat.ts (Go Extension for VS Code)
@@ -124,4 +126,22 @@ function getTextEditsInternal(before: string, diffs: [number, string][], startLi
     }
 
     return edits;
+}
+
+export function getTempFileWithDocumentContents(document: TextDocument): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        let ext = path.extname(document.uri.fsPath);
+        let tmp = require("tmp");
+        tmp.file({ postfix: ext }, function (err, tmpFilePath, fd) {
+            if (err) {
+                return reject(err);
+            }
+            fs.writeFile(tmpFilePath, document.getText(), ex => {
+                if (ex) {
+                    return reject(`Failed to create a temporary file, ${ex.message}`);
+                }
+                resolve(tmpFilePath);
+            });
+        });
+    });
 }
