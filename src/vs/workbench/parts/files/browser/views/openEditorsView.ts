@@ -159,9 +159,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			this.structuralTreeRefreshScheduler.schedule(this.structuralRefreshDelay);
 		} else {
 			const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
-			this.tree.refresh(toRefresh, false).done(null, errors.onUnexpectedError);
 			this.updateDirtyIndicator();
-			this.highlightActiveEditor();
+			this.tree.refresh(toRefresh, false).done(() => this.highlightActiveEditor(), errors.onUnexpectedError);
 		}
 	}
 
@@ -177,10 +176,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh(toRefresh)).done(() => {
 			this.fullRefreshNeeded = false;
 			this.groupToRefresh = null;
-			this.highlightActiveEditor();
 
 			// Always expand all the groups as they are unclickable
-			return this.tree.expandAll(this.model.groups);
+			return this.tree.expandAll(this.model.groups).then(() => this.highlightActiveEditor());
 		}, errors.onUnexpectedError);
 	}
 
