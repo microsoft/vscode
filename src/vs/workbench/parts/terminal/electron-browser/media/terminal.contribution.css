@@ -80,8 +80,31 @@
 	color: #FFF;
 }
 
+/* Terminal actions */
 
-
+/* Light theme */
+.monaco-workbench .terminal-action.close { background: url('close.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.focus-next { background: url('focus_next.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.focus-previous { background: url('focus_previous.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.new { background: url('new.svg') center center no-repeat; }
+/* Dark theme */
+.vs-dark .monaco-workbench .terminal-action.close { background: url('close_inverse.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.focus-next { background: url('focus_next_inverse.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.focus-previous { background: url('focus_previous_inverse.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.new { background: url('new_inverse.svg') center center no-repeat; }
+/* High contrast black theme */
+.hc-black .monaco-workbench .terminal-action { background: none; }
+.hc-black .monaco-workbench .terminal-action:before {
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+.hc-black .monaco-workbench .terminal-action.close:before { content: url('close_inverse.svg'); }
+.hc-black .monaco-workbench .terminal-action.focus-next:before { content: url('focus_next_inverse.svg'); }
+.hc-black .monaco-workbench .terminal-action.focus-previous:before { content: url('focus_previous_inverse.svg'); }
+.hc-black .monaco-workbench .terminal-action.new:before { content: url('new_inverse.svg'); }
 
 /**
  * xterm.js: xterm, in the browser

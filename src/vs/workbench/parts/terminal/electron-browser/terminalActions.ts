@@ -35,6 +35,7 @@ export class CloseTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
+		this.class = 'terminal-action close';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -52,6 +53,7 @@ export class CreateNewTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
+		this.class = 'terminal-action new';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -86,6 +88,7 @@ export class FocusNextTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
+		this.class = 'terminal-action focus-next';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -103,6 +106,7 @@ export class FocusPreviousTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
+		this.class = 'terminal-action focus-previous';
 	}
 
 	public run(event?: any): TPromise<any> {
