@@ -5,7 +5,7 @@
 'use strict';
 
 import {TextDocument, Position, CompletionList, Hover, Range, SymbolInformation, Diagnostic,
-	Location, DocumentHighlight, CodeActionContext, Command} from 'vscode-languageserver';
+	Location, DocumentHighlight, CodeActionContext, Command, WorkspaceEdit} from 'vscode-languageserver';
 
 import {Stylesheet} from './parser/cssNodes';
 import {Parser} from './parser/cssParser';
@@ -32,6 +32,7 @@ export interface LanguageService {
 	findDocumentSymbols(document: TextDocument, stylesheet: Stylesheet): Thenable<SymbolInformation[]>;
 	doCodeActions(document: TextDocument, range: Range, context: CodeActionContext, stylesheet: Stylesheet): Thenable<Command[]>;
 	findColorSymbols(document: TextDocument, stylesheet: Stylesheet): Thenable<Range[]>;
+	doRename(document: TextDocument, position: Position, newName: string, stylesheet: Stylesheet): Thenable<WorkspaceEdit>;
 }
 
 export interface LanguageSettings {
@@ -58,7 +59,8 @@ export function getCSSLanguageService() : LanguageService {
 		findDocumentHighlights: cssNavigation.findDocumentHighlights.bind(cssNavigation),
 		findDocumentSymbols: cssNavigation.findDocumentSymbols.bind(cssNavigation),
 		doCodeActions: cssCodeActions.doCodeActions.bind(cssCodeActions),
-		findColorSymbols: cssNavigation.findColorSymbols.bind(cssNavigation)
+		findColorSymbols: cssNavigation.findColorSymbols.bind(cssNavigation),
+		doRename: cssNavigation.doRename.bind(cssNavigation),
 	};
 }
 

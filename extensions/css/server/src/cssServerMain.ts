@@ -60,7 +60,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			referencesProvider: true,
 			definitionProvider: true,
 			documentHighlightProvider: true,
-			codeActionProvider: true
+			codeActionProvider: true,
+			renameProvider: true
 		}
 	};
 });
@@ -174,6 +175,12 @@ connection.onRequest(ColorSymbolRequest.type, uri => {
 	let document = documents.get(uri);
 	let stylesheet = stylesheets.getStylesheet(document);
 	return getLanguageService(document).findColorSymbols(document, stylesheet);
+});
+
+connection.onRenameRequest(renameParameters => {
+	let document = documents.get(renameParameters.textDocument.uri);
+	let stylesheet = stylesheets.getStylesheet(document);
+	return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
 });
 
 // Listen on the connection

@@ -5,7 +5,8 @@
 'use strict';
 
 import * as nodes from '../parser/cssNodes';
-import {TextDocument, Range, Position, Location, DocumentHighlightKind, DocumentHighlight, SymbolInformation, SymbolKind} from 'vscode-languageserver';
+import {TextDocument, Range, Position, Location, DocumentHighlightKind, DocumentHighlight,
+	SymbolInformation, SymbolKind, WorkspaceEdit, TextEdit} from 'vscode-languageserver';
 import {Symbols} from '../parser/cssSymbolScope';
 import {isColorValue} from '../services/languageFacts';
 
@@ -137,6 +138,18 @@ export class CSSNavigation {
 		});
 		return Promise.resolve(result);
 	}
+
+	public doRename(document: TextDocument, position: Position, newName: string, stylesheet: nodes.Stylesheet): Thenable<WorkspaceEdit> {
+		return this.findDocumentHighlights(document, position, stylesheet).then(highlights => {
+			let edits = highlights.map(h => TextEdit.replace(h.range, newName));
+			return {
+				changes: {
+					[document.uri]: edits
+				}
+			};
+		});
+	}
+
 }
 
 function getRange(node: nodes.Node, document: TextDocument) : Range {
