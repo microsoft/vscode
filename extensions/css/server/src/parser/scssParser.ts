@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import * as sassScanner from './scssScanner';
+import * as scssScanner from './scssScanner';
 import {TokenType} from './cssScanner';
 import * as cssParser from './cssParser';
 import * as nodes from './cssNodes';
@@ -12,13 +12,13 @@ import {SCSSParseError} from './scssErrors';
 import {ParseError} from './cssErrors';
 
 /// <summary>
-/// A parser for Sass
+/// A parser for scss
 /// http://sass-lang.com/documentation/file.SASS_REFERENCE.html
 /// </summary>
 export class SCSSParser extends cssParser.Parser {
 
 	public constructor() {
-		super(new sassScanner.SCSSScanner());
+		super(new scssScanner.SCSSScanner());
 	}
 
 	public _parseStylesheetStatement(): nodes.Node {
@@ -52,7 +52,7 @@ export class SCSSParser extends cssParser.Parser {
 		return this.finish(node);
 	}
 
-	// Sass variables: $font-size: 12px;
+	// scss variables: $font-size: 12px;
 	public _parseVariableDeclaration(panic: TokenType[] = []): nodes.VariableDeclaration {
 		let node = <nodes.VariableDeclaration>this.create(nodes.VariableDeclaration);
 
@@ -92,7 +92,7 @@ export class SCSSParser extends cssParser.Parser {
 
 	public _parseVariable(): nodes.Variable {
 		let node = <nodes.Variable>this.create(nodes.Variable);
-		if (!this.accept(sassScanner.VariableName)) {
+		if (!this.accept(scssScanner.VariableName)) {
 			return null;
 		}
 		return <nodes.Variable>node;
@@ -128,7 +128,7 @@ export class SCSSParser extends cssParser.Parser {
 
 	public _parseInterpolation(): nodes.Node {
 		let node = this.create(nodes.Interpolation);
-		if (this.accept(sassScanner.InterpolationFunction)) {
+		if (this.accept(scssScanner.InterpolationFunction)) {
 			if (!node.addChild(this._parseBinaryExpr())) {
 				return this.finish(node, ParseError.ExpressionExpected);
 			}
@@ -141,8 +141,8 @@ export class SCSSParser extends cssParser.Parser {
 	}
 
 	public _parseOperator(): nodes.Node {
-		if (this.peek(sassScanner.EqualsOperator) || this.peek(sassScanner.NotEqualsOperator)
-			|| this.peek(sassScanner.GreaterEqualsOperator) || this.peek(sassScanner.SmallerEqualsOperator)
+		if (this.peek(scssScanner.EqualsOperator) || this.peek(scssScanner.NotEqualsOperator)
+			|| this.peek(scssScanner.GreaterEqualsOperator) || this.peek(scssScanner.SmallerEqualsOperator)
 			|| this.peek(TokenType.Delim, '>') || this.peek(TokenType.Delim, '<')
 			|| this.peek(TokenType.Ident, 'and') || this.peek(TokenType.Ident, 'or')
 			|| this.peek(TokenType.Delim, '%')
@@ -447,7 +447,7 @@ export class SCSSParser extends cssParser.Parser {
 			return null;
 		}
 
-		if (this.accept(sassScanner.Ellipsis)) {
+		if (this.accept(scssScanner.Ellipsis)) {
 			// ok
 		}
 
@@ -515,7 +515,7 @@ export class SCSSParser extends cssParser.Parser {
 		let argument = this._parseVariable();
 		if (argument) {
 			if (!this.accept(TokenType.Colon)) {
-				if (this.accept(sassScanner.Ellipsis)) { // optional
+				if (this.accept(scssScanner.Ellipsis)) { // optional
 					node.setValue(argument);
 					return this.finish(node);
 				} else {

@@ -43,7 +43,7 @@ export class SCSSScanner extends Scanner {
 
 		const offset = this.stream.pos();
 
-		// sass variable
+		// scss variable
 		if (this.stream.advanceIfChar(_DLR)) {
 			const content = ['$'];
 			if (this.ident(content)) {
@@ -53,7 +53,7 @@ export class SCSSScanner extends Scanner {
 			}
 		}
 
-		// Sass: interpolation function #{..})
+		// scss: interpolation function #{..})
 		if (this.stream.advanceIfChars([_HSH, _CUL])) {
 			return this.finishToken(offset, InterpolationFunction);
 		}

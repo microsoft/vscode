@@ -76,7 +76,7 @@ suite('SCSS - Parser', () => {
 		assertError('(20 + 20', parser, parser._parseExpr.bind(parser), ParseError.RightParenthesisExpected);
 	});
 
-	test('SassOperator', function () {
+	test('SCSSOperator', function () {
 		let parser = new SCSSParser();
 		assertNode('>=', parser, parser._parseOperator.bind(parser));
 		assertNode('>', parser, parser._parseOperator.bind(parser));
