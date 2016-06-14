@@ -5,13 +5,14 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
+import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export class Token implements modes.IToken {
-	_tokenTrait: void;
+	_tokenBrand: void;
 
 	public startIndex:number;
 	public type:string;
@@ -27,7 +28,7 @@ export class Token implements modes.IToken {
 }
 
 export class LineTokens implements modes.ILineTokens {
-	_lineTokensTrait: void;
+	_lineTokensBrand: void;
 
 	tokens: Token[];
 	modeTransitions: ModeTransition[];
@@ -44,10 +45,10 @@ export class LineTokens implements modes.ILineTokens {
 	}
 }
 
-export function handleEvent<T>(context:modes.ILineContext, offset:number, runner:(mode:modes.IMode, newContext:modes.ILineContext, offset:number)=>T):T {
+export function handleEvent<T>(context:modes.ILineContext, offset:number, runner:(modeId:string, newContext:modes.ILineContext, offset:number)=>T):T {
 	var modeTransitions = context.modeTransitions;
 	if (modeTransitions.length === 1) {
-		return runner(modeTransitions[0].mode, context, offset);
+		return runner(modeTransitions[0].modeId, context, offset);
 	}
 
 	var modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
@@ -67,43 +68,7 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 
 	var firstTokenCharacterOffset = context.getTokenStartIndex(firstTokenInModeIndex);
 	var newCtx = new FilteredLineContext(context, nestedMode, firstTokenInModeIndex, nextTokenAfterMode, firstTokenCharacterOffset, nextCharacterAfterModeIndex);
-	return runner(nestedMode, newCtx, offset - firstTokenCharacterOffset);
-}
-
-/**
- * Returns {{true}} if the line token at the specified
- * offset matches one of the provided types. Matching
- * happens on a substring start from the end, unless
- * anywhereInToken is set to true in which case matches
- * happen on a substring at any position.
- */
-export function isLineToken(context:modes.ILineContext, offset:number, types:string[], anywhereInToken:boolean = false):boolean {
-
-	if (!Array.isArray(types) || types.length === 0) {
-		return false;
-	}
-
-	if (context.getLineContent().length <= offset) {
-		return false;
-	}
-
-	var tokenIdx = context.findIndexOfOffset(offset);
-	var type = context.getTokenType(tokenIdx);
-
-	for (var i = 0, len = types.length; i < len; i++) {
-		if (anywhereInToken) {
-			if (type.indexOf(types[i]) >= 0) {
-				return true;
-			}
-		}
-		else {
-			if (strings.endsWith(type, types[i])) {
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return runner(nestedMode.getId(), newCtx, offset - firstTokenCharacterOffset);
 }
 
 export class FilteredLineContext implements modes.ILineContext {
@@ -183,33 +148,27 @@ export class SnippetsRegistry {
 		snippetsByMode[path] = snippets;
 	}
 
-	public static getSnippets(model: IModel, position: IPosition): modes.ISuggestResult {
+	// the previous
+	private static getNonWhitespacePrefix(model: IReadOnlyModel, position: IPosition) {
+		let line = model.getLineContent(position.lineNumber);
+		let match = line.match(/[^\s]+$/);
+		if (match) {
+			return match[0];
+		}
+		return '';
+	}
+
+	public static getSnippets(model: IReadOnlyModel, position: IPosition): modes.ISuggestResult {
 		let word = model.getWordAtPosition(position);
-		let currentPrefix = word ? word.word.substring(0, position.column - word.startColumn) : '';
+		let currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
+		let currentFullWord = SnippetsRegistry.getNonWhitespacePrefix(model, position).toLowerCase();
 		let result : modes.ISuggestResult = {
-			currentWord: currentPrefix,
+			currentWord: currentWord,
+			incomplete: currentWord.length === 0,
 			suggestions: []
 		};
 
-		// to avoid that snippets are too prominent in the intellisense proposals:
-		// - force that the current prefix matches with the snippet prefix
-		// if there's no prfix, only show snippets at the beginning of the line, or after a whitespace
-		let filter = null;
-		if (currentPrefix.length === 0) {
-			if (position.column > 1) {
-				let previousCharacter = model.getValueInRange({ startLineNumber: position.lineNumber, startColumn: position.column - 1, endLineNumber: position.lineNumber, endColumn: position.column });
-				if (previousCharacter.trim().length !== 0) {
-					return result;
-				}
-			}
-		} else {
-			let lowerCasePrefix = currentPrefix.toLowerCase();
-			filter = (p: modes.ISuggestion) => {
-				return strings.startsWith(p.label.toLowerCase(), lowerCasePrefix);
-			};
-		}
-
-		let modeId = model.getMode().getId();
+		let modeId = model.getModeId();
 		let snippets : modes.ISuggestion[]= [];
 		let snipppetsByMode = this._snippets[modeId];
 		if (snipppetsByMode) {
@@ -221,7 +180,25 @@ export class SnippetsRegistry {
 		if (defaultSnippets) {
 			snippets = snippets.concat(defaultSnippets);
 		}
-		result.suggestions = filter ? snippets.filter(filter) : snippets;
+		// to avoid that snippets are too prominent in the intellisense proposals:
+		// enforce that current word is matched or the position is after a whitespace
+		snippets.forEach(p => {
+			if (currentWord.length === 0 && currentFullWord.length === 0) {
+				// if there's no prefix, only show snippets at the beginning of the line, or after a whitespace
+			} else {
+				let label = p.label.toLowerCase();
+				// force that the current word or full word matches with the snippet prefix
+				if (currentWord.length > 0 && strings.startsWith(label, currentWord)) {
+					// ok
+				} else if (currentFullWord.length > currentWord.length && strings.startsWith(label, currentFullWord)) {
+					p = objects.clone(p);
+					p.overwriteBefore = currentFullWord.length;
+				} else {
+					return;
+				}
+			}
+			result.suggestions.push(p);
+		});
 
 		// if (result.suggestions.length > 0) {
 		// 	if (word) {

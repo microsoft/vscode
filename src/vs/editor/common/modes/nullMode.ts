@@ -5,7 +5,6 @@
 'use strict';
 
 import * as modes from 'vs/editor/common/modes';
-import {USUAL_WORD_SEPARATORS} from 'vs/editor/common/config/defaultConfig';
 
 export class NullState implements modes.IState {
 
@@ -56,37 +55,10 @@ export class NullState implements modes.IState {
 
 export class NullMode implements modes.IMode {
 
-	/**
-	 * Create a word definition regular expression based on default word separators.
-	 * Optionally provide allowed separators that should be included in words.
-	 *
-	 * The default would look like this:
-	 * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
-	 */
-	public static createWordRegExp(allowInWords:string = ''): RegExp {
-		var usualSeparators = USUAL_WORD_SEPARATORS;
-		var source = '(-?\\d*\\.\\d\\w*)|([^';
-		for (var i = 0; i < usualSeparators.length; i++) {
-			if (allowInWords.indexOf(usualSeparators[i]) >= 0) {
-				continue;
-			}
-			source += '\\' + usualSeparators[i];
-		}
-		source += '\\s]+)';
-		return new RegExp(source, 'g');
-	}
-
-	// catches numbers (including floating numbers) in the first group, and alphanum in the second
-	static DEFAULT_WORD_REGEXP = NullMode.createWordRegExp();
 
 	public static ID = 'vs.editor.modes.nullMode';
 
-	public richEditSupport: modes.IRichEditSupport;
-
 	constructor() {
-		this.richEditSupport = {
-			wordDefinition: NullMode.DEFAULT_WORD_REGEXP
-		};
 	}
 
 	public getId():string {

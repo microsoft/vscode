@@ -11,6 +11,7 @@
 	"hintExclude.generic": "Schließen Sie Ordner mit vielen Dateien aus, um eine bessere Leistung zu erzielen.",
 	"hintExclude.tooltip": "Schließen Sie Ordner mit vielen Dateien aus, um eine bessere Leistung zu erzielen.",
 	"ignore.cmdCreate": "Ignorieren",
+	"jsconfig.heading": "// Unter https://go.microsoft.com/fwlink/?LinkId=759670\n\t// finden Sie die Dokumentation zum jsconfig.json-Format.",
 	"large.label": "Auszuschließende Elemente konfigurieren",
 	"open": "Auszuschließende Elemente konfigurieren"
 }

@@ -22,6 +22,7 @@ import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platfo
 import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
+import {EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -30,15 +31,34 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler {
+	private messages: { [resource: string]: () => void };
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
+		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this.messages = Object.create(null);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
+		this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
+	}
+
+	private onFileSavedOrReverted(resource: URI): void {
+		const hideMessage = this.messages[resource.toString()];
+		if (hideMessage) {
+			hideMessage();
+			this.messages[resource.toString()] = void 0;
+		}
 	}
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
 		let message: IMessageWithAction;
+		const resource = model.getResource();
 
 		// Dirty write prevention
 		if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
@@ -65,7 +85,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			} else {
 				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
 					let saveFileAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-					saveFileAction.setResource(model.getResource());
+					saveFileAction.setResource(resource);
 
 					return saveFileAction.run().then(() => { saveFileAction.dispose(); return true; });
 				}));
@@ -74,7 +94,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			// Discard
 			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
 				let revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-				revertFileAction.setResource(model.getResource());
+				revertFileAction.setResource(resource);
 
 				return revertFileAction.run().then(() => { revertFileAction.dispose(); return true; });
 			}));
@@ -82,16 +102,16 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			// Save As
 			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
 				let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-				saveAsAction.setResource(model.getResource());
+				saveAsAction.setResource(resource);
 
 				return saveAsAction.run().then(() => { saveAsAction.dispose(); return true; });
 			}));
 
 			let errorMessage: string;
 			if (isReadonly) {
-				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to remove protection.", paths.basename(model.getResource().fsPath));
+				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to remove protection.", paths.basename(resource.fsPath));
 			} else {
-				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), errors.toErrorMessage(error, false));
+				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), errors.toErrorMessage(error, false));
 			}
 
 			message = {
@@ -100,9 +120,8 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			};
 		}
 
-		if (this.messageService) {
-			this.messageService.show(Severity.Error, message);
-		}
+		// Show message and keep function to hide in case the file gets saved/reverted
+		this.messages[model.getResource().toString()] = this.messageService.show(Severity.Error, message);
 	}
 }
 
@@ -118,11 +137,7 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 		name: string,
 		description: string,
 		originalInput: FileOnDiskEditorInput,
-		modifiedInput: FileEditorInput,
-		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		modifiedInput: FileEditorInput
 	) {
 		super(name, description, originalInput, modifiedInput);
 
@@ -133,7 +148,7 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 		return this.model;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return ConflictResolutionDiffEditorInput.ID;
 	}
 }
@@ -157,7 +172,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		// We create a new resource URI here that is different from the file resource because we represent the state of
 		// the file as it is on disk and not as it is (potentially cached) in Code. That allows us to have a different
 		// model for the left-hand comparision compared to the conflicting one in Code to the right.
-		super(name, description, URI.create('disk', null, fileResource.fsPath), modelService, instantiationService);
+		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), modelService, instantiationService);
 
 		this.fileResource = fileResource;
 		this.mime = mime;

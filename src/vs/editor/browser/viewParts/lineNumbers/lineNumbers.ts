@@ -9,22 +9,24 @@ import 'vs/css!./lineNumbers';
 import * as platform from 'vs/base/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {ClassNames, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames} from 'vs/editor/browser/editorBrowser';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _lineHeight:number;
 	private _lineNumbers:any;
 	private _lineNumbersLeft:number;
 	private _lineNumbersWidth:number;
 	private _renderResult:string[];
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._lineNumbers = this._context.configuration.editor.lineNumbers;
+		this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
 		this._lineNumbersLeft = 0;
 		this._lineNumbersWidth = 0;
 		this._renderResult = null;
@@ -67,27 +69,21 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.lineNumbers) {
-			this._lineNumbers = this._context.configuration.editor.lineNumbers;
+		if (e.viewInfo.lineNumbers) {
+			this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
+		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {
 		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
 	}
 
 	// --- end event handlers

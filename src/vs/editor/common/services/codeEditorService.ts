@@ -15,18 +15,21 @@ export interface ICodeEditorService {
 	serviceId: ServiceIdentifier<any>;
 
 	addCodeEditor(editor: ICommonCodeEditor): void;
-
 	onCodeEditorAdd: Event<ICommonCodeEditor>;
 
 	removeCodeEditor(editor: ICommonCodeEditor): void;
-
 	onCodeEditorRemove: Event<ICommonCodeEditor>;
 
 	getCodeEditor(editorId: string): ICommonCodeEditor;
 
 	listCodeEditors(): ICommonCodeEditor[];
 
-	registerDecorationType(key:string, options: IDecorationRenderOptions): void;
+	/**
+	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
+	 */
+	getFocusedCodeEditor(): ICommonCodeEditor;
+
+	registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	removeDecorationType(key:string): void;
-	resolveDecorationType(key:string): IModelDecorationOptions;
+	resolveDecorationOptions(typeKey:string, writable: boolean): IModelDecorationOptions;
 }

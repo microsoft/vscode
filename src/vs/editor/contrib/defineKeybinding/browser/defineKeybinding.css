@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .defineKeybindingLauncher {
-	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
 	background: rgb(179,255,179);
 	padding: 10px;
 	border-radius: 5px;
@@ -16,7 +15,6 @@
 }
 
 .monaco-editor .defineKeybindingWidget {
-	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
 	padding: 10px;
 }
 

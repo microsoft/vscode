@@ -17,25 +17,28 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingServ
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
+import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { clipboard } from 'electron';
 import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
 
-	protected debugService: IDebugService;
-	private keybindingService: IKeybindingService;
 	protected toDispose: lifecycle.IDisposable[];
 	private keybinding: string;
 
-	constructor(id: string, label: string, cssClass: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(
+		id: string, label: string, cssClass: string,
+		@IDebugService protected debugService: IDebugService,
+		@IKeybindingService protected keybindingService: IKeybindingService
+	) {
 		super(id, label, cssClass, false);
 		this.debugService = debugService;
-		this.keybindingService = keybindingService;
 		this.toDispose = [];
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidChangeState((state) => this.updateEnablement(state)));
 
 		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
@@ -43,7 +46,7 @@ export class AbstractDebugAction extends actions.Action {
 		}
 
 		this.updateLabel(label);
-		this.updateEnablement();
+		this.updateEnablement(this.debugService.state);
 	}
 
 	public run(e?: any): TPromise<any> {
@@ -58,12 +61,12 @@ export class AbstractDebugAction extends actions.Action {
 		}
 	}
 
-	protected updateEnablement(): void {
-		this.enabled = this.isEnabled();
+	protected updateEnablement(state: debug.State): void {
+		this.enabled = this.isEnabled(state);
 	}
 
-	protected isEnabled(): boolean {
-		return this.debugService.getState() !== debug.State.Disabled;
+	protected isEnabled(state: debug.State): boolean {
+		return state !== debug.State.Disabled;
 	}
 
 	public dispose(): void {
@@ -80,14 +83,20 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.addListener2(debug.ServiceEvents.CONFIGURATION_CHANGED, e  => {
-			this.class = this.debugService.getConfigurationName() ? 'debug-action configure' : 'debug-action configure notification';
+		this.toDispose.push(debugService.getConfigurationManager().onDidConfigurationChange((configurationName) => {
+			if (configurationName) {
+				this.class = 'debug-action configure';
+				this.tooltip = ConfigureAction.LABEL;
+			} else {
+				this.class = 'debug-action configure notification';
+				this.tooltip = nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
+			}
 		}));
 	}
 
 	public run(event?: any): TPromise<any> {
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		return this.debugService.openConfigFile(sideBySide);
+		return this.debugService.getConfigurationManager().openConfigFile(sideBySide);
 	}
 }
 
@@ -100,11 +109,11 @@ export class SelectConfigAction extends AbstractDebugAction {
 	}
 
 	public run(configName: string): TPromise<any> {
-		return this.debugService.setConfiguration(configName);
+		return this.debugService.getConfigurationManager().setConfiguration(configName);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Inactive;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Inactive;
 	}
 }
 
@@ -114,15 +123,14 @@ export class StartDebugAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.updateEnablement();
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.createSession(false);
+		return this.keybindingService.executeCommand('_workbench.startDebug');
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Inactive;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Inactive;
 	}
 }
 
@@ -133,11 +141,10 @@ export class RestartDebugAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action restart', debugService, keybindingService);
-		this.updateEnablement();
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.updateLabel(session.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL);
+				this.updateLabel(session.configuration.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL);
 			}
 		}));
 	}
@@ -146,8 +153,8 @@ export class RestartDebugAction extends AbstractDebugAction {
 		return this.debugService.restartSession();
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() !== debug.State.Inactive;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state !== debug.State.Inactive;
 	}
 }
 
@@ -159,12 +166,15 @@ export class StepOverDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action step-over', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().next({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.next(threadId);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Stopped;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Stopped;
 	}
 }
 
@@ -176,12 +186,15 @@ export class StepIntoDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action step-into', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().stepIn({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.stepIn(threadId);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Stopped;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Stopped;
 	}
 }
 
@@ -193,12 +206,15 @@ export class StepOutDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action step-out', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().stepOut({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.stepOut(threadId);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Stopped;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Stopped;
 	}
 }
 
@@ -209,10 +225,10 @@ export class StopDebugAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action stop', debugService, keybindingService);
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.updateLabel(session.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL);
+				this.updateLabel(session.configuration.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL);
 			}
 		}));
 	}
@@ -222,8 +238,8 @@ export class StopDebugAction extends AbstractDebugAction {
 		return session ? session.disconnect(false, true) : TPromise.as(null);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() !== debug.State.Inactive;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state !== debug.State.Inactive;
 	}
 }
 
@@ -235,12 +251,15 @@ export class ContinueAction extends AbstractDebugAction {
 		super(id, label, 'debug-action continue', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.continue(threadId);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Stopped;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Stopped;
 	}
 }
 
@@ -252,12 +271,15 @@ export class PauseAction extends AbstractDebugAction {
 		super(id, label, 'debug-action pause', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().pause({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.pause(threadId);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Running;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Running;
 	}
 }
 
@@ -267,11 +289,10 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove', debugService, keybindingService);
-		this.updateEnablement();
 	}
 
 	public run(breakpoint: debug.IBreakpoint): TPromise<any> {
-		return breakpoint instanceof model.Breakpoint ? this.debugService.toggleBreakpoint({ uri: breakpoint.source.uri, lineNumber: breakpoint.lineNumber })
+		return breakpoint instanceof model.Breakpoint ? this.debugService.removeBreakpoints(breakpoint.getId())
 			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
@@ -282,15 +303,16 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement(this.debugService.state)));
 	}
 
 	public run(): TPromise<any> {
-		return TPromise.join([this.debugService.removeAllBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
+		return TPromise.join([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && (this.debugService.getModel().getBreakpoints().length > 0 || this.debugService.getModel().getFunctionBreakpoints().length > 0);
+	protected isEnabled(state: debug.State): boolean {
+		const model = this.debugService.getModel();
+		return super.isEnabled(state) && (model.getBreakpoints().length > 0 || model.getFunctionBreakpoints().length > 0);
 	}
 }
 
@@ -303,7 +325,7 @@ export class ToggleEnablementAction extends AbstractDebugAction {
 	}
 
 	public run(element: debug.IEnablement): TPromise<any> {
-		return this.debugService.toggleEnablement(element);
+		return this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
 	}
 }
 
@@ -313,16 +335,16 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action enable-all-breakpoints', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement(this.debugService.state)));
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.enableOrDisableAllBreakpoints(true);
+		return this.debugService.enableOrDisableBreakpoints(true);
 	}
 
-	protected isEnabled(): boolean {
+	protected isEnabled(state: debug.State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
+		return super.isEnabled(state) && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
 	}
 }
 
@@ -332,16 +354,16 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action disable-all-breakpoints', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement(this.debugService.state)));
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.enableOrDisableAllBreakpoints(false);
+		return this.debugService.enableOrDisableBreakpoints(false);
 	}
 
-	protected isEnabled(): boolean {
+	protected isEnabled(state: debug.State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled() && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
+		return super.isEnabled(state) && (<debug.IEnablement[]> model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
 	}
 }
 
@@ -354,17 +376,17 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 		super(id, label, 'debug-action breakpoints-activate', debugService, keybindingService);
 		this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
 
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => {
 			this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
-			this.updateEnablement();
+			this.updateEnablement(this.debugService.state);
 		}));
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.toggleBreakpointsActivated();
+		return this.debugService.setBreakpointsActivated(!this.debugService.getModel().areBreakpointsActivated());
 	}
 
-	protected isEnabled(): boolean {
+	protected isEnabled(state: debug.State): boolean {
 		return (this.debugService.getModel().getFunctionBreakpoints().length + this.debugService.getModel().getBreakpoints().length) > 0;
 	}
 }
@@ -375,16 +397,17 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, null, debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement(this.debugService.state)));
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.sendAllBreakpoints();
+		return this.debugService.setBreakpointsActivated(true);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() !== debug.State.Disabled && this.debugService.getState() !== debug.State.Inactive &&
-			((this.debugService.getModel().getFunctionBreakpoints().length + this.debugService.getModel().getBreakpoints().length) > 0);
+	protected isEnabled(state: debug.State): boolean {
+		const model = this.debugService.getModel();
+		return super.isEnabled(state) && state !== debug.State.Disabled && state !== debug.State.Inactive &&
+			(model.getFunctionBreakpoints().length + model.getBreakpoints().length > 0);
 	}
 }
 
@@ -420,12 +443,19 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
 	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
 
-	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		private editor: editorbrowser.ICodeEditor,
+		private lineNumber: number,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
+		BreakpointWidget.createInstance(this.editor, this.lineNumber, this.instantiationService);
+		return TPromise.as(null);
 	}
 }
 
@@ -433,12 +463,19 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
 	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint");
 
-	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		private editor: editorbrowser.ICodeEditor,
+		private lineNumber: number,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(breakpoint: debug.IBreakpoint): TPromise<any> {
-		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
+		BreakpointWidget.createInstance(this.editor, this.lineNumber, this.instantiationService);
+		return TPromise.as(null);
 	}
 }
 
@@ -450,31 +487,34 @@ export class ToggleBreakpointAction extends EditorAction {
 	}
 
 	public run(): TPromise<any> {
-		if (this.debugService.getState() !== debug.State.Disabled) {
-			const lineNumber = this.editor.getPosition().lineNumber;
-			const modelUrl = this.editor.getModel().getAssociatedResource();
-			if (this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
-				return this.debugService.toggleBreakpoint({ uri: modelUrl, lineNumber: lineNumber });
-			}
-		}
+		const lineNumber = this.editor.getPosition().lineNumber;
+		const modelUrl = this.editor.getModel().uri;
+		if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
+			const bp = this.debugService.getModel().getBreakpoints()
+				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === modelUrl.toString()).pop();
 
-		return TPromise.as(null);
+			return bp ? this.debugService.removeBreakpoints(bp.getId())
+				: this.debugService.addBreakpoints([{ uri: modelUrl, lineNumber: lineNumber }]);
+		}
 	}
 }
 
 export class EditorConditionalBreakpointAction extends EditorAction {
 	static ID = 'editor.debug.action.conditionalBreakpoint';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+	constructor(
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
+		@IDebugService private debugService: IDebugService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run(): TPromise<any> {
-		if (this.debugService.getState() !== debug.State.Disabled) {
-			const lineNumber = this.editor.getPosition().lineNumber;
-			if (this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
-				return this.debugService.editBreakpoint(<editorbrowser.ICodeEditor>this.editor, lineNumber);
-			}
+		const lineNumber = this.editor.getPosition().lineNumber;
+		if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
+			BreakpointWidget.createInstance(<editorbrowser.ICodeEditor>this.editor, lineNumber, this.instantiationService);
 		}
 
 		return TPromise.as(null);
@@ -493,7 +533,7 @@ export class CopyValueAction extends AbstractDebugAction {
 		if (this.value instanceof model.Variable) {
 			const frameId = this.debugService.getViewModel().getFocusedStackFrame().frameId;
 			const session = this.debugService.getActiveSession();
-			return session.evaluate({ expression: model.getFullExpressionName(this.value, session.getType()), frameId }).then(result => {
+			return session.evaluate({ expression: model.getFullExpressionName(this.value, session.configuration.type), frameId }).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}
@@ -513,18 +553,19 @@ export class RunToCursorAction extends EditorAction {
 		this.debugService = debugService;
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): TPromise<void> {
 		const lineNumber = this.editor.getPosition().lineNumber;
-		const uri = this.editor.getModel().getAssociatedResource();
+		const uri = this.editor.getModel().uri;
 
-		this.debugService.getActiveSession().addOneTimeListener(debug.SessionEvents.STOPPED, () => {
-			this.debugService.toggleBreakpoint({ uri, lineNumber });
+		const oneTimeListener = this.debugService.getActiveSession().onDidStop(() => {
+			const toRemove = this.debugService.getModel().getBreakpoints()
+				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+			this.debugService.removeBreakpoints(toRemove.getId());
+			oneTimeListener.dispose();
 		});
 
-		return this.debugService.toggleBreakpoint({ uri, lineNumber }).then(() => {
-			return this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() }).then(response => {
-				return response.success;
-			});
+		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {
+			this.debugService.continue(this.debugService.getViewModel().getFocusedThreadId());
 		});
 	}
 
@@ -533,16 +574,20 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	public shouldShowInContextMenu(): boolean {
-		if (this.debugService.getState() !== debug.State.Stopped) {
+		if (this.debugService.state !== debug.State.Stopped) {
 			return false;
 		}
 
 		const lineNumber = this.editor.getPosition().lineNumber;
-		const uri = this.editor.getModel().getAssociatedResource();
+		const uri = this.editor.getModel().uri;
 		const bps = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString());
 
 		// breakpoint must not be on position (no need for this action).
 		return bps.length === 0;
+	}
+
+	public isSupported(): boolean {
+		return super.isSupported() && this.debugService.state === debug.State.Stopped;
 	}
 }
 
@@ -552,15 +597,15 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-watch-expression', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement(this.debugService.state)));
 	}
 
 	public run(): TPromise<any> {
 		return this.debugService.addWatchExpression();
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getWatchExpressions().every(we => !!we.name);
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name);
 	}
 }
 
@@ -584,20 +629,26 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 		const selection = this.editor.getSelection();
 		const text = this.editor.getModel().getValueInRange(selection);
 
-		return !!selection && !selection.isEmpty() && this.debugService.getConfigurationName() && text && /\S/.test(text);
+		return !!selection && !selection.isEmpty() && this.debugService.getConfigurationManager().configurationName && text && /\S/.test(text);
 	}
 }
 
 export class SelectionToReplAction extends EditorAction {
 	static ID = 'editor.debug.action.selectionToRepl';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+	constructor(
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
+		@IDebugService private debugService: IDebugService,
+		@IPanelService private panelService: IPanelService
+	) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run(): TPromise<any> {
 		const text = this.editor.getModel().getValueInRange(this.editor.getSelection());
-		return this.debugService.addReplExpression(text).then(() => this.debugService.revealRepl());
+		return this.debugService.addReplExpression(text)
+			.then(() => this.panelService.openPanel(debug.REPL_ID, true));
 	}
 
 	public getGroupId(): string {
@@ -606,7 +657,7 @@ export class SelectionToReplAction extends EditorAction {
 
 	public shouldShowInContextMenu(): boolean {
 		const selection = this.editor.getSelection();
-		return !!selection && !selection.isEmpty() && this.debugService.getState() === debug.State.Stopped;
+		return !!selection && !selection.isEmpty() && this.debugService.state === debug.State.Stopped;
 	}
 }
 
@@ -638,7 +689,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.getActiveSession().getType()));
+		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.getActiveSession().configuration.type));
 	}
 }
 
@@ -665,7 +716,7 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 	}
 
 	public run(expression: model.Expression): TPromise<any> {
-		this.debugService.clearWatchExpressions(expression.getId());
+		this.debugService.removeWatchExpressions(expression.getId());
 		return TPromise.as(null);
 	}
 }
@@ -676,16 +727,16 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement(this.debugService.state)));
 	}
 
 	public run(): TPromise<any> {
-		this.debugService.clearWatchExpressions();
+		this.debugService.removeWatchExpressions();
 		return TPromise.as(null);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getModel().getWatchExpressions().length > 0;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().length > 0;
 	}
 }
 
@@ -693,15 +744,19 @@ export class ClearReplAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.panel.action.clearReplAction';
 	static LABEL = nls.localize('clearRepl', "Clear Console");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IPanelService private panelService: IPanelService
+	) {
 		super(id, label, 'debug-action clear-repl', debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
-		this.debugService.clearReplExpressions();
+		this.debugService.removeReplExpressions();
 
 		// focus back to repl
-		return this.debugService.revealRepl();
+		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 }
 
@@ -717,7 +772,7 @@ export class CopyAction extends actions.Action {
 
 export class ToggleReplAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.action.toggleRepl';
-	static LABEL = nls.localize('toggleRepl', "Debug Console");
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -727,7 +782,7 @@ export class ToggleReplAction extends AbstractDebugAction {
 		@IEventService private eventService: IEventService
 	) {
 		super(id, label, 'debug-action toggle-repl', debugService, keybindingService);
-		this.enabled = this.debugService.getState() !== debug.State.Disabled;
+		this.enabled = this.debugService.state !== debug.State.Disabled;
 		this.registerListeners();
 	}
 
@@ -737,18 +792,20 @@ export class ToggleReplAction extends AbstractDebugAction {
 			return TPromise.as(null);
 		}
 
-		return this.debugService.revealRepl();
+		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.REPL_ELEMENTS_UPDATED, () => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			if (!this.isReplVisible()) {
 				this.class = 'debug-action toggle-repl notification';
+				this.tooltip = nls.localize('unreadOutput', "New Output in Debug Console");
 			}
 		}));
 		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === debug.REPL_ID) {
 				this.class = 'debug-action toggle-repl';
+				this.tooltip = ToggleReplAction.LABEL;
 			}
 		}));
 	}
@@ -771,7 +828,7 @@ export class RunAction extends AbstractDebugAction {
 		return this.debugService.createSession(true);
 	}
 
-	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() === debug.State.Inactive;
+	protected isEnabled(state: debug.State): boolean {
+		return super.isEnabled(state) && state === debug.State.Inactive;
 	}
 }

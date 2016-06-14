@@ -8,30 +8,55 @@
 	height: 100%;
 }
 
-.explorer-viewlet .explorer-item, .explorer-viewlet .working-files-item {
+.explorer-viewlet .explorer-item,
+.explorer-viewlet .open-editor,
+.explorer-viewlet .editor-group {
 	line-height: 22px;
 }
 
-.explorer-viewlet .explorer-item-label, .explorer-viewlet .working-files-item-label {
+.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .open-editor,
+.explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
-	position: absolute;
-	left: 0;
-	right: auto;
-	top: 0;
-	padding: 0 0 0 0.4em;
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {
+	display: flex;
 }
 
-.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions.working-file-dirty > .primary-action-bar {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
+	visibility: hidden;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
+.explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar,
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
+	visibility: visible;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-label {
 	display: block;
-	width: initial;
 }
 
-.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions > .sub-content {
-	margin-left: 24px;
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .close-editor-action {
+	width: 8px;
+	height: 22px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-close-all-files,
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .save-all {
+	width: 23px;
+	height: 22px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor {
+	flex: 1;
+	margin-left: 1px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .editor-group {
+	flex: 1;
 }
 
 .explorer-viewlet .monaco-count-badge {
@@ -44,7 +69,7 @@
 	padding: 0 20px 0 20px;
 }
 
-.explorer-viewlet .collapsible.header .action-close-all-files {
+.explorer-viewlet .action-close-all-files {
 	background: url("closeall.svg") center center no-repeat;
 }
 
@@ -65,12 +90,42 @@
 	background-color: #007ACC;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group {
+	font-size: 11px;
+	font-weight: bold;
+	text-transform: uppercase;
+	cursor: default;
+}
+
+/* Disable tree twistie */
+.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
+.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
+	border: none;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor > .description {
+	opacity: .7;
+	margin-left: .5em;
+	font-size: .9em;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
+	font-style: italic;
+	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor.preview {
+	margin-left: 0px; /* accomodate for 1px padding */
+}
+
 /* Theming */
-.vs-dark .monaco-workbench .explorer-viewlet .collapsible.header .action-close-all-files {
+.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files {
 	background: url("closeall_inverse.svg") center center no-repeat;
 }
 
 /* High Contrast Theming */
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item, .hc-black .monaco-workbench .explorer-viewlet .working-files-item {
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item,
+.hc-black .monaco-workbench .explorer-viewlet .open-editor,
+.hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
 }

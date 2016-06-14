@@ -20,6 +20,7 @@
 			"isWatching": true,
 			"problemMatcher": {
 				"owner": "typescript",
+				"applyTo": "closedDocuments",
 				"fileLocation": [
 					"absolute"
 				],

@@ -7,8 +7,10 @@
 import * as nls from 'vs/nls';
 import {parse} from 'vs/base/common/json';
 import {readFile} from 'vs/base/node/pfs';
-import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IAutoClosingPair} from 'vs/editor/common/modes';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 type CharacterPair = [string, string];
 
@@ -20,6 +22,8 @@ interface ICommentRule {
 interface ILanguageConfiguration {
 	comments?: ICommentRule;
 	brackets?: CharacterPair[];
+	autoClosingPairs?: CharacterPair[];
+	surroundingPairs?: CharacterPair[];
 }
 
 export class LanguageConfigurationFileHandler {
@@ -67,7 +71,7 @@ export class LanguageConfigurationFileHandler {
 
 	private _handleConfig(modeId:string, configuration:ILanguageConfiguration): void {
 
-		let richEditConfig:IRichEditConfiguration = {};
+		let richEditConfig:LanguageConfiguration = {};
 
 		if (configuration.comments) {
 			richEditConfig.comments = configuration.comments;
@@ -75,15 +79,23 @@ export class LanguageConfigurationFileHandler {
 
 		if (configuration.brackets) {
 			richEditConfig.brackets = configuration.brackets;
-
-			richEditConfig.__characterPairSupport = {
-				autoClosingPairs: configuration.brackets.map(pair => {
-					let [open, close] = pair;
-					return { open: open, close: close };
-				})
-			};
 		}
 
-		this._modeService.registerRichEditSupport(modeId, richEditConfig);
+		if (configuration.autoClosingPairs) {
+			richEditConfig.autoClosingPairs = this._mapCharacterPairs(configuration.autoClosingPairs);
+		}
+
+		if (configuration.surroundingPairs) {
+			richEditConfig.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
+		}
+
+		LanguageConfigurationRegistry.register(modeId, richEditConfig);
+	}
+
+	private _mapCharacterPairs(pairs:CharacterPair[]): IAutoClosingPair[] {
+		return pairs.map(pair => {
+			let [open, close] = pair;
+			return { open: open, close: close };
+		});
 	}
 }

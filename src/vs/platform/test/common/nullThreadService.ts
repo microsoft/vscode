@@ -6,18 +6,17 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
-import instantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 
 export class NullThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
 
 	constructor() {
 		super(true);
-		this.setInstantiationService(instantiationService.createInstantiationService({
-			threadService: this
-		}));
+		this.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, this])));
 	}
 
 	protected _doCreateInstance(params: any[]): any {
@@ -32,13 +31,6 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return winjs.TPromise.as(null);
 	}
 
-	addStatusListener(listener: IThreadServiceStatusListener): void {
-		// Nothing to do
-	}
-
-	removeStatusListener(listener: IThreadServiceStatusListener): void {
-		// Nothing to do
-	}
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 		return this._getOrCreateLocalInstance(id, descriptor);

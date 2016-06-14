@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
-import Strings = require('vs/base/common/strings');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Git = require('vs/workbench/parts/git/common/git');
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { format } from 'vs/base/common/strings';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { IStatusModel, IStatusSummary, IRawFileStatus, ModelEvents,
+	IFileStatus, IStatusGroup, Status, StatusType,
+	IBranch, IRef, IRemote, IModel, IRawStatus
+} from 'vs/workbench/parts/git/common/git';
 
-export class FileStatus implements Git.IFileStatus {
+export class FileStatus implements IFileStatus {
 
 	private id: string;
 	private pathComponents: string[];
@@ -17,7 +20,7 @@ export class FileStatus implements Git.IFileStatus {
 	constructor(
 		private path: string,
 		private mimetype: string,
-		private status: Git.Status,
+		private status: Status,
 		private rename?: string,
 		isModifiedInIndex?: boolean
 	) {
@@ -25,60 +28,60 @@ export class FileStatus implements Git.IFileStatus {
 		this.pathComponents = path.split('/');
 	}
 
-	public getPath(): string {
+	getPath(): string {
 		return this.path;
 	}
 
-	public getPathComponents(): string[] {
+	getPathComponents(): string[] {
 		return this.pathComponents.slice(0);
 	}
 
-	public getMimetype(): string {
+	getMimetype(): string {
 		return this.mimetype;
 	}
 
-	public getStatus(): Git.Status {
+	getStatus(): Status {
 		return this.status;
 	}
 
-	public getRename(): string {
+	getRename(): string {
 		return this.rename;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return this.id;
 	}
 
-	public getType(): Git.StatusType {
+	getType(): StatusType {
 		switch (FileStatus.typeOf(this.status)) {
-			case 'index': return Git.StatusType.INDEX;
-			case 'workingTree': return Git.StatusType.WORKING_TREE;
-			default: return Git.StatusType.MERGE;
+			case 'index': return StatusType.INDEX;
+			case 'workingTree': return StatusType.WORKING_TREE;
+			default: return StatusType.MERGE;
 		}
 	}
 
-	public clone(): Git.IFileStatus {
+	clone(): IFileStatus {
 		return new FileStatus(this.path, this.mimetype, this.status, this.rename);
 	}
 
-	public update(other: FileStatus): void {
+	update(other: FileStatus): void {
 		this.status = other.getStatus();
 		this.rename = other.getRename();
 	}
 
-	static typeOf(s: Git.Status): string {
+	static typeOf(s: Status): string {
 		switch (s) {
-			case Git.Status.INDEX_MODIFIED:
-			case Git.Status.INDEX_ADDED:
-			case Git.Status.INDEX_DELETED:
-			case Git.Status.INDEX_RENAMED:
-			case Git.Status.INDEX_COPIED:
+			case Status.INDEX_MODIFIED:
+			case Status.INDEX_ADDED:
+			case Status.INDEX_DELETED:
+			case Status.INDEX_RENAMED:
+			case Status.INDEX_COPIED:
 				return 'index';
 
-			case Git.Status.MODIFIED:
-			case Git.Status.DELETED:
-			case Git.Status.UNTRACKED:
-			case Git.Status.IGNORED:
+			case Status.MODIFIED:
+			case Status.DELETED:
+			case Status.UNTRACKED:
+			case Status.IGNORED:
 				return 'workingTree';
 
 			default:
@@ -88,18 +91,18 @@ export class FileStatus implements Git.IFileStatus {
 }
 
 interface IStatusSet {
-	[path: string]: Git.IFileStatus;
+	[path: string]: IFileStatus;
 }
 
-export class StatusGroup extends EventEmitter.EventEmitter implements Git.IStatusGroup {
+export class StatusGroup extends EventEmitter implements IStatusGroup {
 
-	private type: Git.StatusType;
+	private type: StatusType;
 	private statusSet: IStatusSet;
-	private statusList: Git.IFileStatus[];
+	private statusList: IFileStatus[];
 	private statusByName: IStatusSet;
 	private statusByRename: IStatusSet;
 
-	constructor(type: Git.StatusType) {
+	constructor(type: StatusType) {
 		super();
 
 		this.type = type;
@@ -109,15 +112,15 @@ export class StatusGroup extends EventEmitter.EventEmitter implements Git.IStatu
 		this.statusByRename = Object.create(null);
 	}
 
-	public getType(): Git.StatusType {
+	getType(): StatusType {
 		return this.type;
 	}
 
-	public update(statusList: FileStatus[]): void {
+	update(statusList: FileStatus[]): void {
 		var toDelete: IStatusSet = Object.create(null);
 
 		var id: string, path: string, rename: string;
-		var status: Git.IFileStatus;
+		var status: IFileStatus;
 
 		for (id in this.statusSet) {
 			toDelete[id] = this.statusSet[id];
@@ -161,15 +164,15 @@ export class StatusGroup extends EventEmitter.EventEmitter implements Git.IStatu
 		}
 	}
 
-	public all(): Git.IFileStatus[] {
+	all(): IFileStatus[] {
 		return this.statusList;
 	}
 
-	public find(path: string): Git.IFileStatus {
+	find(path: string): IFileStatus {
 		return this.statusByName[path] || this.statusByRename[path] || null;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.type = null;
 		this.statusSet = null;
 		this.statusList = null;
@@ -180,19 +183,19 @@ export class StatusGroup extends EventEmitter.EventEmitter implements Git.IStatu
 	}
 }
 
-export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatusModel {
+export class StatusModel extends EventEmitter implements IStatusModel {
 
 	private indexStatus: StatusGroup;
 	private workingTreeStatus: StatusGroup;
 	private mergeStatus: StatusGroup;
-	private toDispose: Lifecycle.IDisposable[];
+	private toDispose: IDisposable[];
 
 	constructor() {
 		super();
 
-		this.indexStatus = new StatusGroup(Git.StatusType.INDEX);
-		this.workingTreeStatus = new StatusGroup(Git.StatusType.WORKING_TREE);
-		this.mergeStatus = new StatusGroup(Git.StatusType.MERGE);
+		this.indexStatus = new StatusGroup(StatusType.INDEX);
+		this.workingTreeStatus = new StatusGroup(StatusType.WORKING_TREE);
+		this.mergeStatus = new StatusGroup(StatusType.MERGE);
 
 		this.toDispose = [
 			this.addEmitter2(this.indexStatus),
@@ -201,7 +204,7 @@ export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatu
 		];
 	}
 
-	public getSummary(): Git.IStatusSummary {
+	getSummary(): IStatusSummary {
 		return {
 			hasWorkingTreeChanges: this.getWorkingTreeStatus().all().length > 0,
 			hasIndexChanges: this.getIndexStatus().all().length > 0,
@@ -209,37 +212,37 @@ export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatu
 		};
 	}
 
-	public update(status: Git.IRawFileStatus[]): void {
+	update(status: IRawFileStatus[]): void {
 		var index: FileStatus[] = [];
 		var workingTree: FileStatus[] = [];
 		var merge: FileStatus[] = [];
 
 		status.forEach(raw => {
 			switch(raw.x + raw.y) {
-				case '??': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Git.Status.UNTRACKED));
-				case '!!': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Git.Status.IGNORED));
-				case 'DD': return merge.push(new FileStatus(raw.path, raw.mimetype, Git.Status.BOTH_DELETED));
-				case 'AU': return merge.push(new FileStatus(raw.path, raw.mimetype, Git.Status.ADDED_BY_US));
-				case 'UD': return merge.push(new FileStatus(raw.path, raw.mimetype, Git.Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new FileStatus(raw.path, raw.mimetype, Git.Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new FileStatus(raw.path, raw.mimetype, Git.Status.DELETED_BY_US));
-				case 'AA': return merge.push(new FileStatus(raw.path, raw.mimetype, Git.Status.BOTH_ADDED));
-				case 'UU': return merge.push(new FileStatus(raw.path, raw.mimetype, Git.Status.BOTH_MODIFIED));
+				case '??': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.UNTRACKED));
+				case '!!': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.IGNORED));
+				case 'DD': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.BOTH_MODIFIED));
 			}
 
 			let isModifiedInIndex = false;
 
 			switch (raw.x) {
-				case 'M': index.push(new FileStatus(raw.path, raw.mimetype, Git.Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-				case 'A': index.push(new FileStatus(raw.path, raw.mimetype, Git.Status.INDEX_ADDED)); break;
-				case 'D': index.push(new FileStatus(raw.path, raw.mimetype, Git.Status.INDEX_DELETED)); break;
-				case 'R': index.push(new FileStatus(raw.path, raw.mimetype, Git.Status.INDEX_RENAMED, raw.rename)); break;
-				case 'C': index.push(new FileStatus(raw.path, raw.mimetype, Git.Status.INDEX_COPIED)); break;
+				case 'M': index.push(new FileStatus(raw.path, raw.mimetype, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new FileStatus(raw.path, raw.mimetype, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new FileStatus(raw.path, raw.mimetype, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new FileStatus(raw.path, raw.mimetype, Status.INDEX_RENAMED, raw.rename)); break;
+				case 'C': index.push(new FileStatus(raw.path, raw.mimetype, Status.INDEX_COPIED)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new FileStatus(raw.path, raw.mimetype, Git.Status.MODIFIED, raw.rename, isModifiedInIndex)); break;
-				case 'D': workingTree.push(new FileStatus(raw.path, raw.mimetype, Git.Status.DELETED, raw.rename)); break;
+				case 'M': workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.MODIFIED, raw.rename, isModifiedInIndex)); break;
+				case 'D': workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.DELETED, raw.rename)); break;
 			}
 		});
 
@@ -247,34 +250,34 @@ export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatu
 		this.workingTreeStatus.update(workingTree);
 		this.mergeStatus.update(merge);
 
-		this.emit(Git.ModelEvents.STATUS_MODEL_UPDATED);
+		this.emit(ModelEvents.STATUS_MODEL_UPDATED);
 	}
 
-	public getIndexStatus(): Git.IStatusGroup {
+	getIndexStatus(): IStatusGroup {
 		return this.indexStatus;
 	}
 
-	public getWorkingTreeStatus(): Git.IStatusGroup {
+	getWorkingTreeStatus(): IStatusGroup {
 		return this.workingTreeStatus;
 	}
 
-	public getMergeStatus(): Git.IStatusGroup {
+	getMergeStatus(): IStatusGroup {
 		return this.mergeStatus;
 	}
 
-	public getGroups(): Git.IStatusGroup[] {
+	getGroups(): IStatusGroup[] {
 		return [ this.mergeStatus, this.indexStatus, this.workingTreeStatus ];
 	}
 
-	public find(path: string, type: Git.StatusType): Git.IFileStatus {
-		var group: Git.IStatusGroup;
+	find(path: string, type: StatusType): IFileStatus {
+		var group: IStatusGroup;
 
 		switch (type) {
-			case Git.StatusType.INDEX:
+			case StatusType.INDEX:
 				group = this.indexStatus; break;
-			case Git.StatusType.WORKING_TREE:
+			case StatusType.WORKING_TREE:
 				group = this.workingTreeStatus; break;
-			case Git.StatusType.MERGE:
+			case StatusType.MERGE:
 				group = this.mergeStatus; break;
 			default:
 				return null;
@@ -283,8 +286,8 @@ export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatu
 		return group.find(path);
 	}
 
-	public dispose(): void {
-		this.toDispose = Lifecycle.dispose(this.toDispose);
+	dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 
 		if (this.indexStatus) {
 			this.indexStatus.dispose();
@@ -305,15 +308,14 @@ export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatu
 	}
 }
 
-export class Model extends EventEmitter.EventEmitter implements Git.IModel {
+export class Model extends EventEmitter implements IModel {
 
 	private repositoryRoot: string;
-	private status: Git.IStatusModel;
-	private HEAD: Git.IBranch;
-	private heads: Git.IBranch[];
-	private tags: Git.ITag[];
-	private remotes: Git.IRemote[];
-	private toDispose: Lifecycle.IDisposable[];
+	private status: IStatusModel;
+	private HEAD: IBranch;
+	private refs: IRef[];
+	private remotes: IRemote[];
+	private toDispose: IDisposable[];
 
 	constructor() {
 		super();
@@ -325,43 +327,37 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		this.toDispose.push(this.addEmitter2(this.status));
 
 		this.HEAD = null;
-		this.heads = [];
-		this.tags = [];
+		this.refs = [];
 		this.remotes = [];
 	}
 
-	public getRepositoryRoot(): string {
+	getRepositoryRoot(): string {
 		return this.repositoryRoot;
 	}
 
-	public getStatus(): Git.IStatusModel {
+	getStatus(): IStatusModel {
 		return this.status;
 	}
 
-	public getHEAD(): Git.IBranch {
+	getHEAD(): IBranch {
 		return this.HEAD;
 	}
 
-	public getHeads(): Git.IBranch[] {
-		return this.heads;
+	getRefs(): IRef[] {
+		return this.refs;
 	}
 
-	public getTags(): Git.ITag[] {
-		return this.tags;
-	}
-
-	public getRemotes(): Git.IRemote[] {
+	getRemotes(): IRemote[] {
 		return this.remotes;
 	}
 
-	public update(status: Git.IRawStatus): void {
+	update(status: IRawStatus): void {
 		if (!status) {
 			status = {
 				repositoryRoot: null,
 				status: [],
 				HEAD: null,
-				heads: [],
-				tags: [],
+				refs: [],
 				remotes: []
 			};
 		}
@@ -370,21 +366,18 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		this.status.update(status.status);
 
 		this.HEAD = status.HEAD;
-		this.emit(Git.ModelEvents.HEAD_UPDATED);
+		this.emit(ModelEvents.HEAD_UPDATED);
 
-		this.heads = status.heads;
-		this.emit(Git.ModelEvents.HEADS_UPDATED);
-
-		this.tags = status.tags;
-		this.emit(Git.ModelEvents.TAGS_UPDATED);
+		this.refs = status.refs;
+		this.emit(ModelEvents.REFS_UPDATED);
 
 		this.remotes = status.remotes;
-		this.emit(Git.ModelEvents.REMOTES_UPDATED);
+		this.emit(ModelEvents.REMOTES_UPDATED);
 
-		this.emit(Git.ModelEvents.MODEL_UPDATED);
+		this.emit(ModelEvents.MODEL_UPDATED);
 	}
 
-	public getStatusSummary(): Git.IStatusSummary {
+	getStatusSummary(): IStatusSummary {
 		var status = this.getStatus();
 
 		return {
@@ -394,7 +387,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		};
 	}
 
-	public getPS1(): string {
+	getPS1(): string {
 		if (!this.HEAD) {
 			return '';
 		}
@@ -402,7 +395,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		var label = this.HEAD.name || this.HEAD.commit.substr(0, 8);
 		var statusSummary = this.getStatus().getSummary();
 
-		return Strings.format('{0}{1}{2}{3}',
+		return format('{0}{1}{2}{3}',
 			label,
 			statusSummary.hasWorkingTreeChanges ? '*' : '',
 			statusSummary.hasIndexChanges ? '+' : '',
@@ -410,8 +403,8 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		);
 	}
 
-	public dispose(): void {
-		this.toDispose = Lifecycle.dispose(this.toDispose);
+	dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 		super.dispose();
 	}
 }

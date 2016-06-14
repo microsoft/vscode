@@ -5,6 +5,7 @@
 
 'use strict';
 
+import assert = require('assert');
 import _parser = require('vs/languages/less/common/parser/lessParser');
 import nodes = require ('vs/languages/css/common/parser/cssNodes');
 import errors = require ('vs/languages/css/common/parser/cssErrors');
@@ -12,8 +13,8 @@ import errors = require ('vs/languages/css/common/parser/cssErrors');
 import cssParserTests = require ('vs/languages/css/test/common/parser.test');
 
 
-function assertNode(text: string, parser: _parser.LessParser, f: ()=>nodes.Node):void {
-	cssParserTests.assertNode(text, parser, f);
+function assertNode(text: string, parser: _parser.LessParser, f: ()=>nodes.Node):nodes.Node {
+	return cssParserTests.assertNode(text, parser, f);
 }
 
 function assertNoNode(text: string, parser: _parser.LessParser, f: ()=>nodes.Node):void {
@@ -33,6 +34,7 @@ suite('LESS - LESS Parser', () => {
 		assertNode('@-co42lor', parser, parser._parseVariable.bind(parser));
 		assertNode('@@foo', parser, parser._parseVariable.bind(parser));
 		assertNode('@@@foo', parser, parser._parseVariable.bind(parser));
+		assertNode('@12ooo', parser, parser._parseVariable.bind(parser));
 		assertNoNode('@ @foo', parser, parser._parseFunction.bind(parser));
 		assertNoNode('@-@foo', parser, parser._parseFunction.bind(parser));
 	});

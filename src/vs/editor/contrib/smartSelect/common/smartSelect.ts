@@ -12,10 +12,9 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {EventType, ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData, IEditorRange} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {ILogicalSelectionEntry} from 'vs/editor/common/modes';
-import {TokenSelectionSupport} from './tokenSelectionSupport';
+import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
 // --- selection state machine
 
@@ -24,7 +23,7 @@ class State {
 	public editor:ICommonCodeEditor;
 	public next:State;
 	public previous:State;
-	public selection:IEditorRange;
+	public selection:Range;
 
 	constructor(editor:ICommonCodeEditor) {
 		this.editor = editor;
@@ -55,7 +54,6 @@ class SmartSelect extends EditorAction {
 
 		var selection = this.editor.getSelection();
 		var model = this.editor.getModel();
-		var selectionSupport = model.getMode().logicalSelectionSupport || this._tokenSelectionSupport;
 
 		// forget about current state
 		if (state) {
@@ -66,8 +64,7 @@ class SmartSelect extends EditorAction {
 
 		var promise:TPromise<void> = TPromise.as(null);
 		if (!state) {
-
-			promise = selectionSupport.getRangesToPosition(model.getAssociatedResource(), selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
+			promise = this._tokenSelectionSupport.getRangesToPosition(model.uri, selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
 
 				if (arrays.isFalsyOrEmpty(elements)) {
 					return;
@@ -101,12 +98,12 @@ class SmartSelect extends EditorAction {
 				state = editorState;
 
 				// listen to caret move and forget about state
-				var unhook: () => void = this.editor.addListener(EventType.CursorPositionChanged,(e: ICursorPositionChangedEvent) => {
+				var unhook = this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 					if (ignoreSelection) {
 						return;
 					}
 					state = null;
-					unhook();
+					unhook.dispose();
 				});
 			});
 		}
@@ -157,9 +154,9 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GrowSelecti
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
-}));
+}, 'Expand Select'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShrinkSelectionAction, ShrinkSelectionAction.ID, nls.localize('smartSelect.shrink', "Shrink Select"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
-}));
+}, 'Shrink Select'));

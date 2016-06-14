@@ -7,7 +7,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Builder = require('vs/base/browser/builder');
 import Actions = require('vs/base/common/actions');
-import {ISelection} from 'vs/platform/selection/common/selection';
 
 export interface IView extends Lifecycle.IDisposable {
 	ID: string;
@@ -15,7 +14,6 @@ export interface IView extends Lifecycle.IDisposable {
 	focus(): void;
 	layout(dimension:Builder.Dimension): void;
 	setVisible(visible:boolean): WinJS.Promise;
-	getSelection(): ISelection;
 	getControl(): EventEmitter.IEventEmitter;
 	getActions(): Actions.IAction[];
 	getSecondaryActions(): Actions.IAction[];

@@ -103,6 +103,10 @@ export class EditorAction extends Action implements IEditorContribution {
 	public getEnablementState(): boolean {
 		return true;
 	}
+
+	public getAlias(): string {
+		return this._descriptor.alias;
+	}
 }
 
 export class HandlerEditorAction extends EditorAction {

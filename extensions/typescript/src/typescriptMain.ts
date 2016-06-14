@@ -9,12 +9,14 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
 import * as nls from 'vscode-nls';
 nls.config({locale: env.language});
+
+import * as path from 'path';
 
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -39,6 +41,7 @@ interface LanguageDescription {
 	id: string;
 	diagnosticSource: string;
 	modeIds: string[];
+	extensions: string[];
 }
 
 export function activate(context: ExtensionContext): void {
@@ -51,12 +54,14 @@ export function activate(context: ExtensionContext): void {
 		{
 			id: 'typescript',
 			diagnosticSource: 'ts',
-			modeIds: [MODE_ID_TS, MODE_ID_TSX]
+			modeIds: [MODE_ID_TS, MODE_ID_TSX],
+			extensions: ['.ts', '.tsx']
 		},
 		{
 			id: 'javascript',
 			diagnosticSource: 'js',
-			modeIds: [MODE_ID_JS, MODE_ID_JSX]
+			modeIds: [MODE_ID_JS, MODE_ID_JSX],
+			extensions: ['.js', '.jsx']
 		}
 	]);
 
@@ -85,6 +90,7 @@ const validateSetting = 'validate.enable';
 class LanguageProvider {
 
 	private description: LanguageDescription;
+	private extensions: Map<boolean>;
 	private syntaxDiagnostics: Map<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
 	private bufferSyncSupport: BufferSyncSupport;
@@ -96,17 +102,25 @@ class LanguageProvider {
 
 	constructor(client: TypeScriptServiceClient, description: LanguageDescription) {
 		this.description = description;
+		this.extensions = Object.create(null);
+		description.extensions.forEach(extension => this.extensions[extension] = true);
 		this._validate = true;
 
-		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
+			delete: (file: string) => {
+				this.currentDiagnostics.delete(Uri.file(file));
+			}
+		}, this.extensions);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
+
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
 
 		client.onReady().then(() => {
 			this.registerProviders(client);
+			this.bufferSyncSupport.listen();
 		}, () => {
 			// Nothing to do here. The client did show a message;
 		});
@@ -129,16 +143,17 @@ class LanguageProvider {
 		this.formattingProvider.updateConfiguration(config);
 
 		this.description.modeIds.forEach(modeId => {
-			languages.registerCompletionItemProvider(modeId, this.completionItemProvider, '.');
-			languages.registerHoverProvider(modeId, hoverProvider);
-			languages.registerDefinitionProvider(modeId, definitionProvider);
-			languages.registerDocumentHighlightProvider(modeId, documentHighlightProvider);
-			languages.registerReferenceProvider(modeId, referenceProvider);
-			languages.registerDocumentSymbolProvider(modeId, documentSymbolProvider);
-			languages.registerSignatureHelpProvider(modeId, signatureHelpProvider, '(', ',');
-			languages.registerRenameProvider(modeId, renameProvider);
-			languages.registerDocumentRangeFormattingEditProvider(modeId, this.formattingProvider);
-			languages.registerOnTypeFormattingEditProvider(modeId, this.formattingProvider, ';', '}', '\n');
+			let selector: DocumentFilter = { scheme: 'file', language: modeId };
+			languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.');
+			languages.registerHoverProvider(selector, hoverProvider);
+			languages.registerDefinitionProvider(selector, definitionProvider);
+			languages.registerDocumentHighlightProvider(selector, documentHighlightProvider);
+			languages.registerReferenceProvider(selector, referenceProvider);
+			languages.registerDocumentSymbolProvider(selector, documentSymbolProvider);
+			languages.registerSignatureHelpProvider(selector, signatureHelpProvider, '(', ',');
+			languages.registerRenameProvider(selector, renameProvider);
+			languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
+			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
@@ -178,6 +193,11 @@ class LanguageProvider {
 						// e.g.  */|
 						beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 						action: { indentAction: IndentAction.None, removeText: 1 }
+					},
+					{
+						// e.g.  *-----*/|
+						beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+						action: { indentAction: IndentAction.None, removeText: 1 }
 					}
 				],
 
@@ -185,16 +205,14 @@ class LanguageProvider {
 					docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
 				},
 
-				__characterPairSupport: {
-					autoClosingPairs: [
-						{ open: '{', close: '}' },
-						{ open: '[', close: ']' },
-						{ open: '(', close: ')' },
-						{ open: '"', close: '"', notIn: ['string'] },
-						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: '`', close: '`', notIn: ['string', 'comment'] }
-					]
-				}
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] }
+				]
 			});
 		});
 	}
@@ -211,7 +229,8 @@ class LanguageProvider {
 	}
 
 	public handles(file: string): boolean {
-		return this.bufferSyncSupport.handles(file);
+		let extension = path.extname(file);
+		return (extension && this.extensions[extension]) || this.bufferSyncSupport.handles(file);
 	}
 
 	public get id(): string {
@@ -241,7 +260,6 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
-
 	}
 
 	public triggerAllDiagnostics(): void {

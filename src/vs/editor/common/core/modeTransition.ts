@@ -8,14 +8,16 @@ import {IMode, IModeTransition} from 'vs/editor/common/modes';
 import {Arrays} from 'vs/editor/common/core/arrays';
 
 export class ModeTransition {
-	_modeTransitionTrait: void;
+	_modeTransitionBrand: void;
 
 	public startIndex:number;
 	public mode:IMode;
+	public modeId: string;
 
 	constructor(startIndex:number, mode:IMode) {
 		this.startIndex = startIndex|0;
 		this.mode = mode;
+		this.modeId = mode.getId();
 	}
 
 	public static findIndexInSegmentsArray(arr:ModeTransition[], desiredIndex: number): number {

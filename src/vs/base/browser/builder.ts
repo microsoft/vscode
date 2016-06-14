@@ -11,7 +11,6 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import DOM = require('vs/base/browser/dom');
-import BrowserService = require('vs/base/browser/browserService');
 
 /**
  * Welcome to the monaco builder. The recommended way to use it is:
@@ -36,6 +35,7 @@ export interface QuickBuilder {
 	(): Builder;
 	(builders: Builder[]): Builder;
 	(element: HTMLElement): Builder;
+	(element: HTMLElement[]): Builder;
 	(window: Window): Builder;
 	(htmlOrQuerySyntax: string): Builder; // Or, MultiBuilder
 	(name: string, args?: any, fn?: (builder: Builder) => any): Builder;
@@ -51,7 +51,7 @@ export interface QuickBuilder {
 export function withElementById(id: string, offdom?: boolean): Builder {
 	assert.ok(types.isString(id), 'Expected String as parameter');
 
-	let element = BrowserService.getService().document.getElementById(id);
+	let element = document.getElementById(id);
 	if (element) {
 		return new Builder(element, offdom);
 	}
@@ -135,7 +135,6 @@ export class Builder implements IDisposable {
 	private createdElements: HTMLElement[];
 	private toUnbind: { [type: string]: IDisposable[]; };
 	private captureToUnbind: { [type: string]: IDisposable[]; };
-	private browserService: BrowserService.IBrowserService;
 
 	constructor(element?: HTMLElement, offdom?: boolean) {
 		this.offdom = offdom;
@@ -147,7 +146,6 @@ export class Builder implements IDisposable {
 
 		this.toUnbind = {};
 		this.captureToUnbind = {};
-		this.browserService = BrowserService.getService();
 	}
 
 	/**
@@ -475,7 +473,7 @@ export class Builder implements IDisposable {
 	private doElement(name: string, attributesOrFn?: any, fn?: (builder: Builder) => void): Builder {
 
 		// Create Element
-		let element = this.browserService.document.createElement(name);
+		let element = document.createElement(name);
 		this.currentElement = element;
 
 		// Off-DOM: Remember in array of created elements
@@ -520,7 +518,7 @@ export class Builder implements IDisposable {
 	 *  Returns true if the current element of this builder is the active element.
 	 */
 	public hasFocus(): boolean {
-		let activeElement: Element = this.browserService.document.activeElement;
+		let activeElement: Element = document.activeElement;
 
 		return (activeElement === this.currentElement);
 	}
@@ -1534,7 +1532,7 @@ export class Builder implements IDisposable {
 			else {
 				// if there are elements inside this node, append the string as a new text node
 				// to avoid wiping out the innerHTML and replacing it with only text content
-				this.currentElement.appendChild(this.browserService.document.createTextNode(text));
+				this.currentElement.appendChild(document.createTextNode(text));
 			}
 		} else {
 			this.currentElement.textContent = text;
@@ -1847,24 +1845,24 @@ export class Builder implements IDisposable {
 	public getClientArea(): Dimension {
 
 		// 0.) Try with DOM getDomNodePosition
-		if (this.currentElement !== this.browserService.document.body) {
+		if (this.currentElement !== document.body) {
 			let dimensions = DOM.getDomNodePosition(this.currentElement);
 			return new Dimension(dimensions.width, dimensions.height);
 		}
 
 		// 1.) Try innerWidth / innerHeight
-		if (this.browserService.window.innerWidth && this.browserService.window.innerHeight) {
-			return new Dimension(this.browserService.window.innerWidth, this.browserService.window.innerHeight);
+		if (window.innerWidth && window.innerHeight) {
+			return new Dimension(window.innerWidth, window.innerHeight);
 		}
 
 		// 2.) Try with document.body.clientWidth / document.body.clientHeigh
-		if (this.browserService.document.body && this.browserService.document.body.clientWidth && this.browserService.document.body.clientWidth) {
-			return new Dimension(this.browserService.document.body.clientWidth, this.browserService.document.body.clientHeight);
+		if (document.body && document.body.clientWidth && document.body.clientWidth) {
+			return new Dimension(document.body.clientWidth, document.body.clientHeight);
 		}
 
 		// 3.) Try with document.documentElement.clientWidth / document.documentElement.clientHeight
-		if (this.browserService.document.documentElement && this.browserService.document.documentElement.clientWidth && this.browserService.document.documentElement.clientHeight) {
-			return new Dimension(this.browserService.document.documentElement.clientWidth, this.browserService.document.documentElement.clientHeight);
+		if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
+			return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
 		}
 
 		throw new Error('Unable to figure out browser width and height');
@@ -2153,7 +2151,7 @@ export let $: QuickBuilder = function(arg?: any): Builder {
 		// Use the argument as HTML code
 		if (arg[0] === '<') {
 			let element: Node;
-			let container = BrowserService.getService().document.createElement('div');
+			let container = document.createElement('div');
 			container.innerHTML = strings.format.apply(strings, arguments);
 
 			if (container.children.length === 0) {

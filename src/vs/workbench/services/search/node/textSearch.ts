@@ -14,7 +14,7 @@ import {ILineMatch, IProgress} from 'vs/platform/search/common/search';
 import {detectMimeAndEncodingFromBuffer} from 'vs/base/node/mime';
 import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';
 import {UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode} from 'vs/base/node/encoding';
-import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
+import {ISerializedFileMatch, IRawSearch, ISearchEngine} from './search';
 
 interface ReadLinesOptions {
 	bufferLength: number;

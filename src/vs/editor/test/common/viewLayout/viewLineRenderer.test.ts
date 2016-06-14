@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ViewLineToken} from 'vs/editor/common/editorCommon';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 
 suite('viewLineRenderer.renderLine', () => {
 

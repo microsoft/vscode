@@ -110,5 +110,5 @@ actionBarRegistry.registerActionBarContributor(Scope.EDITOR, MarkdownFilesAction
 let category = nls.localize('markdown', "Markdown");
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalTogglePreviewMarkdownAction, GlobalTogglePreviewMarkdownAction.ID, GlobalTogglePreviewMarkdownAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }), category);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviewToSideAction, OpenPreviewToSideAction.ID, OpenPreviewToSideAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_V) }), category);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalTogglePreviewMarkdownAction, GlobalTogglePreviewMarkdownAction.ID, GlobalTogglePreviewMarkdownAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }), 'Markdown: Toggle Preview', category);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviewToSideAction, OpenPreviewToSideAction.ID, OpenPreviewToSideAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_V) }), 'Markdown: Open Preview to the Side', category);

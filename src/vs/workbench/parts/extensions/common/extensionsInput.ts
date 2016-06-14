@@ -7,8 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import { extensionEquals } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import { IExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { extensionEquals } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 export class ExtensionsInput extends EditorInput {
 
@@ -19,7 +19,7 @@ export class ExtensionsInput extends EditorInput {
 		super();
 	}
 
-	getId(): string {
+	getTypeId(): string {
 		return ExtensionsInput.ID;
 	}
 

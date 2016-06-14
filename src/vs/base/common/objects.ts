@@ -6,16 +6,6 @@
 
 import * as Types from 'vs/base/common/types';
 
-/**
- * Equalable objects can compute a
- * hash-code and can also tell if they
- * are equal to other objects.
- */
-export interface IEqualable {
-	equals(other: any): boolean;
-}
-
-
 export function clone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
@@ -159,14 +149,6 @@ export function assign(destination: any, ...sources: any[]): any {
 
 export function toObject<T,R>(arr: T[], keyMap: (T) => string, valueMap: (T) => R = x => x): { [key: string]: R } {
 	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: valueMap(d) }), Object.create(null));
-}
-
-/**
- * Returns a new object that has all values of {{obj}}
- * plus those from {{defaults}}.
- */
-export function withDefaults<T>(obj: T, defaults: T): T {
-	return mixin(clone(defaults), obj || {});
 }
 
 export function equals(one: any, other: any): boolean {

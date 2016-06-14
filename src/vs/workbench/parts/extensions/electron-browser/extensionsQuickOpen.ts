@@ -12,12 +12,12 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IEntryRunContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenPagedModel, IPagedRenderer } from 'vs/base/parts/quickopen/common/quickOpenPaging';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, IExtension, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstallAction, UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,7 +27,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { shell } from 'electron';
-import { extensionEquals, getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import { extensionEquals, getOutdatedExtensions } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 const $ = dom.emmet;
 
@@ -58,6 +58,7 @@ interface ITemplateData {
 	displayName: HighlightedLabel;
 	version: HTMLElement;
 	installCount: HTMLElement;
+	installCountLabel: HTMLElement;
 	author: HTMLElement;
 	actionbar: ActionBar;
 	description: HighlightedLabel;
@@ -156,7 +157,7 @@ class InstallRunner implements IRunner<IExtensionEntry> {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {}
 
-	run(entry: IExtensionEntry, mode: Mode, context: IContext): boolean {
+	run(entry: IExtensionEntry, mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
 		}
@@ -185,7 +186,7 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsService private extensionsService: IExtensionsService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {}
 
 	getHeight(entry: IExtensionEntry): number {
@@ -203,7 +204,9 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 		const secondRow = dom.append(root, $('.row'));
 		const published = dom.append(firstRow, $('.published'));
 		const displayName = new HighlightedLabel(dom.append(firstRow, $('span.name')));
-		const installCount = dom.append(firstRow, $('span.installCount'));
+		const installCount = dom.append(firstRow, $('span.install'));
+		dom.append(installCount, $('span.octicon.octicon-cloud-download'));
+		const installCountLabel = dom.append(installCount, $('span.installCount'));
 		const version = dom.append(published, $('span.version'));
 		const author = dom.append(published, $('span.author'));
 
@@ -213,6 +216,7 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 			displayName,
 			version,
 			installCount,
+			installCountLabel,
 			actionbar: new ActionBar(dom.append(secondRow, $('.actions'))),
 			description: new HighlightedLabel(dom.append(secondRow, $('span.description'))),
 			disposables: []
@@ -225,9 +229,8 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 		data.author.textContent = nls.localize('author', 'Author');
 		data.displayName.set(nls.localize('name', 'Name'));
 		data.version.textContent = '0.0.1';
-		data.installCount.textContent = '';
-		dom.removeClass(data.installCount, 'octicon');
-		dom.removeClass(data.installCount, 'octicon-cloud-download');
+		data.installCount.style.display = 'none';
+		data.installCountLabel.textContent = '';
 		data.actionbar.clear();
 		data.description.set(nls.localize('description', 'Description'));
 		data.disposables = dispose(data.disposables);
@@ -245,7 +248,7 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 			data.actionbar.clear();
 
 			if (entry.extension.galleryInformation) {
-				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction, entry.state !== ExtensionState.Installed), { label: true, icon: false });
+				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction, entry.state === ExtensionState.Uninstalled), { label: true, icon: false });
 				data.actionbar.push(this.instantiationService.createInstance(OpenLicenseAction), { label: true, icon: false });
 			}
 
@@ -276,17 +279,16 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 		updateActions();
 
 		data.disposables = dispose(data.disposables);
-		data.disposables.push(this.extensionsService.onDidInstallExtension(e => onExtensionStateChange(e.extension, ExtensionState.Installed)));
-		data.disposables.push(this.extensionsService.onDidUninstallExtension(e => onExtensionStateChange(e, ExtensionState.Uninstalled)));
+		data.disposables.push(this.extensionManagementService.onDidInstallExtension(e => onExtensionStateChange(e.extension, ExtensionState.Installed)));
+		data.disposables.push(this.extensionManagementService.onDidUninstallExtension(e => onExtensionStateChange(e, ExtensionState.Uninstalled)));
 
 		data.displayName.set(extension.displayName, entry.highlights.displayName);
 		data.displayName.element.title = extension.name;
 		data.version.textContent = extension.version;
 
 		if (isNumber(installCount)) {
-			data.installCount.textContent = String(installCount);
-			dom.addClass(data.installCount, 'octicon');
-			dom.addClass(data.installCount, 'octicon-cloud-download');
+			data.installCount.style.display = 'inline';
+			data.installCountLabel.textContent = String(installCount);
 
 			if (!installCount) {
 				data.installCount.title = nls.localize('installCountZero', "{0} wasn't downloaded yet.", extension.displayName);
@@ -296,9 +298,8 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 				data.installCount.title = nls.localize('installCountMultiple', "{0} was downloaded {1} times.", extension.displayName, installCount);
 			}
 		} else {
-			data.installCount.textContent = '';
-			dom.removeClass(data.installCount, 'octicon');
-			dom.removeClass(data.installCount, 'octicon-cloud-download');
+			data.installCount.style.display = 'none';
+			data.installCountLabel.textContent = '';
 		}
 
 		data.author.textContent = publisher;
@@ -343,7 +344,8 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 	public entries: IExtensionEntry[];
 
 	constructor(
-		private extensions: IExtension[],
+		private installedExtensions: IExtension[],
+		private outdatedExtensions: IExtension[],
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.renderer = instantiationService.createInstance(Renderer);
@@ -351,14 +353,20 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 	}
 
 	public set input(input: string) {
-		this.entries = this.extensions
+		this.entries = this.installedExtensions
 			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ highlights }) => !!highlights)
-			.map(({ extension, highlights }) => ({
-				extension,
-				highlights,
-				state: ExtensionState.Installed
-			}))
+			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
+				const [outdatedExt] = this.outdatedExtensions.filter(outdatedExt => extensionEquals(outdatedExt, extension));
+
+				return {
+					extension,
+					highlights,
+					state: outdatedExt
+						? ExtensionState.Outdated
+						: ExtensionState.Installed
+				};
+			})
 			.sort(extensionEntryCompare);
 	}
 }
@@ -369,7 +377,8 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsService private extensionsService: IExtensionsService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
 		super();
 		this.modelPromise = null;
@@ -381,8 +390,9 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.modelPromise) {
-			this.modelPromise = this.extensionsService.getInstalled()
-				.then(extensions => this.instantiationService.createInstance(LocalExtensionsModel, extensions));
+			this.modelPromise = TPromise.join<any>([this.extensionManagementService.getInstalled(),
+				getOutdatedExtensions(this.extensionManagementService, this.galleryService)])
+				.then(result => this.instantiationService.createInstance(LocalExtensionsModel, result[0], result[1]));
 		}
 
 		return this.modelPromise.then(model => {
@@ -410,8 +420,8 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsService private extensionsService: IExtensionsService,
-		@IGalleryService private galleryService: IGalleryService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
@@ -423,7 +433,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	}
 
 	getResults(text: string): TPromise<IModel<number>> {
-		return this.extensionsService.getInstalled().then(localExtensions => {
+		return this.extensionManagementService.getInstalled().then(localExtensions => {
 			return this.delayer.trigger(() => this.galleryService.query({ text })).then((result: IQueryResult) => {
 				const pager = mapPager(result, extension => {
 					const [local] = localExtensions.filter(local => extensionEquals(local, extension));
@@ -492,8 +502,8 @@ export class OutdatedExtensionsHandler extends QuickOpenHandler {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsService private extensionsService: IExtensionsService,
-		@IGalleryService private galleryService: IGalleryService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
@@ -506,7 +516,8 @@ export class OutdatedExtensionsHandler extends QuickOpenHandler {
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.modelPromise) {
 			this.telemetryService.publicLog('extensionGallery:open');
-			this.modelPromise = this.instantiationService.invokeFunction(getOutdatedExtensions)
+
+			this.modelPromise = getOutdatedExtensions(this.extensionManagementService, this.galleryService)
 				.then(outdated => this.instantiationService.createInstance(OutdatedExtensionsModel, outdated));
 		}
 
@@ -574,7 +585,7 @@ export class SuggestedExtensionHandler extends QuickOpenHandler {
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IExtensionsService private extensionsService: IExtensionsService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
 	}
@@ -582,7 +593,7 @@ export class SuggestedExtensionHandler extends QuickOpenHandler {
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.modelPromise) {
 			this.telemetryService.publicLog('extensionRecommendations:open');
-			this.modelPromise = TPromise.join<any>([this.extensionTipsService.getRecommendations(), this.extensionsService.getInstalled()])
+			this.modelPromise = TPromise.join<any>([this.extensionTipsService.getRecommendations(), this.extensionManagementService.getInstalled()])
 				.then(result => this.instantiationService.createInstance(SuggestedExtensionsModel, result[0], result[1]));
 		}
 

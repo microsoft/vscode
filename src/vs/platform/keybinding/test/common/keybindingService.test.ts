@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {BinaryKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IOSupport, KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
+import {IOSupport, KeybindingResolver, NormalizedKeybindingItem} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem, KbAndExpression, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 
 suite('Keybinding Service', () => {
@@ -16,7 +16,7 @@ suite('Keybinding Service', () => {
 		let contextRules = KbExpr.equals('bar', 'baz');
 		let keybindingItem: IKeybindingItem = {
 			command: 'yes',
-			context: contextRules,
+			when: contextRules,
 			keybinding: keybinding,
 			weight1: 0,
 			weight2: 0
@@ -28,6 +28,274 @@ suite('Keybinding Service', () => {
 		let resolver = new KeybindingResolver([keybindingItem], []);
 		assert.equal(resolver.resolve({ bar: 'baz' }, 0, keybinding).commandId, 'yes');
 		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
+	});
+
+	test('KbAndExpression.equals', function() {
+		let a = KbExpr.and(
+			KbExpr.has('a1'),
+			KbExpr.and(KbExpr.has('and.a')),
+			KbExpr.has('a2'),
+			KbExpr.equals('b1', 'bb1'),
+			KbExpr.equals('b2', 'bb2'),
+			KbExpr.notEquals('c1', 'cc1'),
+			KbExpr.notEquals('c2', 'cc2'),
+			KbExpr.not('d1'),
+			KbExpr.not('d2')
+		);
+		let b = KbExpr.and(
+			KbExpr.equals('b2', 'bb2'),
+			KbExpr.notEquals('c1', 'cc1'),
+			KbExpr.not('d1'),
+			KbExpr.notEquals('c2', 'cc2'),
+			KbExpr.has('a2'),
+			KbExpr.equals('b1', 'bb1'),
+			KbExpr.has('a1'),
+			KbExpr.and(KbExpr.equals('and.a', true)),
+			KbExpr.not('d2')
+		);
+		assert(a.equals(b), 'expressions should be equal');
+	});
+
+	test('KeybindingResolver.combine simple 1', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), false),
+		]);
+	});
+
+	test('KeybindingResolver.combine simple 2', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: 'yes3',
+			when: KbExpr.equals('3', 'c'),
+			keybinding: KeyCode.KEY_C,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_C, 'yes3', KbExpr.equals('3', 'c'), false),
+		]);
+	});
+
+	test('KeybindingResolver.combine removal with not matching when', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: KbExpr.equals('1', 'b'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
+	});
+
+	test('KeybindingResolver.combine removal with not matching keybinding', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
+	});
+
+	test('KeybindingResolver.combine removal with matching keybinding and when', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
+	});
+
+	test('KeybindingResolver.combine removal with unspecified keybinding', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: 0,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
+	});
+
+	test('KeybindingResolver.combine removal with unspecified when', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: null,
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
+	});
+
+	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: 'yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: null,
+			keybinding: 0,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
+	});
+
+	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: '^yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: null,
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
 	});
 
 	test('normalizeRule', function() {
@@ -44,10 +312,10 @@ suite('Keybinding Service', () => {
 
 	test('contextIsEntirelyIncluded', function() {
 		let assertIsIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
 		};
 		let assertIsNotIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
 		};
 		let key1IsTrue = KbExpr.equals('key1', true);
 		let key1IsNotFalse = KbExpr.notEquals('key1', false);
@@ -97,10 +365,10 @@ suite('Keybinding Service', () => {
 	test('resolve command', function() {
 
 		let items: IKeybindingItem[] = [
-			// This one will never match because its context is always overwritten by another one
+			// This one will never match because its "when" is always overwritten by another one
 			{
 				keybinding: KeyCode.KEY_X,
-				context: KbExpr.and(
+				when: KbExpr.and(
 					KbExpr.equals('key1', true),
 					KbExpr.notEquals('key2', false)
 				),
@@ -111,7 +379,7 @@ suite('Keybinding Service', () => {
 			// This one always overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: KbExpr.equals('key2', true),
+				when: KbExpr.equals('key2', true),
 				command: 'second',
 				weight1: 2,
 				weight2: 0
@@ -119,7 +387,7 @@ suite('Keybinding Service', () => {
 			// This one is a secondary mapping for `second`
 			{
 				keybinding: KeyCode.KEY_Z,
-				context: null,
+				when: null,
 				command: 'second',
 				weight1: 2.5,
 				weight2: 0
@@ -127,7 +395,7 @@ suite('Keybinding Service', () => {
 			// This one sometimes overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: KbExpr.equals('key3', true),
+				when: KbExpr.equals('key3', true),
 				command: 'third',
 				weight1: 3,
 				weight2: 0
@@ -135,7 +403,7 @@ suite('Keybinding Service', () => {
 			// This one is always overwritten by another one
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				context: KbExpr.equals('key4', true),
+				when: KbExpr.equals('key4', true),
 				command: 'fourth',
 				weight1: 4,
 				weight2: 0
@@ -143,7 +411,7 @@ suite('Keybinding Service', () => {
 			// This one overwrites with a chord the previous one
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
-				context: null,
+				when: null,
 				command: 'fifth',
 				weight1: 5,
 				weight2: 0
@@ -151,49 +419,49 @@ suite('Keybinding Service', () => {
 			// This one has no keybinding
 			{
 				keybinding: 0,
-				context: null,
+				when: null,
 				command: 'sixth',
 				weight1: 6,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: null,
+				when: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
-				context: null,
+				when: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: null,
+				when: null,
 				command: 'uncomment lines',
 				weight1: 7,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: null,
+				when: null,
 				command: 'comment lines',
 				weight1: 8,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: null,
+				when: null,
 				command: 'unreachablechord',
 				weight1: 10,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				context: null,
+				when: null,
 				command: 'eleven',
 				weight1: 11,
 				weight2: 0
@@ -275,7 +543,7 @@ suite('Keybinding Service', () => {
 			'c': '5'
 		};
 		function testExpression(expr: string, expected: boolean): void {
-			let rules = IOSupport.readKeybindingContexts(expr);
+			let rules = IOSupport.readKeybindingWhen(expr);
 			assert.equal(KeybindingResolver.contextMatchesRules(context, rules), expected, expr);
 		}
 		function testBatch(expr: string, value: any): void {

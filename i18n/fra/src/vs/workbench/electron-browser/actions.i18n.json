@@ -9,6 +9,8 @@
 	"closeFolder": "Fermer un dossier",
 	"closeMessages": "Fermer les messages de notification",
 	"closeWindow": "Fermer la fenêtre",
+	"files": "fichiers",
+	"folders": "dossiers",
 	"newWindow": "Nouvelle fenêtre",
 	"noFolderOpened": "Il n'existe actuellement aucun dossier ouvert à fermer dans cette instance.",
 	"openRecent": "Ouvrir les éléments récents",

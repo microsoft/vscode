@@ -12,7 +12,7 @@
 	"schema.json.anyOf": "架构的数组，必须至少有一个匹配。",
 	"schema.json.default": "默认值。由建议使用。",
 	"schema.json.definitions": "不用于验证。将你希望使用 $ref 内嵌引用的子架构放在此处",
-	"schema.json.dependencies": "属性名称到属性名称数组或架构的映射。属性名称数组指的是键中的属性名称。这取决于为保证有效而显示在对象中的数组中的属性。如果该值是一个架构，则该架构仅应用于该对象(如果键中的属性存在于对象上)。",
+	"schema.json.dependencies": "属性名称到属性名称数组或架构的映射。属性名称数组意味着键中的属性名称取决于对象中存在的数组的属性，从而保证名称有效。如果该值是一个架构，则该架构仅应用于该对象(如果键中的属性存在于对象上)。",
 	"schema.json.description": "元素的详细描述。用于悬停菜单和建议。",
 	"schema.json.enum": "一组有效的文字值",
 	"schema.json.exclusiveMaximum": "使最大的属性成为专有属性。",

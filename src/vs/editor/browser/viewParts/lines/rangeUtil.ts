@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {HorizontalRange} from 'vs/editor/common/editorCommon';
+import {HorizontalRange} from 'vs/editor/common/view/renderingContext';
 
 export class RangeUtil {
 

@@ -4,10 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
-function fixedEncodeURIComponent(str: string): string {
-	return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+function _encode(ch: string): string {
+	return '%' + ch.charCodeAt(0).toString(16).toUpperCase();
 }
+
+// see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
+function encodeURIComponent2(str: string): string {
+	return encodeURIComponent(str).replace(/[!'()*]/g, _encode);
+}
+
+function encodeNoop(str: string): string {
+	return str;
+}
+
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -28,15 +37,18 @@ function fixedEncodeURIComponent(str: string): string {
 export default class URI {
 
 	private static _empty = '';
+	private static _slash = '/';
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	private static _driveLetterPath = /^\/[a-zA-z]:/;
-	private static _driveLetter = /^[a-zA-z]:/;
+	private static _upperCaseDrive = /^(\/)?([A-Z]:)/;
 
 	private _scheme: string;
 	private _authority: string;
 	private _path: string;
 	private _query: string;
 	private _fragment: string;
+	private _formatted: string;
+	private _fsPath: string;
 
 	constructor() {
 		this._scheme = URI._empty;
@@ -44,6 +56,9 @@ export default class URI {
 		this._path = URI._empty;
 		this._query = URI._empty;
 		this._fragment = URI._empty;
+
+		this._formatted = null;
+		this._fsPath = null;
 	}
 
 	/**
@@ -84,8 +99,6 @@ export default class URI {
 	}
 
 	// ---- filesystem path -----------------------
-
-	private _fsPath: string;
 
 	/**
 	 * Returns a string representing the corresponding file system path of this URI.
@@ -150,48 +163,68 @@ export default class URI {
 	// ---- parse & validate ------------------------
 
 	public static parse(value: string): URI {
-		var ret = URI._parse(value);
-		ret = ret.with(undefined,
-			decodeURIComponent(ret.authority),
-			decodeURIComponent(ret.path),
-			decodeURIComponent(ret.query),
-			decodeURIComponent(ret.fragment));
-
+		const ret = new URI();
+		const data = URI._parseComponents(value);
+		ret._scheme = data.scheme;
+		ret._authority = decodeURIComponent(data.authority);
+		ret._path = decodeURIComponent(data.path);
+		ret._query = decodeURIComponent(data.query);
+		ret._fragment = decodeURIComponent(data.fragment);
+		URI._validate(ret);
 		return ret;
 	}
 
 	public static file(path: string): URI {
-		path = path.replace(/\\/g, '/');
-		path = path.replace(/%/g, '%25');
-		path = path.replace(/#/g, '%23');
-		path = path.replace(/\?/g, '%3F');
-		path = URI._driveLetter.test(path)
-			? '/' + path
-			: path;
 
-		var ret = URI._parse(path);
-		if (ret.scheme || ret.fragment || ret.query) {
-			throw new Error('Path contains a scheme, fragment or a query. Can not convert it to a file uri.');
+		const ret = new URI();
+		ret._scheme = 'file';
+
+		// normalize to fwd-slashes
+		path = path.replace(/\\/g, URI._slash);
+
+		// check for authority as used in UNC shares
+		// or use the path as given
+		if (path[0] === URI._slash && path[0] === path[1]) {
+			let idx = path.indexOf(URI._slash, 2);
+			if (idx === -1) {
+				ret._authority = path.substring(2);
+			} else {
+				ret._authority = path.substring(2, idx);
+				ret._path = path.substring(idx);
+			}
+		} else {
+			ret._path = path;
 		}
 
-		ret = ret.with('file', undefined,
-			decodeURIComponent(ret.path),
-			undefined, undefined);
+		// Ensure that path starts with a slash
+		// or that it is at least a slash
+		if (ret._path[0] !== URI._slash) {
+			ret._path = URI._slash + ret._path;
+		}
+
+		URI._validate(ret);
 
 		return ret;
 	}
 
-	private static _parse(value: string): URI {
-		var ret = new URI();
-		var match = URI._regexp.exec(value);
+	private static _parseComponents(value: string): UriComponents {
+
+		const ret: UriComponents = {
+			scheme: URI._empty,
+			authority: URI._empty,
+			path: URI._empty,
+			query: URI._empty,
+			fragment: URI._empty,
+		};
+
+		const match = URI._regexp.exec(value);
 		if (match) {
-			ret._scheme = match[2] || ret._scheme;
-			ret._authority = match[4] || ret._authority;
-			ret._path = match[5] || ret._path;
-			ret._query = match[7] || ret._query;
-			ret._fragment = match[9] || ret._fragment;
+			ret.scheme = match[2] || ret.scheme;
+			ret.authority = match[4] || ret.authority;
+			ret.path = match[5] || ret.path;
+			ret.query = match[7] || ret.query;
+			ret.fragment = match[9] || ret.fragment;
 		}
-		URI._validate(ret);
 		return ret;
 	}
 
@@ -217,118 +250,102 @@ export default class URI {
 
 	// ---- printing/externalize ---------------------------
 
-	private _formatted: string;
-
-	public toString(): string {
-		if (!this._formatted) {
-			var parts: string[] = [];
-
-			if (this._scheme) {
-				parts.push(this._scheme);
-				parts.push(':');
+	/**
+	 *
+	 * @param skipEncoding Do not encode the result, default is `false`
+	 */
+	public toString(skipEncoding: boolean = false): string {
+		if (!skipEncoding) {
+			if (!this._formatted) {
+				this._formatted = URI._asFormatted(this, false);
 			}
-			if (this._authority || this._scheme === 'file') {
-				parts.push('//');
-			}
-			if (this._authority) {
-				var authority = this._authority,
-					idx: number;
-
-				authority = authority.toLowerCase();
-				idx = authority.indexOf(':');
-				if (idx === -1) {
-					parts.push(fixedEncodeURIComponent(authority));
-				} else {
-					parts.push(fixedEncodeURIComponent(authority.substr(0, idx)));
-					parts.push(authority.substr(idx));
-				}
-			}
-			if (this._path) {
-				// encode every segment of the path
-				var path = this._path,
-					segments: string[];
-
-				// lower-case win drive letters in /C:/fff
-				if (URI._driveLetterPath.test(path)) {
-					path = '/' + path[1].toLowerCase() + path.substr(2);
-				} else if (URI._driveLetter.test(path)) {
-					path = path[0].toLowerCase() + path.substr(1);
-				}
-				segments = path.split('/');
-				for (var i = 0, len = segments.length; i < len; i++) {
-					segments[i] = fixedEncodeURIComponent(segments[i]);
-				}
-				parts.push(segments.join('/'));
-			}
-			if (this._query) {
-				// in http(s) querys often use 'key=value'-pairs and
-				// ampersand characters for multiple pairs
-				var encoder = /https?/i.test(this.scheme)
-					? encodeURI
-					: fixedEncodeURIComponent;
-
-				parts.push('?');
-				parts.push(encoder(this._query));
-			}
-			if (this._fragment) {
-				parts.push('#');
-				parts.push(fixedEncodeURIComponent(this._fragment));
-			}
-			this._formatted = parts.join('');
+			return this._formatted;
+		} else {
+			// we don't cache that
+			return URI._asFormatted(this, true);
 		}
-		return this._formatted;
+	}
+
+	private static _asFormatted(uri: URI, skipEncoding: boolean): string {
+
+		const encoder = !skipEncoding
+			? encodeURIComponent2
+			: encodeNoop;
+
+		const parts: string[] = [];
+
+		let {scheme, authority, path, query, fragment} = uri;
+		if (scheme) {
+			parts.push(scheme, ':');
+		}
+		if (authority || scheme === 'file') {
+			parts.push('//');
+		}
+		if (authority) {
+			authority = authority.toLowerCase();
+			let idx = authority.indexOf(':');
+			if (idx === -1) {
+				parts.push(encoder(authority));
+			} else {
+				parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
+			}
+		}
+		if (path) {
+			// lower-case windown drive letters in /C:/fff
+			const m = URI._upperCaseDrive.exec(path);
+			if (m) {
+				path = m[1] + m[2].toLowerCase() + path.substr(m[1].length + m[2].length);
+			}
+
+			// encode every segement but not slashes
+			// make sure that # and ? are always encoded
+			// when occurring in paths - otherwise the result
+			// cannot be parsed back again
+			let lastIdx = 0;
+			while(true) {
+				let idx = path.indexOf(URI._slash, lastIdx);
+				if (idx === -1) {
+					parts.push(encoder(path.substring(lastIdx)).replace(/[#?]/, _encode));
+					break;
+				}
+				parts.push(encoder(path.substring(lastIdx, idx)).replace(/[#?]/, _encode), URI._slash);
+				lastIdx = idx + 1;
+			};
+		}
+		if (query) {
+			parts.push('?', encoder(query));
+		}
+		if (fragment) {
+			parts.push('#', encoder(fragment));
+		}
+
+		return parts.join(URI._empty);
 	}
 
 	public toJSON(): any {
-		return this.toString();
+		return <UriState> {
+			scheme: this.scheme,
+			authority: this.authority,
+			path: this.path,
+			fsPath: this.fsPath,
+			query: this.query,
+			fragment: this.fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
+			external: this.toString().replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
+			$mid: 1
+		};
 	}
+}
 
-	public static isURI(thing: any): thing is URI {
-		if (thing instanceof URI) {
-			return true;
-		}
-		if(!thing) {
-			return false;
-		}
-		if (typeof (<URI>thing).scheme !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).authority !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).fsPath !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).query !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).fragment !== 'string') {
-			return false;
-		}
-		if (typeof (<URI>thing).with !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withScheme !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withAuthority !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withPath !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withQuery !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).withFragment !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).toString !== 'function') {
-			return false;
-		}
-		if (typeof (<URI>thing).toJSON !== 'function') {
-			return false;
-		}
-		return true;
-	}
+interface UriComponents {
+	scheme: string;
+	authority: string;
+	path: string;
+	query: string;
+	fragment: string;
+}
+
+interface UriState extends UriComponents {
+	$mid: number;
+	fsPath: string;
+	external: string;
 }

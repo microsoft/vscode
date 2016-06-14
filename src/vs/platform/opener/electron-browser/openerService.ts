@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import {parse} from 'vs/base/common/marshalling';
 import {Schemas} from 'vs/base/common/network';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
@@ -34,11 +35,14 @@ export class OpenerService implements IOpenerService {
 			// execute as command
 			let args: any;
 			try {
-				args = JSON.parse(query);
+				args = parse(query);
+				if (!Array.isArray(args)) {
+					args = [args];
+				}
 			} catch (e) {
 				//
 			}
-			promise = this._keybindingService.executeCommand(path, args);
+			promise = this._keybindingService.executeCommand(path, ...args);
 
 		} else {
 			promise = this._editorService.resolveEditorModel({ resource }).then(model => {

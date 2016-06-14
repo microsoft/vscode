@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('./json-toolbox/json');
-import {ITextDocument, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
+import Json = require('jsonc-parser');
+import {TextDocument, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
 
-export function format(document: ITextDocument, range: Range, options: FormattingOptions): TextEdit[] {
+export function format(document: TextDocument, range: Range, options: FormattingOptions): TextEdit[] {
 	const documentText = document.getText();
 	let initialIndentLevel: number;
 	let value: string;
@@ -74,14 +74,16 @@ export function format(document: ITextDocument, range: Range, options: Formattin
 		let firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + rangeOffset;
 		let secondToken = scanNext();
 
+		let replaceContent = '';
 		while (!lineBreak && (secondToken === Json.SyntaxKind.LineCommentTrivia || secondToken === Json.SyntaxKind.BlockCommentTrivia)) {
 			// comments on the same line: keep them on the same line, but ignore them otherwise
 			let commentTokenStart = scanner.getTokenOffset() + rangeOffset;
 			addEdit(' ', firstTokenEnd, commentTokenStart);
 			firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + rangeOffset;
+			replaceContent = secondToken === Json.SyntaxKind.LineCommentTrivia ? newLineAndIndent() : '';
 			secondToken = scanNext();
 		}
-		let replaceContent = '';
+
 		if (secondToken === Json.SyntaxKind.CloseBraceToken) {
 			if (firstToken !== Json.SyntaxKind.OpenBraceToken) {
 				indentLevel--;
@@ -161,7 +163,7 @@ function computeIndentLevel(content: string, offset: number, options: Formatting
 	return Math.floor(nChars / tabSize);
 }
 
-function getEOL(document: ITextDocument): string {
+function getEOL(document: TextDocument): string {
 	let text = document.getText();
 	if (document.lineCount > 1) {
 		let to = document.offsetAt(Position.create(1, 0));

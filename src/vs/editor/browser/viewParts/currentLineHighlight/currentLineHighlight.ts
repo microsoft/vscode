@@ -7,11 +7,13 @@
 
 import 'vs/css!./currentLineHighlight';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ILayoutProvider, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _lineHeight:number;
 	private _readOnly:boolean;
 	private _layoutProvider:ILayoutProvider;
@@ -20,7 +22,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _primaryCursorLineNumber:number;
 	private _scrollWidth:number;
 
-	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -85,21 +87,15 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return true;
+		this._scrollWidth = e.scrollWidth;
+		return e.scrollWidthChanged;
 	}
 	public onZonesChanged(): boolean {
 		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		if (this._scrollWidth !== scrollWidth) {
-			this._scrollWidth = scrollWidth;
-			return true;
-		}
-		return false;
 	}
 	// --- end event handlers
 

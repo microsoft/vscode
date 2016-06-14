@@ -33,15 +33,58 @@ export interface IKeybindings {
 	};
 }
 
+export enum KbExprType {
+	KbDefinedExpression = 1,
+	KbNotExpression = 2,
+	KbEqualsExpression = 3,
+	KbNotEqualsExpression = 4,
+	KbAndExpression = 5
+}
+
 export interface KbExpr {
+	getType(): KbExprType;
 	equals(other: KbExpr): boolean;
 	evaluate(context: any): boolean;
 	normalize(): KbExpr;
 	serialize(): string;
 }
 
+function cmp(a:KbExpr, b:KbExpr): number {
+	let aType = a.getType();
+	let bType = b.getType();
+	if (aType !== bType) {
+		return aType - bType;
+	}
+	switch(aType) {
+		case KbExprType.KbDefinedExpression:
+			return (<KbDefinedExpression>a).cmp(<KbDefinedExpression>b);
+		case KbExprType.KbNotExpression:
+			return (<KbNotExpression>a).cmp(<KbNotExpression>b);
+		case KbExprType.KbEqualsExpression:
+			return (<KbEqualsExpression>a).cmp(<KbEqualsExpression>b);
+		case KbExprType.KbNotEqualsExpression:
+			return (<KbNotEqualsExpression>a).cmp(<KbNotEqualsExpression>b);
+		default:
+			throw new Error('Unknown KbExpr!');
+	}
+}
+
 export class KbDefinedExpression implements KbExpr {
 	constructor(private key: string) {
+	}
+
+	public getType(): KbExprType {
+		return KbExprType.KbDefinedExpression;
+	}
+
+	public cmp(other:KbDefinedExpression): number {
+		if (this.key < other.key) {
+			return -1;
+		}
+		if (this.key > other.key) {
+			return 1;
+		}
+		return 0;
 	}
 
 	public equals(other: KbExpr): boolean {
@@ -66,6 +109,26 @@ export class KbDefinedExpression implements KbExpr {
 
 export class KbEqualsExpression implements KbExpr {
 	constructor(private key: string, private value: any) {
+	}
+
+	public getType(): KbExprType {
+		return KbExprType.KbEqualsExpression;
+	}
+
+	public cmp(other:KbEqualsExpression): number {
+		if (this.key < other.key) {
+			return -1;
+		}
+		if (this.key > other.key) {
+			return 1;
+		}
+		if (this.value < other.value) {
+			return -1;
+		}
+		if (this.value > other.value) {
+			return 1;
+		}
+		return 0;
 	}
 
 	public equals(other: KbExpr): boolean {
@@ -105,6 +168,26 @@ export class KbNotEqualsExpression implements KbExpr {
 	constructor(private key: string, private value: any) {
 	}
 
+	public getType(): KbExprType {
+		return KbExprType.KbNotEqualsExpression;
+	}
+
+	public cmp(other:KbNotEqualsExpression): number {
+		if (this.key < other.key) {
+			return -1;
+		}
+		if (this.key > other.key) {
+			return 1;
+		}
+		if (this.value < other.value) {
+			return -1;
+		}
+		if (this.value > other.value) {
+			return 1;
+		}
+		return 0;
+	}
+
 	public equals(other: KbExpr): boolean {
 		if (other instanceof KbNotEqualsExpression) {
 			return (this.key === other.key && this.value === other.value);
@@ -142,6 +225,20 @@ export class KbNotExpression implements KbExpr {
 	constructor(private key: string) {
 	}
 
+	public getType(): KbExprType {
+		return KbExprType.KbNotExpression;
+	}
+
+	public cmp(other:KbNotExpression): number {
+		if (this.key < other.key) {
+			return -1;
+		}
+		if (this.key > other.key) {
+			return 1;
+		}
+		return 0;
+	}
+
 	public equals(other: KbExpr): boolean {
 		if (other instanceof KbNotExpression) {
 			return (this.key === other.key);
@@ -166,11 +263,25 @@ export class KbAndExpression implements KbExpr {
 	private expr: KbExpr[];
 
 	constructor(expr: KbExpr[]) {
-		this.expr = expr || [];
+		this.expr = KbAndExpression._normalizeArr(expr);
+	}
+
+	public getType(): KbExprType {
+		return KbExprType.KbAndExpression;
 	}
 
 	public equals(other: KbExpr): boolean {
-		return this === other;
+		if (other instanceof KbAndExpression) {
+			if (this.expr.length !== other.expr.length) {
+				return false;
+			}
+			for (let i = 0, len = this.expr.length; i < len; i++) {
+				if (!this.expr[i].equals(other.expr[i])) {
+					return false;
+				}
+			}
+			return true;
+		}
 	}
 
 	public evaluate(context: any): boolean {
@@ -182,37 +293,45 @@ export class KbAndExpression implements KbExpr {
 		return true;
 	}
 
-	public normalize(): KbExpr {
+	private static _normalizeArr(arr:KbExpr[]): KbExpr[] {
 		let expr: KbExpr[] = [];
 
-		for (let i = 0, len = this.expr.length; i < len; i++) {
-			let e = this.expr[i];
-			if (!e) {
-				continue;
+		if (arr) {
+			for (let i = 0, len = arr.length; i < len; i++) {
+				let e = arr[i];
+				if (!e) {
+					continue;
+				}
+
+				e = e.normalize();
+				if (!e) {
+					continue;
+				}
+
+				if (e instanceof KbAndExpression) {
+					expr = expr.concat(e.expr);
+					continue;
+				}
+
+				expr.push(e);
 			}
 
-			e = e.normalize();
-			if (!e) {
-				continue;
-			}
-
-			if (e instanceof KbAndExpression) {
-				expr = expr.concat(e.expr);
-				continue;
-			}
-
-			expr.push(e);
+			expr.sort(cmp);
 		}
 
-		if (expr.length === 0) {
+		return expr;
+	}
+
+	public normalize(): KbExpr {
+		if (this.expr.length === 0) {
 			return null;
 		}
 
-		if (expr.length === 1) {
-			return expr[0];
+		if (this.expr.length === 1) {
+			return this.expr[0];
 		}
 
-		return new KbAndExpression(expr);
+		return this;
 	}
 
 	public serialize(): string {
@@ -286,13 +405,13 @@ export let KbExpr = {
 export interface IKeybindingItem {
 	keybinding: number;
 	command: string;
-	context: KbExpr;
+	when: KbExpr;
 	weight1: number;
 	weight2: number;
 }
 
 export interface ICommandHandler {
-	(accessor: ServicesAccessor, args: any): void;
+	(accessor: ServicesAccessor, ...args: any[]): void;
 	description?: string | ICommandHandlerDescription;
 }
 
@@ -335,8 +454,8 @@ export interface IKeybindingService {
 	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
 
-	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
-	executeCommand(commandId: string, args?: any): TPromise<any>;
+	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
+	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
 	hasCommand(commandId: string): boolean;
 }
 

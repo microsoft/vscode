@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item.markers-panel-action-filter {
+	width: 400px;
+	cursor: default;
+	margin: 4px 10px 0 0;
+}
+
+.monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	border: 1px solid #ddd;
+}
+
+.vs-dark .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	border: none;
+}
+
+.monaco-action-bar .action-item.markers-panel-action-filter .filterIcon {
+	margin: 2px 0 0 4px;
+	background: url('filter.svg') center center no-repeat;
+}
+
+.markers-panel .markers-panel-container {
+	height: 100%;
+}
+
+.markers-panel .markers-panel-container .message-box-container {
+	padding: 20px 0 0 20px;
+}
+
+.markers-panel .markers-panel-container .message-box-container span:focus {
+	outline: none;
+}
+
+.markers-panel  .markers-panel-container .hidden {
+	display: none;
+}
+
+.markers-panel .markers-panel-container .tree-container {
+	height: 100%;
+	margin-top: 2px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
+	display: flex;
+	line-height: 22px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry > * {
+	display: inline-block;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-stats {
+	display: inline-block;
+	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .count-badge-wrapper {
+	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-description {
+	margin-right: 5px;
+	text-overflow:  ellipsis;
+	overflow: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
+	color: #bcbcbc;
+	margin-right: 5px;
+}
+
+.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
+	color: #888;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source:before {
+	content: '[';
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source:after {
+	content: ']';
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line {
+	opacity: 0.6;
+	font-size: 85%;
+	margin-right: 5px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
+	color: #007ACC;
+	font-weight: bold;
+}
+
+.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
+	color: #0097FB;
+}
+
+.markers-panel .icon {
+	float: left;
+	display: block;
+	width: 16px;
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
+}
+
+.markers-panel .icon.warning {
+	background: url('status-warning.svg') center center no-repeat;
+}
+
+.markers-panel .icon.error {
+	background: url('status-error.svg') center center no-repeat;
+}
+
+.markers-panel .icon.info:before {
+	background: url('status-info.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel .icon.warning {
+	background: url('status-warning-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel .icon.error {
+	background: url('status-error-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel .icon.info:before {
+	background: url('status-info-inverse.svg') center center no-repeat;
+}

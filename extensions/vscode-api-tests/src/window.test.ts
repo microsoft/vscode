@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri} from 'vscode';
+import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position} from 'vscode';
 import {join} from 'path';
 import {cleanUp, pathEquals} from './utils';
 
@@ -81,5 +81,75 @@ suite('window namespace tests', () => {
 				registration1.dispose();
 			});
 		});
+	});
+
+	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
+		const file10Path = join(workspace.rootPath, './10linefile.ts');
+		const file30Path = join(workspace.rootPath, './30linefile.ts');
+
+		let finished = false;
+		let failOncePlease = (err:Error) => {
+			if (finished) {
+				return;
+			}
+			finished = true;
+			done(err);
+		};
+
+		let passOncePlease = () => {
+			if (finished) {
+				return;
+			}
+			finished = true;
+			done(null);
+		};
+
+		let subscription = window.onDidChangeTextEditorSelection((e) => {
+			let lineCount = e.textEditor.document.lineCount;
+			let pos1 = e.textEditor.selections[0].active.line;
+			let pos2 = e.selections[0].active.line;
+
+			if (pos1 !== pos2) {
+				failOncePlease(new Error('received invalid selection changed event!'));
+				return;
+			}
+
+			if (pos1 >= lineCount) {
+				failOncePlease(new Error(`Cursor position (${pos1}) is not valid in the document ${e.textEditor.document.fileName} that has ${lineCount} lines.`));
+				return;
+			}
+		});
+
+		// Open 10 line file, show it in slot 1, set cursor to line 10
+		// Open 30 line file, show it in slot 1, set cursor to line 30
+		// Open 10 line file, show it in slot 1
+		// Open 30 line file, show it in slot 1
+		workspace.openTextDocument(file10Path).then((doc) => {
+			return window.showTextDocument(doc, ViewColumn.One);
+		}).then((editor10line) => {
+			editor10line.selection = new Selection(new Position(9,0), new Position(9, 0));
+		}).then(() => {
+			return workspace.openTextDocument(file30Path);
+		}).then((doc) => {
+			return window.showTextDocument(doc, ViewColumn.One);
+		}).then((editor30line) => {
+			editor30line.selection = new Selection(new Position(29,0), new Position(29, 0));
+		}).then(() => {
+			return workspace.openTextDocument(file10Path);
+		}).then((doc) => {
+			return window.showTextDocument(doc, ViewColumn.One);
+		}).then(() => {
+			return workspace.openTextDocument(file30Path);
+		}).then((doc) => {
+			return window.showTextDocument(doc, ViewColumn.One);
+		}).then(() => {
+			subscription.dispose();
+		}).then(passOncePlease, failOncePlease);
+	});
+
+	test('#7013 - input without options', function () {
+
+		let p = window.showInputBox();
+		assert.ok(typeof p === 'object');
 	});
 });

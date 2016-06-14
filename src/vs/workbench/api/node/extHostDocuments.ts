@@ -5,7 +5,7 @@
 'use strict';
 
 import {toErrorMessage, onUnexpectedError} from 'vs/base/common/errors';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
@@ -16,16 +16,16 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Range, Position, Disposable} from 'vs/workbench/api/node/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EventType as FileEventType, LocalFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import * as TypeConverters from './extHostTypeConverters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
-import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {asWinJsPromise} from 'vs/base/common/async';
+import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
 
 export interface IModelAddedData {
 	url: URI;
@@ -322,7 +322,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		}
 
 		if (line < 0 || line >= this._lines.length) {
-			throw new Error('Illegal value ' + line + ' for `line`');
+			throw new Error('Illegal value for `line`');
 		}
 
 		let result = this._textLines[line];
@@ -331,14 +331,16 @@ export class ExtHostDocumentData extends MirrorModel2 {
 			const text = this._lines[line];
 			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)[1].length;
 			const range = new Range(line, 0, line, text.length);
-			const rangeIncludingLineBreak = new Range(line, 0, line + 1, 0);
+			const rangeIncludingLineBreak = line < this._lines.length - 1
+				? new Range(line, 0, line + 1, 0)
+				: range;
 
 			result = Object.freeze({
 				lineNumber: line,
 				range,
 				rangeIncludingLineBreak,
 				text,
-				firstNonWhitespaceCharacterIndex,
+				firstNonWhitespaceCharacterIndex, //TODO@api, rename to 'leadingWhitespaceLength'
 				isEmptyOrWhitespace: firstNonWhitespaceCharacterIndex === text.length
 			});
 
@@ -393,23 +395,24 @@ export class ExtHostDocumentData extends MirrorModel2 {
 
 		if (line < 0) {
 			line = 0;
-			hasChanged = true;
-		}
-
-		if (line >= this._lines.length) {
-			line = this._lines.length - 1;
-			hasChanged = true;
-		}
-
-		if (character < 0) {
 			character = 0;
 			hasChanged = true;
 		}
-
-		let maxCharacter = this._lines[line].length;
-		if (character > maxCharacter) {
-			character = maxCharacter;
+		else if (line >= this._lines.length) {
+			line = this._lines.length - 1;
+			character = this._lines[line].length;
 			hasChanged = true;
+		}
+		else {
+			let maxCharacter = this._lines[line].length;
+			if (character < 0) {
+				character = 0;
+				hasChanged = true;
+			}
+			else if (character > maxCharacter) {
+				character = maxCharacter;
+				hasChanged = true;
+			}
 		}
 
 		if (!hasChanged) {
@@ -421,9 +424,9 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	getWordRangeAtPosition(_position: vscode.Position): vscode.Range {
 		let position = this.validatePosition(_position);
 
-		let wordAtText = WordHelper._getWordAtText(
+		let wordAtText = getWordAtText(
 			position.character + 1,
-			WordHelper.ensureValidWordDefinition(getWordDefinitionFor(this._languageId)),
+			ensureValidWordDefinition(getWordDefinitionFor(this._languageId)),
 			this._lines[position.line],
 			0
 		);
@@ -473,19 +476,19 @@ export class MainThreadDocuments {
 		modelService.onModelRemoved(this._onModelRemoved, this, this._toDispose);
 		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
 
-		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
+		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy._acceptModelSaved(e.getAfter().resource.toString());
+				this._proxy._acceptModelSaved(e.resource.toString());
 			}
 		}));
-		this._toDispose.push(eventService.addListener2(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => {
+		this._toDispose.push(eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy._acceptModelReverted(e.getAfter().resource.toString());
+				this._proxy._acceptModelReverted(e.resource.toString());
 			}
 		}));
-		this._toDispose.push(eventService.addListener2(FileEventType.FILE_DIRTY, (e: LocalFileChangeEvent) => {
+		this._toDispose.push(eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy._acceptModelDirty(e.getAfter().resource.toString());
+				this._proxy._acceptModelDirty(e.resource.toString());
 			}
 		}));
 
@@ -505,9 +508,8 @@ export class MainThreadDocuments {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	private _shouldHandleFileEvent(e: LocalFileChangeEvent): boolean {
-		const after = e.getAfter();
-		const model = this._modelService.getModel(after.resource);
+	private _shouldHandleFileEvent(e: TextFileChangeEvent): boolean {
+		const model = this._modelService.getModel(e.resource);
 		return model && !model.isTooLargeForHavingARichMode();
 	}
 
@@ -517,11 +519,11 @@ export class MainThreadDocuments {
 			// don't synchronize too large models
 			return null;
 		}
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
-		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener2((events) => this._onModelEvents(modelUrl, events));
+		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
 		this._proxy._acceptModelAdd({
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId(),
@@ -531,15 +533,15 @@ export class MainThreadDocuments {
 
 	private _onModelModeChanged(event: { model: EditorCommon.IModel; oldModeId: string; }): void {
 		let {model, oldModeId} = event;
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy._acceptModelModeChanged(model.getAssociatedResource().toString(), oldModeId, model.getMode().getId());
+		this._proxy._acceptModelModeChanged(model.uri.toString(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: EditorCommon.IModel): void {
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
@@ -549,7 +551,7 @@ export class MainThreadDocuments {
 		this._proxy._acceptModelRemoved(modelUrl.toString());
 	}
 
-	private _onModelEvents(modelUrl: URI, events: IEmitterEvent[]): void {
+	private _onModelEvents(modelUrl: URI, events: EmitterEvent[]): void {
 		let changedEvents: EditorCommon.IModelContentChangedEvent2[] = [];
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
@@ -613,6 +615,9 @@ export class MainThreadDocuments {
 				if (input.getResource().toString() !== uri.toString()) {
 					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
 				}
+				if (!this._modelIsSynced[uri.toString()]) {
+					throw new Error(`expected URI ${uri.toString()} to have come to LIFE`);
+				}
 				return this._proxy._acceptModelDirty(uri.toString()); // mark as dirty
 			}).then(() => {
 				return true;
@@ -626,7 +631,7 @@ export class MainThreadDocuments {
 		this._resourceContentProvider[handle] = ResourceEditorInput.registerResourceContentProvider(scheme, {
 			provideTextContent: (uri: URI): TPromise<EditorCommon.IModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
-					if (value) {
+					if (typeof value === 'string') {
 						this._virtualDocumentSet[uri.toString()] = true;
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
@@ -658,7 +663,7 @@ export class MainThreadDocuments {
 
 		TPromise.join(Object.keys(this._virtualDocumentSet).map(key => {
 			let resource = URI.parse(key);
-			return this._editorService.inputToType({ resource }).then(input => {
+			return this._editorService.createInput({ resource }).then(input => {
 				if (!this._editorService.isVisible(input, true)) {
 					toBeDisposed.push(resource);
 				}

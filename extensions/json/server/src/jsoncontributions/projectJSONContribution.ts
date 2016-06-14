@@ -6,7 +6,7 @@
 
 import {MarkedString, CompletionItemKind, CompletionItem} from 'vscode-languageserver';
 import Strings = require('../utils/strings');
-import {IXHRResponse, getErrorStatusDescription} from '../utils/httpRequest';
+import {XHRResponse, getErrorStatusDescription} from 'request-light';
 import {IJSONWorkerContribution, ISuggestionsCollector} from '../jsonContributions';
 import {IRequestService} from '../jsonSchemaService';
 import {JSONLocation} from '../jsonLocation';
@@ -131,7 +131,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 				}
 			}
 			return Promise.reject<T>(localize('json.nugget.error.indexaccess', 'Request to {0} failed: {1}', url, success.responseText));
-		}, (error: IXHRResponse) => {
+		}, (error: XHRResponse) => {
 			return Promise.reject<T>(localize('json.nugget.error.access', 'Request to {0} failed: {1}', url, getErrorStatusDescription(error.status)));
 		});
 	}

@@ -8,10 +8,11 @@
 import 'vs/css!./glyphMargin';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class DecorationToRender {
-	public _decorationToRenderTrait:void;
+	_decorationToRenderBrand:void;
 
 	public startLineNumber:number;
 	public endLineNumber:number;
@@ -75,18 +76,18 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 
 export class GlyphMarginOverlay extends DedupOverlay {
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _lineHeight:number;
 	private _glyphMargin:boolean;
 	private _glyphMarginLeft:number;
 	private _glyphMarginWidth:number;
 	private _renderResult: string[];
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._glyphMargin = this._context.configuration.editor.glyphMargin;
+		this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		this._glyphMarginLeft = 0;
 		this._glyphMarginWidth = 0;
 		this._renderResult = null;
@@ -129,27 +130,21 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.glyphMargin) {
-			this._glyphMargin = this._context.configuration.editor.glyphMargin;
+		if (e.viewInfo.glyphMargin) {
+			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
+		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {
 		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
 	}
 
 	// --- end event handlers

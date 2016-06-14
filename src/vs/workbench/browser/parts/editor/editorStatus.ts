@@ -16,18 +16,20 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
 import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
-import {IDisposable, combinedDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, combinedDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IConfigurationChangedEvent, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
+import {EndOfLineSequence, ITokenizedModel, EditorType, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
-import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
+import {EventType, ResourceEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
@@ -38,17 +40,17 @@ import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {Selection} from 'vs/editor/common/core/selection';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
-function getCodeEditor(e: IBaseEditor): ICommonCodeEditor {
-	if (e instanceof BaseTextEditor) {
-		let editorWidget = e.getControl();
+function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
+	if (editorWidget) {
 		if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
 			return (<IDiffEditor>editorWidget).getModifiedEditor();
 		}
 		if (editorWidget.getEditorType() === EditorType.ICodeEditor) {
 			return (<ICodeEditor>editorWidget);
 		}
-		return null;
 	}
 	return null;
 }
@@ -79,12 +81,12 @@ function asFileOrUntitledEditorInput(input: any): UntitledEditorInput | IFileEdi
 }
 
 interface IEditorSelectionStatus {
-	selections?: IEditorSelection[];
+	selections?: Selection[];
 	charactersSelected?: number;
 }
 
 class StateChange {
-	_stateChangeTrait: void;
+	_stateChangeBrand: void;
 
 	indentation: boolean;
 	selectionStatus: boolean;
@@ -228,11 +230,13 @@ export class EditorStatus implements IStatusbarItem {
 	private eolElement: HTMLElement;
 	private modeElement: HTMLElement;
 	private toDispose: IDisposable[];
+	private activeEditorListeners: IDisposable[];
 	private delayedRender: IDisposable;
 	private toRender: StateChange;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEventService private eventService: IEventService,
@@ -240,6 +244,7 @@ export class EditorStatus implements IStatusbarItem {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
+		this.activeEditorListeners = [];
 		this.state = new State();
 	}
 
@@ -289,13 +294,8 @@ export class EditorStatus implements IStatusbarItem {
 					}
 				}
 			},
-			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChange(e.editor)),
-			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor))
+			this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()),
+			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource))
 		);
 
 		return combinedDisposable(this.toDispose);
@@ -434,25 +434,60 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onEditorInputChange(e: IBaseEditor): void {
-		this.onSelectionChange(e);
-		this.onModeChange(e);
-		this.onEOLChange(e);
-		this.onEncodingChange(e);
-		this.onTabFocusModeChange(e);
-		this.onIndentationChange(e);
-	}
-
-	private onModeChange(e: IBaseEditor): void {
-		if (e && !this.isActiveEditor(e)) {
-			return;
+	private onEditorsChanged(): void {
+		let control: IEditor;
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor instanceof BaseTextEditor) {
+			control = activeEditor.getControl();
 		}
 
+		// Update all states
+		this.onSelectionChange(control);
+		this.onModeChange(control);
+		this.onEOLChange(control);
+		this.onEncodingChange(activeEditor);
+		this.onTabFocusModeChange(activeEditor);
+		this.onIndentationChange(control);
+
+		// Dispose old active editor listeners
+		dispose(this.activeEditorListeners);
+
+		// Attach new listeners to active editor
+		if (activeEditor instanceof BaseTextEditor) {
+			const control = activeEditor.getControl();
+
+			// Hook Listener for Selection changes
+			this.activeEditorListeners.push(control.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
+				this.onSelectionChange(control);
+			}));
+
+			// Hook Listener for mode changes
+			this.activeEditorListeners.push(control.onDidChangeModelMode((event: IModelModeChangedEvent) => {
+				this.onModeChange(control);
+			}));
+
+			// Hook Listener for content changes
+			this.activeEditorListeners.push(control.onDidChangeModelRawContent((event: IModelContentChangedEvent) => {
+				this.onEOLChange(control);
+			}));
+
+			// Hook Listener for content options changes
+			this.activeEditorListeners.push(control.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
+				this.onIndentationChange(control);
+			}));
+
+			// Hook Listener for options changes
+			this.activeEditorListeners.push(control.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
+				this.onTabFocusModeChange(activeEditor);
+			}));
+		}
+	}
+
+	private onModeChange(editorWidget?: IEditor): void {
 		let info: StateDelta = { mode: null };
 
 		// We only support text based editors
-		if (e instanceof BaseTextEditor) {
-			let editorWidget = e.getControl();
+		if (editorWidget) {
 			let textModel = getTextModel(editorWidget);
 			if (textModel) {
 				// Compute mode
@@ -468,45 +503,33 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onIndentationChange(e: IBaseEditor): void {
-		if (e && !this.isActiveEditor(e)) {
-			return;
-		}
-
+	private onIndentationChange(editorWidget?: IEditor): void {
 		const update: StateDelta = { indentation: null };
 
-		if (e instanceof BaseTextEditor) {
-			let editorWidget = e.getControl();
-			if (editorWidget) {
-				if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
-					editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
-				}
+		if (editorWidget) {
+			if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
+				editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
+			}
 
-				const model = (<ICommonCodeEditor>editorWidget).getModel();
-				if (model) {
-					const modelOpts = model.getOptions();
-					update.indentation = (
-						modelOpts.insertSpaces
-							? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
-							: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
-					);
-				}
+			const model = (<ICommonCodeEditor>editorWidget).getModel();
+			if (model) {
+				const modelOpts = model.getOptions();
+				update.indentation = (
+					modelOpts.insertSpaces
+						? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
+						: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
+				);
 			}
 		}
 
 		this.updateState(update);
 	}
 
-	private onSelectionChange(e: IBaseEditor): void {
-		if (e && !this.isActiveEditor(e)) {
-			return;
-		}
-
+	private onSelectionChange(editorWidget?: IEditor): void {
 		let info: IEditorSelectionStatus = {};
 
 		// We only support text based editors
-		if (e instanceof BaseTextEditor) {
-			let editorWidget = e.getControl();
+		if (editorWidget) {
 
 			// Compute selection(s)
 			info.selections = editorWidget.getSelections() || [];
@@ -534,14 +557,10 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ selectionStatus: this.getSelectionLabel(info) });
 	}
 
-	private onEOLChange(e: IBaseEditor): void {
-		if (e && !this.isActiveEditor(e)) {
-			return;
-		}
-
+	private onEOLChange(editorWidget?: IEditor): void {
 		let info: StateDelta = { EOL: null };
 
-		let codeEditor = getCodeEditor(e);
+		let codeEditor = getCodeEditor(editorWidget);
 		if (codeEditor && !codeEditor.getConfiguration().readOnly) {
 			let codeEditorModel = codeEditor.getModel();
 			if (codeEditorModel) {
@@ -587,10 +606,6 @@ export class EditorStatus implements IStatusbarItem {
 	}
 
 	private onTabFocusModeChange(e: IBaseEditor): void {
-		if (e && !this.isActiveEditor(e)) {
-			return;
-		}
-
 		let info: StateDelta = { tabFocusMode: false };
 
 		// We only support text based editors
@@ -769,12 +784,26 @@ class ChangeIndentationAction extends Action {
 		}
 
 		const control = <ICommonCodeEditor>activeEditor.getControl();
-		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(DetectIndentation.ID),
-			control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID), control.getAction(TrimTrailingWhitespaceAction.ID)];
+		const picks = [
+			control.getAction(IndentUsingSpaces.ID),
+			control.getAction(IndentUsingTabs.ID),
+			control.getAction(DetectIndentation.ID),
+			control.getAction(IndentationToSpacesAction.ID),
+			control.getAction(IndentationToTabsAction.ID),
+			control.getAction(TrimTrailingWhitespaceAction.ID)
+		].map((a: EditorAction) => {
+			return {
+				id: a.id,
+				label: a.label,
+				detail: (language === LANGUAGE_DEFAULT) ? null : a.getAlias(),
+				run: () => a.run()
+			};
+		});
+
 		(<IPickOpenEntry>picks[0]).separator = { label: nls.localize('indentView', "change view") };
 		(<IPickOpenEntry>picks[3]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action") }).then(action => action && action.run());
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true }).then(action => action && action.run());
 	}
 }
 
@@ -853,15 +882,23 @@ export class ChangeEncodingAction extends Action {
 		}
 
 		let pickActionPromise: TPromise<IPickOpenEntry>;
-		let saveWithEncodingPick: IPickOpenEntry = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
-		let reopenWithEncodingPick: IPickOpenEntry = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+
+		let saveWithEncodingPick: IPickOpenEntry;
+		let reopenWithEncodingPick: IPickOpenEntry;
+		if (language === LANGUAGE_DEFAULT) {
+			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
+			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+		} else {
+			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding"), detail: 'Save with Encoding', };
+			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding"), detail: 'Reopen with Encoding' };
+		}
 
 		if (encodingSupport instanceof UntitledEditorInput) {
 			pickActionPromise = TPromise.as(saveWithEncodingPick);
 		} else if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
 			pickActionPromise = TPromise.as(reopenWithEncodingPick);
 		} else {
-			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action") });
+			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
 
 		return pickActionPromise.then((action) => {

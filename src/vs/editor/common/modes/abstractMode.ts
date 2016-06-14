@@ -8,15 +8,16 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import * as wordHelper from 'vs/editor/common/model/wordHelper';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
-	return NullMode.createWordRegExp(allowInWords);
+	return wordHelper.createWordRegExp(allowInWords);
 }
 
 export class ModeWorkerManager<W> {
@@ -67,7 +68,8 @@ export class ModeWorkerManager<W> {
 
 	private static _loadModule(moduleName:string): TPromise<any> {
 		return new TPromise((c, e, p) => {
-			require([moduleName], c, e);
+			// Use the global require to be sure to get the global config
+			(<any>self).require([moduleName], c, e);
 		}, () => {
 			// Cannot cancel loading code
 		});
@@ -101,16 +103,16 @@ export abstract class AbstractMode implements modes.IMode {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
 	}
 
-	public registerSupport<T>(support:string, callback:(mode:modes.IMode) => T) : IDisposable {
+	public setTokenizationSupport<T>(callback:(mode:modes.IMode) => T) : IDisposable {
 		var supportImpl = callback(this);
-		this[support] = supportImpl;
-		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
+		this['tokenizationSupport'] = supportImpl;
+		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
 
 		return {
 			dispose: () => {
-				if (this[support] === supportImpl) {
-					delete this[support];
-					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
+				if (this['tokenizationSupport'] === supportImpl) {
+					delete this['tokenizationSupport'];
+					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
 				}
 			}
 		};
@@ -120,7 +122,6 @@ export abstract class AbstractMode implements modes.IMode {
 class SimplifiedMode implements modes.IMode {
 
 	tokenizationSupport: modes.ITokenizationSupport;
-	richEditSupport: modes.IRichEditSupport;
 
 	private _sourceMode: modes.IMode;
 	private _eventEmitter: EventEmitter;
@@ -134,11 +135,8 @@ class SimplifiedMode implements modes.IMode {
 
 		if (this._sourceMode.addSupportChangedListener) {
 			this._sourceMode.addSupportChangedListener((e) => {
-				if (e.tokenizationSupport || e.richEditSupport) {
-					this._assignSupports();
-					let newEvent = SimplifiedMode._createModeSupportChangedEvent(e);
-					this._eventEmitter.emit('modeSupportChanged', newEvent);
-				}
+				this._assignSupports();
+				this._eventEmitter.emit('modeSupportChanged', e);
 			});
 		}
 	}
@@ -153,32 +151,6 @@ class SimplifiedMode implements modes.IMode {
 
 	private _assignSupports(): void {
 		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
-		this.richEditSupport = this._sourceMode.richEditSupport;
-	}
-
-	private static _createModeSupportChangedEvent(originalModeEvent:IModeSupportChangedEvent): IModeSupportChangedEvent {
-		var event:IModeSupportChangedEvent = {
-			codeLensSupport: false,
-			tokenizationSupport: originalModeEvent.tokenizationSupport,
-			occurrencesSupport:false,
-			declarationSupport:false,
-			typeDeclarationSupport:false,
-			navigateTypesSupport:false,
-			referenceSupport:false,
-			suggestSupport:false,
-			parameterHintsSupport:false,
-			extraInfoSupport:false,
-			outlineSupport:false,
-			logicalSelectionSupport:false,
-			formattingSupport:false,
-			inplaceReplaceSupport:false,
-			emitOutputSupport:false,
-			linkSupport:false,
-			configSupport:false,
-			quickFixSupport:false,
-			richEditSupport: originalModeEvent.richEditSupport,
-		};
-		return event;
 	}
 }
 
@@ -248,42 +220,21 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 
 export class FrankensteinMode extends AbstractMode {
 
-	public suggestSupport:modes.ISuggestSupport;
-
 	constructor(
-		descriptor:modes.IModeDescriptor,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		descriptor: modes.IModeDescriptor,
+		@IConfigurationService configurationService: IConfigurationService,
+		@optional(IEditorWorkerService) editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
 
 		if (editorWorkerService) {
-			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);
 		}
 	}
 }
 
-function _createModeSupportChangedEvent(...changedSupports: string[]): IModeSupportChangedEvent {
-	var event:IModeSupportChangedEvent = {
-		codeLensSupport: false,
-		tokenizationSupport:false,
-		occurrencesSupport:false,
-		declarationSupport:false,
-		typeDeclarationSupport:false,
-		navigateTypesSupport:false,
-		referenceSupport:false,
-		suggestSupport:false,
-		parameterHintsSupport:false,
-		extraInfoSupport:false,
-		outlineSupport:false,
-		logicalSelectionSupport:false,
-		formattingSupport:false,
-		inplaceReplaceSupport:false,
-		emitOutputSupport:false,
-		linkSupport:false,
-		configSupport:false,
-		quickFixSupport:false,
-		richEditSupport: false
+function _createModeSupportChangedEvent(): IModeSupportChangedEvent {
+	return {
+		tokenizationSupport: true
 	};
-	changedSupports.forEach(support => event[support] = true);
-	return event;
 }

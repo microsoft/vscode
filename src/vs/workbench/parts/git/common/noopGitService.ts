@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import git = require('vs/workbench/parts/git/common/git');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { IRawGitService, IRawStatus, ServiceState, RawServiceState } from 'vs/workbench/parts/git/common/git';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 
-export class NoOpGitService implements git.IRawGitService {
-	private static STATUS:git.IRawStatus = {
+export class NoOpGitService implements IRawGitService {
+
+	private _onOutput = new Emitter<string>();
+	get onOutput(): Event<string> { return this._onOutput.event; }
+
+	private static STATUS:IRawStatus = {
 		repositoryRoot: null,
-		state: git.ServiceState.NotAWorkspace,
+		state: ServiceState.NotAWorkspace,
 		status: [],
 		HEAD: null,
-		heads: [],
-		tags: [],
+		refs: [],
 		remotes: []
 	};
 
@@ -22,79 +26,79 @@ export class NoOpGitService implements git.IRawGitService {
 		return TPromise.as(null);
 	}
 
-	public serviceState(): TPromise<git.RawServiceState> {
-		return TPromise.as(git.RawServiceState.OK);
+	serviceState(): TPromise<RawServiceState> {
+		return TPromise.as(RawServiceState.OK);
 	}
 
-	public status(): TPromise<git.IRawStatus> {
+	statusCount(): TPromise<number> {
+		return TPromise.as(0);
+	}
+
+	status(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public init(): TPromise<git.IRawStatus> {
+	init(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public add(filesPaths?: string[]): TPromise<git.IRawStatus> {
+	add(filesPaths?: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public stage(filePath: string, content: string): TPromise<git.IRawStatus> {
+	stage(filePath: string, content: string): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public branch(name: string, checkout?: boolean): TPromise<git.IRawStatus> {
+	branch(name: string, checkout?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public checkout(treeish?: string, filePaths?: string[]): TPromise<git.IRawStatus> {
+	checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public clean(filePaths: string[]): TPromise<git.IRawStatus> {
+	clean(filePaths: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public undo(): TPromise<git.IRawStatus> {
+	undo(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public reset(treeish: string, hard?: boolean): TPromise<git.IRawStatus> {
+	reset(treeish: string, hard?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public revertFiles(treeish: string, filePaths?: string[]): TPromise<git.IRawStatus> {
+	revertFiles(treeish: string, filePaths?: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public fetch(): TPromise<git.IRawStatus> {
+	fetch(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public pull(rebase?: boolean): TPromise<git.IRawStatus> {
+	pull(rebase?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public push(): TPromise<git.IRawStatus> {
+	push(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public sync(): TPromise<git.IRawStatus> {
+	sync(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public commit(message: string, amend?: boolean, stage?: boolean): TPromise<git.IRawStatus> {
+	commit(message: string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	public detectMimetypes(path: string, treeish?: string): TPromise<string[]> {
+	detectMimetypes(path: string, treeish?: string): TPromise<string[]> {
 		return TPromise.as([]);
 	}
 
-	public show(path: string, treeish?: string): TPromise<string> {
+	show(path: string, treeish?: string): TPromise<string> {
 		return TPromise.as(null);
-	}
-
-	public onOutput(): Promise {
-		return TPromise.as(() => null);
 	}
 }

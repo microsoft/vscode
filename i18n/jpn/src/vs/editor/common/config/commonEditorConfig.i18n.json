@@ -9,6 +9,7 @@
 	"cursorBlinking": "カーソルのアニメーションの点滅を制御します。指定できる値は 'blink'、'visible'、'hidden' です",
 	"cursorStyle": "カーソルのスタイルを制御します。指定できる値は 'block' と 'line' です",
 	"detectIndentation": "ファイルを開くと、そのファイルの内容に基づいて `editor.tabSize` と `editor.insertSpaces` が検出されます。",
+	"dismissPeekOnEsc": "ESC キーを押すと、プレビュー エディターが閉じます",
 	"editorConfigurationTitle": "エディターの構成",
 	"folding": "エディターでコードの折りたたみを有効にするかどうかを制御します",
 	"fontFamily": "フォント ファミリを制御します。",
@@ -37,7 +38,9 @@
 	"suggestOnTriggerCharacters": "トリガー文字の入力時に候補が自動的に表示されるようにするかどうかを制御します",
 	"tabSize": "タブ 1 つに相当するスペースの数。",
 	"tabSize.errorMessage": "'number' が必要です。`editor.detectIndentation` 設定によって値 \"auto\" が置き換えられていることに注意してください。",
+	"trimAutoWhitespace": "自動挿入された末尾の空白を削除する",
+	"useTabStops": "空白の挿入や削除はタブ位置に従って行われます",
 	"wordSeparators": "単語に関連したナビゲーションまたは操作を実行するときに、単語の区切り文字として使用される文字",
-	"wrappingColumn": "エディターで次の行に折り返される文字数を制御します。これを 0 に設定すると、ビューポートの幅での折り返しが有効になります",
+	"wrappingColumn": "エディターで次の行に折り返される文字数を制御します。これを 0 に設定すると、ビューポートの幅での折り返しがオンになります (ワード ラップ)。これを -1 に設定するとエディターによる折り返しが禁止されます。",
 	"wrappingIndent": "折り返し行のインデントを制御します。'none'、'same'、または 'indent' のいずれかを指定できます。"
 }

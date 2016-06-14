@@ -16,44 +16,24 @@ import {GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX} from 'vs/workbench/p
 import {ShowAllCommandsAction, ALL_COMMANDS_PREFIX} from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import {GotoLineAction, GOTO_LINE_PREFIX} from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
 import {HELP_PREFIX} from 'vs/workbench/parts/quickopen/browser/helpHandler';
-import {GotoMarkerAction} from 'vs/workbench/parts/quickopen/browser/markersHandler';
 
 // Register Actions
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GotoMarkerAction, GotoMarkerAction.Id, GotoMarkerAction.Label, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
-}));
-
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllCommandsAction, ShowAllCommandsAction.ID, ShowAllCommandsAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
 	secondary: [KeyCode.F1]
-}));
+}), 'Show All Commands');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GotoLineAction, GotoLineAction.ID, GotoLineAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
-}));
+}), 'Go to Line...');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}));
+}), 'Go to Symbol...');
 
 // Register Quick Open Handler
-
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/markersHandler',
-		'MarkersHandler',
-		GotoMarkerAction.Prefix,
-		[
-			{
-				prefix: GotoMarkerAction.Prefix,
-				needsEditor: false,
-				description: env.isMacintosh ? nls.localize('desc.mac', "Show Errors or Warnings") : nls.localize('desc.win', "Show Errors and Warnings")
-			},
-		]
-	)
-);
 
 (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(

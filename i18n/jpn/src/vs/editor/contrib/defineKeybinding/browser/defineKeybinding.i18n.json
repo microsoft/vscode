@@ -7,6 +7,6 @@
 	"DefineKeybindingAction": "キー バインドの定義",
 	"defineKeybinding.initial": "任意のキーの組み合わせを押し、ENTER キーを押します",
 	"defineKeybinding.kbLayoutErrorMessage": "現在のキーボード レイアウトでは、このキーの組み合わせを生成することはできません。",
-	"defineKeybinding.kbLayoutInfoMessage": "現在のキーボード レイアウト用に押します",
+	"defineKeybinding.kbLayoutInfoMessage": "現在のキーボード レイアウト用に",
 	"defineKeybinding.start": "キー バインドの定義"
 }

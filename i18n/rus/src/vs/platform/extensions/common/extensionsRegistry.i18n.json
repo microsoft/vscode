@@ -20,7 +20,7 @@
 	"vscode.extension.categories": "Категории, используемые коллекцией VS Code для классификации расширения.",
 	"vscode.extension.contributes": "Все публикации расширения VS Code, представленные этим пакетом.",
 	"vscode.extension.displayName": "Отображаемое имя расширения, используемого в коллекции VS Code.",
-	"vscode.extension.extensionDependencies": "Зависимости от других расширений. Идентификатор расширения — всегда ${publisher}.${name}. Например, vscode.csharp.",
+	"vscode.extension.extensionDependencies": "Зависимости от других расширений. Идентификатор расширения — всегда ${publisher}.${name}. Например: vscode.csharp.",
 	"vscode.extension.galleryBanner": "Баннер, используемый в магазине VS Code.",
 	"vscode.extension.galleryBanner.color": "Цвет баннера в заголовке страницы магазина VS Code.",
 	"vscode.extension.galleryBanner.theme": "Цветовая тема для шрифта, используемого в баннере.",

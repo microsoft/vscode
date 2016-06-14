@@ -72,8 +72,19 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			toSync = [];
 			for (let entry of first) {
 				let [uri, diagnostics] = entry;
-				this._data[uri.toString()] = diagnostics;
 				toSync.push(uri);
+				if (!diagnostics) {
+					// [Uri, undefined] means clear this
+					delete this._data[uri.toString()];
+				} else {
+					// set or merge diagnostics
+					let existing = this._data[uri.toString()];
+					if (existing) {
+						existing.push(...diagnostics);
+					} else {
+						this._data[uri.toString()] = diagnostics;
+					}
+				}
 			}
 		}
 

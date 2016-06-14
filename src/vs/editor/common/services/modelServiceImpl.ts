@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -25,8 +25,8 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
-import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
-import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 import {IMessageService} from 'vs/platform/message/common/message';
 
 export interface IRawModelData {
@@ -47,12 +47,12 @@ class ModelData implements IDisposable {
 	private _markerDecorations: string[];
 	private _modelEventsListener: IDisposable;
 
-	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: IEmitterEvent[]) => void) {
+	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: EmitterEvent[]) => void) {
 		this.model = model;
 		this.isSyncedToWorkers = false;
 
 		this._markerDecorations = [];
-		this._modelEventsListener = model.addBulkListener2((events) => eventsHandler(this, events));
+		this._modelEventsListener = model.addBulkListener((events) => eventsHandler(this, events));
 	}
 
 	public dispose(): void {
@@ -63,7 +63,7 @@ class ModelData implements IDisposable {
 	}
 
 	public getModelId(): string {
-		return MODEL_ID(this.model.getAssociatedResource());
+		return MODEL_ID(this.model.uri);
 	}
 
 	public acceptMarkerDecorations(newDecorations: editorCommon.IModelDeltaDecoration[]): void {
@@ -90,7 +90,7 @@ class ModelMarkerHandler {
 
 	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): editorCommon.IRange {
 		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		let ret: editorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
@@ -155,7 +155,7 @@ class ModelMarkerHandler {
 			htmlMessage = [marker.message];
 		}
 
-		if (marker.source) {
+		if (htmlMessage && marker.source) {
 			htmlMessage.unshift({ isText: true, text: `[${marker.source}] ` });
 		}
 
@@ -180,6 +180,7 @@ interface IRawConfig {
 		tabSize?: any;
 		insertSpaces?: any;
 		detectIndentation?: any;
+		trimAutoWhitespace?: any;
 	};
 }
 
@@ -209,17 +210,18 @@ export class ModelServiceImpl implements IModelService {
 	private _models: { [modelId: string]: ModelData; };
 
 	constructor(
-		threadService: IThreadService,
-		markerService: IMarkerService,
-		modeService: IModeService,
-		configurationService: IConfigurationService,
-		messageService: IMessageService
+		@IThreadService threadService: IThreadService,
+		@IMarkerService markerService: IMarkerService,
+		@IModeService modeService: IModeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IMessageService messageService: IMessageService
 	) {
 		this._modelCreationOptions = {
 			tabSize: DEFAULT_INDENTATION.tabSize,
 			insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 			detectIndentation: DEFAULT_INDENTATION.detectIndentation,
-			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF
+			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF,
+			trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE
 		};
 		this._threadService = threadService;
 		this._markerService = markerService;
@@ -240,7 +242,6 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		let readConfig = (config: IRawConfig) => {
-			const eol = config.files && config.files.eol;
 
 			let shouldShowMigrationMessage = false;
 
@@ -260,10 +261,16 @@ export class ModelServiceImpl implements IModelService {
 			}
 
 			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
+			const eol = config.files && config.files.eol;
 			if (eol === '\r\n') {
 				newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
 			} else if (eol === '\n') {
 				newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
+			}
+
+			let trimAutoWhitespace = this._modelCreationOptions.trimAutoWhitespace;
+			if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
+				trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
 			}
 
 			let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
@@ -275,7 +282,8 @@ export class ModelServiceImpl implements IModelService {
 				tabSize: tabSize,
 				insertSpaces: insertSpaces,
 				detectIndentation: detectIndentation,
-				defaultEOL: newDefaultEOL
+				defaultEOL: newDefaultEOL,
+				trimAutoWhitespace: trimAutoWhitespace
 			});
 
 
@@ -284,8 +292,8 @@ export class ModelServiceImpl implements IModelService {
 				this._messageService.show(Severity.Info, nls.localize('indentAutoMigrate', "Please update your settings: `editor.detectIndentation` replaces `editor.tabSize`: \"auto\" or `editor.insertSpaces`: \"auto\""));
 			}
 		};
-		
-		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+
+		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => {
 			readConfig(e.config);
 		});
 		readConfig(this._configurationService.getConfiguration());
@@ -300,6 +308,7 @@ export class ModelServiceImpl implements IModelService {
 			(this._modelCreationOptions.detectIndentation === newOpts.detectIndentation)
 			&& (this._modelCreationOptions.insertSpaces === newOpts.insertSpaces)
 			&& (this._modelCreationOptions.tabSize === newOpts.tabSize)
+			&& (this._modelCreationOptions.trimAutoWhitespace === newOpts.trimAutoWhitespace)
 		) {
 			// Same indent opts, no need to touch created models
 			this._modelCreationOptions = newOpts;
@@ -315,10 +324,14 @@ export class ModelServiceImpl implements IModelService {
 
 			if (this._modelCreationOptions.detectIndentation) {
 				modelData.model.detectIndentation(this._modelCreationOptions.insertSpaces, this._modelCreationOptions.tabSize);
+				modelData.model.updateOptions({
+					trimAutoWhitespace: this._modelCreationOptions.trimAutoWhitespace
+				});
 			} else {
 				modelData.model.updateOptions({
 					insertSpaces: this._modelCreationOptions.insertSpaces,
-					tabSize: this._modelCreationOptions.tabSize
+					tabSize: this._modelCreationOptions.tabSize,
+					trimAutoWhitespace: this._modelCreationOptions.trimAutoWhitespace
 				});
 			}
 		}
@@ -355,7 +368,7 @@ export class ModelServiceImpl implements IModelService {
 	private _createModelData(value: string, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ModelData {
 		// create & save the model
 		let model = new Model(value, this._modelCreationOptions, modeOrPromise, resource);
-		let modelId = MODEL_ID(model.getAssociatedResource());
+		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
@@ -373,7 +386,7 @@ export class ModelServiceImpl implements IModelService {
 
 		// handle markers (marker service => model)
 		if (this._markerService) {
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.getAssociatedResource() }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.uri }));
 		}
 
 		if (this._shouldSyncModelToWorkers(modelData.model)) {
@@ -444,21 +457,12 @@ export class ModelServiceImpl implements IModelService {
 			throw new Error('Model is already not being synced to workers!');
 		}
 		modelData.isSyncedToWorkers = false;
-		this._workerHelper.$_acceptDidDisposeModel(modelData.model.getAssociatedResource());
+		this._workerHelper.$_acceptDidDisposeModel(modelData.model.uri);
 	}
 
 	private _onModelDisposing(model: editorCommon.IModel): void {
-		let modelId = MODEL_ID(model.getAssociatedResource());
+		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
-
-		// TODO@Joh why are we removing markers here?
-		if (this._markerService) {
-			var markers = this._markerService.read({ resource: model.getAssociatedResource() }),
-				owners: { [o: string]: any } = Object.create(null);
-
-			markers.forEach(marker => owners[marker.owner] = this);
-			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.getAssociatedResource(), []));
-		}
 
 		if (modelData.isSyncedToWorkers) {
 			// Dispose model in workers
@@ -473,14 +477,14 @@ export class ModelServiceImpl implements IModelService {
 
 	private static _getBoundModelData(model: editorCommon.IModel): IRawModelData {
 		return {
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId()
 		};
 	}
 
-	private _onModelEvents(modelData: ModelData, events: IEmitterEvent[]): void {
+	private _onModelEvents(modelData: ModelData, events: EmitterEvent[]): void {
 
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
@@ -541,7 +545,7 @@ export class ModelServiceImpl implements IModelService {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
 
-			if (e.getType() === editorCommon.EventType.ModelContentChanged) {
+			if (e.getType() === editorCommon.EventType.ModelRawContentChanged) {
 				eventsForWorkers.contentChanged.push(<editorCommon.IModelContentChangedEvent>e.getData());
 			}
 		}
@@ -570,20 +574,20 @@ export class ModelServiceWorkerHelper {
 	public $_acceptNewModel(data: IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
 		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url);
-		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
+		this._resourceService.insert(mirrorModel.uri, mirrorModel);
 
 		// Block worker execution until the mode is instantiated
 		return this._modeService.getOrCreateMode(data.modeId).then((mode) => {
 			// Changing mode should trigger a remove & an add, therefore:
 
 			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
+			this._resourceService.remove(mirrorModel.uri);
 
 			// (2) Change mode
 			mirrorModel.setMode(mode);
 
 			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
+			this._resourceService.insert(mirrorModel.uri, mirrorModel);
 		});
 	}
 
@@ -595,13 +599,13 @@ export class ModelServiceWorkerHelper {
 			// Changing mode should trigger a remove & an add, therefore:
 
 			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
+			this._resourceService.remove(mirrorModel.uri);
 
 			// (2) Change mode
 			mirrorModel.setMode(mode);
 
 			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
+			this._resourceService.insert(mirrorModel.uri, mirrorModel);
 		});
 	}
 

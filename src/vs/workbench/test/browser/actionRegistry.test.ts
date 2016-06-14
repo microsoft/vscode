@@ -9,9 +9,10 @@ import * as assert from 'assert';
 import * as Platform from 'vs/platform/platform';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {Extensions} from 'vs/workbench/common/actionRegistry';
+import {Extensions, IWorkbenchActionRegistry} from 'vs/workbench/common/actionRegistry';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {Action} from 'vs/base/common/actions';
+
 
 class MyClass extends Action {
 	constructor(id: string, label: string) {
@@ -22,20 +23,23 @@ class MyClass extends Action {
 suite('Workbench Action Registry', () => {
 
 	test('Workbench Action Registration', function () {
-		let Registry = Platform.Registry.as(Extensions.WorkbenchActions);
+		let Registry = <IWorkbenchActionRegistry>Platform.Registry.as(Extensions.WorkbenchActions);
 
 		let d = new SyncActionDescriptor(MyClass, 'id', 'name');
 
 		let oldActions = Registry.getWorkbenchActions().slice(0);
 		let oldCount = Registry.getWorkbenchActions().length;
 
-		Registry.registerWorkbenchAction(d);
-		Registry.registerWorkbenchAction(d);
+		Registry.registerWorkbenchAction(d, 'My Alias', 'category');
+		Registry.registerWorkbenchAction(d, null);
 
 		assert.equal(Registry.getWorkbenchActions().length, 1 + oldCount);
 		assert.strictEqual(d, Registry.getWorkbenchAction('id'));
 
-		Registry.setWorkbenchActions(oldActions);
+		assert.deepEqual(Registry.getAlias(d.id), 'My Alias');
+		assert.equal(Registry.getCategory(d.id), 'category');
+
+		(<any>Registry).setWorkbenchActions(oldActions);
 	});
 
 	test('Workbench Action Bar prepareActions()', function () {

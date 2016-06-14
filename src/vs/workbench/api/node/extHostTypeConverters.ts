@@ -11,10 +11,11 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
+import URI from 'vs/base/common/uri';
 
 export interface PositionLike {
 	line: number;
@@ -154,27 +155,28 @@ function fromMarkedStringOrMarkedStringArr(something: vscode.MarkedString | vsco
 	}
 }
 
-function isRangeWithMessage(something: any): something is vscode.DecorationOptions {
+function isDecorationOptions(something: any): something is vscode.DecorationOptions {
 	return (typeof something.range !== 'undefined');
 }
 
-function isRangeWithMessageArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
+function isDecorationOptionsArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
 	if (something.length === 0) {
 		return true;
 	}
-	return isRangeWithMessage(something[0]) ? true : false;
+	return isDecorationOptions(something[0]) ? true : false;
 }
 
-export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IRangeWithMessage[] {
-	if (isRangeWithMessageArr(ranges)) {
-		return ranges.map((r): IRangeWithMessage => {
+export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IDecorationOptions[] {
+	if (isDecorationOptionsArr(ranges)) {
+		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r.range),
-				hoverMessage: fromMarkedStringOrMarkedStringArr(r.hoverMessage)
+				hoverMessage: fromMarkedStringOrMarkedStringArr(r.hoverMessage),
+				renderOptions: r.renderOptions
 			};
 		});
 	} else {
-		return ranges.map((r): IRangeWithMessage => {
+		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r)
 			};
@@ -194,114 +196,27 @@ export const TextEdit = {
 	}
 };
 
-export namespace SymbolKind {
-
-	export function from(kind: number | types.SymbolKind): string {
-		switch (kind) {
-			case types.SymbolKind.Method:
-				return 'method';
-			case types.SymbolKind.Function:
-				return 'function';
-			case types.SymbolKind.Constructor:
-				return 'constructor';
-			case types.SymbolKind.Variable:
-				return 'variable';
-			case types.SymbolKind.Class:
-				return 'class';
-			case types.SymbolKind.Interface:
-				return 'interface';
-			case types.SymbolKind.Namespace:
-				return 'namespace';
-			case types.SymbolKind.Package:
-				return 'package';
-			case types.SymbolKind.Module:
-				return 'module';
-			case types.SymbolKind.Property:
-				return 'property';
-			case types.SymbolKind.Enum:
-				return 'enum';
-			case types.SymbolKind.String:
-				return 'string';
-			case types.SymbolKind.File:
-				return 'file';
-			case types.SymbolKind.Array:
-				return 'array';
-			case types.SymbolKind.Number:
-				return 'number';
-			case types.SymbolKind.Boolean:
-				return 'boolean';
-			case types.SymbolKind.Object:
-				return 'object';
-			case types.SymbolKind.Key:
-				return 'key';
-			case types.SymbolKind.Null:
-				return 'null';
-		}
-		return 'property';
-	}
-
-	export function to(type: string): types.SymbolKind {
-		switch (type) {
-			case 'method':
-				return types.SymbolKind.Method;
-			case 'function':
-				return types.SymbolKind.Function;
-			case 'constructor':
-				return types.SymbolKind.Constructor;
-			case 'variable':
-				return types.SymbolKind.Variable;
-			case 'class':
-				return types.SymbolKind.Class;
-			case 'interface':
-				return types.SymbolKind.Interface;
-			case 'namespace':
-				return types.SymbolKind.Namespace;
-			case 'package':
-				return types.SymbolKind.Package;
-			case 'module':
-				return types.SymbolKind.Module;
-			case 'property':
-				return types.SymbolKind.Property;
-			case 'enum':
-				return types.SymbolKind.Enum;
-			case 'string':
-				return types.SymbolKind.String;
-			case 'file':
-				return types.SymbolKind.File;
-			case 'array':
-				return types.SymbolKind.Array;
-			case 'number':
-				return types.SymbolKind.Number;
-			case 'boolean':
-				return types.SymbolKind.Boolean;
-			case 'object':
-				return types.SymbolKind.Object;
-			case 'key':
-				return types.SymbolKind.Key;
-			case 'null':
-				return types.SymbolKind.Null;
-		}
-		return types.SymbolKind.Property;
-	}
-}
-
 export namespace SymbolInformation {
 
-	export function fromOutlineEntry(entry: modes.IOutlineEntry): types.SymbolInformation {
-		return new types.SymbolInformation(entry.label,
-			SymbolKind.to(entry.type),
-			toRange(entry.range),
-			undefined,
-			entry.containerLabel);
+	export function fromOutlineEntry(entry: modes.SymbolInformation): types.SymbolInformation {
+		return new types.SymbolInformation(
+			entry.name,
+			entry.kind,
+			toRange(entry.location.range),
+			entry.location.uri,
+			entry.containerName
+		);
 	}
 
-	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.IOutlineEntry {
-		return <modes.IOutlineEntry>{
-			type: SymbolKind.from(symbol.kind),
-			range: fromRange(symbol.location.range),
-			containerLabel: symbol.containerName,
-			label: symbol.name,
-			icon: undefined,
+	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.SymbolInformation {
+		return <modes.SymbolInformation>{
+			name: symbol.name,
+			kind: symbol.kind,
+			containerName: symbol.containerName,
+			location: {
+				uri: <URI>symbol.location.uri,
+				range: fromRange(symbol.location.range)
+			}
 		};
 	}
 }
@@ -327,31 +242,30 @@ export function toSymbolInformation(bearing: ITypeBearing): types.SymbolInformat
 
 
 export const location = {
-	from(value: types.Location): modes.IReference {
+	from(value: types.Location): modes.Location {
 		return {
 			range: fromRange(value.range),
-			resource: value.uri
+			uri: value.uri
 		};
 	},
-	to(value: modes.IReference): types.Location {
-		return new types.Location(value.resource, toRange(value.range));
+	to(value: modes.Location): types.Location {
+		return new types.Location(value.uri, toRange(value.range));
 	}
 };
 
-export function fromHover(hover: vscode.Hover): modes.IComputeExtraInfoResult {
-	return <modes.IComputeExtraInfoResult>{
+export function fromHover(hover: vscode.Hover): modes.Hover {
+	return <modes.Hover>{
 		range: fromRange(hover.range),
 		htmlContent: hover.contents.map(fromFormattedString)
 	};
 }
 
-export function toHover(info: modes.IComputeExtraInfoResult): types.Hover {
+export function toHover(info: modes.Hover): types.Hover {
 	return new types.Hover(info.htmlContent.map(toFormattedString), toRange(info.range));
 }
 
-export function toDocumentHighlight(occurrence: modes.IOccurence): types.DocumentHighlight {
-	return new types.DocumentHighlight(toRange(occurrence.range),
-		types.DocumentHighlightKind[occurrence.kind.charAt(0).toUpperCase() + occurrence.kind.substr(1)]);
+export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
+	return new types.DocumentHighlight(toRange(occurrence.range), occurrence.kind);
 }
 
 export const CompletionItemKind = {
@@ -376,12 +290,12 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.File: return 'file';
 			case types.CompletionItemKind.Reference: return 'reference';
 		}
-		return 'text';
+		return 'property';
 	},
 
 	to(type: modes.SuggestionType): types.CompletionItemKind {
 		if (!type) {
-			return types.CompletionItemKind.Text;
+			return types.CompletionItemKind.Property;
 		} else {
 			return types.CompletionItemKind[type.charAt(0).toUpperCase() + type.substr(1)];
 		}
@@ -426,106 +340,69 @@ export const Suggest = {
 
 export namespace SignatureHelp {
 
-	export function from(signatureHelp: types.SignatureHelp): modes.IParameterHints {
-
-		let result: modes.IParameterHints = {
-			currentSignature: signatureHelp.activeSignature,
-			currentParameter: signatureHelp.activeParameter,
-			signatures: []
-		};
-
-		for (let signature of signatureHelp.signatures) {
-
-			let signatureItem: modes.ISignature = {
-				label: signature.label,
-				documentation: signature.documentation,
-				parameters: []
-			};
-
-			let idx = 0;
-			for (let parameter of signature.parameters) {
-
-				let parameterItem: modes.IParameter = {
-					label: parameter.label,
-					documentation: parameter.documentation,
-				};
-
-				signatureItem.parameters.push(parameterItem);
-				idx = signature.label.indexOf(parameter.label, idx);
-
-				if (idx >= 0) {
-					parameterItem.signatureLabelOffset = idx;
-					idx += parameter.label.length;
-					parameterItem.signatureLabelEnd = idx;
-				} else {
-					parameterItem.signatureLabelOffset = 0;
-					parameterItem.signatureLabelEnd = 0;
-				}
-			}
-
-			result.signatures.push(signatureItem);
-		}
-
-		return result;
+	export function from(signatureHelp: types.SignatureHelp): modes.SignatureHelp {
+		return signatureHelp;
 	}
 
-	export function to(hints: modes.IParameterHints): types.SignatureHelp {
-
-		const result = new types.SignatureHelp();
-		result.activeSignature = hints.currentSignature;
-		result.activeParameter = hints.currentParameter;
-
-		for (let signature of hints.signatures) {
-
-			const signatureItem = new types.SignatureInformation(signature.label, signature.documentation);
-			result.signatures.push(signatureItem);
-
-			for (let parameter of signature.parameters) {
-
-				const parameterItem = new types.ParameterInformation(parameter.label, parameter.documentation);
-				signatureItem.parameters.push(parameterItem);
-			}
-		}
-
-		return result;
+	export function to(hints: modes.SignatureHelp): types.SignatureHelp {
+		return hints;
 	}
 }
 
 
 export namespace Command {
 
+	const _delegateId = '_internal_delegate_command';
 	const _cache: { [id: string]: vscode.Command } = Object.create(null);
 	let _idPool = 1;
 
-	export function from(command: vscode.Command, context: { commands: ExtHostCommands; disposables: IDisposable[]; }): modes.ICommand {
+	export function initialize(commands: ExtHostCommands) {
+		return commands.registerCommand(_delegateId, (id: string) => {
+			const command = _cache[id];
+			if (!command) {
+				// handle already disposed delegations graceful
+				return;
+			}
+			return commands.executeCommand(command.command, ...command.arguments);
+		});
+	}
+
+	export function from(command: vscode.Command, disposables: IDisposable[]): modes.Command {
 
 		if (!command) {
 			return;
 		}
 
-		const result = <modes.ICommand>{
+		const result = <modes.Command>{
 			id: command.command,
 			title: command.title
 		};
 
 		if (!isFalsyOrEmpty(command.arguments)) {
 
-			// keep command around
-			const id = `${command.command}-no-args-wrapper-${_idPool++}`;
-			result.id = id;
+			// redirect to delegate command and store actual command
+			const id = `delegate/${_idPool++}/for/${command.command}`;
+
+			result.id = _delegateId;
+			result.arguments = [id];
 			_cache[id] = command;
 
-			const disposable1 = context.commands.registerCommand(id, () => context.commands.executeCommand(command.command, ..._cache[id].arguments));
-			const disposable2 = { dispose() { delete _cache[id]; } };
-			context.disposables.push(disposable1, disposable2);
+			disposables.push({
+				dispose() {
+					delete _cache[id];
+				}
+			});
 		}
 
 		return result;
 	}
 
-	export function to(command: modes.ICommand): vscode.Command {
-
-		let result = _cache[command.id];
+	export function to(command: modes.Command): vscode.Command {
+		let result: vscode.Command;
+		if (command.id === _delegateId) {
+			let [key] = command.arguments;
+			result = _cache[key];
+		}
 		if (!result) {
 			result = {
 				command: command.id,

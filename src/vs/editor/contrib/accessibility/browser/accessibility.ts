@@ -21,7 +21,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -91,7 +91,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._isVisible = false;
 
-		this._register(this._editor.addListener2(EventType.EditorLayout, () => {
+		this._register(this._editor.onDidLayoutChange(() => {
 			if (this._isVisible) {
 				this._layout();
 			}
@@ -156,25 +156,9 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in this editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
 
 		if (opts.tabFocusMode) {
-			text += '\n\n -' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
 		} else {
-			text += '\n\n -' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
-		}
-
-		const NLS_EXPERIMENTAL_SCREENREADER_OPTS_ON = nls.localize('experimentalScreenReaderOptsOn', "Experimental screen reader support is turned on due to editor.experimentalScreenReader settings key.");
-		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON = nls.localize('experimentalScreenReaderSessionOn', "Experimental screen reader support is turned on for this session. Toggle this behaviour by pressing {0}.");
-		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON_NO_KB = nls.localize('experimentalScreenReaderSessionOnNoKb', "Experimental screen reader support is turned on for this session. The command {0} is currently not triggerable by a keybinding.");
-		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF = nls.localize('experimentalScreenReaderSessionOff', "Experimental screen reader support is turned off. Turn it on for this session by pressing {0} or turn it on for all sessions by configuring the editor.experimentalScreenReader setting to true.");
-		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF_NO_KB = nls.localize('experimentalScreenReaderSessionOffNoKb', "Experimental screen reader support is turned off. The command {0} is currently not triggerable by a keybinding. Turn it on for all sessions by configuring the editor.experimentalScreenReader setting to true.");
-
-		if (opts.experimentalScreenReader) {
-			text += '\n\n - ' + NLS_EXPERIMENTAL_SCREENREADER_OPTS_ON;
-		} else {
-			if (GlobalScreenReaderNVDA.getValue()) {
-				text += '\n\n -' + this._descriptionForCommand(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID, NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON, NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON_NO_KB);
-			} else {
-				text += '\n\n -' + this._descriptionForCommand(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID, NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF, NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF_NO_KB);
-			}
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
 		}
 
 		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape.");
@@ -226,17 +210,17 @@ EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowAccessibilityHelpAction, SHOW_ACCESSIBILITY_HELP_ACTION_ID, NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL, {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Alt | KeyCode.F1
-}));
+}, 'Show Accessibility Help'));
 CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
 	AccessibilityHelpController.get(editor).hide();
 });
 KeybindingsRegistry.registerCommandDesc({
 	id: TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID,
-	handler: (accessor: ServicesAccessor, args: any) => {
+	handler: (accessor: ServicesAccessor) => {
 		let currentValue = GlobalScreenReaderNVDA.getValue();
 		GlobalScreenReaderNVDA.setValue(!currentValue);
 	},
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	context: null,
+	when: null,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
 });

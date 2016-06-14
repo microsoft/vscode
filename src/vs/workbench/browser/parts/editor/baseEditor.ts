@@ -9,7 +9,6 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import types = require('vs/base/common/types');
 import {Builder} from 'vs/base/browser/builder';
-import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import {Registry} from 'vs/platform/platform';
 import {Panel} from 'vs/workbench/browser/panel';
 import {EditorInput, IFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
@@ -62,7 +61,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	}
 
 	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
+	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Sets the given input with the options to the part. An editor has to deal with the
@@ -84,6 +83,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._options = null;
 	}
 
+	public create(parent: Builder): void; // create is sync for editors
+	public create(parent: Builder): TPromise<void>;
 	public create(parent: Builder): TPromise<void> {
 		let res = super.create(parent);
 
@@ -101,12 +102,19 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	/**
 	 * Overload this function to allow for passing in a position argument.
 	 */
+	public setVisible(visible: boolean, position?: Position): void; // setVisible is sync for editors
+	public setVisible(visible: boolean, position?: Position): TPromise<void>;
 	public setVisible(visible: boolean, position: Position = null): TPromise<void> {
 		let promise = super.setVisible(visible);
 
-		this._position = position;
+		// Propagate to Editor
+		this.setEditorVisible(visible, position);
 
 		return promise;
+	}
+
+	public setEditorVisible(visible, position: Position = null): void {
+		this._position = position;
 	}
 
 	/**
@@ -114,7 +122,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 */
 	public changePosition(position: Position): void {
 		this._position = position;
-		this.emit(EventType.EDITOR_POSITION_CHANGED, new EditorEvent(this, this.getId(), this.input, this.options, this.position));
 	}
 
 	/**
@@ -122,14 +129,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 */
 	public get position(): Position {
 		return this._position;
-	}
-
-	/**
-	 * Controls if the editor shows an action to split the input of the editor to the side. Subclasses should override
-	 * if they are capable of showing the same editor input side by side.
-	 */
-	public supportsSplitEditor(): boolean {
-		return false;
 	}
 
 	public dispose(): void {
@@ -441,7 +440,7 @@ export class EditorInputActionContributor extends ActionBarContributor {
 
 	/* Subclasses can override to provide a custom cache implementation */
 	protected toId(context: IEditorInputActionContext): string {
-		return context.editor.getId() + context.input.getId();
+		return context.editor.getId() + context.input.getTypeId();
 	}
 
 	private clearInputsFromCache(position: Position, isPrimary: boolean): void {

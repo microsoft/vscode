@@ -11,6 +11,7 @@ import service = require('vs/languages/css/common/services/cssLanguageService');
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
+import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 
 export class CSSIntellisense {
@@ -73,9 +74,11 @@ export class CSSIntellisense {
 			} else if (node instanceof nodes.Interpolation) {
 				this.getCompletionsForInterpolation(<nodes.Interpolation> node, result);
 			} else if (node instanceof nodes.FunctionArgument) {
-				this.getCompletionsForFunctionArguments(<nodes.FunctionArgument> node, result);
+				this.getCompletionsForFunctionArgument(<nodes.FunctionArgument> node, <nodes.Function>node.getParent(), result);
 			} else if (node instanceof nodes.FunctionDeclaration) {
 				this.getCompletionsForFunctionDeclaration(<nodes.FunctionDeclaration> node, result);
+			} else if (node instanceof nodes.Function) {
+				this.getCompletionsForFunctionArgument(null, <nodes.Function>node, result);
 			}
 			if (result.length > 0) {
 				return { currentWord: this.currentWord, suggestions: result, incomplete: this.isIncomplete };
@@ -195,6 +198,21 @@ export class CSSIntellisense {
 
 	public getVariableProposals(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
 		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
+		symbols.forEach((symbol) => {
+			result.push({
+				label: symbol.name,
+				codeSnippet: strings.startsWith(symbol.name, '--') ? `var(${symbol.name})` : symbol.name,
+				type: 'variable'
+			});
+		});
+		return result;
+	}
+
+	public getVariableProposalsForCSSVarFunction(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
+		symbols= symbols.filter((symbol):boolean => {
+			return strings.startsWith(symbol.name, '--');
+		});
 		symbols.forEach((symbol) => {
 			result.push({
 				label: symbol.name,
@@ -497,12 +515,14 @@ export class CSSIntellisense {
 		if (!declarations) { // incomplete nodes
 			return result;
 		}
+
 		var node = declarations.findFirstChildBeforeOffset(this.offset);
 		if (!node) {
 			return this.getCompletionsForDeclarationProperty(result);
 		}
-		if (node instanceof nodes.Declaration) {
-			var declaration = <nodes.Declaration> node;
+
+		if (node instanceof nodes.AbstractDeclaration) {
+			var declaration = <nodes.AbstractDeclaration> node;
 			if ((!isDefined(declaration.colonPosition) || this.offset <= declaration.colonPosition) || (isDefined(declaration.semicolonPosition) && declaration.semicolonPosition < this.offset)) {
 				if (this.offset === declaration.semicolonPosition + 1) {
 					return result; // don't show new properties right after semicolon (see Bug 15421:[intellisense] [css] Be less aggressive when manually typing CSS)
@@ -511,12 +531,14 @@ export class CSSIntellisense {
 				// complete property
 				return this.getCompletionsForDeclarationProperty(result);
 			}
-			// complete value
-			return this.getCompletionsForDeclarationValue(declaration, result);
+
+			if (declaration instanceof nodes.Declaration) {
+				// complete value
+				return this.getCompletionsForDeclarationValue(declaration, result);
+			}
 		}
 		return result;
 	}
-
 
 	public getCompletionsForVariableDeclaration(declaration: nodes.VariableDeclaration, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
 		if (this.offset > declaration.colonPosition) {
@@ -526,6 +548,11 @@ export class CSSIntellisense {
 	}
 
 	public getCompletionsForExpression(expression: nodes.Expression, result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+		if (expression.getParent() instanceof nodes.FunctionArgument) {
+			this.getCompletionsForFunctionArgument(<nodes.FunctionArgument>expression.getParent(), <nodes.Function>expression.getParent().getParent(), result);
+			return result;
+		}
+
 		var declaration = <nodes.Declaration> expression.findParent(nodes.NodeType.Declaration);
 		if (!declaration) {
 			this.getTermProposals(result);
@@ -542,7 +569,12 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	public getCompletionsForFunctionArguments(arg: nodes.FunctionArgument, result: Modes.ISuggestion[]): Modes.ISuggestion[] {
+	public getCompletionsForFunctionArgument(arg: nodes.FunctionArgument, func: nodes.Function, result: Modes.ISuggestion[]): Modes.ISuggestion[] {
+		if (func.getIdentifier().getText() === 'var') {
+			if (!func.getArguments().hasChildren() || func.getArguments().getChild(0) === arg) {
+				this.getVariableProposalsForCSSVarFunction(result);
+			}
+		}
 		return result;
 	}
 

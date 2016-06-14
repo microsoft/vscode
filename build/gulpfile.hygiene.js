@@ -26,7 +26,8 @@ var eolFilter = [
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,scpt,bat,cmd,cur,ttf,woff,eot}',
-	'!build/{lib,tslintRules}/**/*.js'
+	'!build/{lib,tslintRules}/**/*.js',
+	'!build/monaco/**/*'
 ];
 
 var indentationFilter = [
@@ -37,6 +38,7 @@ var indentationFilter = [
 	'!**/*.yml',
 	'!**/lib/**',
 	'!**/*.d.ts',
+	'!**/*.d.ts.recipe',
 	'!extensions/typescript/server/**',
 	'!test/assert.js',
 	'!**/package.json',
@@ -48,14 +50,14 @@ var indentationFilter = [
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
-	'!**/vs/text.js',
 	'!**/vs/nls.js',
 	'!**/vs/css.js',
 	'!**/vs/loader.js',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
-	'!extensions/**/colorize-fixtures/**'
+	'!extensions/**/colorize-fixtures/**',
+	'!extensions/vscode-api-tests/testWorkspace/**'
 ];
 
 var copyrightFilter = [
@@ -69,10 +71,10 @@ var copyrightFilter = [
 	'!**/*.bat',
 	'!**/*.cmd',
 	'!resources/win32/bin/code.js',
+	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
-	'!src/vs/editor/standalone-languages/swift.ts',
 ];
 
 var tslintFilter = [

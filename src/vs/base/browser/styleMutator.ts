@@ -16,6 +16,7 @@ export abstract class FastDomNode {
 	private _left: number;
 	private _bottom: number;
 	private _right: number;
+	private _fontFamily: string;
 	private _fontSize: number;
 	private _lineHeight: number;
 	private _className: string;
@@ -38,6 +39,7 @@ export abstract class FastDomNode {
 		this._left = -1;
 		this._bottom = -1;
 		this._right = -1;
+		this._fontFamily = '';
 		this._fontSize = -1;
 		this._lineHeight = -1;
 		this._className = '';
@@ -102,6 +104,14 @@ export abstract class FastDomNode {
 		}
 		this._right = right;
 		this._domNode.style.right = this._right + 'px';
+	}
+
+	public setFontFamily(fontFamily: string): void {
+		if (this._fontFamily === fontFamily) {
+			return;
+		}
+		this._fontFamily = fontFamily;
+		this._domNode.style.fontFamily = this._fontFamily;
 	}
 
 	public setFontSize(fontSize: number): void {

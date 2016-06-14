@@ -7,12 +7,15 @@
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {HTMLMode, htmlTokenTypes} from 'vs/languages/html/common/html';
-import {cssTokenTypes} from 'vs/languages/css/common/css';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {PHPMode} from 'vs/languages/php/common/php';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class PHPMockModeService extends MockModeService {
 
@@ -51,10 +54,10 @@ suite('Syntax Highlighting - PHP', () => {
 	(function() {
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new PHPMockModeService();
-		let inst = createInstantiationService({
-			threadService: threadService,
-			modeService: modeService
-		});
+		let services = new ServiceCollection();
+		services.set(IThreadService, threadService);
+		services.set(IModeService, modeService);
+		let inst = new InstantiationService(services);
 		threadService.setInstantiationService(inst);
 
 		modeService.setHTMLMode(new HTMLMode<any>(
@@ -67,12 +70,13 @@ suite('Syntax Highlighting - PHP', () => {
 		let mode = new PHPMode(
 			{ id: 'php' },
 			modeService,
+			null,
 			null
 		);
 
 		tokenizationSupport = mode.tokenizationSupport;
-		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-		wordDefinition = mode.richEditSupport.wordDefinition;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), PHPMode.LANG_CONFIG);
+		wordDefinition = LanguageConfigurationRegistry.getWordDefinition(mode.getId());
 	})();
 
 	test('', () => {

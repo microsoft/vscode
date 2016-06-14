@@ -65,7 +65,11 @@
 	margin-left: 0.8em;
 }
 
-.debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number	{ background-color: #ffffff; color: #666; }
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label {
+	background-color: #ffffff;
+	color: #666;
+}
 
 .debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar {
 	float: right;
@@ -86,6 +90,10 @@
 
 .debug-viewlet .disabled {
 	opacity: 0.35;
+}
+
+.monaco-workbench .debug-select.windows {
+	margin-top: 7px; /* Center the select box */
 }
 
 .vs-dark .monaco-workbench .debug-select {
@@ -131,6 +139,26 @@
 	color: inherit;
 }
 
+.debug-viewlet .debug-call-stack .thread {
+	display: flex;
+}
+
+.debug-viewlet .debug-call-stack .thread > .state {
+	flex: 1;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding: 0 10px;
+	text-transform: uppercase;
+}
+
+.debug-viewlet .debug-call-stack .thread > .state > .label {
+	background: rgba(136, 136, 136, 0.3);
+	border-radius: 2px;
+	font-size: 0.8em;
+	padding: 0 3px;
+}
+
 .debug-viewlet .debug-call-stack .stack-frame {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -140,6 +168,10 @@
 
 .debug-viewlet .debug-call-stack .stack-frame > .file {
 	float: right;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame > .file > .line-number.unavailable {
+	display: none;
 }
 
 .debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) .stack-frame > .file {
@@ -159,10 +191,15 @@
 	text-align: center;
 }
 
+.debug-viewlet .debug-call-stack .error {
+	font-style: italic;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
 /* Variables & Expression view */
 
 .debug-viewlet .scope {
-	text-transform: capitalize;
 	font-weight: bold;
 	font-size: 11px;
 }
@@ -195,16 +232,20 @@
 	line-height: normal;
 }
 
+.debug-viewlet .inputBoxContainer {
+	box-sizing: border-box;
+}
+
 .debug-viewlet .debug-watch .monaco-inputbox {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.debug-viewlet .monaco-inputbox.idle {
-	border: 1px solid rgba(128, 128, 128, 0.5);
+.debug-viewlet .monaco-inputbox > .wrapper {
+	height: 19px;
 }
 
 .debug-viewlet .monaco-inputbox > .wrapper > .input {
-	padding: 1px 2px;
+	padding: 0px;
 }
 
 .debug-viewlet .debug-action.add-watch-expression,
@@ -302,4 +343,8 @@
 
 .hc-black .debug-viewlet .debug-action.breakpoints-activate {
 	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
+}
+
+.hc-black .debug-viewlet .debug-action.remove-all {
+	background: url('remove-all-inverse.svg') center center no-repeat;
 }

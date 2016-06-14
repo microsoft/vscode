@@ -19,12 +19,12 @@ import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ExpandAbbreviationAction,
 	ExpandAbbreviationAction.ID,
 	nls.localize('expandAbbreviationAction',
-	"Emmet: Expand Abbreviation")));
+	"Emmet: Expand Abbreviation"), void 0, 'Emmet: Expand Abbreviation'));
 
 KeybindingsRegistry.registerCommandRule({
 	id: ExpandAbbreviationAction.ID,
 	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-	context: KbExpr.and(
+	when: KbExpr.and(
 		KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 		KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
 		KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
@@ -38,7 +38,7 @@ KeybindingsRegistry.registerCommandRule({
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'emmet',
-	'order': 7,
+	'order': 6,
 	'title': nls.localize('emmetConfigurationTitle', "Emmet configuration"),
 	'type': 'object',
 	'properties': {

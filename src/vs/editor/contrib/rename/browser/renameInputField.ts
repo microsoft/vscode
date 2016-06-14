@@ -5,13 +5,13 @@
 
 'use strict';
 
-import 'vs/css!./rename';
+import 'vs/css!./renameInputField';
 import {localize} from 'vs/nls';
 import {canceled} from 'vs/base/common/errors';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {EventType, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 
 export default class RenameInputField implements IContentWidget, IDisposable {
@@ -116,8 +116,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 				}
 			};
 
-			disposeOnDone.push(this._editor.addListener2(EventType.CursorSelectionChanged, onCursorChanged));
-			disposeOnDone.push(this._editor.addListener2(EventType.EditorBlur, this._currentCancelInput));
+			disposeOnDone.push(this._editor.onDidChangeCursorSelection(onCursorChanged));
+			disposeOnDone.push(this._editor.onDidBlurEditor(this._currentCancelInput));
 
 			this._show();
 

@@ -14,12 +14,24 @@ import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import cssErrors = require('vs/languages/css/common/parser/cssErrors');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+
+export class CSSMockMode extends MockMode {
+	constructor() {
+		super('css-mock-mode-id');
+		LanguageConfigurationRegistry.register(this.getId(), {
+			wordPattern: /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g
+		});
+	}
+}
+
+var cssMockMode = new CSSMockMode();
 
 export function mockMirrorModel(content:string, url:URI = null) : mm.MirrorModel {
-	return mm.createTestMirrorModelFromString(content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
+	return mm.createTestMirrorModelFromString(content, cssMockMode, url);
 }
 
 suite('Validation - CSS', () => {
@@ -39,7 +51,7 @@ suite('Validation - CSS', () => {
 			resourceService: resourceService,
 			markerService: markerService
 		});
-		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('css-mock-mode-id', services.resourceService, services.markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
@@ -61,7 +73,7 @@ suite('Validation - CSS', () => {
 			markerService: markerService
 		});
 
-		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('css-mock-mode-id', services.resourceService, services.markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
@@ -74,7 +86,7 @@ suite('Validation - CSS', () => {
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.suggest(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
@@ -87,16 +99,16 @@ suite('Validation - CSS', () => {
 		return env.worker.navigateValueSet(url, range, up);
 	};
 
-	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
+	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.DocumentHighlight[]; model: mm.MirrorModel; }> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
 
-		return env.worker.findOccurrences(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
+		return env.worker.provideDocumentHighlights(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
-	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
+	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.CodeAction[]; model: mm.MirrorModel; }> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -105,7 +117,7 @@ suite('Validation - CSS', () => {
 		var markers = env.markers.filter((m) => m.startColumn === pos.column && m.startLineNumber === pos.lineNumber);
 		assert.equal(1, markers.length, 'No marker at pos: ' + JSON.stringify({ pos: pos, markers: env.markers }));
 
-		return env.worker.getQuickFixes(url, markers[0]).then((fixes) => { return { fixes: fixes, model: env.model}; });
+		return env.worker.provideCodeActions(url, markers[0]).then((fixes) => { return { fixes: fixes, model: env.model}; });
 	};
 
 	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, type?:string) {
@@ -121,14 +133,14 @@ suite('Validation - CSS', () => {
 		assert.equal(result.value, expected);
 	};
 
-	var assertOccurrences= function(occurrences: Modes.IOccurence[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
+	var assertOccurrences= function(occurrences: Modes.DocumentHighlight[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
 		assert.equal(occurrences.length, expectedNumber);
 		occurrences.forEach((occurrence) => {
 			assert.equal(model.getValueInRange(occurrence.range), expectedContent);
 		});
 	};
 
-	var assertQuickFix= function(fixes: Modes.IQuickFix[], model: mm.MirrorModel, expectedContent:string[]) {
+	var assertQuickFix= function(fixes: Modes.CodeAction[], model: mm.MirrorModel, expectedContent:string[]) {
 		var labels = fixes.map(f => f.command.title);
 
 		for (var index = 0; index < expectedContent.length; index++) {

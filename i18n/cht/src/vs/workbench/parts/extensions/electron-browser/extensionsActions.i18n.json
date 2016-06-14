@@ -7,6 +7,7 @@
 	"close": "關閉",
 	"deleteSure": "確定要解除安裝 '{0}' 嗎?",
 	"installExtension": "安裝擴充功能",
+	"notFound": "擴充功能 '{0}' 未安裝。",
 	"restartNow": "立即重新啟動",
 	"restartNow2": "立即重新啟動",
 	"showExtensionRecommendations": "顯示擴充功能建議",

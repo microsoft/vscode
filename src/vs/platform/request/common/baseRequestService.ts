@@ -5,7 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise, xhr, IXHROptions} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {xhr, IXHROptions} from 'vs/base/common/network';
 import strings = require('vs/base/common/strings');
 import Timer = require('vs/base/common/timer');
 import Async = require('vs/base/common/async');

@@ -9,6 +9,7 @@ import nls = require('vs/nls');
 import * as Path from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import * as Labels from 'vs/base/common/labels';
+import * as Platform from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 
 import { Registry } from 'vs/platform/platform';
@@ -19,6 +20,8 @@ import { IEditor } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 class ConfigureLocaleAction extends Action {
 	public static ID = 'workbench.action.configureLocale';
@@ -27,9 +30,9 @@ class ConfigureLocaleAction extends Action {
 	private static DEFAULT_CONTENT: string = [
 		'{',
 		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
-		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'http://go.microsoft.com/fwlink/?LinkId=761051')}`,
+		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
 		`\t// ${nls.localize('restart', 'Changing the value requires to restart VSCode.')}`,
-		`\t"locale":"en-US"`,
+		`\t"locale":"${Platform.language}"`,
 		'}'
 	].join('\n');
 
@@ -61,5 +64,28 @@ class ConfigureLocaleAction extends Action {
 	}
 }
 
-let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL));
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
+
+let schemaId = 'vscode://schemas/locale';
+// Keep en-US since we generated files with that content.
+let schema: IJSONSchema =
+	{
+		id: schemaId,
+		description: 'Locale Definition file',
+		type: 'object',
+		default: {
+			'locale': 'en'
+		},
+		required: ['locale'],
+		properties: {
+			locale: {
+				type: 'string',
+				enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'],
+				description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
+			}
+		}
+	};
+
+let jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+jsonRegistry.registerSchema(schemaId, schema);

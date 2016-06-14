@@ -1,0 +1,150 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Editor Label */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
+	line-height: 35px;
+	white-space: nowrap;
+	flex: 1;
+	font-style: italic;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.pinned .tab-label {
+	font-style: normal;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label a {
+	text-decoration: none;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label a {
+	color: rgba(51, 51, 51, 0.5);
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab .tab-label a {
+	color: #333333;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label a {
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab .tab-label a {
+	color: white;
+}
+
+/* Title Actions */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label {
+	display: block;
+	height: 35px;
+	width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label .label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
+	display: none;
+}
+
+/* Drag Cursor */
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label span {
+	cursor: -webkit-grab;
+}
+
+#monaco-workbench-editor-move-overlay,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label span,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .monaco-editor .view-lines {
+	cursor: -webkit-grabbing;
+}
+
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container .title,
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container .title .title-label span {
+	cursor: url(data:;base64,AAACAAEAICACAAcABQAwAQAAFgAAACgAAAAgAAAAQAAAAAEAAQAAAAAAAAEAAAAAAAAAAAAAAgAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8AAAA/AAAAfwAAAP+AAAH/gAAB/8AAA//AAAd/wAAGf+AAAH9gAADbYAAA2yAAAZsAAAGbAAAAGAAAAAAAAA//////////////////////////////////////////////////////////////////////////////////////gH///4B///8Af//+AD///AA///wAH//4AB//8AAf//AAD//5AA///gAP//4AD//8AF///AB///5A////5///8=), auto;
+}
+
+#monaco-workbench-editor-move-overlay-custom-drag-cursor,
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged,
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .title,
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .title .title-label span,
+.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .monaco-editor .view-lines {
+	cursor: url(data:;base64,AAACAAEAICACAAcABQAwAQAAFgAAACgAAAAgAAAAQAAAAAEAAQAAAAAAAAEAAAAAAAAAAAAAAgAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8AAAA/AAAAfwAAAP+AAAH/gAAB/8AAAH/AAAB/wAAA/0AAANsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////////////////////////////////////////////////////////////////////////////////gH///4B///8Af//+AD///AA///wAH//+AB///wAf//4AH//+AD///yT/////////////////////////////8=), auto;
+}
+
+/* Actions */
+
+.monaco-workbench .close-editor-action {
+	background: url('close.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .close-editor-action {
+	background: url('close-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .split-editor-action {
+	background: url('split-editor.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .split-editor-action {
+	background: url('split-editor-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .show-group-editors-action {
+	background: url('stackview.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .show-group-editors-action {
+	background: url('stackview-inverse.svg') center center no-repeat;
+}
+
+/* High Contrast Icons */
+
+.hc-black .monaco-workbench .close-editor-action,
+.hc-black .monaco-workbench .show-group-editors-action,
+.hc-black .monaco-workbench .split-editor-action {
+	background: none;
+}
+
+.hc-black .monaco-workbench .show-group-editors-action:before {
+	content: url('stackview-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+.hc-black .monaco-workbench .close-editor-action {
+	content: url('close-inverse.svg');
+}
+
+.hc-black .monaco-workbench .split-editor-action:before {
+	content: url('split-editor-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}

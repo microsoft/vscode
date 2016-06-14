@@ -17,7 +17,7 @@ import {IProgress} from 'vs/platform/search/common/search';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
-import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
+import {ISerializedFileMatch, IRawSearch, ISearchEngine} from './search';
 
 export class FileWalker {
 	private config: IRawSearch;

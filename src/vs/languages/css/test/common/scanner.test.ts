@@ -76,7 +76,7 @@ suite('CSS - Scanner', () => {
 		assertSingleToken(scanner, '@import', 7, 0, '@import', Scanner.TokenType.AtKeyword);
 		assertSingleToken(scanner, '@importttt', 10, 0, '@importttt', Scanner.TokenType.AtKeyword);
 		assertSingleToken(scanner, '@imp', 4, 0, '@imp', Scanner.TokenType.AtKeyword);
-		assertSingleToken(scanner, '@5', 1, 0, '@', Scanner.TokenType.Delim);
+		assertSingleToken(scanner, '@5', 2, 0, '@5', Scanner.TokenType.AtKeyword);
 		assertSingleToken(scanner, '@media', 6, 0, '@media', Scanner.TokenType.AtKeyword);
 		assertSingleToken(scanner, '@page', 5, 0, '@page', Scanner.TokenType.AtKeyword);
 		assertSingleToken(scanner, '@charset', 8, 0, '@charset', Scanner.TokenType.Charset);
@@ -280,4 +280,5 @@ suite('CSS - Token Sequences', () => {
 	//		assert.equal(tokCount, input.length);
 	//		assert.ok(d < 500, 'scanner fast? took ms' + d + ', token count ' + tokCount + ', input length: ' + inputText.length);
 	//	});
+
 });

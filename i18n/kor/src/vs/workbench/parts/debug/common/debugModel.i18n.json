@@ -6,5 +6,6 @@
 {
 	"snapshotObj": "이 개체에 대한 기본 값만 표시됩니다.",
 	"startDebugFirst": "평가할 디버그 세션을 시작하세요.",
+	"unknownSource": "알 수 없는 소스",
 	"unknownStack": "알 수 없는 스택 위치"
 }

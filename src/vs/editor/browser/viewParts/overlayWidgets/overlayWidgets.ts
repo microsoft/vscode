@@ -7,9 +7,11 @@
 
 import 'vs/css!./overlayWidgets';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
-import {ClassNames, IOverlayWidget, IRenderingContext, IRestrictedRenderingContext, IViewContext, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
+import {EditorLayoutInfo} from 'vs/editor/common/editorCommon';
+import {ClassNames, IOverlayWidget, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 interface IWidgetData {
 	widget: IOverlayWidget;
@@ -30,7 +32,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	private _editorHeight:number;
 	private _editorWidth:number;
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super(context);
 
 		this._widgets = {};
@@ -50,7 +52,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo:IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:EditorLayoutInfo): boolean {
 		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
 		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		this._editorHeight = layoutInfo.height;

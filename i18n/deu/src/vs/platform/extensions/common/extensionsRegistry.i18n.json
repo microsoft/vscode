@@ -20,7 +20,7 @@
 	"vscode.extension.categories": "Die vom VS Code-Katalog zum Kategorisieren der Extension verwendeten Kategorien.",
 	"vscode.extension.contributes": "Alle Beiträge der VS Code-Extension, die durch dieses Paket dargestellt werden.",
 	"vscode.extension.displayName": "Der Anzeigename für die Extension, der im VS Code-Katalog verwendet wird.",
-	"vscode.extension.extensionDependencies": "Abhängigkeiten von anderen Extensions. Die ID einer Extension ist immer ${publisher}.${name}, beispielsweise: vscode.csharp.",
+	"vscode.extension.extensionDependencies": "Abhängigkeiten von anderen Erweiterungen. Der Bezeichner einer Erweiterung ist immer ${publisher}.${name}, beispielsweise \"vscode.csharp\".",
 	"vscode.extension.galleryBanner": "Das in VS Code Marketplace verwendete Banner.",
 	"vscode.extension.galleryBanner.color": "Die Bannerfarbe für die Kopfzeile der VS Code Marketplace-Seite.",
 	"vscode.extension.galleryBanner.theme": "Das Farbdesign für die Schriftart, die im Banner verwendet wird.",

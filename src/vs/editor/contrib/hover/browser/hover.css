@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* ---------- Hover ---------- */
+
 .monaco-editor-hover {
 	padding: 0 3px 0 3px;
 	border: 1px solid #CCC;
@@ -10,6 +10,7 @@
 	margin-top: -1px;
 	cursor: default;
 	z-index: 50;
+
 	-webkit-animation-duration: 0.15s;
 	-webkit-animation-name: fadeIn;
 	-moz-animation-duration: 0.15s;
@@ -31,18 +32,8 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor.vs-dark .monaco-editor-hover {
-	border-color: #555;
-}
+.monaco-editor.vs-dark .monaco-editor-hover { border-color: #555; }
+.monaco-editor.vs-dark .monaco-editor-hover a { color: #1C5DAF; }
 
-.monaco-editor.vs-dark .monaco-editor-hover a {
-	color: #1C5DAF;
-}
-
-.monaco-editor .hoverHighlight {
-	background-color: rgba(173, 214, 255, 0.15);
-}
-
-.monaco-editor.vs-dark .hoverHighlight {
-	background-color: rgba(38, 79, 120, 0.25);
-}
+.monaco-editor			.hoverHighlight { background: rgba(173, 214, 255, 0.15); }
+.monaco-editor.vs-dark	.hoverHighlight { background: rgba(38, 79, 120, 0.25); }

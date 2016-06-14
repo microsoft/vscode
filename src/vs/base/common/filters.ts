@@ -5,6 +5,7 @@
 'use strict';
 
 import strings = require('vs/base/common/strings');
+import {LinkedMap} from 'vs/base/common/map';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
@@ -61,7 +62,7 @@ export let matchesStrictPrefix: IFilter = (word: string, wordToMatchAgainst: str
 export let matchesPrefix: IFilter = (word: string, wordToMatchAgainst: string): IMatch[] => { return _matchesPrefix(true, word, wordToMatchAgainst); };
 
 function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: string): IMatch[] {
-	if (wordToMatchAgainst.length === 0 || wordToMatchAgainst.length < word.length) {
+	if (!wordToMatchAgainst || wordToMatchAgainst.length === 0 || wordToMatchAgainst.length < word.length) {
 		return null;
 	}
 	if (ignoreCase) {
@@ -80,7 +81,6 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 
 export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] {
 	let index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
-
 	if (index === -1) {
 		return null;
 	}
@@ -220,7 +220,7 @@ function isCamelCasePattern(word: string): boolean {
 }
 
 export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] {
-	if (camelCaseWord.length === 0) {
+	if (!camelCaseWord || camelCaseWord.length === 0) {
 		return null;
 	}
 
@@ -247,7 +247,7 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 // Useful in cases where the target is words (e.g. command labels)
 
 export function matchesWords(word: string, target: string): IMatch[] {
-	if (target.length === 0) {
+	if (!target || target.length === 0) {
 		return null;
 	}
 
@@ -299,7 +299,7 @@ export enum SubstringMatching {
 
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
-const fuzzyRegExpCache: { [key: string]: RegExp; } = {};
+const fuzzyRegExpCache = new LinkedMap<RegExp>(10000); // bounded to 10000 elements
 
 export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {
@@ -307,10 +307,10 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	}
 
 	// Form RegExp for wildcard matches
-	let regexp = fuzzyRegExpCache[word];
+	let regexp = fuzzyRegExpCache.get(word);
 	if (!regexp) {
 		regexp = new RegExp(strings.convertSimple2RegExpPattern(word), 'i');
-		fuzzyRegExpCache[word] = regexp;
+		fuzzyRegExpCache.set(word, regexp);
 	}
 
 	// RegExp Filter

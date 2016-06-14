@@ -56,7 +56,7 @@ export class HoverOperation<Result> {
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
 	private _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncComputationPromise:TPromise<Result>;
+	private _asyncComputationPromise: TPromise<void>;
 	private _asyncComputationPromiseDone:boolean;
 
 	private _completeCallback:(r:Result)=>void;
@@ -96,12 +96,10 @@ export class HoverOperation<Result> {
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
-			this._asyncComputationPromise = this._computer.computeAsync();
-
-			this._asyncComputationPromise.then((asyncResult: Result) => {
+			this._asyncComputationPromise = this._computer.computeAsync().then((asyncResult: Result) => {
 				this._asyncComputationPromiseDone = true;
 				this._withAsyncResult(asyncResult);
-			}).done(null, () => this._onError);
+			}, () => this._onError);
 		} else {
 			this._asyncComputationPromiseDone = true;
 		}
@@ -175,11 +173,13 @@ export class HoverOperation<Result> {
 			this._secondWaitScheduler.cancel();
 			if (this._asyncComputationPromise) {
 				this._asyncComputationPromise.cancel();
+				this._asyncComputationPromise = null;
 			}
 		}
 		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION) {
 			if (this._asyncComputationPromise) {
 				this._asyncComputationPromise.cancel();
+				this._asyncComputationPromise = null;
 			}
 		}
 		this._state = ComputeHoverOperationState.IDLE;

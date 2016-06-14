@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {IAction, IActionRunner, ActionRunner} from 'vs/base/common/actions';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -13,7 +12,7 @@ import {CompositeEvent} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IComposite} from 'vs/workbench/common/composite';
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
+import {IEditorControl} from 'vs/platform/editor/common/editor';
 
 /**
  * Internal composite events to communicate with composite container.
@@ -61,7 +60,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	}
 
 	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
+	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Called to create this composite on the provided builder. This method is only
@@ -83,7 +82,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	}
 
 	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
+	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Called to indicate that the composite has become visible or hidden. This method
@@ -179,13 +178,6 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	}
 
 	/**
-	 * Returns an array of elements that are selected in the composite.
-	 */
-	public getSelection(): ISelection {
-		return Selection.EMPTY;
-	}
-
-	/**
 	 * Returns true if this composite is currently visible and false otherwise.
 	 */
 	public isVisible(): boolean {
@@ -195,13 +187,13 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	/**
 	 * Returns the underlying composite control or null if it is not accessible.
 	 */
-	public getControl(): IEventEmitter {
+	public getControl(): IEditorControl {
 		return null;
 	}
 }
 
 /**
- * A composite descriptor is a leightweight descriptor of a composite in the monaco workbench.
+ * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
 export abstract class CompositeDescriptor<T extends Composite> extends AsyncDescriptor<T> {
 	public id: string;

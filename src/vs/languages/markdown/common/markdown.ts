@@ -5,7 +5,6 @@
 'use strict';
 
 import WinJS = require('vs/base/common/winjs.base');
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
 import URI from 'vs/base/common/uri';
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
@@ -17,25 +16,17 @@ import markdownTokenTypes = require('vs/languages/markdown/common/markdownTokenT
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
-	<Types.ILanguage>{
-		displayName: 'Markdown',
-		name: 'md',
+	<Types.IMonarchLanguage>{
 		defaultToken: '',
-
-		suggestSupport: {
-			disableAutoTrigger: true,
-		},
-
-		autoClosingPairs: [],
-
-		blockCommentStart: '<!--',
-		blockCommentEnd: '-->',
+		tokenPostfix: '.md',
 
 		// escape codes
 		control: /[\\`*_\[\]{}()#+\-\.!]/,
@@ -206,29 +197,51 @@ export const language =
 		}
 	};
 
-export class MarkdownMode extends Monarch.MonarchMode implements Modes.IEmitOutputSupport {
+export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
+
+	public static LANG_CONFIG:LanguageConfiguration = {
+		comments: {
+			blockComment: ['<!--', '-->',]
+		},
+		brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+		autoClosingPairs: []
+	};
 
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
+	public tokenizationSupport: Modes.ITokenizationSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
 	private _threadService:IThreadService;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor: Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
+		super(descriptor.id);
+		let lexer = Compile.compile(descriptor.id, language);
+
 		this._modeWorkerManager = new ModeWorkerManager<MarkdownWorker.MarkdownWorker>(descriptor, 'vs/languages/markdown/common/markdownWorker', 'MarkdownWorker', null, instantiationService);
 		this._threadService = threadService;
 
 		this.emitOutputSupport = this;
 		this.configSupport = this;
+
+		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
+
+		LanguageConfigurationRegistry.register(this.getId(), MarkdownMode.LANG_CONFIG);
+
+		Modes.SuggestRegistry.register(this.getId(), {
+			triggerCharacters: [],
+			shouldAutotriggerSuggest: false,
+			provideCompletionItems: (model, position, token) => {
+				return wireCancellationToken(token, editorWorkerService.textualSuggest(model.uri, position));
+			}
+		}, true);
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {

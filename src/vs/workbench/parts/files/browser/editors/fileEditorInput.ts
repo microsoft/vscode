@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import types = require('vs/base/common/types');
@@ -14,15 +13,17 @@ import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
-import {EditorModel, IInputStatus, EncodingMode} from 'vs/workbench/common/editor';
+import {EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
-import {CACHE, TextFileEditorModel, State} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEventService} from 'vs/platform/event/common/event';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -35,18 +36,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 	// Keep promises that load a file editor model to avoid loading the same model twice
 	private static FILE_EDITOR_MODEL_LOADERS: { [resource: string]: TPromise<EditorModel>; } = Object.create(null);
 
-	// These nls things are looked up way too often to not cache them..
-	private static nlsSavedDisplay = nls.localize('savedDisplay', "Saved");
-	private static nlsSavedMeta = nls.localize('savedMeta', "All changes saved");
-	private static nlsDirtyDisplay = nls.localize('dirtyDisplay', "Dirty");
-	private static nlsDirtyMeta = nls.localize('dirtyMeta', "Changes have been made to the file...");
-	private static nlsPendingSaveDisplay = nls.localize('savingDisplay', "Saving...");
-	private static nlsPendingSaveMeta = nls.localize('pendingSaveMeeta', "Changes are currently being saved...");
-	private static nlsErrorDisplay = nls.localize('saveErorDisplay', "Save error");
-	private static nlsErrorMeta = nls.localize('saveErrorMeta', "Sorry, we are having trouble saving your changes");
-	private static nlsConflictDisplay = nls.localize('saveConflictDisplay', "Conflict");
-	private static nlsConflictMeta = nls.localize('saveConflictMeta', "Changes cannot be saved because they conflict with the version on disk");
-
 	private resource: URI;
 	private mime: string;
 	private preferredEncoding: string;
@@ -55,23 +44,43 @@ export class FileEditorInput extends CommonFileEditorInput {
 	private description: string;
 	private verboseDescription: string;
 
+	private toUnbind: IDisposable[];
+
 	/**
-	 * An editor input whos contents are retrieved from file services.
+	 * An editor input who's contents are retrieved from file services.
 	 */
 	constructor(
 		resource: URI,
 		mime: string,
 		preferredEncoding: string,
+		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
+		this.toUnbind = [];
+
 		if (resource) {
 			this.setResource(resource);
 			this.setMime(mime || guessMimeTypes(this.resource.fsPath).join(', '));
 			this.preferredEncoding = preferredEncoding;
+		}
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+	}
+
+	private onDirtyStateChange(e: TextFileChangeEvent): void {
+		if (e.resource.toString() === this.resource.toString()) {
+			this._onDidChangeDirty.fire();
 		}
 	}
 
@@ -102,6 +111,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		this.mime = mime;
 	}
 
+	public setPreferredEncoding(encoding: string): void {
+		this.preferredEncoding = encoding;
+	}
+
 	public getEncoding(): string {
 		let textModel = CACHE.get(this.resource);
 		if (textModel) {
@@ -120,7 +133,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return FILE_EDITOR_INPUT_ID;
 	}
 
@@ -148,31 +161,34 @@ export class FileEditorInput extends CommonFileEditorInput {
 		return this.verboseDescription;
 	}
 
-	public getStatus(): IInputStatus {
-		let textModel = CACHE.get(this.resource);
-		if (textModel) {
-			let state = textModel.getState();
-			switch (state) {
-				case State.SAVED: {
-					return { state: 'saved', displayText: FileEditorInput.nlsSavedDisplay, description: FileEditorInput.nlsSavedMeta };
-				}
-
-				case State.DIRTY: {
-					return { state: 'dirty', decoration: (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) ? '\u25cf' : '', displayText: FileEditorInput.nlsDirtyDisplay, description: FileEditorInput.nlsDirtyMeta };
-				}
-
-				case State.PENDING_SAVE:
-					return { state: 'saving', decoration: (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) ? '\u25cf' : '', displayText: FileEditorInput.nlsPendingSaveDisplay, description: FileEditorInput.nlsPendingSaveMeta };
-
-				case State.ERROR:
-					return { state: 'error', decoration: '\u25cf', displayText: FileEditorInput.nlsErrorDisplay, description: FileEditorInput.nlsErrorMeta };
-
-				case State.CONFLICT:
-					return { state: 'conflict', decoration: '\u25cf', displayText: FileEditorInput.nlsConflictDisplay, description: FileEditorInput.nlsConflictMeta };
-			}
+	public isDirty(): boolean {
+		const model = CACHE.get(this.resource);
+		if (!model) {
+			return false;
 		}
 
-		return null;
+		const state = model.getState();
+		if (state === ModelState.CONFLICT || state === ModelState.ERROR) {
+			return true; // always indicate dirty state if we are in conflict or error state
+		}
+
+		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return false; // fast auto save enabled so we do not declare dirty
+		}
+
+		return model.isDirty();
+	}
+
+	public confirmSave(): ConfirmResult {
+		return this.textFileService.confirmSave([this.resource]);
+	}
+
+	public save(): TPromise<boolean> {
+		return this.textFileService.save(this.resource);
+	}
+
+	public revert(): TPromise<boolean> {
+		return this.textFileService.revert(this.resource);
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
@@ -212,18 +228,19 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 		let modelPromise: TPromise<EditorModel>;
+		let resource = this.resource.toString();
 
 		// Keep clients who resolved the input to support proper disposal
-		let clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()];
+		let clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource];
 		if (types.isUndefinedOrNull(clients)) {
-			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()] = [this];
+			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource] = [this];
 		} else if (this.indexOfClient() === -1) {
-			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].push(this);
+			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource].push(this);
 		}
 
 		// Check for running loader to ensure the model is only ever loaded once
-		if (FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()]) {
-			return FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()];
+		if (FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource]) {
+			return FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource];
 		}
 
 		// Use Cached Model if present
@@ -235,33 +252,34 @@ export class FileEditorInput extends CommonFileEditorInput {
 		// Refresh Cached Model if present
 		else if (cachedModel && refresh) {
 			modelPromise = cachedModel.load();
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = modelPromise;
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = modelPromise;
 		}
 
 		// Otherwise Create Model and Load
 		else {
 			modelPromise = this.createAndLoadModel();
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = modelPromise;
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = modelPromise;
 		}
 
 		return modelPromise.then((resolvedModel: TextFileEditorModel | BinaryEditorModel) => {
 			if (resolvedModel instanceof TextFileEditorModel) {
 				CACHE.add(this.resource, resolvedModel); // Store into the text model cache unless this file is binary
 			}
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = null; // Remove from pending loaders
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = null; // Remove from pending loaders
 
 			return resolvedModel;
 		}, (error) => {
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = null; // Remove from pending loaders in case of an error
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = null; // Remove from pending loaders in case of an error
 
 			return TPromise.wrapError(error);
 		});
 	}
 
 	private indexOfClient(): number {
-		if (!types.isUndefinedOrNull(FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()])) {
-			for (let i = 0; i < FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].length; i++) {
-				let client = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()][i];
+		const inputs = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()];
+		if (inputs) {
+			for (let i = 0; i < inputs.length; i++) {
+				let client = inputs[i];
 				if (client === this) {
 					return i;
 				}
@@ -294,35 +312,15 @@ export class FileEditorInput extends CommonFileEditorInput {
 		});
 	}
 
-	public dispose(force?: boolean): void {
+	public dispose(): void {
 
-		// TextFileEditorModel
-		let cachedModel = CACHE.get(this.resource);
-		if (cachedModel) {
+		// Listeners
+		dispose(this.toUnbind);
 
-			// Only dispose if the last client called dispose() unless a forced dispose is triggered
-			let index = this.indexOfClient();
-			if (index >= 0) {
-
-				// Remove from Clients List
-				FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].splice(index, 1);
-
-				// Still clients around, thereby do not dispose yet
-				if (!force && FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].length > 0) {
-					return;
-				}
-
-				// We typically never want to dispose a file editor model because this means loosing undo/redo history.
-				// For that, we will keep the model around unless someone forces a dispose on the input. A forced dispose
-				// can happen when the model has not been used for a while or was changed outside the application which
-				// means loosing the undo redo history anyways.
-				if (!force) {
-					return;
-				}
-
-				// Dispose for real
-				CACHE.dispose(this.resource);
-			}
+		// Clear from our input cache
+		const index = this.indexOfClient();
+		if (index >= 0) {
+			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].splice(index, 1);
 		}
 
 		super.dispose();

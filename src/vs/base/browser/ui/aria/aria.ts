@@ -40,7 +40,7 @@ export function status(msg: string): void {
 
 function insertMessage(target: Builder, msg: string): void {
 	if (!ariaContainer) {
-		console.warn('ARIA support needs a container. Call setARIAContainer() first.');
+		// console.warn('ARIA support needs a container. Call setARIAContainer() first.');
 		return;
 	}
 

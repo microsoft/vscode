@@ -9,6 +9,7 @@
 	"functionBreakPointInputAriaLabel": "Digitare il punto di interruzione della funzione",
 	"functionBreakpointAriaLabel": "Punto di interruzione {0} della funzione, punti di interruzione, debug",
 	"functionBreakpointPlaceholder": "Funzione per cui inserire il punto di interruzione",
+	"loadMoreStackFrames": "Carica altri stack frame",
 	"stackFrameAriaLabel": "Riga{1} {2} dello stack frame {0}, stack di chiamate, debug",
 	"threadAriaLabel": "Thread {0}, stack di chiamate, debug",
 	"variableAriaLabel": "Valore {1} di {0}, variabili, debug",

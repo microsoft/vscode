@@ -7,17 +7,21 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
+import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
+import {asWinJsPromise} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
-export function findReferences(model: IModel, position: IPosition): TPromise<IReference[]> {
+export function provideReferences(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
 
 	// collect references from all providers
-	const promises = ReferenceSearchRegistry.ordered(model).map(provider => {
-		return provider.findReferences(model.getAssociatedResource(), position, true).then(result => {
+	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
+		return asWinJsPromise((token) => {
+			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
+		}).then(result => {
 			if (Array.isArray(result)) {
-				return <IReference[]> result;
+				return <Location[]> result;
 			}
 		}, err => {
 			onUnexpectedError(err);
@@ -25,7 +29,7 @@ export function findReferences(model: IModel, position: IPosition): TPromise<IRe
 	});
 
 	return TPromise.join(promises).then(references => {
-		let result: IReference[] = [];
+		let result: Location[] = [];
 		for (let ref of references) {
 			if (ref) {
 				result.push(...ref);
@@ -35,4 +39,4 @@ export function findReferences(model: IModel, position: IPosition): TPromise<IRe
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', findReferences);
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);

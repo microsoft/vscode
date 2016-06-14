@@ -23,6 +23,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -33,14 +34,15 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private blockOpeningViewlet: boolean;
 
 	constructor(
-		messageService: IMessageService,
-		storageService: IStorageService,
-		eventService: IEventService,
-		telemetryService: ITelemetryService,
-		contextMenuService: IContextMenuService,
-		partService: IPartService,
-		keybindingService: IKeybindingService,
-		id: string
+		id: string,
+		@IMessageService messageService: IMessageService,
+		@IStorageService storageService: IStorageService,
+		@IEventService eventService: IEventService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IPartService partService: IPartService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(
 			messageService,
@@ -50,6 +52,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			contextMenuService,
 			partService,
 			keybindingService,
+			instantiationService,
 			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)),
 			SidebarPart.activeViewletSettingsKey,
 			'sideBar',
@@ -126,4 +129,4 @@ export class FocusSideBarAction extends Action {
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
-}), nls.localize('viewCategory', "View"));
+}), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));

@@ -113,7 +113,7 @@ export abstract class HeaderView extends View {
 
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
-
+		
 		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
 	}
 
@@ -129,8 +129,10 @@ export abstract class HeaderView extends View {
 			this.header.style.height = headerSize;
 		}
 
-		this.renderHeader(this.header);
-		container.appendChild(this.header);
+		if (this.headerSize > 0) {
+			this.renderHeader(this.header);
+			container.appendChild(this.header);
+		}
 
 		this.body = document.createElement('div');
 		this.body.className = 'body';

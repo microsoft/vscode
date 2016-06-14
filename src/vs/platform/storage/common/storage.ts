@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {PropertyChangeEvent} from 'vs/base/common/events';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'storageService';
 
 export const IStorageService = createDecorator<IStorageService>(ID);
 
-export interface IStorageService extends IEventEmitter {
+export interface IStorageService {
 	serviceId: ServiceIdentifier<any>;
 
 	/**
@@ -65,34 +63,6 @@ export interface IStorageService extends IEventEmitter {
 	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean;
 }
 
-export namespace StorageEventType {
-
-	/**
-	 * Event type for when a storage value is changed.
-	 */
-	export const STORAGE = 'storage';
-}
-
-/**
- * Storage events are being emitted when user settings change which are persisted to local storage.
- */
-export class StorageEvent extends PropertyChangeEvent {
-
-	constructor(key: string, before: any, after: any, originalEvent?: any) {
-		super(key, before, after, originalEvent);
-	}
-
-	/**
-	 * Returns true if the storage change has occurred from this browser window and false if its coming from a different window.
-	 */
-	public isLocal(): boolean {
-
-		// By the spec a storage event is only ever emitted if it occurs from a different browser tab or window
-		// so we can use the check for originalEvent being set or not as a way to find out if the event is local or not.
-		return !this.originalEvent;
-	}
-}
-
 export enum StorageScope {
 
 	/**
@@ -105,3 +75,14 @@ export enum StorageScope {
 	 */
 	WORKSPACE
 }
+
+
+export const NullStorageService: IStorageService = {
+	serviceId: undefined,
+	store() { return undefined; },
+	swap() { return undefined; },
+	remove() { return undefined; },
+	get(a, b, defaultValue) { return defaultValue; },
+	getInteger(a, b, defaultValue) { return defaultValue; },
+	getBoolean(a, b, defaultValue) { return defaultValue; },
+};

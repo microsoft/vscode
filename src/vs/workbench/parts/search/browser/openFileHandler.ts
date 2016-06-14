@@ -15,7 +15,8 @@ import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/qu
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {EditorInput} from 'vs/workbench/common/editor';
+import {EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -36,6 +37,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		resource: URI,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(editorService);
@@ -72,12 +74,13 @@ export class FileEntry extends EditorQuickOpenEntry {
 	public getInput(): IResourceInput | EditorInput {
 		let input: IResourceInput = {
 			resource: this.resource,
+			options: {
+				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.quickOpenPreviews
+			}
 		};
 
 		if (this.range) {
-			input.options = {
-				selection: this.range
-			};
+			input.options.selection = this.range;
 		}
 
 		return input;
@@ -89,6 +92,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -118,7 +122,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
 		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
-			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue
 		};
 

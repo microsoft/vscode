@@ -10,8 +10,9 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICommentsConfiguration, IMode} from 'vs/editor/common/modes';
+import {ICommentsConfiguration} from 'vs/editor/common/modes';
 import {BlockCommentCommand} from './blockCommentCommand';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -43,14 +44,14 @@ export enum Type {
 
 export class LineCommentCommand implements editorCommon.ICommand {
 
-	private _selection: editorCommon.IEditorSelection;
+	private _selection: Selection;
 	private _selectionId: string;
 	private _deltaColumn:number;
 	private _moveEndPositionDown: boolean;
 	private _tabSize: number;
 	private _type:Type;
 
-	constructor(selection:editorCommon.IEditorSelection, tabSize:number, type:Type) {
+	constructor(selection:Selection, tabSize:number, type:Type) {
 		this._selection = selection;
 		this._tabSize = tabSize;
 		this._type = type;
@@ -69,19 +70,17 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			i:number,
 			lineCount:number,
 			lineNumber:number,
-			mode: IMode,
 			modeId: string;
 
 		for (i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
 			lineNumber = startLineNumber + i;
-			mode = model.getModeAtPosition(lineNumber, 1);
-			modeId = mode.getId();
+			modeId = model.getModeIdAtPosition(lineNumber, 1);
 
 			// Find the commentStr for this line, if none is found then bail out: we cannot do line comments
 			if (seenModes[modeId]) {
 				commentStr = seenModes[modeId];
 			} else {
-				config = (mode.richEditSupport ? mode.richEditSupport.comments : null);
+				config = LanguageConfigurationRegistry.getComments(modeId);
 				commentStr = (config ? config.lineCommentToken : null);
 				if (!commentStr) {
 					// Mode does not support line comments
@@ -205,7 +204,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
-	private _executeLineComments(model:ISimpleModel, builder:editorCommon.IEditOperationBuilder, data:IPreflightData, s:editorCommon.IEditorSelection): void {
+	private _executeLineComments(model:ISimpleModel, builder:editorCommon.IEditOperationBuilder, data:IPreflightData, s:Selection): void {
 
 		var ops:editorCommon.IIdentifiedSingleEditOperation[];
 
@@ -228,7 +227,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private _attemptRemoveBlockComment(model:editorCommon.ITokenizedModel, s:editorCommon.IEditorSelection, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
+	private _attemptRemoveBlockComment(model:editorCommon.ITokenizedModel, s:Selection, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		let startLineNumber = s.startLineNumber;
 		let endLineNumber = s.endLineNumber;
 
@@ -272,9 +271,9 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
-	private _executeBlockComment(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder, s:editorCommon.IEditorSelection): void {
-		let richEditSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).richEditSupport;
-		let config = richEditSupport ? richEditSupport.comments : null;
+	private _executeBlockComment(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder, s:Selection): void {
+		let modeId = model.getModeIdAtPosition(s.startLineNumber, s.startColumn);
+		let config = LanguageConfigurationRegistry.getComments(modeId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;
@@ -335,14 +334,14 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		return this._executeBlockComment(model, builder, s);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);
 		}
 
-		return Selection.createSelection(
+		return new Selection(
 			result.startLineNumber,
 			result.startColumn + this._deltaColumn,
 			result.endLineNumber,

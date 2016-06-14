@@ -16,8 +16,9 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -25,8 +26,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
+import {IStorageService, NullStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -48,27 +48,93 @@ export interface IEditorContextViewService extends IContextViewService {
 }
 
 export interface IEditorOverrideServices {
+	/**
+	 * @internal
+	 */
 	threadService?:IThreadService;
+	/**
+	 * @internal
+	 */
 	modeService?: IModeService;
+	/**
+	 * @internal
+	 */
 	extensionService?:IExtensionService;
+	/**
+	 * @internal
+	 */
 	instantiationService?:IInstantiationService;
+	/**
+	 * @internal
+	 */
 	messageService?:IMessageService;
+	/**
+	 * @internal
+	 */
 	markerService?:IMarkerService;
+	/**
+	 * @internal
+	 */
 	editorService?:IEditorService;
+	/**
+	 * @internal
+	 */
 	requestService?:IRequestService;
+	/**
+	 * @internal
+	 */
 	keybindingService?:IKeybindingService;
+	/**
+	 * @internal
+	 */
 	contextService?:IWorkspaceContextService;
+	/**
+	 * @internal
+	 */
 	contextViewService?:IEditorContextViewService;
+	/**
+	 * @internal
+	 */
 	contextMenuService?:IContextMenuService;
+	/**
+	 * @internal
+	 */
 	telemetryService?:ITelemetryService;
+	/**
+	 * @internal
+	 */
 	eventService?:IEventService;
+	/**
+	 * @internal
+	 */
 	storageService?:IStorageService;
+	/**
+	 * @internal
+	 */
 	searchService?:ISearchService;
+	/**
+	 * @internal
+	 */
 	configurationService?:IConfigurationService;
+	/**
+	 * @internal
+	 */
 	progressService?:IProgressService;
+	/**
+	 * @internal
+	 */
 	fileService?:IFileService;
+	/**
+	 * @internal
+	 */
 	modelService?: IModelService;
+	/**
+	 * @internal
+	 */
 	codeEditorService?: ICodeEditorService;
+	/**
+	 * @internal
+	 */
 	editorWorkerService?: IEditorWorkerService;
 }
 
@@ -86,6 +152,7 @@ export interface IStaticServices {
 	codeEditorService: ICodeEditorService;
 	editorWorkerService: IEditorWorkerService;
 	eventService: IEventService;
+	storageService: IStorageService;
 	instantiationService: IInstantiationService;
 }
 
@@ -121,7 +188,7 @@ export function ensureDynamicPlatformServices(domElement:HTMLElement, services: 
 	var r:IDisposable[] = [];
 
 	if (typeof services.keybindingService === 'undefined') {
-		var keybindingService = new StandaloneKeybindingService(services.configurationService, domElement);
+		var keybindingService = new StandaloneKeybindingService(services.configurationService, services.messageService, domElement);
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
 	}
@@ -151,7 +218,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let contextService = services.contextService;
 	if (!contextService) {
 		contextService = new BaseWorkspaceContextService({
-			resource: URI.create('inmemory', 'model', '/'),
+			resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' }),
 			id: null,
 			name: null,
 			uid: null,
@@ -162,11 +229,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let telemetryService = services.telemetryService;
 
 	if (!telemetryService) {
-		let config = contextService.getConfiguration();
-		let enableTelemetry = config && config.env ? !!config.env.enableTelemetry: false;
-		telemetryService = enableTelemetry
-			? new TelemetryService()
-			: NullTelemetryService;
+		telemetryService = NullTelemetryService;
 	}
 
 	let eventService = services.eventService || new EventService();
@@ -177,7 +240,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		console.warn('standaloneEditorTelemetryEndpoint is obsolete');
 	}
 
-	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 2);
+	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
 	let messageService = services.messageService || new SimpleMessageService();
 	let extensionService = services.extensionService || new SimpleExtensionService();
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);
@@ -201,11 +264,21 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		codeEditorService: codeEditorService,
 		editorWorkerService: editorWorkerService,
 		eventService: eventService,
+		storageService: services.storageService || NullStorageService,
 		instantiationService: void 0
 	};
 
-	let instantiationService = createInstantiationService(staticServices);
-	staticServices.instantiationService = createInstantiationService(staticServices);
+	let serviceCollection = new ServiceCollection();
+	for (var legacyServiceId in staticServices) {
+		if (staticServices.hasOwnProperty(legacyServiceId)) {
+			let id = createDecorator(legacyServiceId);
+			let element = staticServices[legacyServiceId];
+			serviceCollection.set(id, element);
+		}
+	}
+	let instantiationService = new InstantiationService(serviceCollection);
+
+	staticServices.instantiationService = instantiationService;
 	if (threadService instanceof MainThreadService) {
 		threadService.setInstantiationService(instantiationService);
 	}

@@ -6,21 +6,21 @@
 
 import paths = require('vs/base/common/paths');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
 import objects = require('vs/base/common/objects');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import model = require('./model');
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IDisposable, cAll} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import collections = require('vs/base/common/collections');
-import {IConfigurationService, ConfigurationServiceEventTypes}  from './configuration';
+import {IConfigurationService, IConfigurationServiceEvent}  from './configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
 import {IConfigurationRegistry, Extensions} from './configurationRegistry';
 import {Registry} from 'vs/platform/platform';
-import Event, {fromEventEmitter} from 'vs/base/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
+import {JSONPath} from 'vs/base/common/json';
 
 
 // ---- service abstract implementation
@@ -37,18 +37,17 @@ export interface IContent {
 }
 
 interface ILoadConfigResult {
-	merged: any;
-	consolidated: { contents: any; parseErrors: string[]; };
-	globals: { contents: any; parseErrors: string[]; };
+	config: any;
+	parseErrors?: string[];
 }
 
-export abstract class ConfigurationService extends EventEmitter implements IConfigurationService, IDisposable {
+export abstract class ConfigurationService implements IConfigurationService, IDisposable {
 
 	public serviceId = IConfigurationService;
 
 	private static RELOAD_CONFIGURATION_DELAY = 50;
 
-	public onDidUpdateConfiguration: Event<{ config: any }>;
+	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
 
 	protected contextService: IWorkspaceContextService;
 	protected eventService: IEventService;
@@ -58,11 +57,10 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<model.IConfigFile> };
-	private callOnDispose: Function;
+	private callOnDispose: IDisposable;
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, workspaceSettingsRootFolder: string = '.vscode') {
-		super();
 
 		this.contextService = contextService;
 		this.eventService = eventService;
@@ -70,27 +68,29 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 		this.workspaceSettingsRootFolder = workspaceSettingsRootFolder;
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = {
-			merged: {},
-			consolidated: { contents: {}, parseErrors: [] },
-			globals: { contents: {}, parseErrors: [] }
+			config: {}
 		};
-
-		this.onDidUpdateConfiguration = fromEventEmitter(this, ConfigurationServiceEventTypes.UPDATED);
 
 		this.registerListeners();
 	}
 
+	get onDidUpdateConfiguration(): Event<IConfigurationServiceEvent> {
+		return this._onDidUpdateConfiguration.event;
+	}
+
 	protected registerListeners(): void {
-		let unbind = this.eventService.addListener(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
-		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.handleConfigurationChange());
-		this.callOnDispose = () => {
-			unbind();
-			subscription.dispose();
+		let unbind = this.eventService.addListener2(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
+		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration());
+		this.callOnDispose = {
+			dispose: () => {
+				unbind.dispose();
+				subscription.dispose();
+			}
 		};
 	}
 
 	public initialize(): TPromise<void> {
-		return this.loadConfiguration().then(() => null);
+		return this.doLoadConfiguration().then(() => null);
 	}
 
 	protected abstract resolveContents(resource: uri[]): TPromise<IContent[]>;
@@ -99,15 +99,13 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 
 	protected abstract resolveStat(resource: uri): TPromise<IStat>;
 
+	public abstract setUserConfiguration(key: string | JSONPath, value: any) : Thenable<void>;
+
 	public getConfiguration<T>(section?: string): T {
-		let result = section ? this.cachedConfig.merged[section] : this.cachedConfig.merged;
+		let result = section ? this.cachedConfig.config[section] : this.cachedConfig.config;
 
-		let parseErrors = this.cachedConfig.consolidated.parseErrors;
-		if (this.cachedConfig.globals.parseErrors) {
-			parseErrors.push.apply(parseErrors, this.cachedConfig.globals.parseErrors);
-		}
-
-		if (parseErrors.length > 0) {
+		let parseErrors = this.cachedConfig.parseErrors;
+		if (parseErrors && parseErrors.length > 0) {
 			if (!result) {
 				result = {};
 			}
@@ -117,15 +115,17 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 		return result;
 	}
 
-	private loadConfiguration(section?: string): TPromise<any> {
-		return this.doLoadConfiguration().then((res: ILoadConfigResult) => {
-			this.cachedConfig = res;
+	public loadConfiguration(section?: string): TPromise<any> {
 
-			return this.getConfiguration(section);
-		});
+		// Reset caches to ensure we are hitting the disk
+		this.bulkFetchFromWorkspacePromise = null;
+		this.workspaceFilePathToConfiguration = Object.create(null);
+
+		// Load configuration
+		return this.doLoadConfiguration(section);
 	}
 
-	private doLoadConfiguration(): TPromise<ILoadConfigResult> {
+	private doLoadConfiguration(section?: string): TPromise<any> {
 
 		// Load globals
 		const globals = this.loadGlobalConfiguration();
@@ -143,11 +143,22 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 				true								// overwrite
 			);
 
+			let parseErrors = [];
+			if (consolidated.parseErrors) {
+				parseErrors = consolidated.parseErrors;
+			}
+			if (globals.parseErrors) {
+				parseErrors.push.apply(parseErrors, globals.parseErrors);
+			}
+
 			return {
-				merged: merged,
-				consolidated: consolidated,
-				globals: globals
+				config: merged,
+				parseErrors
 			};
+		}).then((res: ILoadConfigResult) => {
+			this.cachedConfig = res;
+
+			return this.getConfiguration(section);
 		});
 	}
 
@@ -189,10 +200,22 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 		});
 	}
 
+	private onDidRegisterConfiguration(): void {
+
+		// a new configuration was registered (e.g. from an extension) and this means we do have a new set of
+		// configuration defaults. since we already loaded the merged set of configuration (defaults < global < workspace),
+		// we want to update the defaults with the new values. So we take our cached config and mix it into the new
+		// defaults that we got, overwriting any value present.
+		this.cachedConfig.config = objects.mixin(objects.clone(model.getDefaultValues()), this.cachedConfig.config, true /* overwrite */);
+
+		// emit this as update to listeners
+		this._onDidUpdateConfiguration.fire({ config: this.cachedConfig.config });
+	}
+
 	protected handleConfigurationChange(): void {
 		if (!this.reloadConfigurationScheduler) {
 			this.reloadConfigurationScheduler = new RunOnceScheduler(() => {
-				this.loadConfiguration().then((config) => this.emit(ConfigurationServiceEventTypes.UPDATED, { config: config })).done(null, errors.onUnexpectedError);
+				this.doLoadConfiguration().then((config) => this._onDidUpdateConfiguration.fire({ config: config })).done(null, errors.onUnexpectedError);
 			}, ConfigurationService.RELOAD_CONFIGURATION_DELAY);
 		}
 
@@ -243,9 +266,7 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 		if (this.reloadConfigurationScheduler) {
 			this.reloadConfigurationScheduler.dispose();
 		}
-
-		this.callOnDispose = cAll(this.callOnDispose);
-
-		super.dispose();
+		this.callOnDispose.dispose();
+		this._onDidUpdateConfiguration.dispose();
 	}
 }

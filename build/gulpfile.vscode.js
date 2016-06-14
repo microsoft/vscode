@@ -6,7 +6,6 @@
 var gulp = require('gulp');
 var fs = require('fs');
 var path = require('path');
-var os = require('os');
 var es = require('event-stream');
 var azure = require('gulp-azure-storage');
 var electron = require('gulp-atom-electron');
@@ -19,6 +18,7 @@ var remote = require('gulp-remote-src');
 var shell = require("gulp-shell");
 var _ = require('underscore');
 var packageJson = require('../package.json');
+var shrinkwrap = require('../npm-shrinkwrap.json');
 var util = require('./lib/util');
 var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
@@ -31,8 +31,8 @@ var baseModules = [
 	'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
-	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
-	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib'
+	'os', 'path', 'pty.js', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url', 'term.js',
+	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib', 'minimist', 'xterm'
 ];
 
 // Build
@@ -42,7 +42,8 @@ var vscodeEntryPoints = _.flatten([
 	buildfile.base,
 	buildfile.editor,
 	buildfile.languages,
-	buildfile.vscode
+	buildfile.workbench,
+	buildfile.code
 ]);
 
 var vscodeResources = [
@@ -50,6 +51,7 @@ var vscodeResources = [
 	'out-build/cli.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
+	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
@@ -62,8 +64,10 @@ var vscodeResources = [
 	'out-build/vs/workbench/parts/execution/**/*.scpt',
 	'out-build/vs/workbench/parts/git/**/*.html',
 	'out-build/vs/workbench/parts/git/**/*.sh',
+	'out-build/vs/workbench/parts/html/browser/webview.html',
 	'out-build/vs/workbench/parts/markdown/**/*.md',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
+	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'!**/test/**'
@@ -91,12 +95,13 @@ gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.
 // Package
 var product = require('../product.json');
 var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
+var linuxPackageRevision = getEpochTime();
 
 var config = {
 	version: packageJson.electronVersion,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2015 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2016 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -163,14 +168,15 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
+			'!extensions/*/{client,server}/src/**',
+			'!extensions/*/{client,server}/test/**',
+			'!extensions/*/{client,server}/out/**/test/**',
+			'!extensions/*/{client,server}/out/**/typings/**',
+			'!extensions/**/.vscode/**',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**',
-			'!extensions/json/server/.vscode/**',
-			'!extensions/json/server/src/**',
-			'!extensions/json/server/out/**/test/**',
-			'!extensions/json/server/test/**',
-			'!extensions/json/server/typings/**'
+			'!extensions/css/server/out/data/**'
 		], { base: '.' });
 
 		var sources = es.merge(src, extensions)
@@ -193,15 +199,15 @@ function packageTask(platform, arch, opts) {
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		var depsSrc = _.flatten(Object.keys(packageJson.dependencies).concat(Object.keys(packageJson.optionalDependencies))
-			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; })
-		);
+		var depsSrc = _.flatten(Object.keys(shrinkwrap.dependencies)
+			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })
-			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
-			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
-			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], true))
-			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
+			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
 
 		var all = es.merge(
 			api,
@@ -260,12 +266,12 @@ function getEpochTime() {
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
-	var destination = '.build/linux/deb/' + debArch + '/vscode-' + debArch;
-	var packageRevision = getEpochTime();
+	var destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
 
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -282,7 +288,7 @@ function prepareDebPackage(arch) {
 				var that = this;
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
-					.pipe(replace('@@VERSION@@', packageJson.version + '-' + packageRevision))
+					.pipe(replace('@@VERSION@@', packageJson.version + '-' + linuxPackageRevision))
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
 					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
 					.pipe(rename('DEBIAN/control'))
@@ -293,6 +299,10 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/prerm'))
 
+		var postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/postrm'))
+
 		var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
@@ -300,7 +310,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'))
 
-		var all = es.merge(control, postinst, prerm, desktop, icon, code);
+		var all = es.merge(control, postinst, postrm, prerm, desktop, icon, code);
 
 		return all.pipe(symdest(destination));
 	};
@@ -309,9 +319,9 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
-		'chmod 755 vscode-' + debArch + '/DEBIAN/postinst ' + 'vscode-' + debArch + '/DEBIAN/prerm',
+		'chmod 755 ' + product.applicationName + '-' + debArch + '/DEBIAN/postinst ' + product.applicationName + '-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
+		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
 	], { cwd: '.build/linux/deb/' + debArch});
 }
@@ -327,11 +337,11 @@ function getRpmPackageArch(arch) {
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var rpmArch = getRpmPackageArch(arch);
-	var packageRevision = getEpochTime();
 
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -345,7 +355,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@VERSION@@', packageJson.version))
-			.pipe(replace('@@RELEASE@@', packageRevision))
+			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
@@ -368,7 +378,7 @@ function buildRpmPackage(arch) {
 	return shell.task([
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/vscode-' + rpmArch + '.rpm',
+		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/',
 		'createrepo ' + destination
 	]);
 }

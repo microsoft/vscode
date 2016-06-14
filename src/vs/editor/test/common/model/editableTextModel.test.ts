@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, EndOfLineSequence, EventType, IIdentifiedSingleEditOperation, IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
 import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {TextModel} from 'vs/editor/common/model/textModel';
@@ -21,7 +21,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			lines: text,
-			forceMoveMarkers: false
+			forceMoveMarkers: false,
+			isAutoWhitespaceEdit: false
 		};
 	}
 
@@ -270,7 +271,8 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			lines: text,
-			forceMoveMarkers: false
+			forceMoveMarkers: false,
+			isAutoWhitespaceEdit: false
 		};
 	}
 
@@ -1338,7 +1340,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addBulkListener((events) => {
+			model.addBulkListener2((events) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1368,7 +1370,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addListener(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
+			model.onDidChangeContent((e:IModelContentChangedEvent2) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1391,7 +1393,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.addListener(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
+		model.onDidChangeContent((e:IModelContentChangedEvent2) => {
 			let versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');

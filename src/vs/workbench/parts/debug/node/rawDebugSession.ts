@@ -7,41 +7,114 @@ import nls = require('vs/nls');
 import cp = require('child_process');
 import fs = require('fs');
 import net = require('net');
+import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import { AIAdapter } from 'vs/base/node/aiAdapter';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
 import stdfork = require('vs/base/node/stdFork');
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import debug = require('vs/workbench/parts/debug/common/debug');
+import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
+
 import { shell } from 'electron';
 
+export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
+	body: {
+		exitCode: number,
+		sessionId: string
+	};
+}
+
+export interface SessionTerminatedEvent extends DebugProtocol.TerminatedEvent {
+	body: {
+		restart?: boolean,
+		sessionId: string
+	};
+}
+
 export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSession {
+
+	public restarted: boolean;
+	public emittedStopped: boolean;
+	public readyForBreakpoints: boolean;
+
 	private serverProcess: cp.ChildProcess;
 	private socket: net.Socket = null;
 	private cachedInitServer: TPromise<void>;
 	private startTime: number;
 	private stopServerPending: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
-	public isAttach: boolean;
-	public restarted: boolean;
-	public capabilities: DebugProtocol.Capabilites;
+	private isAttach: boolean;
+	private capabilities: DebugProtocol.Capabilites;
+
+	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
+	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
+	private _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
+	private _onDidExitAdapter: Emitter<SessionExitedEvent>;
+	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
+	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
+	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
+	private _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
-		private messageService: IMessageService,
-		private telemetryService: ITelemetryService,
 		private debugServerPort: number,
 		private adapter: Adapter,
-		private telemtryAdapter: AIAdapter
+		private customTelemetryService: ITelemetryService,
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IOutputService private outputService: IOutputService
 	) {
 		super();
-		this.capabilities = {};
+		this.emittedStopped = false;
+		this.readyForBreakpoints = false;
 		this.sentPromises = [];
+
+		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
+		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
+		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
+		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
+		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
+		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
+		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
+		this._onDidEvent = new Emitter<DebugProtocol.Event>();
+	}
+
+	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
+		return this._onDidInitialize.event;
+	}
+
+	public get onDidStop(): Event<DebugProtocol.StoppedEvent> {
+		return this._onDidStop.event;
+	}
+
+	public get onDidTerminateDebugee(): Event<SessionTerminatedEvent> {
+		return this._onDidTerminateDebugee.event;
+	}
+
+	public get onDidExitAdapter(): Event<SessionExitedEvent> {
+		return this._onDidExitAdapter.event;
+	}
+
+	public get onDidThread(): Event<DebugProtocol.ThreadEvent> {
+		return this._onDidThread.event;
+	}
+
+	public get onDidOutput(): Event<DebugProtocol.OutputEvent> {
+		return this._onDidOutput.event;
+	}
+
+	public get onDidBreakpoint(): Event<DebugProtocol.BreakpointEvent> {
+		return this._onDidBreakpoint.event;
+	}
+
+	public get onDidEvent(): Event<DebugProtocol.Event> {
+		return this._onDidEvent.event;
 	}
 
 	private initServer(): TPromise<void> {
@@ -61,6 +134,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.cachedInitServer;
 	}
 
+	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
+		return this.send(request, args);
+	}
+
 	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
 		return this.initServer().then(() => {
 			const promise = super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
@@ -68,7 +145,12 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
 				if (error && error.sendTelemetry) {
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
-					this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
+					if (this.customTelemetryService) {
+						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: message });
+					}
+				}
+				if (error && error.showUser === false) {
+					return TPromise.as(null);
 				}
 
 				if (error && error.url) {
@@ -87,53 +169,73 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		});
 	}
 
+	protected onEvent(event: DebugProtocol.Event): void {
+		if (event.body) {
+			event.body.sessionId = this.getId();
+		} else {
+			event.body = { sessionId: this.getId() };
+		}
+
+		if (event.event === 'initialized') {
+			this.readyForBreakpoints = true;
+			this._onDidInitialize.fire(event);
+		} else if (event.event === 'stopped') {
+			this.emittedStopped = true;
+			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
+		} else if (event.event === 'thread') {
+			this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
+		} else if (event.event === 'output') {
+			this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
+		} else if (event.event === 'breakpoint') {
+			this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
+		} else if (event.event === 'terminated') {
+			this._onDidTerminateDebugee.fire(<SessionTerminatedEvent>event);
+		} else if (event.event === 'exit') {
+			this._onDidExitAdapter.fire(<SessionExitedEvent>event);
+		}
+
+		this._onDidEvent.fire(event);
+	}
+
+	public get configuration(): { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites } {
+		return {
+			type: this.adapter.type,
+			isAttach: this.isAttach,
+			capabilities: this.capabilities || {}
+		};
+	}
+
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
 		return this.send('initialize', args).then(response => {
-			this.capabilities = response.body || this.capabilities;
+			this.capabilities = response.body;
 			return response;
 		});
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
 		this.isAttach = false;
-		return this.sendAndLazyEmit('launch', args);
+		return this.send('launch', args);
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
 		this.isAttach = true;
-		return this.sendAndLazyEmit('attach', args);
+		return this.send('attach', args);
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
-		return this.sendAndLazyEmit('next', args);
+		return this.send('next', args);
 	}
 
 	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
-		return this.sendAndLazyEmit('stepIn', args);
+		return this.send('stepIn', args);
 	}
 
 	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
-		return this.sendAndLazyEmit('stepOut', args);
+		return this.send('stepOut', args);
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
-		return this.sendAndLazyEmit('continue', args);
-	}
-
-	// node sometimes sends "stopped" events earlier than the response for the "step" request.
-	// due to this we only emit "continued" if we did not miss a stopped event.
-	// we do not emit straight away to reduce viewlet flickering.
-	private sendAndLazyEmit(command: string, args: any, eventType = debug.SessionEvents.CONTINUED): TPromise<DebugProtocol.Response> {
-		const count = this.flowEventsCount;
-		return this.send(command, args).then(response => {
-			setTimeout(() => {
-				if (this.flowEventsCount === count) {
-					this.emit(eventType);
-				}
-			}, 500);
-
-			return response;
-		});
+		return this.send('continue', args);
 	}
 
 	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
@@ -206,10 +308,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return (new Date().getTime() - this.startTime) / 1000;
 	}
 
-	public getType(): string {
-		return this.adapter.type;
-	}
-
 	private connectServer(port: number): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			this.socket = net.createConnection(port, '127.0.0.1', () => {
@@ -237,7 +335,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 			// });
 			this.serverProcess.stderr.on('data', (data: string) => {
-				console.log(sanitize(data));
+				this.outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
 			});
 
 			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
@@ -272,7 +370,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		if (this.socket !== null) {
 			this.socket.end();
 			this.cachedInitServer = null;
-			this.emit(debug.SessionEvents.SERVER_EXIT);
+			this.onEvent({ event: 'exit', type: 'event', seq: 0 });
 		}
 
 		if (!this.serverProcess) {
@@ -338,7 +436,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		if (!this.stopServerPending) {
 			this.messageService.show(severity.Error, nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
-		this.emit(debug.SessionEvents.SERVER_EXIT);
+		this.onEvent({ event: 'exit', type: 'event', seq: 0 });
 	}
 
 	public dispose(): void {

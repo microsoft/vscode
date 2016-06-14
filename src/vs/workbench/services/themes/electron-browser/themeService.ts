@@ -15,7 +15,7 @@ import {IThemeService, IThemeData} from 'vs/workbench/services/themes/common/the
 import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {Preferences} from 'vs/workbench/common/constants';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {$} from 'vs/base/browser/builder';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -27,6 +27,7 @@ import pfs = require('vs/base/node/pfs');
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
 
 const THEME_CHANNEL = 'vscode:changeTheme';
+const THEME_PREF = 'workbench.theme';
 
 let defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
 
@@ -91,18 +92,25 @@ interface ThemeDocument {
 	settings: ThemeSetting[];
 }
 
+interface IInternalThemeData extends IThemeData {
+	styleSheetContent?: string;
+	extensionId: string;
+}
+
 export class ThemeService implements IThemeService {
 	serviceId = IThemeService;
 
-	private knownThemes: IThemeData[];
+	private knownThemes: IInternalThemeData[];
 	private currentTheme: string;
 	private container: HTMLElement;
 	private onThemeChange: Emitter<string>;
 
 	constructor(
-			private extensionService: IExtensionService,
+			@IExtensionService private extensionService: IExtensionService,
 			@IWindowService private windowService: IWindowService,
-			@IStorageService private storageService: IStorageService) {
+			@IStorageService private storageService: IStorageService,
+			@ITelemetryService private telemetryService: ITelemetryService) {
+
 		this.knownThemes = [];
 		this.onThemeChange = new Emitter<string>();
 
@@ -126,10 +134,10 @@ export class ThemeService implements IThemeService {
 	public initialize(container: HTMLElement): TPromise<boolean> {
 		this.container = container;
 
-		let themeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
+		let themeId = this.storageService.get(THEME_PREF, StorageScope.GLOBAL, null);
 		if (!themeId) {
 			themeId = DEFAULT_THEME_ID;
-			this.storageService.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
+			this.storageService.store(THEME_PREF, themeId, StorageScope.GLOBAL);
 		}
 		return this.setTheme(themeId, false);
 	}
@@ -147,7 +155,8 @@ export class ThemeService implements IThemeService {
 
 		themeId = validateThemeId(themeId); // migrate theme ids
 
-		let onApply = (newThemeId) => {
+		let onApply = (newTheme: IInternalThemeData) => {
+			let newThemeId = newTheme.id;
 			if (this.container) {
 				if (this.currentTheme) {
 					$(this.container).removeClass(this.currentTheme);
@@ -156,9 +165,11 @@ export class ThemeService implements IThemeService {
 				$(this.container).addClass(newThemeId);
 			}
 
-			this.storageService.store(Preferences.THEME, newThemeId, StorageScope.GLOBAL);
+			this.storageService.store(THEME_PREF, newThemeId, StorageScope.GLOBAL);
 			if (broadcastToAllWindows) {
 				this.windowService.broadcast({ channel: THEME_CHANNEL, payload: newThemeId });
+			} else {
+				this.sendTelemetry(newTheme);
 			}
 			this.onThemeChange.fire(newThemeId);
 		};
@@ -167,26 +178,26 @@ export class ThemeService implements IThemeService {
 	}
 
 	public getTheme() {
-		return this.currentTheme || this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
+		return this.currentTheme || this.storageService.get(THEME_PREF, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 	}
 
-	private loadTheme(themeId: string, defaultId?: string): TPromise<IThemeData> {
+	private loadTheme(themeId: string, defaultId?: string): TPromise<IInternalThemeData> {
 		return this.getThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
-				return themes[0];
+				return <IInternalThemeData> themes[0];
 			}
 			if (defaultId) {
 				let themes = allThemes.filter(t => t.id === defaultId);
 				if (themes.length > 0) {
-					return themes[0];
+					return <IInternalThemeData> themes[0];
 				}
 			}
 			return null;
 		});
 	}
 
-	private applyThemeCSS(themeId: string, defaultId: string, onApply: (themeId:string) => void): TPromise<boolean> {
+	private applyThemeCSS(themeId: string, defaultId: string, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
 		return this.loadTheme(themeId, defaultId).then(theme => {
 			if (theme) {
 				return applyTheme(theme, onApply);
@@ -226,33 +237,56 @@ export class ThemeService implements IThemeService {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			let themeSelector = toCssSelector(extensionId + '-' + Paths.normalize(theme.path));
+			let themeSelector = toCSSSelector(extensionId + '-' + Paths.normalize(theme.path));
 			this.knownThemes.push({
 				id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
 				label: theme.label || Paths.basename(theme.path),
 				description: theme.description,
-				path: normalizedAbsolutePath
+				path: normalizedAbsolutePath,
+				extensionId: extensionId
 			});
 		});
+	}
+
+	private themeExtensionsActivated = {};
+	private sendTelemetry(themeData: IInternalThemeData) {
+		if (!this.themeExtensionsActivated[themeData.extensionId]) {
+			let description = ExtensionsRegistry.getExtensionDescription(themeData.extensionId);
+			if (description) {
+				this.telemetryService.publicLog('activatePlugin', {
+					id: description.id,
+					name: description.name,
+					isBuiltin: description.isBuiltin,
+					publisherDisplayName: description.publisher,
+					themeId: themeData.id
+				});
+				this.themeExtensionsActivated[themeData.extensionId] = true;
+			}
+		}
 	}
 }
 
 
-function toCssSelector(str: string) {
-	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
+
+function toCSSSelector(str: string) {
+	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
+	if (str.charAt(0).match(/[0-9\-]/)) {
+		str = '_' + str;
+	}
+	return str;
 }
 
-function applyTheme(theme: IThemeData, onApply: (themeId:string) => void): TPromise<boolean> {
+function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
 	if (theme.styleSheetContent) {
 		_applyRules(theme.styleSheetContent);
-		onApply(theme.id);
+		onApply(theme);
 		return TPromise.as(true);
 	}
 	return _loadThemeDocument(theme.path).then(themeDocument => {
 		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent);
-		onApply(theme.id);
+		onApply(theme);
 		return true;
 	}, error => {
 		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
@@ -262,10 +296,10 @@ function applyTheme(theme: IThemeData, onApply: (themeId:string) => void): TProm
 function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
 	return pfs.readFile(themePath).then(content => {
 		if (Paths.extname(themePath) === '.json') {
-			let errors: string[] = [];
+			let errors: Json.ParseError[] = [];
 			let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.join(', '))));
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
 			if (contentValue.include) {
 				return _loadThemeDocument(Paths.join(Paths.dirname(themePath), contentValue.include)).then(includedValue => {
@@ -338,7 +372,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	}
 	if (editorSettings.lineHighlight) {
 		let lineHighlight = new Color(editorSettings.lineHighlight);
-		cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; border:0; }`);
+		cssRules.push(`.monaco-editor.${themeSelector}.focused .current-line { background-color: ${lineHighlight}; border:0; }`);
 	}
 	if (editorSettings.caret) {
 		let caret = new Color(editorSettings.caret);

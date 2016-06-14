@@ -16,6 +16,7 @@ import severity from 'vs/base/common/severity';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, clipboard} from 'electron';
 
@@ -43,7 +44,7 @@ export class GlobalRevealInOSAction extends Action {
 	public static LABEL = platform.isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (platform.isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
 
 	constructor(
-		id:string,
+		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
@@ -87,19 +88,21 @@ export class GlobalCopyPathAction extends Action {
 	public static LABEL = nls.localize('copyPathOfActive', "Copy Path of Active File");
 
 	constructor(
-		id:string,
+		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const activeEditor = this.editorService.getActiveEditor();
+		let fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
 		if (fileInput) {
 			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
-			this.editorService.focusEditor(); // focus back to editor
+			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 		}
@@ -128,10 +131,23 @@ export class BaseOpenAction extends Action {
 export const OPEN_FILE_ID = 'workbench.action.files.openFile';
 export const OPEN_FILE_LABEL = nls.localize('openFile', "Open File...");
 
-export class OpenFileAction extends BaseOpenAction {
+export class OpenFileAction extends Action {
 
-	constructor(id: string, label: string) {
-		super(id, label, 'vscode:openFilePicker');
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+
+		// Handle in browser process
+		if (fileInput) {
+			ipc.send('vscode:openFilePicker', false, paths.dirname(fileInput.getResource().fsPath));
+		} else {
+			ipc.send('vscode:openFilePicker');
+		}
+
+		return TPromise.as(true);
 	}
 }
 
@@ -143,7 +159,6 @@ export class OpenFolderAction extends BaseOpenAction {
 	constructor(id: string, label: string) {
 		super(id, label, 'vscode:openFolderPicker');
 	}
-
 }
 
 export const OPEN_FILE_FOLDER_ID = 'workbench.action.files.openFileFolder';
@@ -162,7 +177,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public static LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
 
 	constructor(
-		id:string,
+		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService

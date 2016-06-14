@@ -20,7 +20,6 @@ import Actions = require('vs/base/common/actions');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
-import WorkbenchEvents = require('vs/workbench/common/events');
 import git = require('vs/workbench/parts/git/common/git');
 import GitView = require('vs/workbench/parts/git/browser/views/view');
 import GitActions = require('vs/workbench/parts/git/browser/gitActions');
@@ -38,9 +37,10 @@ import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ISelection, StructuredSelection} from 'vs/platform/selection/common/selection';
 import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import IGitService = git.IGitService;
 
@@ -53,6 +53,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	private static COMMIT_KEYBINDING = Platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
 	private static NEED_MESSAGE = nls.localize('needMessage', "Please provide a commit message. You can always press **{0}** to commit changes. If there are any staged changes, only those will be committed; otherwise, all changes will.", ChangesView.COMMIT_KEYBINDING);
 	private static NOTHING_TO_COMMIT = nls.localize('nothingToCommit', "Once there are some changes to commit, type in the commit message and either press **{0}** to commit changes. If there are any staged changes, only those will be committed; otherwise, all changes will.", ChangesView.COMMIT_KEYBINDING);
+	private static LONG_COMMIT = nls.localize('longCommit', "It is recommended to keep the commit's first line under 50 characters. Feel free to use more lines for extra information.");
 
 	private instantiationService: IInstantiationService;
 	private editorService: IWorkbenchEditorService;
@@ -81,12 +82,14 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	constructor(actionRunner: Actions.IActionRunner,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IMessageService messageService: IMessageService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IGitService gitService: IGitService,
 		@IOutputService outputService: IOutputService,
-		@IEventService eventService: IEventService
+		@IEventService eventService: IEventService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -104,7 +107,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		this.toDispose = [
 			this.smartCommitAction = this.instantiationService.createInstance(GitActions.SmartCommitAction, this),
-			eventService.addListener2(WorkbenchEvents.EventType.EDITOR_INPUT_CHANGED, (e:WorkbenchEvents.EditorEvent) => this.onEditorInputChanged(e.editorInput).done(null, Errors.onUnexpectedError)),
+			editorGroupService.onEditorsChanged(() => this.onEditorsChanged(this.editorService.getActiveEditorInput()).done(null, Errors.onUnexpectedError)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_START, (e) => this.onGitOperationStart(e)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_END, (e) => this.onGitOperationEnd(e)),
 			this.gitService.getModel().addListener2(git.ModelEvents.MODEL_UPDATED, this.onGitModelUpdate.bind(this))
@@ -132,7 +135,22 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			placeholder: nls.localize('commitMessage', "Message (press {0} to commit)", ChangesView.COMMIT_KEYBINDING),
 			validationOptions: {
 				showMessage: true,
-				validation: (): InputBox.IMessage => null
+				validation: (value): InputBox.IMessage => {
+					const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+
+					if (!config.enableLongCommitWarning) {
+						return null;
+					}
+
+					if (/^[^\n]{51}/.test(value)) {
+						return {
+							content: ChangesView.LONG_COMMIT,
+							type: InputBox.MessageType.WARNING
+						};
+					}
+
+					return null;
+				}
 			},
 			ariaLabel: nls.localize('commitMessageAriaLabel', "Git: Type commit message and press {0} to commit", ChangesView.COMMIT_KEYBINDING),
 			flexibleHeight: true
@@ -218,16 +236,12 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		if (visible) {
 			this.tree.onVisible();
-			return this.onEditorInputChanged(this.editorService.getActiveEditorInput());
+			return this.onEditorsChanged(this.editorService.getActiveEditorInput());
 
 		} else {
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
 		}
-	}
-
-	public getSelection():ISelection {
-		return new StructuredSelection(this.tree.getSelection());
 	}
 
 	public getControl(): Tree.ITree {
@@ -294,7 +308,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
-	private onEditorInputChanged(input: IEditorInput): WinJS.TPromise<void> {
+	private onEditorsChanged(input: IEditorInput): WinJS.TPromise<void> {
 		if (!this.tree) {
 			return WinJS.TPromise.as(null);
 		}
@@ -339,6 +353,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return;
 		}
 
+		var isDoubleClick = isMouseOrigin && e.payload.originalEvent && e.payload.originalEvent.detail === 2;
+
 		var status = <git.IFileStatus> element;
 
 		this.gitService.getInput(status).done((input) => {
@@ -355,6 +371,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			}
 
 			options.forceOpen = true;
+			options.pinned = isDoubleClick;
 
 			var sideBySide = (e && e.payload && e.payload.originalEvent && e.payload.originalEvent.altKey);
 

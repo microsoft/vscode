@@ -15,8 +15,8 @@
 	"openFileToReveal": "첫 번째 파일을 열어서 나타냅니다.",
 	"openFileToShow": "첫 번째 파일을 새 창에서 엽니다.",
 	"openFolder": "폴더 열기...",
-	"revealActiveFileInMac": "찾기에 활성 파일 표시",
+	"revealActiveFileInMac": "Finder에 활성 파일 표시",
 	"revealActiveFileInWindows": "Windows 탐색기에 활성 파일 표시",
-	"revealInMac": "찾기에 표시",
+	"revealInMac": "Finder에 표시",
 	"revealInWindows": "탐색기에 표시"
 }

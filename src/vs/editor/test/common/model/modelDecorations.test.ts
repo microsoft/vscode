@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EventType, IModelDeltaDecoration, IRange, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
+import {IModelDeltaDecoration, IRange, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 
 // --------- utils
@@ -200,7 +200,7 @@ suite('Editor Model - Model Decorations', () => {
 
 	test('decorations emit event on add', () => {
 		var listenerCalled = 0;
-		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
@@ -219,7 +219,7 @@ suite('Editor Model - Model Decorations', () => {
 	test('decorations emit event on change', () => {
 		var listenerCalled = 0;
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
@@ -246,7 +246,7 @@ suite('Editor Model - Model Decorations', () => {
 	test('decorations emit event on remove', () => {
 		var listenerCalled = 0;
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 0);
@@ -269,7 +269,7 @@ suite('Editor Model - Model Decorations', () => {
 		var listenerCalled = 0;
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
-		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
+		thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);

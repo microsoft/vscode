@@ -7,5 +7,6 @@
 	"globalConsoleActionMacLinux": "Ouvrir un nouveau Terminal",
 	"globalConsoleActionWin": "Ouvrir une nouvelle invite de commandes",
 	"scopedConsoleActionMacLinux": "Ouvrir dans Terminal",
-	"scopedConsoleActionWin": "Ouvrir dans l'invite de commandes"
+	"scopedConsoleActionWin": "Ouvrir dans l'invite de commandes",
+	"terminalConfigurationTitle": "Configuration du terminal"
 }

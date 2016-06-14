@@ -10,7 +10,7 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IExtension } from '../common/extensions';
+import { IExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export interface ITemplateData {
 	extension: IExtension;

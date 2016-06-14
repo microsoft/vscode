@@ -12,7 +12,6 @@ import ee = require('vs/base/common/eventEmitter');
 import view = require('vs/workbench/parts/git/browser/views/view');
 import builder = require('vs/base/browser/builder');
 import actions = require('vs/base/common/actions');
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 
 var $ = builder.$;
 
@@ -49,10 +48,6 @@ export class DisabledView
 
 	public setVisible(visible:boolean): winjs.TPromise<void> {
 		return winjs.TPromise.as(null);
-	}
-
-	public getSelection(): ISelection {
-		return Selection.EMPTY;
 	}
 
 	public getControl(): ee.IEventEmitter {

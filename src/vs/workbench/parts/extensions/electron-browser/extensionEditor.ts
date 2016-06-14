@@ -15,11 +15,10 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IGalleryService } from '../common/extensions';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { text as downloadText, IRequestOptions } from 'vs/base/node/request';
-import { UserSettings } from 'vs/workbench/node/userSettings';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { ITemplateData } from './extensionsList';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -38,8 +37,8 @@ export class ExtensionEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IGalleryService private galleryService: IGalleryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
@@ -86,20 +85,14 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	// Helper for proxy business... shameful.
-	// This should be pushed down and not rely on the context service
-	private request(url: string): TPromise<IRequestOptions> {
-		const settings = TPromise.join([
-			UserSettings.getValue(this.contextService, 'http.proxy'),
-			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
-		]);
+	// This should be pushed down and not rely on the configuration service
+	private request(url: string): IRequestOptions {
+		const http = this.configurationService.getConfiguration<{ proxy?: string; proxyStrictSSL?: boolean; }>('http');
+		const proxyUrl: string = http.proxy;
+		const strictSSL: boolean = http.proxyStrictSSL;
+		const agent = getProxyAgent(url, { proxyUrl, strictSSL });
 
-		return settings.then(settings => {
-			const proxyUrl: string = settings[0];
-			const strictSSL: boolean = settings[1];
-			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
-
-			return { url, agent, strictSSL };
-		});
+		return { url, agent, strictSSL };
 	}
 
 	dispose(): void {

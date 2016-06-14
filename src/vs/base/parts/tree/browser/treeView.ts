@@ -17,12 +17,11 @@ import Keyboard = require('vs/base/browser/keyboardEvent');
 import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
 import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
-import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
-import {IScrollable, ScrollEvent} from 'vs/base/common/scrollable';
 import {KeyCode} from 'vs/base/common/keyCodes';
 
 export interface IRow {
@@ -394,7 +393,7 @@ function reactionEquals(one: _.IDragOverReaction, other: _.IDragOverReaction): b
 	}
 }
 
-export class TreeView extends HeightMap implements IScrollable {
+export class TreeView extends HeightMap {
 
 	static BINDING = 'monaco-tree-row';
 	static LOADING_DECORATION_DELAY = 800;
@@ -402,23 +401,21 @@ export class TreeView extends HeightMap implements IScrollable {
 	private static currentExternalDragAndDropData: _.IDragAndDropData = null;
 
 	private context: IViewContext;
-	private modelListeners: { (): void; }[];
+	private modelListeners: Lifecycle.IDisposable[];
 	private model: Model.TreeModel;
 
 	private viewListeners: Lifecycle.IDisposable[];
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
 	private rowsContainer: HTMLElement;
-	private scrollableElement: Scroll.IScrollableElement;
+	private scrollableElement: ScrollableElement;
 	private wrapperGesture: Touch.Gesture;
 	private msGesture: MSGesture;
 	private lastPointerType:string;
 	private lastClickTimeStamp: number = 0;
 
-	private _viewHeight: number;
-	private renderTop: number;
-	private renderHeight: number;
-	private _scrollTop: number;
+	private lastRenderTop: number;
+	private lastRenderHeight: number;
 
 	private inputItem: ViewItem;
 	private items: { [id: string]: ViewItem; };
@@ -490,12 +487,16 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
-		this.scrollableElement = new ScrollableElementImpl.ScrollableElement(this.wrapper, this, {
-			forbidTranslate3dUse: true,
-			horizontal: 'hidden',
-			vertical: context.options.verticalScrollMode || 'auto',
+		this.scrollableElement = new ScrollableElement(this.wrapper, {
+			canUseTranslate3d: false,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
 			useShadows: context.options.useShadows,
 			saveLastScrollTimeOnClassName: 'monaco-tree-row'
+		});
+		this.scrollableElement.onScroll((e) => {
+			this.render(e.scrollTop, e.height);
+			this.emit('scroll', e); // TODO@Joao: is anyone interested in this event?
 		});
 
 		if(Browser.isIE11orEarlier) {
@@ -551,10 +552,8 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this.domNode);
 
-		this._scrollTop = 0;
-		this._viewHeight = 0;
-		this.renderTop = 0;
-		this.renderHeight = 0;
+		this.lastRenderTop = 0;
+		this.lastRenderHeight = 0;
 
 		this.didJustPressContextMenuKey = false;
 
@@ -596,8 +595,6 @@ export class TreeView extends HeightMap implements IScrollable {
 	public onVisible(): void {
 		this.scrollTop = this.onHiddenScrollTop;
 		this.onHiddenScrollTop = null;
-		this.scrollableElement.onElementDimensions();
-		this._emitScrollEvent(false, false);
 		this.setupMSGesture();
 	}
 
@@ -622,23 +619,15 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
-		this.scrollTop = this.scrollTop; // render
-
-		this.scrollableElement.onElementDimensions();
-		this._emitScrollEvent(false, false);
 	}
 
 	private render(scrollTop: number, viewHeight: number): void {
-		var scrollBottom = scrollTop + viewHeight;
-		var thisScrollBottom = this.scrollTop + this.viewHeight;
 		var i: number;
 		var stop: number;
 
 		var renderTop = scrollTop;
-		renderTop = Math.max(renderTop, 0);
-
-		var renderBottom = scrollBottom;
-		var thisRenderBottom = thisScrollBottom === 0 ? 0 : thisScrollBottom;
+		var renderBottom = scrollTop + viewHeight;
+		var thisRenderBottom = this.lastRenderTop + this.lastRenderHeight;
 
 		// when view scrolls down, start rendering from the renderBottom
 		for (i = this.indexAfter(renderBottom) - 1, stop = this.indexAt(Math.max(thisRenderBottom, renderTop)); i >= stop; i--) {
@@ -646,17 +635,17 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		// when view scrolls up, start rendering from either this.renderTop or renderBottom
-		for (i = Math.min(this.indexAt(this.renderTop), this.indexAfter(renderBottom)) - 1, stop = this.indexAt(renderTop); i >= stop; i--) {
+		for (i = Math.min(this.indexAt(this.lastRenderTop), this.indexAfter(renderBottom)) - 1, stop = this.indexAt(renderTop); i >= stop; i--) {
 			this.insertItemInDOM(<ViewItem> this.itemAtIndex(i));
 		}
 
 		// when view scrolls down, start unrendering from renderTop
-		for (i = this.indexAt(this.renderTop), stop = Math.min(this.indexAt(renderTop), this.indexAfter(thisRenderBottom)); i < stop; i++) {
+		for (i = this.indexAt(this.lastRenderTop), stop = Math.min(this.indexAt(renderTop), this.indexAfter(thisRenderBottom)); i < stop; i++) {
 			this.removeItemFromDOM(<ViewItem> this.itemAtIndex(i));
 		}
 
 		// when view scrolls up, start unrendering from either renderBottom this.renderTop
-		for (i = Math.max(this.indexAfter(renderBottom), this.indexAt(this.renderTop)), stop = this.indexAfter(thisRenderBottom); i < stop; i++) {
+		for (i = Math.max(this.indexAfter(renderBottom), this.indexAt(this.lastRenderTop)), stop = this.indexAfter(thisRenderBottom); i < stop; i++) {
 			this.removeItemFromDOM(<ViewItem> this.itemAtIndex(i));
 		}
 
@@ -666,15 +655,15 @@ export class TreeView extends HeightMap implements IScrollable {
 			this.rowsContainer.style.top = (topItem.top - renderTop) + 'px';
 		}
 
-		this.renderTop = renderTop;
-		this.renderHeight = renderBottom - renderTop;
+		this.lastRenderTop = renderTop;
+		this.lastRenderHeight = renderBottom - renderTop;
 	}
 
 	public setModel(newModel: Model.TreeModel): void {
 		this.releaseModel();
 		this.model = newModel;
 
-		this.modelListeners.push(this.model.addBulkListener((e) => this.onModelEvents(e)));
+		this.modelListeners.push(this.model.addBulkListener2((e) => this.onModelEvents(e)));
 	}
 
 	private onModelEvents(events:any[]): void {
@@ -750,7 +739,6 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		this.scrollTop = scrollTop;
-		this._emitScrollEvent(false, false);
 	}
 
 	public focusNextPage(eventPayload?:any): void {
@@ -804,67 +792,25 @@ export class TreeView extends HeightMap implements IScrollable {
 	}
 
 	public get viewHeight() {
-		return this._viewHeight;
+		return this.scrollableElement.getHeight();
 	}
 
 	public set viewHeight(viewHeight: number) {
-		this.render(this.scrollTop, viewHeight);
-		this._viewHeight = viewHeight;
-	}
-
-	// IScrollable
-
-	public getScrollHeight():number {
-		return this.getTotalHeight();
-	}
-
-	public getScrollWidth():number {
-		return 0;
-	}
-
-	public getScrollLeft():number {
-		return 0;
-	}
-
-	public setScrollLeft(scrollLeft:number): void {
-		// noop
+		this.scrollableElement.updateState({
+			height: viewHeight,
+			scrollHeight: this.getTotalHeight()
+		});
 	}
 
 	public get scrollTop(): number {
-		return this._scrollTop;
-	}
-
-	public getScrollTop(): number {
-		return this._scrollTop;
+		return this.scrollableElement.getScrollTop();
 	}
 
 	public set scrollTop(scrollTop: number) {
-		this.setScrollTop(scrollTop);
-	}
-
-	public setScrollTop(scrollTop: number): void {
-		scrollTop = Math.min(scrollTop, this.getTotalHeight() - this.viewHeight);
-		scrollTop = Math.max(scrollTop, 0);
-
-		this.render(scrollTop, this.viewHeight);
-		this._scrollTop = scrollTop;
-
-		this._emitScrollEvent(true, false);
-	}
-
-	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
-		this.emit('scroll', new ScrollEvent(
-			this.getScrollTop(),
-			this.getScrollLeft(),
-			this.getScrollWidth(),
-			this.getScrollHeight(),
-			vertical,
-			horizontal
-		));
-	}
-
-	public addScrollListener(callback:(v:ScrollEvent)=>void): Lifecycle.IDisposable {
-		return this.addListener2('scroll', callback);
+		this.scrollableElement.updateState({
+			scrollTop: scrollTop,
+			scrollHeight: this.getTotalHeight()
+		});
 	}
 
 	public getScrollPosition(): number {
@@ -1037,6 +983,16 @@ export class TreeView extends HeightMap implements IScrollable {
 			this.onRemoveItems(new MappedIterator(item.getNavigator(), item => item && item.id));
 			this.onRowsChanged();
 		}
+	}
+
+	public getRelativeTop(item: Model.Item): number {
+		if (item.isVisible()) {
+			var viewItem = this.items[item.id];
+			if (viewItem) {
+				return (viewItem.top - this.scrollTop) / (this.viewHeight - viewItem.height);
+			}
+		}
+		return -1;
 	}
 
 	private onItemReveal(e:Model.IItemRevealEvent): void {
@@ -1618,7 +1574,7 @@ export class TreeView extends HeightMap implements IScrollable {
 	// Helpers
 
 	private shouldBeRendered(item: ViewItem): boolean {
-		return item.top < this.renderTop + this.renderHeight && item.top + item.height > this.renderTop;
+		return item.top < this.lastRenderTop + this.lastRenderHeight && item.top + item.height > this.lastRenderTop;
 	}
 
 	private getItemAround(element: HTMLElement): ViewItem {
@@ -1642,9 +1598,7 @@ export class TreeView extends HeightMap implements IScrollable {
 
 	private releaseModel(): void {
 		if (this.model) {
-			while (this.modelListeners.length) {
-				this.modelListeners.pop()();
-			}
+			this.modelListeners = Lifecycle.dispose(this.modelListeners);
 			this.model = null;
 		}
 	}

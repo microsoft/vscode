@@ -12,10 +12,10 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
 
-const ID = 'workbench.action.toggleSidebarPosition';
-const LABEL = nls.localize('togglePosition', "Toggle Side Bar Position");
-
 export class ToggleSidebarPositionAction extends Action {
+
+	public static ID = 'workbench.action.toggleSidebarPosition';
+	public static LABEL = nls.localize('togglePosition', "Toggle Side Bar Position");
 
 	constructor(id: string, label: string, @IPartService private partService: IPartService) {
 		super(id, label);
@@ -31,5 +31,5 @@ export class ToggleSidebarPositionAction extends Action {
 	}
 }
 
-let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ID, LABEL), nls.localize('view', "View"));
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', nls.localize('view', "View"));

@@ -2,7 +2,7 @@
 
 ## Run
 
-The best way to run the Code tests is from within VS Code. Simply press `CMD+Shift+T` (`Ctrl+Shift+T` on Windows) to launch the tests. To make development changes to unit tests you need to be running `gulp`. See [Development Workflow](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/how-to-contribute.md#incremental-build) for more details.
+The best way to run the Code tests is from within VS Code. Simply press<kbd>F1</kbd>, type "run test" and press <kbd>enter</kbd> to launch the tests. To make development changes to unit tests you need to be running `gulp`. See [Development Workflow](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#incremental-build) for more details.
 
 If you wish to run the tests from a terminal, from the `vscode` folder run:
 

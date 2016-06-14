@@ -26,7 +26,7 @@ import fs = require('fs');
 class OpenSnippetsAction extends actions.Action {
 
 	public static ID = 'workbench.action.openSnippets';
-	public static LABEL = nls.localize('openSnippet.label', 'Snippets');
+	public static LABEL = nls.localize('openSnippet.label', "Snippets");
 
 	constructor(
 		id: string,
@@ -123,7 +123,7 @@ function createFile(path: string, content: string): winjs.Promise {
 var preferencesCategory = nls.localize('preferences', "Preferences");
 var workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry> platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
 
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSnippetsAction, OpenSnippetsAction.ID, OpenSnippetsAction.LABEL), preferencesCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSnippetsAction, OpenSnippetsAction.ID, OpenSnippetsAction.LABEL), 'Preferences: Snippets', preferencesCategory);
 
 (<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
 	snippetsTracker.SnippetsTracker
@@ -164,4 +164,3 @@ let schema : IJSONSchema = {
 
 let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>platform.Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
-schemaRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/snippets/*.json', schemaId);

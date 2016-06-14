@@ -137,7 +137,7 @@ export class MessageList {
 			id: id,
 			text: message,
 			severity: severity,
-			time: new Date().getTime(),
+			time: Date.now(),
 			actions: (<IMessageWithAction>id).actions
 		});
 

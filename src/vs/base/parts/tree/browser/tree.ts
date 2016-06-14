@@ -10,8 +10,11 @@ import Events = require('vs/base/common/eventEmitter');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
+import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export interface ITree extends Events.IEventEmitter {
+
+	emit(eventType:string, data?:any):void;
 
 	/**
 	 * Returns the tree's DOM element.
@@ -120,6 +123,13 @@ export interface ITree extends Events.IEventEmitter {
 	 * element will scroll up to the top.
 	 */
 	reveal(element: any, relativeTop?:number): WinJS.Promise;
+
+	/**
+	 * Returns the relative top position of any given element, if visible.
+	 * If not visible, returns -1.
+	 * Useful when calling `reveal(element, relativeTop)`.
+	 */
+	getRelativeTop(element: any): number;
 
 	/**
 	 * Returns a number between 0 and 1 representing how much the tree is scroll down. 0 means all the way
@@ -614,8 +624,7 @@ export interface ITreeConfiguration {
 export interface ITreeOptions {
 	twistiePixels?: number;
 	indentPixels?: number;
-	horizontalScrollMode?: string;
-	verticalScrollMode?: string;
+	verticalScrollMode?: ScrollbarVisibility;
 	alwaysFocused?: boolean;
 	autoExpandSingleChildren?: boolean;
 	bare?:boolean;

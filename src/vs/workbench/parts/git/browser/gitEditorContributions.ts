@@ -4,106 +4,101 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import ee = require('vs/base/common/eventEmitter');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
-import common = require('vs/editor/common/editorCommon');
-import git = require('vs/workbench/parts/git/common/git');
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {RunOnceScheduler} from 'vs/base/common/async';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IModel, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane, IEditorContribution, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { IGitService, ModelEvents, StatusType } from 'vs/workbench/parts/git/common/git';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Delayer } from 'vs/base/common/async';
 
-import IGitService = git.IGitService;
+const pattern = /^<<<<<<<|^=======|^>>>>>>>/;
+
+function decorate(model: IModel): IModelDeltaDecoration[] {
+	const options = MergeDecorator.DECORATION_OPTIONS;
+
+	return model.getLinesContent()
+		.map((line, i) => pattern.test(line) ? i : null)
+		.filter(i => i !== null)
+		.map(i => ({ startLineNumber: i + 1, startColumn: 1, endLineNumber: i + 1, endColumn: 1 }))
+		.map(range => ({ range, options }));
+}
 
 class MergeDecoratorBoundToModel extends Disposable {
 
-	private _editor: editorbrowser.ICodeEditor;
-	private _model: common.IModel;
-	private _gitService: git.IGitService;
-	private _filePath:string;
-	private _redecorateSoon: RunOnceScheduler;
-	private _decorations: string[];
+	private decorations: string[];
 
-	constructor(editor: editorbrowser.ICodeEditor, model:common.IModel, filePath:string, gitService: git.IGitService) {
+	constructor(
+		private editor: ICodeEditor,
+		private model: IModel,
+		private filePath:string,
+		private gitService: IGitService
+	) {
 		super();
-		this._editor = editor;
-		this._model = model;
-		this._gitService = gitService;
-		this._filePath = filePath;
-		this._decorations = [];
-		this._redecorateSoon = this._register(new RunOnceScheduler(() => this.redecorate(), 300));
-		this._register(this._model.addListener2(common.EventType.ModelContentChanged, () => this._redecorateSoon.schedule()));
-		this._register(this._gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this._redecorateSoon.schedule()));
-		this._redecorateSoon.schedule();
+
+		this.decorations = [];
+
+		const delayer = new Delayer<void>(300);
+		delayer.trigger(() => this.redecorate());
+
+		const gitModel = gitService.getModel();
+		this._register(model.onDidChangeContent(() => delayer.trigger(() => this.redecorate())));
+		this._register(gitModel.addListener2(ModelEvents.STATUS_MODEL_UPDATED, () => delayer.trigger(() => this.redecorate())));
 	}
 
-	public dispose(): void {
-		this._setDecorations([]);
-		super.dispose();
-	}
-
-	private _setDecorations(newDecorations: common.IModelDeltaDecoration[]): void {
-		this._decorations = this._editor.deltaDecorations(this._decorations, newDecorations);
+	private _setDecorations(newDecorations: IModelDeltaDecoration[]): void {
+		this.decorations = this.editor.deltaDecorations(this.decorations, newDecorations);
 	}
 
 	private redecorate(): void {
-		var gitModel = this._gitService.getModel();
-		var mergeStatus = gitModel.getStatus().find(this._filePath, git.StatusType.MERGE);
+		const gitModel = this.gitService.getModel();
+		if (!gitModel) {
+			return;
+		}
+
+		const mergeStatus = gitModel.getStatus().find(this.filePath, StatusType.MERGE);
+
 		if (!mergeStatus) {
 			return;
 		}
 
-		let decorations: common.IModelDeltaDecoration[] = [];
-		let lineCount = this._model.getLineCount();
+		this._setDecorations(decorate(this.model));
+	}
 
-		for (let i = 1; i <= lineCount; i++) {
-			let start = this._model.getLineContent(i).substr(0, 7);
-
-			switch (start) {
-				case '<<<<<<<':
-				case '=======':
-				case '>>>>>>>':
-					decorations.push({
-						range: { startLineNumber: i, startColumn: 1, endLineNumber: i, endColumn: 1 },
-						options: MergeDecorator.DECORATION_OPTIONS
-					});
-					break;
-			}
-		}
-
-		this._setDecorations(decorations);
+	dispose(): void {
+		this._setDecorations([]);
+		super.dispose();
 	}
 }
 
-export class MergeDecorator implements common.IEditorContribution {
+export class MergeDecorator extends Disposable implements IEditorContribution {
 
-	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.Editor.MergeDecorator';
-	static DECORATION_OPTIONS:common.IModelDecorationOptions = {
+	static ID = 'vs.git.editor.merge.decorator';
+
+	static DECORATION_OPTIONS:IModelDecorationOptions = {
 		className: 'git-merge-control-decoration',
 		isWholeLine: true,
 		overviewRuler: {
 			color: 'rgb(197, 118, 0)',
 			darkColor: 'rgb(197, 118, 0)',
-			position: common.OverviewRulerLane.Left
+			position: OverviewRulerLane.Left
 		},
-		stickiness: common.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
-
-	private editor: editorbrowser.ICodeEditor;
-	private gitService: git.IGitService;
-	private contextService: IWorkspaceContextService;
-	private toUnbind: ee.ListenerUnbind[];
 
 	private mergeDecorator: MergeDecoratorBoundToModel;
 
-	constructor(editor: editorbrowser.ICodeEditor, @IGitService gitService: IGitService, @IWorkspaceContextService contextService : IWorkspaceContextService) {
-		this.gitService = gitService;
-		this.contextService = contextService;
-		this.editor = editor;
-		this.toUnbind = [ this.editor.addListener(common.EventType.ModelChanged, this.onModelChanged.bind(this)) ];
+	constructor(
+		private editor: ICodeEditor,
+		@IGitService private gitService: IGitService,
+		@IWorkspaceContextService private contextService : IWorkspaceContextService
+	) {
+		super();
+
+		this._register(this.editor.onDidChangeModel(() => this.onModelChanged()));
 		this.mergeDecorator = null;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return MergeDecorator.ID;
 	}
 
@@ -117,17 +112,17 @@ export class MergeDecorator implements common.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel();
+		const model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		var resource = model.getAssociatedResource();
+		const resource = model.uri;
 		if (!resource) {
 			return;
 		}
 
-		var path = this.contextService.toWorkspaceRelativePath(resource);
+		const path = this.contextService.toWorkspaceRelativePath(resource);
 		if (!path) {
 			return;
 		}
@@ -135,13 +130,12 @@ export class MergeDecorator implements common.IEditorContribution {
 		this.mergeDecorator = new MergeDecoratorBoundToModel(this.editor, model, path, this.gitService);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.mergeDecorator) {
 			this.mergeDecorator.dispose();
 			this.mergeDecorator = null;
 		}
-		while(this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+
+		super.dispose();
 	}
 }

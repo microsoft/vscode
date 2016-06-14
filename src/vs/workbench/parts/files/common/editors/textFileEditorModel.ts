@@ -12,10 +12,10 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import {IModelContentChangedEvent, EventType as EditorEventType} from 'vs/editor/common/editorCommon';
+import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {LocalFileChangeEvent, EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent} from 'vs/platform/files/common/files';
@@ -49,20 +49,9 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 // Diagnostics support
 let diag: (...args: any[]) => void;
 if (!diag) {
-	diag = diagnostics.register('TextFileEditorModelDiagnostics', function(...args: any[]) {
+	diag = diagnostics.register('TextFileEditorModelDiagnostics', function (...args: any[]) {
 		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
 	});
-}
-
-/**
- * States the text text file editor model can be in.
- */
-export enum State {
-	SAVED,
-	DIRTY,
-	PENDING_SAVE,
-	CONFLICT,
-	ERROR
 }
 
 /**
@@ -77,7 +66,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private resource: URI;
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
-	private textModelChangeListener: () => void;
+	private textModelChangeListener: IDisposable;
 	private textFileServiceListener: IDisposable;
 	private dirty: boolean;
 	private versionId: number;
@@ -174,9 +163,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Cancel any running auto-saves
 		this.cancelAutoSavePromises();
 
-		// Be prepared to send out a file change event in case reverting changes anything
-		let oldStat = this.cloneStat(this.versionOnDiskStat);
-
 		// Unset flags
 		let undo = this.setDirty(false);
 
@@ -184,12 +170,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.load(true /* force */).then(() => {
 
 			// Emit file change event
-			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.textEditorModel, oldStat, this.versionOnDiskStat));
+			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		}, (error) => {
 
 			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.textEditorModel, oldStat, this.versionOnDiskStat));
+				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
 			}
 
 			// Set flags back to previous values, we are still dirty if revert failed and we where
@@ -283,7 +269,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 					this.createTextEditorModelPromise = null;
 
 					this.setDirty(false); // Ensure we are not tracking a stale state
-					this.textModelChangeListener = this.textEditorModel.addListener(EditorEventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+					this.textModelChangeListener = this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e));
 
 					return this;
 				}, (error) => {
@@ -332,10 +318,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
 
 			// Clear flags
+			const wasDirty = this.dirty;
 			this.setDirty(false);
 
 			// Emit event
-			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.textEditorModel, this.versionOnDiskStat));
+			if (wasDirty) {
+				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			}
 
 			return;
 		}
@@ -360,12 +349,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Track dirty state and version id
 		let wasDirty = this.dirty;
 		this.setDirty(true);
-		this.lastDirtyTime = new Date().getTime();
+		this.lastDirtyTime = Date.now();
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
-			let stat = this.cloneStat(this.versionOnDiskStat);
-			this.emitEvent(FileEventType.FILE_DIRTY, new TextFileChangeEvent(this.textEditorModel, stat, stat, <any>e));
+			this.emitEvent(FileEventType.FILE_DIRTY, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		}
 	}
 
@@ -449,10 +437,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Emit file saving event: Listeners can still change the model now and since we are so close to saving
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
-		let versionOnDiskStatClone = this.cloneStat(this.versionOnDiskStat);
 		this.blockModelContentChange = true;
 		try {
-			const saveEvent = new TextFileChangeEvent(this.textEditorModel, versionOnDiskStatClone);
+			const saveEvent = new TextFileChangeEvent(this.resource, this.textEditorModel);
 			saveEvent.setAutoSaved(isAutoSave);
 			this.emitEvent(FileEventType.FILE_SAVING, saveEvent);
 		} finally {
@@ -489,16 +476,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			// Updated resolved stat with updated stat, and keep old for event
-			let oldStat = this.versionOnDiskStat;
 			this.updateVersionOnDiskStat(stat);
 
-			// Emit File Change Event
-			let oldValue = this.cloneStat(oldStat);
-			let newValue = this.cloneStat(this.versionOnDiskStat);
-			this.emitEvent('files.internal:fileChanged', new TextFileChangeEvent(this.textEditorModel, oldValue, newValue));
-
 			// Emit File Saved Event
-			this.emitEvent(FileEventType.FILE_SAVED, new TextFileChangeEvent(this.textEditorModel, oldValue, newValue));
+			this.emitEvent(FileEventType.FILE_SAVED, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		}, (error) => {
 			diag('doSave(' + versionId + ') - exit - resulted in a save error: ' + error.toString(), this.resource, new Date());
 
@@ -512,7 +493,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			this.onSaveError(error);
 
 			// Emit as event
-			this.emitEvent(FileEventType.FILE_SAVE_ERROR, new TextFileChangeEvent(this.textEditorModel, versionOnDiskStatClone));
+			this.emitEvent(FileEventType.FILE_SAVE_ERROR, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		});
 
 		return this.mapPendingSaveToVersionId[versionId];
@@ -576,7 +557,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
 	}
 
-	private emitEvent(type: string, event: LocalFileChangeEvent): void {
+	private emitEvent(type: string, event: TextFileChangeEvent): void {
 		try {
 			this.eventService.emit(type, event);
 		} catch (e) {
@@ -613,25 +594,25 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	/**
 	 * Returns the state this text text file editor model is in with regards to changes and saving.
 	 */
-	public getState(): State {
+	public getState(): ModelState {
 		if (this.inConflictResolutionMode) {
-			return State.CONFLICT;
+			return ModelState.CONFLICT;
 		}
 
 		if (this.inErrorMode) {
-			return State.ERROR;
+			return ModelState.ERROR;
 		}
 
 		if (!this.dirty) {
-			return State.SAVED;
+			return ModelState.SAVED;
 		}
 
 		if (this.isBusySaving()) {
-			return State.PENDING_SAVE;
+			return ModelState.PENDING_SAVE;
 		}
 
 		if (this.dirty) {
-			return State.DIRTY;
+			return ModelState.DIRTY;
 		}
 	}
 
@@ -723,7 +704,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.createTextEditorModelPromise = null;
 
 		if (this.textModelChangeListener) {
-			this.textModelChangeListener();
+			this.textModelChangeListener.dispose();
 			this.textModelChangeListener = null;
 		}
 
@@ -737,19 +718,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		CACHE.remove(this.resource);
 
 		super.dispose();
-	}
-
-	private cloneStat(stat: IFileStat): IFileStat {
-		return {
-			resource: URI.parse(stat.resource.toString()),
-			name: stat.name,
-			mtime: stat.mtime,
-			etag: stat.etag,
-			mime: stat.mime,
-			isDirectory: stat.isDirectory,
-			hasChildren: stat.hasChildren,
-			children: stat.children
-		};
 	}
 }
 

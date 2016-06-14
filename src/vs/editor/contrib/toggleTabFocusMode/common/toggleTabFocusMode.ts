@@ -37,4 +37,4 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleTabFo
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
-}));
+}, 'Toggle Use of Tab Key for Setting Focus'));

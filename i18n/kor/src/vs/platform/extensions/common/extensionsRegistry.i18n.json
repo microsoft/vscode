@@ -20,7 +20,7 @@
 	"vscode.extension.categories": "확장을 분류하기 위해 VS Code 갤러리에서 사용하는 범주입니다.",
 	"vscode.extension.contributes": "이 패키지에 표시된 VS Code 확장의 전체 기여입니다.",
 	"vscode.extension.displayName": "VS Code 갤러리에 사용되는 확장의 표시 이름입니다.",
-	"vscode.extension.extensionDependencies": "다른 확장에 대한 종속성입니다. 확장의 ID는 항상 ${publisher}.${name}입니다. 예: vscode.csharp.",
+	"vscode.extension.extensionDependencies": "다른 확장에 대한 종속성입니다. 확장 식별자는 항상 ${publisher}.${name}입니다(예: vscode.csharp).",
 	"vscode.extension.galleryBanner": "VS Code 마켓플레이스에 사용되는 배너입니다.",
 	"vscode.extension.galleryBanner.color": "VS Code 마켓플레이스 페이지 머리글의 배너 색상입니다.",
 	"vscode.extension.galleryBanner.theme": "배너에 사용되는 글꼴의 색상 테마입니다.",

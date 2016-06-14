@@ -5,7 +5,6 @@
 'use strict';
 
 import {isLinux, isWindows} from 'vs/base/common/platform';
-import {endsWith} from 'vs/base/common/strings';
 
 /**
  * The forward slash path separator.
@@ -39,62 +38,6 @@ export function relative(from: string, to: string): string {
 	}
 
 	return toParts.join(sep);
-}
-
-const _dotSegment = /[\\\/]\.\.?[\\\/]?|[\\\/]?\.\.?[\\\/]/;
-
-export function normalize(path: string, toOSPath?: boolean): string {
-
-	if (!path) {
-		return path;
-	}
-
-	// a path is already normal if it contains no .. or . parts
-	// and already uses the proper path separator
-	if (!_dotSegment.test(path)) {
-
-		// badSep is the path separator we don't want. Usually
-		// the backslash, unless isWindows && toOSPath
-		let badSep = toOSPath && isWindows ? '/' : '\\';
-		if (path.indexOf(badSep) === -1) {
-			return path;
-		}
-	}
-
-	let parts = path.split(/[\\\/]/);
-	for (let i = 0, len = parts.length; i < len; i++) {
-		if (parts[i] === '.' && !!parts[i + 1]) {
-			parts.splice(i, 1);
-			i -= 1;
-		} else if (parts[i] === '..' && !!parts[i - 1]) {
-			parts.splice(i - 1, 2);
-			i -= 2;
-		}
-	}
-
-	return parts.join(toOSPath ? nativeSep : sep);
-}
-
-export function dirnames(path: string): { next: () => { done: boolean; value: string; } } {
-
-	var value = path,
-		done = false;
-
-	function next() {
-		if (value === '.' || value === '/' || value === '\\') {
-			value = undefined;
-			done = true;
-		} else {
-			value = dirname(value);
-		}
-		return {
-			value,
-			done
-		};
-	}
-	return {
-		next
-	};
 }
 
 /**
@@ -134,108 +77,241 @@ export function extname(path: string): string {
 	return idx ? path.substring(~idx) : '';
 }
 
+const _posixBadPath = /(\/\.\.?\/)|(\/\.\.?)$|^(\.\.?\/)|(\/\/+)|(\\)/;
+const _winBadPath = /(\\\.\.?\\)|(\\\.\.?)$|^(\.\.?\\)|(\\\\+)|(\/)/;
 
-function getRootLength(path: string): number {
+function _isNormal(path: string, win: boolean): boolean {
+	return win
+		? !_winBadPath.test(path)
+		: !_posixBadPath.test(path);
+}
+
+export function normalize(path: string, toOSPath?: boolean): string {
+
+	if (path === null || path === void 0) {
+		return path;
+	}
+
+	const len = path.length;
+	if (len === 0) {
+		return '.';
+	}
+
+	const wantsBackslash = isWindows && toOSPath;
+	if (_isNormal(path, wantsBackslash)) {
+		return path;
+	}
+
+	const sep = wantsBackslash ? '\\' : '/';
+	const root = getRoot(path, sep);
+
+	// skip the root-portion of the path
+	let start = root.length;
+	let skip = false;
+	let res = '';
+
+	for (let end = root.length; end <= len; end++) {
+
+		// either at the end or at a path-separator character
+		if (end === len || path.charCodeAt(end) === _slash || path.charCodeAt(end) === _backslash) {
+
+			if (streql(path, start, end, '..')) {
+				// skip current and remove parent (if there is already something)
+				let prev_start = res.lastIndexOf(sep);
+				let prev_part = res.slice(prev_start + 1);
+				if ((root || prev_part.length > 0) && prev_part !== '..') {
+					res = prev_start === -1 ? '' : res.slice(0, prev_start);
+					skip = true;
+				}
+			} else if (streql(path, start, end, '.') && (root || res || end < len - 1)) {
+				// skip current (if there is already something or if there is more to come)
+				skip = true;
+			}
+
+			if (!skip) {
+				let part = path.slice(start, end);
+				if (res !== '' && res[res.length - 1] !== sep) {
+					res += sep;
+				}
+				res += part;
+			}
+			start = end + 1;
+			skip = false;
+		}
+	}
+
+	return root + res;
+}
+
+function streql(value: string, start: number, end: number, other: string): boolean {
+	return start + other.length === end &&  value.indexOf(other, start) === start;
+}
+
+/**
+ * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
+ * `getRoot('files:///files/path') === files:///`,
+ * or `getRoot('\\server\shares\path') === \\server\shares\`
+ */
+export function getRoot(path: string, sep: string = '/'): string {
 
 	if (!path) {
-		return 0;
+		return '';
 	}
 
-	path = path.replace(/\/|\\/g, '/');
+	let len = path.length;
+	let code = path.charCodeAt(0);
+	if (code === _slash || code === _backslash) {
 
-	if (path[0] === '/') {
-		if (path[1] !== '/') {
-			// /far/boo
-			return 1;
-		} else {
-			// //server/far/boo
-			return 2;
+		code = path.charCodeAt(1);
+		if (code === _slash || code === _backslash) {
+			// UNC candidate \\localhost\shares\ddd
+			//               ^^^^^^^^^^^^^^^^^^^
+			code = path.charCodeAt(2);
+			if (code !== _slash && code !== _backslash) {
+				let pos = 3;
+				let start = pos;
+				for (; pos < len; pos++) {
+					code = path.charCodeAt(pos);
+					if (code === _slash || code === _backslash) {
+						break;
+					}
+				}
+				code = path.charCodeAt(pos + 1);
+				if (start !== pos && code !== _slash && code !== _backslash) {
+					pos += 1;
+					for (; pos < len; pos++) {
+						code = path.charCodeAt(pos);
+						if (code === _slash || code === _backslash) {
+							return path.slice(0, pos + 1) // consume this separator
+								.replace(/[\\/]/g, sep);
+						}
+					}
+				}
+			}
+		}
+
+		// /user/far
+		// ^
+		return sep;
+
+	} else if ((code >= _A && code <= _Z) || (code >= _a && code <= _z)) {
+		// check for windows drive letter c:\ or c:
+
+		if (path.charCodeAt(1) === _colon) {
+			code = path.charCodeAt(2);
+			if (code === _slash || code === _backslash) {
+				// C:\fff
+				// ^^^
+				return path.slice(0, 2) + sep;
+			} else {
+				// C:
+				// ^^
+				return path.slice(0, 2);
+			}
 		}
 	}
 
-	if (path[1] === ':') {
-		if (path[2] === '/') {
-			// c:/boo/far.txt
-			return 3;
-		} else {
-			// c:
-			return 2;
+	// check for URI
+	// scheme://authority/path
+	// ^^^^^^^^^^^^^^^^^^^
+	let pos = path.indexOf('://');
+	if (pos !== -1) {
+		pos += 3; // 3 -> "://".length
+		for (; pos < len; pos++) {
+			code = path.charCodeAt(pos);
+			if (code === _slash || code === _backslash) {
+				return path.slice(0, pos + 1); // consume this separator
+			}
 		}
 	}
 
-	if (path.indexOf('file:///') === 0) {
-		return 8; // 8 -> 'file:///'.length
-	}
-
-	var idx = path.indexOf('://');
-	if (idx !== -1) {
-		return idx + 3; // 3 -> "://".length
-	}
-	return 0;
+	return '';
 }
 
-export function join(...parts: string[]): string {
+export const join: (...parts: string[]) => string = function () {
 
-	var rootLen = getRootLength(parts[0]),
-		root: string;
+	let value = '';
+	for (let i = 0; i < arguments.length; i++) {
+		let part = arguments[i];
+		if (i > 0) {
+			// add the separater between two parts unless
+			// there already is one
+			let last = value.charCodeAt(value.length - 1);
+			if (last !== _slash && last !== _backslash) {
+				let next = part.charCodeAt(0);
+				if (next !== _slash && next !== _backslash) {
 
-	// simply preserve things like c:/, //localhost/, file:///, http://, etc
-	root = parts[0].substr(0, rootLen);
-	parts[0] = parts[0].substr(rootLen);
-
-	var allParts: string[] = [],
-		endsWithSep = /[\\\/]$/.test(parts[parts.length - 1]);
-
-	for (var i = 0; i < parts.length; i++) {
-		allParts.push.apply(allParts, parts[i].split(/\/|\\/));
-	}
-
-	for (var i = 0; i < allParts.length; i++) {
-		var part = allParts[i];
-		if (part === '.' || part.length === 0) {
-			allParts.splice(i, 1);
-			i -= 1;
-		} else if (part === '..' && !!allParts[i - 1] && allParts[i - 1] !== '..') {
-			allParts.splice(i - 1, 2);
-			i -= 2;
+					value += sep;
+				}
+			}
 		}
+		value += part;
 	}
 
-	if (endsWithSep) {
-		allParts.push('');
-	}
+	return normalize(value);
+};
 
-	var ret = allParts.join('/');
-	if (root) {
-		ret = root.replace(/\/|\\/g, '/') + ret;
-	}
 
-	return ret;
-}
-
+/**
+ * Check if the path follows this pattern: `\\hostname\sharename`.
+ *
+ * @see https://msdn.microsoft.com/en-us/library/gg465305.aspx
+ * @return A boolean indication if the path is a UNC path, on none-windows
+ * always false.
+ */
 export function isUNC(path: string): boolean {
-	if (!isWindows || !path) {
-		return false; // UNC is a windows concept
+	if (!isWindows) {
+		// UNC is a windows concept
+		return false;
 	}
 
-	path = this.normalize(path, true);
+	if (!path || path.length < 5) {
+		// at least \\a\b
+		return false;
+	}
 
-	return path[0] === nativeSep && path[1] === nativeSep;
+	let code = path.charCodeAt(0);
+	if (code !== _backslash) {
+		return false;
+	}
+	code = path.charCodeAt(1);
+	if (code !== _backslash) {
+		return false;
+	}
+	let pos = 2;
+	let start = pos;
+	for (; pos < path.length; pos++) {
+		code = path.charCodeAt(pos);
+		if (code === _backslash) {
+			break;
+		}
+	}
+	if (start === pos) {
+		return false;
+	}
+	code = path.charCodeAt(pos + 1);
+	if (isNaN(code) || code === _backslash) {
+		return false;
+	}
+	return true;
 }
 
 function isPosixAbsolute(path: string): boolean {
 	return path && path[0] === '/';
 }
 
-export function makeAbsolute(path: string, isPathNormalized?: boolean): string {
-	return isPosixAbsolute(!isPathNormalized ? normalize(path) : path) ? path : sep + path;
+export function makePosixAbsolute(path: string): string {
+	return isPosixAbsolute(normalize(path)) ? path : sep + path;
 }
 
-export function isRelative(path: string): boolean {
-	return path && path.length > 1 && path[0] === '.';
-}
 
 const _slash = '/'.charCodeAt(0);
+const _backslash = '\\'.charCodeAt(0);
+const _colon = ':'.charCodeAt(0);
+const _a = 'a'.charCodeAt(0);
+const _A = 'A'.charCodeAt(0);
+const _z = 'z'.charCodeAt(0);
+const _Z = 'Z'.charCodeAt(0);
 
 export function isEqualOrParent(path: string, candidate: string): boolean {
 
@@ -296,7 +372,7 @@ export function isValidBasename(name: string): boolean {
 		return false; // check for reserved values
 	}
 
-	if (isWindows && endsWith(name, '.')) {
+	if (isWindows && name[name.length - 1] === '.') {
 		return false; // Windows: file cannot end with a "."
 	}
 

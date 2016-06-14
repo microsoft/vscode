@@ -5,31 +5,30 @@
 'use strict';
 
 import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {Model} from 'vs/editor/common/model/model';
 import {getTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE, COMMENT, DELIM_COMMENT, DELIM_DOCTYPE, DOCTYPE} from 'vs/languages/html/common/htmlTokenTypes';
-import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Range} from 'vs/editor/common/core/range';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {HTMLMode} from 'vs/languages/html/common/html';
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class MockJSMode extends MockTokenizingMode {
 
-	public richEditSupport: Modes.IRichEditSupport;
-
 	constructor() {
-		super('js', 'mock-js');
+		super('html-js-mock', 'mock-js');
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -56,6 +55,11 @@ class MockJSMode extends MockTokenizingMode {
 				{
 					// e.g.  */|
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
+				},
+				{
+					// e.g.  *-----*/|
+					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
 					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
 				}
 			]
@@ -89,14 +93,15 @@ suite('Colorizing - HTML', () => {
 
 	let tokenizationSupport: Modes.ITokenizationSupport;
 	let _mode: Modes.IMode;
+	let onEnterSupport: Modes.IRichEditOnEnter;
 
 	(function() {
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new HTMLMockModeService();
-		let inst = createInstantiationService({
-			threadService: threadService,
-			modeService: modeService
-		});
+		let services = new ServiceCollection();
+		services.set(IThreadService, threadService);
+		services.set(IModeService, modeService);
+		let inst = new InstantiationService(services);
 		threadService.setInstantiationService(inst);
 
 		_mode = new HTMLMode<htmlWorker.HTMLWorker>(
@@ -107,6 +112,8 @@ suite('Colorizing - HTML', () => {
 		);
 
 		tokenizationSupport = _mode.tokenizationSupport;
+
+		onEnterSupport = LanguageConfigurationRegistry.getOnEnterSupport(_mode.getId());
 	})();
 
 	test('Open Start Tag #1', () => {
@@ -463,7 +470,7 @@ suite('Colorizing - HTML', () => {
 		]);
 	});
 
-	test('Tag with empty atrributes', () => {
+	test('Tag with empty attributes', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: '<abc foo="">',
 			tokens: [
@@ -480,7 +487,7 @@ suite('Colorizing - HTML', () => {
 
 	test('Tag with Attributes', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
-			line: '<abc foo="bar" bar="foo">',
+			line: '<abc foo="bar" bar=\'foo\'>',
 			tokens: [
 				{ startIndex:0, type: DELIM_START },
 				{ startIndex:1, type: getTag('abc') },
@@ -492,6 +499,25 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:15, type: ATTRIB_NAME },
 				{ startIndex:18, type: DELIM_ASSIGN },
 				{ startIndex:19, type: ATTRIB_VALUE },
+				{ startIndex:24, type: DELIM_START }
+			]}
+		]);
+	});
+
+	test('Tag with Attributes, no quotes', () => {
+		modesUtil.assertTokenization(tokenizationSupport, [{
+			line: '<abc foo=bar bar=help-me>',
+			tokens: [
+				{ startIndex:0, type: DELIM_START },
+				{ startIndex:1, type: getTag('abc') },
+				{ startIndex:4, type: '' },
+				{ startIndex:5, type: ATTRIB_NAME },
+				{ startIndex:8, type: DELIM_ASSIGN },
+				{ startIndex:9, type: ATTRIB_VALUE },
+				{ startIndex:12, type: '' },
+				{ startIndex:13, type: ATTRIB_NAME },
+				{ startIndex:16, type: DELIM_ASSIGN },
+				{ startIndex:17, type: ATTRIB_VALUE },
 				{ startIndex:24, type: DELIM_START }
 			]}
 		]);
@@ -558,7 +584,7 @@ suite('Colorizing - HTML', () => {
 		]);
 	});
 
-	test('Tag with Invalid Attribute Name', () => {
+	test('Tag with Interesting Attribute Name', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: '<abc foo!@#="bar">',
 			tokens: [
@@ -566,10 +592,34 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:1, type: getTag('abc') },
 				{ startIndex:4, type: '' },
 				{ startIndex:5, type: ATTRIB_NAME },
-				{ startIndex:8, type: '' },
-				{ startIndex:13, type: ATTRIB_NAME },
-				{ startIndex:16, type: '' },
+				{ startIndex:11, type: DELIM_ASSIGN },
+				{ startIndex:12, type: ATTRIB_VALUE },
 				{ startIndex:17, type: DELIM_START }
+			]}
+		]);
+	});
+
+	test('Tag with Angular Attribute Name', () => {
+		modesUtil.assertTokenization(tokenizationSupport, [{
+			line: '<abc #myinput (click)="bar" [value]="someProperty" *ngIf="someCondition">',
+			tokens: [
+				{ startIndex:0, type: DELIM_START },
+				{ startIndex:1, type: getTag('abc') },
+				{ startIndex:4, type: '' },
+				{ startIndex:5, type: ATTRIB_NAME },
+				{ startIndex:13, type: '' },
+				{ startIndex:14, type: ATTRIB_NAME },
+				{ startIndex:21, type: DELIM_ASSIGN },
+				{ startIndex:22, type: ATTRIB_VALUE },
+				{ startIndex:27, type: '' },
+				{ startIndex:28, type: ATTRIB_NAME },
+				{ startIndex:35, type: DELIM_ASSIGN },
+				{ startIndex:36, type: ATTRIB_VALUE },
+				{ startIndex:50, type: '' },
+				{ startIndex:51, type: ATTRIB_NAME },
+				{ startIndex:56, type: DELIM_ASSIGN },
+				{ startIndex:57, type: ATTRIB_VALUE },
+				{ startIndex:72, type: DELIM_START }
 			]}
 		]);
 	});
@@ -657,7 +707,7 @@ suite('Colorizing - HTML', () => {
 	test('onEnter 1', function() {
 		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', Model.DEFAULT_CREATION_OPTIONS, _mode);
 
-		var actual = _mode.richEditSupport.onEnter.onEnter(model, {
+		var actual = onEnterSupport.onEnter(model, {
 			lineNumber: 1,
 			column: 46
 		});
@@ -668,9 +718,9 @@ suite('Colorizing - HTML', () => {
 	});
 
 	test('onEnter 2', function() {
-		function onEnter(line:string, offset:number): Modes.IEnterAction {
+		function onEnter(line:string, offset:number): Modes.EnterAction {
 			let model = new TextModelWithTokens([], TextModel.toRawText(line, Model.DEFAULT_CREATION_OPTIONS), false, _mode);
-			let result = getRawEnterActionAtPosition(model, 1, offset + 1);
+			let result = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, 1, offset + 1);
 			model.dispose();
 			return result;
 		}
@@ -703,15 +753,15 @@ suite('Colorizing - HTML', () => {
 
 	test('matchBracket', () => {
 
-		function toString(brackets:EditorCommon.IEditorRange[]): string[] {
+		function toString(brackets:[Range, Range]): [string,string] {
 			if (!brackets) {
 				return null;
 			}
 			brackets.sort(Range.compareRangesUsingStarts);
-			return brackets.map(b => b.toString());
+			return [brackets[0].toString(), brackets[1].toString()];
 		}
 
-		function assertBracket(lines:string[], lineNumber:number, column:number, expected:EditorCommon.IEditorRange[]): void {
+		function assertBracket(lines:string[], lineNumber:number, column:number, expected:[Range, Range]): void {
 			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), false, _mode);
 			// force tokenization
 			model.getLineContext(model.getLineCount());
@@ -719,9 +769,7 @@ suite('Colorizing - HTML', () => {
 				lineNumber: lineNumber,
 				column: column
 			});
-			let actualStr = actual ? toString(actual.brackets) : null;
-			let expectedStr = toString(expected);
-			assert.deepEqual(actualStr, expectedStr, 'TEXT <<' + lines.join('\n') + '>>, POS: ' + lineNumber + ', ' + column);
+			assert.deepEqual(toString(actual), toString(expected), 'TEXT <<' + lines.join('\n') + '>>, POS: ' + lineNumber + ', ' + column);
 		}
 
 		assertBracket(['<p></p>'], 1, 1, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);

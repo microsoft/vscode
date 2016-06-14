@@ -15,7 +15,7 @@ import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actio
 import DOM = require('vs/base/browser/dom');
 import {EventType as CommonEventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
-import {IEventEmitter, EventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {IEventEmitter, EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
@@ -33,7 +33,7 @@ export interface IActionItem extends IEventEmitter {
 export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public builder: Builder;
-	public _callOnDispose: Function[];
+	public _callOnDispose: lifecycle.IDisposable[];
 	public _context: any;
 	public _action: IAction;
 
@@ -48,7 +48,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this._action = action;
 
 		if (action instanceof Action) {
-			let l = (<Action>action).addBulkListener((events: IEmitterEvent[]) => {
+			let l = (<Action>action).addBulkListener2((events: EmitterEvent[]) => {
 
 				if (!this.builder) {
 					// we have not been rendered yet, so there
@@ -56,7 +56,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 					return;
 				}
 
-				events.forEach((event: IEmitterEvent) => {
+				events.forEach((event: EmitterEvent) => {
 
 					switch (event.getType()) {
 						case Action.ENABLED:
@@ -135,7 +135,15 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public onClick(event: Event): void {
 		DOM.EventHelper.stop(event, true);
-		this._actionRunner.run(this._action, this._context || event);
+		let context: any;
+		if (types.isUndefinedOrNull(this._context)) {
+			context = event;
+		} else {
+			context = this._context;
+			context.event = event;
+		}
+
+		this._actionRunner.run(this._action, context);
 	}
 
 	public focus(): void {
@@ -170,7 +178,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		// implement in subclass
 	}
 
-	public _updateUnknown(event: IEmitterEvent): void {
+	public _updateUnknown(event: EmitterEvent): void {
 		// can implement in subclass
 	}
 
@@ -187,13 +195,13 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 			this.gesture = null;
 		}
 
-		lifecycle.cAll(this._callOnDispose);
+		this._callOnDispose = lifecycle.dispose(this._callOnDispose);
 	}
 }
 
 export class Separator extends Action {
 
-	public static ID = 'actions.monaco.separator';
+	public static ID = 'vs.actions.separator';
 
 	constructor(label?: string, order?) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
@@ -333,13 +341,13 @@ export class ProgressItem extends BaseActionItem {
 		error.textContent = '!';
 		$(error).addClass('tag', 'error');
 
-		this.callOnDispose.push(this.addListener(CommonEventType.BEFORE_RUN, () => {
+		this.callOnDispose.push(this.addListener2(CommonEventType.BEFORE_RUN, () => {
 			$(progress).addClass('active');
 			$(done).removeClass('active');
 			$(error).removeClass('active');
 		}));
 
-		this.callOnDispose.push(this.addListener(CommonEventType.RUN, (result) => {
+		this.callOnDispose.push(this.addListener2(CommonEventType.RUN, (result) => {
 			$(progress).removeClass('active');
 			if (result.error) {
 				$(done).removeClass('active');
@@ -358,7 +366,6 @@ export class ProgressItem extends BaseActionItem {
 	}
 
 	public dispose(): void {
-		lifecycle.cAll(this.callOnDispose);
 		super.dispose();
 	}
 }
@@ -570,7 +577,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			this.addEmitter(item);
+			this.addEmitter2(item);
 			item.render(actionItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
@@ -686,7 +693,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		// trigger action
 		let actionItem = (<BaseActionItem>this.items[this.focusedItem]);
-		this.run(actionItem._action, actionItem._context || event).done();
+		const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
+		this.run(actionItem._action, context).done();
 	}
 
 	private cancel(): void {
@@ -730,7 +738,7 @@ export class SelectActionItem extends BaseActionItem {
 		super(ctx, action);
 
 		this.select = document.createElement('select');
-		this.select.className = 'action-bar-select';
+		this.select.className = `action-bar-select ${platform.isWindows ? 'windows' : ''}`;
 
 		this.options = options;
 		this.selected = selected;

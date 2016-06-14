@@ -13,9 +13,9 @@ import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import editorcommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -45,12 +45,21 @@ export class BreakpointWidget extends ZoneWidget {
 		this.breakpointWidgetVisible = keybindingService.createKey(CONTEXT_BREAKPOINT_WIDGET_VISIBLE, false);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
-		this.toDispose.push(editor.addListener2(editorcommon.EventType.ModelChanged, () => this.dispose()));
+		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));
 	}
 
-	public fillContainer(container: HTMLElement): void {
+	public static createInstance(editor: editorbrowser.ICodeEditor, lineNumber: number, instantiationService: IInstantiationService): void {
+		if (BreakpointWidget.INSTANCE) {
+			BreakpointWidget.INSTANCE.dispose();
+		}
+
+		instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
+		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
+	}
+
+	protected _fillContainer(container: HTMLElement): void {
 		dom.addClass(container, 'breakpoint-widget');
-		const uri = this.editor.getModel().getAssociatedResource();
+		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
@@ -66,7 +75,7 @@ export class BreakpointWidget extends ZoneWidget {
 		setTimeout(() => this.inputBox.focus(), 0);
 
 		let disposed = false;
-		const wrapUp = async.once<any, void>((success: boolean) => {
+		const wrapUp = async.once((success: boolean) => {
 			if (!disposed) {
 				disposed = true;
 				if (success) {
@@ -78,11 +87,13 @@ export class BreakpointWidget extends ZoneWidget {
 					};
 
 					// if there is already a breakpoint on this location - remove it.
-					if (this.debugService.getModel().getBreakpoints().some(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString())) {
-						this.debugService.toggleBreakpoint(raw).done(null, errors.onUnexpectedError);
+					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
+						.filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+					if (oldBreakpoint) {
+						this.debugService.removeBreakpoints(oldBreakpoint.getId()).done(null, errors.onUnexpectedError);
 					}
 
-					this.debugService.toggleBreakpoint(raw).done(null, errors.onUnexpectedError);
+					this.debugService.addBreakpoints([raw]).done(null, errors.onUnexpectedError);
 				}
 
 				this.dispose();
@@ -108,7 +119,7 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 }
 
-CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]  }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
 	if (BreakpointWidget.INSTANCE) {
 		BreakpointWidget.INSTANCE.dispose();
 	}

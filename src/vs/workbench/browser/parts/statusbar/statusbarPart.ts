@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/statusbarPart';
+import 'vs/css!./media/statusbarpart';
 import dom = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
 import nls = require('vs/nls');
@@ -24,7 +24,7 @@ import {StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem} from
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IStatusbarService, IStatusbarEntry} from 'vs/workbench/services/statusbar/common/statusbarService';
+import {IStatusbarService, IStatusbarEntry} from 'vs/platform/statusbar/common/statusbar';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -35,19 +35,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private toDispose: IDisposable[];
 	private statusItemsContainer: Builder;
-
-	private instantiationService: IInstantiationService;
+	private statusMsgDispose: IDisposable;
 
 	constructor(
-		id: string
+		id: string,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
 
 		this.toDispose = [];
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
@@ -142,6 +138,44 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		$(el).setProperty(StatusbarPart.ALIGNMENT_PROP, alignment);
 
 		return el;
+	}
+
+	public setStatusMessage(message: string, autoDisposeAfter: number = -1, delayBy: number = 0): IDisposable {
+		if (this.statusMsgDispose) {
+			this.statusMsgDispose.dispose(); // dismiss any previous
+		}
+
+		// Create new
+		let statusDispose: IDisposable;
+		let showHandle = setTimeout(() => {
+			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, Number.MIN_VALUE);
+			showHandle = null;
+		}, delayBy);
+		let hideHandle: number;
+
+		// Dispose function takes care of timeouts and actual entry
+		const dispose = {
+			dispose: () => {
+				if (showHandle) {
+					clearTimeout(showHandle);
+				}
+
+				if (hideHandle) {
+					clearTimeout(hideHandle);
+				}
+
+				if (statusDispose) {
+					statusDispose.dispose();
+				}
+			}
+		};
+		this.statusMsgDispose = dispose;
+
+		if (typeof autoDisposeAfter === 'number' && autoDisposeAfter > 0) {
+			hideHandle = setTimeout(() => dispose.dispose(), autoDisposeAfter);
+		}
+
+		return dispose;
 	}
 
 	public dispose(): void {

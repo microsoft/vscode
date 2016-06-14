@@ -4,21 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorPosition, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IPosition} from 'vs/editor/common/editorCommon';
 
-export class Position implements IEditorPosition {
-
+/**
+ * A position in the editor.
+ */
+export class Position {
+	/**
+	 * line number (starts at 1)
+	 */
 	public lineNumber: number;
+	/**
+	 * column (the first character in a line is between column 1 and column 2)
+	 */
 	public column: number;
 
 	constructor(lineNumber: number, column: number) {
-		this.lineNumber = lineNumber|0;
-		this.column = column|0;
+		this.lineNumber = lineNumber;
+		this.column = column;
 	}
 
+	/**
+	 * Test if this position equals other position
+	 */
 	public equals(other:IPosition): boolean {
 		return Position.equals(this, other);
 	}
+
+	/**
+	 * Test if position `a` equals position `b`
+	 */
 	public static equals(a:IPosition, b:IPosition): boolean {
 		if (!a && !b) {
 			return true;
@@ -31,9 +46,18 @@ export class Position implements IEditorPosition {
 		);
 	}
 
+	/**
+	 * Test if this position is before other position.
+	 * If the two positions are equal, the result will be false.
+	 */
 	public isBefore(other:IPosition): boolean {
 		return Position.isBefore(this, other);
 	}
+
+	/**
+	 * Test if position `a` is before position `b`.
+	 * If the two positions are equal, the result will be false.
+	 */
 	public static isBefore(a:IPosition, b:IPosition): boolean {
 		if (a.lineNumber < b.lineNumber) {
 			return true;
@@ -44,9 +68,18 @@ export class Position implements IEditorPosition {
 		return a.column < b.column;
 	}
 
+	/**
+	 * Test if this position is before other position.
+	 * If the two positions are equal, the result will be true.
+	 */
 	public isBeforeOrEqual(other:IPosition): boolean {
 		return Position.isBeforeOrEqual(this, other);
 	}
+
+	/**
+	 * Test if position `a` is before position `b`.
+	 * If the two positions are equal, the result will be true.
+	 */
 	public static isBeforeOrEqual(a:IPosition, b:IPosition): boolean {
 		if (a.lineNumber < b.lineNumber) {
 			return true;
@@ -57,48 +90,37 @@ export class Position implements IEditorPosition {
 		return a.column <= b.column;
 	}
 
+	/**
+	 * Clone this position.
+	 */
 	public clone(): Position {
 		return new Position(this.lineNumber, this.column);
 	}
 
+	/**
+	 * Convert to a human-readable representation.
+	 */
 	public toString(): string {
 		return '(' + this.lineNumber + ',' + this.column + ')';
 	}
 
 	// ---
 
-	public static lift(pos:IPosition): IEditorPosition {
+	/**
+	 * Create a `Position` from an `IPosition`.
+	 */
+	public static lift(pos:IPosition): Position {
 		return new Position(pos.lineNumber, pos.column);
 	}
 
+	/**
+	 * Test if `obj` is an `IPosition`.
+	 */
 	public static isIPosition(obj: any): obj is IPosition {
 		return (
 			obj
 			&& (typeof obj.lineNumber === 'number')
 			&& (typeof obj.column === 'number')
 		);
-	}
-
-	public static asEmptyRange(position:IPosition):IRange {
-		return {
-			startLineNumber: position.lineNumber,
-			startColumn: position.column,
-			endLineNumber: position.lineNumber,
-			endColumn: position.column
-		};
-	}
-
-	public static startPosition(range:IRange):IPosition {
-		return {
-			lineNumber: range.startLineNumber,
-			column: range.startColumn
-		};
-	}
-
-	public static endPosition(range:IRange):IPosition {
-		return {
-			lineNumber: range.endLineNumber,
-			column: range.endColumn
-		};
 	}
 }

@@ -46,7 +46,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 	linux: {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
 	}
-}), nls.localize('viewCategory', "View"));
+}), 'View: Toggle Output', nls.localize('viewCategory', "View"));
 
 // Contribute to Context Menu of Output Window
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ClearOutputEditorAction, ClearOutputEditorAction.ID, nls.localize('clearOutput.label', "Clear Output")));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ClearOutputEditorAction, ClearOutputEditorAction.ID, nls.localize('clearOutput.label', "Clear Output"), void 0, 'Clear Output'));

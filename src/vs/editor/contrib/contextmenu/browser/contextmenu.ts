@@ -17,7 +17,7 @@ import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -49,8 +49,8 @@ class ContextMenuController implements IEditorContribution {
 
 		this._contextMenuIsBeingShownCount = 0;
 
-		this._toDispose.push(this._editor.addListener2(EventType.ContextMenu, (e:IEditorMouseEvent)=>this._onContextMenu(e)));
-		this._toDispose.push(this._editor.addListener2(EventType.KeyDown, (e:IKeyboardEvent)=> {
+		this._toDispose.push(this._editor.onContextMenu((e:IEditorMouseEvent)=>this._onContextMenu(e)));
+		this._toDispose.push(this._editor.onKeyDown((e:IKeyboardEvent)=> {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
 				e.preventDefault();
@@ -61,7 +61,7 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	private _onContextMenu(e:IEditorMouseEvent): void {
-		if (!this._editor.getConfiguration().contextmenu) {
+		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			this._editor.focus();
 			// Ensure the cursor is at the position of the mouse click
 			if (e.target.position && !this._editor.getSelection().containsPosition(e.target.position)) {
@@ -99,7 +99,7 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	public showContextMenu(forcedPosition?:IPosition): void {
-		if (!this._editor.getConfiguration().contextmenu) {
+		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			return; // Context menu is turned off through configuration
 		}
 
@@ -173,7 +173,7 @@ class ContextMenuController implements IEditorContribution {
 		this._editor.beginForcedWidgetFocus();
 
 		// Disable hover
-		var oldHoverSetting = this._editor.getConfiguration().hover;
+		var oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
 		this._editor.updateOptions({
 			hover: false
 		});
@@ -276,4 +276,4 @@ EditorBrowserRegistry.registerEditorContribution(ContextMenuController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowContextMenu, ShowContextMenu.ID, nls.localize('action.showContextMenu.label', "Show Editor Context Menu"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyCode.F10
-}));
+}, 'Show Editor Context Menu'));

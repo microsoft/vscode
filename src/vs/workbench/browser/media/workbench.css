@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-::-ms-clear {
-	display: none;
-}
-
 .context-view .tooltip.customhover {
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -31,10 +27,6 @@
 .monaco-workbench > .part {
 	position: absolute;
 	z-index: 1;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
 }
 
@@ -54,7 +46,11 @@
 
 /* ---------- Dark Theme ---------- */
 
-.vs-dark .monaco-workbench { background-color: #252526; color: #CCC; }
+.vs-dark .monaco-workbench {
+	--input-bgcolor: #3C3C3C;
+	background-color: #252526;
+	color: #CCC;
+}
 
 .vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top {	box-shadow: #000 0 6px 6px -6px inset; }
 .vs-dark .monaco-workbench .monaco-scrollable-element .shadow.left { box-shadow: #000 6px 0 6px -6px inset; }
@@ -66,7 +62,7 @@
 
 .vs-dark .monaco-workbench input,
 .vs-dark .monaco-workbench textarea {
-	background-color: #3C3C3C;
+	background-color: var(--input-bgcolor);
 }
 
 .vs-dark .monaco-workbench input:disabled {
@@ -94,6 +90,6 @@
 	opacity: 1;
 }
 
-.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled:before {
+.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled {
 	opacity: .4;
 }

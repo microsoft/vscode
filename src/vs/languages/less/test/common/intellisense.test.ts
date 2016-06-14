@@ -13,23 +13,34 @@ import WinJS = require('vs/base/common/winjs.base');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+
+class LessMockMode extends MockMode {
+	constructor() {
+		super('less-mock-mode-id');
+		LanguageConfigurationRegistry.register(this.getId(), {
+			wordPattern: /(-?\d*\.\d+)|([\w-]+)/g
+		});
+	}
+}
 
 suite('LESS - Intellisense', () => {
 
+	let mockMode = new LessMockMode();
 
 	//------------ TEST suggestions ----------------
 
 	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestResult> {
 		var resourceService = new ResourceService.ResourceService();
 		var url = URI.parse('test://1');
-		resourceService.insert(url,  mm.createTestMirrorModelFromString(value, modesUtil.createMockMode('mock.mode.id', /(-?\d*\.\d+)|([\w-]+)/g), url));
+		resourceService.insert(url,  mm.createTestMirrorModelFromString(value, mockMode, url));
 
 		let services = servicesUtil2.createMockEditorWorkerServices({
 			resourceService: resourceService,
 		});
 
-		var worker = new lessWorker.LessWorker('mock.mode.id', services.resourceService, services.markerService);
+		var worker = new lessWorker.LessWorker('less-mock-mode-id', services.resourceService, services.markerService);
 		var position: EditorCommon.IPosition;
 		if (stringBefore === null) {
 			position = { column: 1, lineNumber: 1 };
@@ -40,7 +51,7 @@ suite('LESS - Intellisense', () => {
 				lineNumber: 1
 			};
 		}
-		return worker.suggest(url, position).then(result => result[0]);
+		return worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string) {

@@ -8,10 +8,11 @@ import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
+import { isWindows } from 'vs/base/common/platform';
 import { IAction } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDebugService, ServiceEvents, State } from 'vs/workbench/parts/debug/common/debug';
-import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
+import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class SelectConfigActionItem extends BaseActionItem {
 
@@ -26,7 +27,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 		super(null, action);
 
 		this.select = document.createElement('select');
-		this.select.className = 'debug-select action-bar-select';
+		this.select.className = `debug-select action-bar-select ${isWindows ? 'windows' : ''}`;
 
 		this.toDispose = [];
 		this.registerListeners(configurationService);
@@ -36,18 +37,21 @@ export class SelectConfigActionItem extends BaseActionItem {
 		this.toDispose.push(dom.addStandardDisposableListener(this.select, 'change', (e) => {
 			this.actionRunner.run(this._action, e.target.value).done(null, errors.onUnexpectedError);
 		}));
-		this.toDispose.push(this.debugService.addListener2(ServiceEvents.STATE_CHANGED, () => {
-			this.select.disabled = this.debugService.getState() !== State.Inactive;
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			this.select.disabled = state !== State.Inactive;
 		}));
-		this.toDispose.push(configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, e  => {
-			this.setOptions().done(null, errors.onUnexpectedError);
+		this.toDispose.push(configurationService.onDidUpdateConfiguration(e => {
+			this.setOptions(true).done(null, errors.onUnexpectedError);
+		}));
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidConfigurationChange(name => {
+			this.setOptions(false).done(null, errors.onUnexpectedError);
 		}));
 	}
 
 	public render(container: HTMLElement): void {
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.select);
-		this.setOptions().done(null, errors.onUnexpectedError);
+		this.setOptions(true).done(null, errors.onUnexpectedError);
 	}
 
 	public focus(): void {
@@ -62,22 +66,22 @@ export class SelectConfigActionItem extends BaseActionItem {
 		}
 	}
 
-	private setOptions(): TPromise<any> {
+	private setOptions(changeDebugConfiguration: boolean): TPromise<any> {
 		let previousSelectedIndex = this.select.selectedIndex;
 		this.select.options.length = 0;
 
-		return this.debugService.loadLaunchConfig().then(config => {
+		return this.debugService.getConfigurationManager().loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
-				this.select.add(this.createOption(`<${ nls.localize('none', "none") }>`));
+				this.select.add(this.createOption(nls.localize('noConfigurations', "No Configurations")));
 				this.select.disabled = true;
-				return this.actionRunner.run(this._action, null);
+				return changeDebugConfiguration ? this.actionRunner.run(this._action, null) : null;
 			}
 
 			const configurations = config.configurations;
 			this.select.disabled = configurations.length < 1;
 
 			let found = false;
-			const configurationName = this.debugService.getConfigurationName();
+			const configurationName = this.debugService.getConfigurationManager().configurationName;
 			for (let i = 0; i < configurations.length; i++) {
 				this.select.add(this.createOption(configurations[i].name));
 				if (configurationName === configurations[i].name) {
@@ -91,7 +95,9 @@ export class SelectConfigActionItem extends BaseActionItem {
 					previousSelectedIndex = 0;
 				}
 				this.select.selectedIndex = previousSelectedIndex;
-				return this.actionRunner.run(this._action, configurations[previousSelectedIndex].name);
+				if (changeDebugConfiguration) {
+					return this.actionRunner.run(this._action, configurations[previousSelectedIndex].name);
+				}
 			}
 		});
 	}

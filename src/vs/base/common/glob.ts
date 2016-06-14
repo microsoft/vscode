@@ -6,8 +6,7 @@
 
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-
-const CACHE: { [glob: string]: RegExp } = Object.create(null);
+import {LinkedMap} from 'vs/base/common/map';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
@@ -25,12 +24,12 @@ function starsToRegExp(starCount: number): string {
 		case 0:
 			return '';
 		case 1:
-			return NO_PATH_REGEX + '*?'; // 1 star matches any number of characters except path separator (/ and \) - non greedy (?)
+			return `${NO_PATH_REGEX}*?`; // 1 star matches any number of characters except path separator (/ and \) - non greedy (?)
 		default:
-			// Matches:  (Path Sep    OR     Path Val followed by Path Sep     OR    Path Sep followed by Path Val) 0-many times
+			// Matches:  (Path Sep OR Path Val followed by Path Sep OR Path Sep followed by Path Val) 0-many times
 			// Group is non capturing because we don't need to capture at all (?:...)
 			// Overall we use non-greedy matching because it could be that we match too much
-			return '(?:' + PATH_REGEX + '|' + NO_PATH_REGEX + '+' + PATH_REGEX + '|' + PATH_REGEX + NO_PATH_REGEX + '+)*?';
+			return `(?:${PATH_REGEX}|${NO_PATH_REGEX}+${PATH_REGEX}|${PATH_REGEX}${NO_PATH_REGEX}+)*?`;
 	}
 }
 
@@ -163,9 +162,7 @@ function parseRegExp(pattern: string): string {
 						let choices = splitGlobAware(braceVal, ',');
 
 						// Converts {foo,bar} => [foo|bar]
-						let braceRegExp = '(?:' + choices.reduce((prevValue, curValue, i, array) => {
-							return prevValue + '|' + parseRegExp(curValue);
-						}, parseRegExp(choices[0]) /* parse the first segment as regex and give as initial value */) + ')';
+						let braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
 
 						regEx += braceRegExp;
 
@@ -209,7 +206,25 @@ function parseRegExp(pattern: string): string {
 	return regEx;
 }
 
-function globToRegExp(pattern: string): RegExp {
+// regexes to check for trival glob patterns that just check for String#endsWith
+const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   // **/*.something
+const T2 = /^\*\*\/[\w\.-]+$/; 							   // **/something
+const T3 = /^{\*\*\/\*\.[\w\.-]+(,\*\*\/\*\.[\w\.-]+)*}$/; // {**/*.something,**/*.else}
+
+enum Trivia {
+	T1, // **/*.something
+	T2, // **/something
+	T3  // {**/*.something,**/*.else}
+}
+
+interface IParsedPattern {
+	regexp?: RegExp;
+	trivia?: Trivia;
+}
+
+const CACHE = new LinkedMap<IParsedPattern>(10000); // bounded to 10000 elements
+
+function parsePattern(pattern: string): IParsedPattern {
 	if (!pattern) {
 		return null;
 	}
@@ -218,25 +233,35 @@ function globToRegExp(pattern: string): RegExp {
 	pattern = pattern.trim();
 
 	// Check cache
-	if (CACHE[pattern]) {
-		let cached = CACHE[pattern];
-		cached.lastIndex = 0; // reset RegExp to its initial state to reuse it!
+	let parsedPattern = CACHE.get(pattern);
+	if (parsedPattern) {
+		if (parsedPattern.regexp) {
+			parsedPattern.regexp.lastIndex = 0; // reset RegExp to its initial state to reuse it!
+		}
 
-		return cached;
+		return parsedPattern;
 	}
 
-	let regEx = parseRegExp(pattern);
+	parsedPattern = Object.create(null);
 
-	// Wrap it
-	regEx = '^' + regEx + '$';
+	// Check for Trivias
+	if (T1.test(pattern)) {
+		parsedPattern.trivia = Trivia.T1;
+	} else if (T2.test(pattern)) {
+		parsedPattern.trivia = Trivia.T2;
+	} else if (T3.test(pattern)) {
+		parsedPattern.trivia = Trivia.T3;
+	}
 
-	// Convert to regexp and be ready for errors
-	let result = toRegExp(regEx);
+	// Otherwise convert to pattern
+	else {
+		parsedPattern.regexp = toRegExp(`^${parseRegExp(pattern)}$`);
+	}
 
-	// Make sure to cache
-	CACHE[pattern] = result;
+	// Cache
+	CACHE.set(pattern, parsedPattern);
 
-	return result;
+	return parsedPattern;
 }
 
 function toRegExp(regEx: string): RegExp {
@@ -264,8 +289,29 @@ export function match(arg1: string | IExpression, path: string, siblings?: strin
 
 	// Glob with String
 	if (typeof arg1 === 'string') {
-		var regExp = globToRegExp(arg1);
-		return regExp && regExp.test(path);
+		const parsedPattern = parsePattern(arg1);
+		if (!parsedPattern) {
+			return false;
+		}
+
+		// common pattern: **/*.txt just need endsWith check
+		if (parsedPattern.trivia === Trivia.T1) {
+			return strings.endsWith(path, arg1.substr(4)); // '**/*'.length === 4
+		}
+
+		// common pattern: **/some.txt just need basename check
+		if (parsedPattern.trivia === Trivia.T2) {
+			const base = arg1.substr(3); // '**/'.length === 3
+
+			return path === base || strings.endsWith(path, `/${base}`) || strings.endsWith(path, `\\${base}`);
+		}
+
+		// repetition of common patterns (see above) {**/*.txt,**/*.png}
+		if (parsedPattern.trivia === Trivia.T3) {
+			return arg1.slice(1, -1).split(',').some(pattern => match(pattern, path));
+		}
+
+		return parsedPattern.regexp.test(path);
 	}
 
 	// Glob with Expression

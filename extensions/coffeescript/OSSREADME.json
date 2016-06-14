@@ -2,6 +2,6 @@
 [{
 	"name": "textmate/coffee-script.tmbundle",
 	"version": "0.0.0",
-	"license": "MIT",
+	"license": "TextMate Bundle License",
 	"repositoryURL": "https://github.com/textmate/coffee-script.tmbundle"
 }]

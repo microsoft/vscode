@@ -8,9 +8,11 @@
 exports.collectModules = function() {
 	return [{
 		name: 'vs/base/common/worker/workerServer',
-		exclude: [ 'vs/css', 'vs/nls', 'vs/text' ]
+		include: [ 'vs/editor/common/worker/editorWorkerServer' ],
+		exclude: [ 'vs/css', 'vs/nls' ]
 	}, {
 		name: 'vs/base/common/worker/simpleWorker',
-		exclude: [ 'vs/css', 'vs/nls', 'vs/text' ]
+		include: [ 'vs/editor/common/services/editorSimpleWorker' ],
+		exclude: [ 'vs/css', 'vs/nls' ]
 	}];
 };

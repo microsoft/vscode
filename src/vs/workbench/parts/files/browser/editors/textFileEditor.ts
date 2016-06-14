@@ -8,12 +8,13 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
-import labels = require('vs/base/common/labels');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
+import {IEditorViewState} from 'vs/editor/common/editorCommon';
 import {Action} from 'vs/base/common/actions';
+import {Scope} from 'vs/workbench/common/memento';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {VIEWLET_ID, TEXT_FILE_EDITOR_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
@@ -21,7 +22,6 @@ import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textF
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, IFileService} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -34,6 +34,16 @@ import {IMessageService, Severity, CancelAction} from 'vs/platform/message/commo
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
+
+const LEGACY_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState'; // TODO@Ben migration
+const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+
+interface ITextEditorViewState {
+	0?: IEditorViewState;
+	1?: IEditorViewState;
+	2?: IEditorViewState;
+}
 
 /**
  * An implementation of editor for file system resources.
@@ -45,9 +55,8 @@ export class TextFileEditor extends BaseTextEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IViewletService private viewletService: IViewletService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
@@ -64,7 +73,7 @@ export class TextFileEditor extends BaseTextEditor {
 		TextFileEditorModel.setSaveErrorHandler(instantiationService.createInstance(SaveErrorHandler));
 
 		// Clear view state for deleted files
-		this.toUnbind.push(this.eventService.addListener(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -135,7 +144,7 @@ export class TextFileEditor extends BaseTextEditor {
 			let mode = textFileModel.textEditorModel.getMode();
 			let setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
 				mode: mode && mode.getId(),
-				resource: textFileModel.textEditorModel.getAssociatedResource().toString(),
+				resource: textFileModel.textEditorModel.uri.toString(),
 			});
 
 			// Editor
@@ -157,12 +166,6 @@ export class TextFileEditor extends BaseTextEditor {
 					textEditor.restoreViewState(editorViewState);
 				}
 			}
-
-			// Add to working files if file is out of workspace
-			if (!this.contextService.isInsideWorkspace(textFileModel.getResource())) {
-				this.textFileService.getWorkingFilesModel().addEntry(textFileModel.getResource());
-			}
-
 		}, (error) => {
 
 			// In case we tried to open a file inside the text editor and the response
@@ -179,22 +182,24 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
-				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), { actions: [
-					CancelAction,
-					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
-						return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
+				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), {
+					actions: [
+						CancelAction,
+						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
+							return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
 
-							// Add to working files
-							this.textFileService.getWorkingFilesModel().addEntry((<FileEditorInput>input).getResource());
-
-							// Open
-							return this.editorService.openEditor({
-								resource: (<FileEditorInput>input).getResource(),
-								mime: MIME_TEXT
+								// Open
+								return this.editorService.openEditor({
+									resource: (<FileEditorInput>input).getResource(),
+									mime: MIME_TEXT,
+									options: {
+										pinned: true // new file gets pinned by default
+									}
+								});
 							});
-						});
-					})
-				]}));
+						})
+					]
+				}));
 			}
 
 			// Inform the user if the file is too large to open
@@ -224,13 +229,11 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private openAsFolder(input: EditorInput): boolean {
 
-		// Since we cannot open a folder, we have to restore the previous input if any or close the editor
-		let handleEditorPromise: TPromise<BaseTextEditor>;
-		let previousInput = this.quickOpenService.getEditorHistory()[1];
+		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
+		let handleEditorPromise: TPromise<any> = this.editorService.closeEditor(this.position, this.input);
+		let previousInput = this.historyService.getHistory()[1];
 		if (previousInput) {
-			handleEditorPromise = this.editorService.openEditor(previousInput, null, this.position);
-		} else {
-			handleEditorPromise = this.editorService.closeEditor(this);
+			handleEditorPromise = handleEditorPromise.then(() => this.editorService.openEditor(previousInput, null, this.position));
 		}
 
 		handleEditorPromise.done(() => {
@@ -244,11 +247,6 @@ export class TextFileEditor extends BaseTextEditor {
 					this.viewletService.openViewlet(VIEWLET_ID, true).done((viewlet: ExplorerViewlet) => {
 						return viewlet.getExplorerView().select(fileEditorInput.getResource(), true);
 					}, errors.onUnexpectedError);
-				}
-
-				// Otherwise inform the user
-				else {
-					this.messageService.show(Severity.Info, nls.localize('folderOutofWorkspace', "The folder '{0}' is outside the currently opened root folder and can not be opened in this instance.", labels.getPathLabel(fileEditorInput.getResource())));
 				}
 			}
 		}, errors.onUnexpectedError);
@@ -266,8 +264,61 @@ export class TextFileEditor extends BaseTextEditor {
 		return options;
 	}
 
-	public supportsSplitEditor(): boolean {
-		return true; // yes, we can!
+	/**
+	 * Saves the text editor view state under the given key.
+	 */
+	private saveTextEditorViewState(storageService: IStorageService, key: string): void {
+		const memento = this.getMemento(storageService, Scope.WORKSPACE);
+		let textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (!textEditorViewStateMemento) {
+			textEditorViewStateMemento = Object.create(null);
+			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
+		}
+
+		const editorViewState = this.getControl().saveViewState();
+
+		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		if (!fileViewState) {
+			fileViewState = Object.create(null);
+			textEditorViewStateMemento[key] = fileViewState;
+		}
+
+		if (typeof this.position === 'number') {
+			fileViewState[this.position] = editorViewState;
+		}
+	}
+
+	/**
+	 * Clears the text editor view state under the given key.
+	 */
+	private clearTextEditorViewState(storageService: IStorageService, keys: string[]): void {
+		const memento = this.getMemento(storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			keys.forEach(key => delete textEditorViewStateMemento[key]);
+		}
+	}
+
+	/**
+	 * Loads the text editor view state for the given key and returns it.
+	 */
+	private loadTextEditorViewState(storageService: IStorageService, key: string): IEditorViewState {
+		const memento = this.getMemento(storageService, Scope.WORKSPACE);
+		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (textEditorViewStateMemento) {
+			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			if (fileViewState) {
+				return fileViewState[this.position];
+			}
+		}
+
+		// TODO@Ben migration
+		const legacyEditorViewStateMemento = memento[LEGACY_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (legacyEditorViewStateMemento) {
+			return legacyEditorViewStateMemento[key];
+		}
+
+		return null;
 	}
 
 	public clearInput(): void {

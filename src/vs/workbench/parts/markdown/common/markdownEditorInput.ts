@@ -35,7 +35,7 @@ export class MarkdownEditorInput extends IFrameEditorInput {
 		return this.instantiationService.createInstance(MarkdownEditorInput, resource, void 0, void 0);
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return MarkdownEditorInput.ID;
 	}
 

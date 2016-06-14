@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
-import {IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IndentAction} from 'vs/editor/common/modes';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createSingleEditOp, getEditOperation, testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
 import {withEditorModel} from 'vs/editor/test/common/editorTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
@@ -32,11 +32,9 @@ function testUnshiftCommand(lines: string[], selection: Selection, expectedLines
 
 class DocBlockCommentMode extends MockMode {
 
-	public richEditSupport: IRichEditSupport;
-
 	constructor() {
 		super();
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -63,6 +61,11 @@ class DocBlockCommentMode extends MockMode {
 				{
 					// e.g.  */|
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+					action: { indentAction: IndentAction.None, removeText: 1 }
+				},
+				{
+					// e.g.  *-----*/|
+					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
 					action: { indentAction: IndentAction.None, removeText: 1 }
 				}
 			]

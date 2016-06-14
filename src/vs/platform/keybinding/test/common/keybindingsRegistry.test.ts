@@ -13,7 +13,7 @@ suite('Keybinding Registry', () => {
 
 		KeybindingsRegistry.registerCommandDesc({
 			id: 'test',
-			context: undefined,
+			when: undefined,
 			primary: undefined,
 			weight: 0,
 			handler: function(accessor, args) {
@@ -24,7 +24,7 @@ suite('Keybinding Registry', () => {
 		KeybindingsRegistry.registerCommandDesc({
 			id: 'test2',
 			description: 'test',
-			context: undefined,
+			when: undefined,
 			primary: undefined,
 			weight: 0,
 			handler: function(accessor, args) {
@@ -34,7 +34,7 @@ suite('Keybinding Registry', () => {
 
 		KeybindingsRegistry.registerCommandDesc({
 			id: 'test3',
-			context: undefined,
+			when: undefined,
 			primary: undefined,
 			weight: 0,
 			description: {

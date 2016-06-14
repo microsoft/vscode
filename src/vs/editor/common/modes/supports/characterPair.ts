@@ -4,24 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IMode, IRichEditCharacterPair} from 'vs/editor/common/modes';
+import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IRichEditCharacterPair, CharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
-
-export interface ICharacterPairContribution {
-	autoClosingPairs: IAutoClosingPairConditional[];
-	surroundingPairs?: IAutoClosingPair[];
-}
+import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class CharacterPairSupport implements IRichEditCharacterPair {
 
+	private _registry: LanguageConfigurationRegistryImpl;
 	private _modeId: string;
 	private _autoClosingPairs: IAutoClosingPairConditional[];
 	private _surroundingPairs: IAutoClosingPair[];
 
-	constructor(modeId: string, contribution: ICharacterPairContribution) {
+	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[]}) {
+		this._registry = registry;
 		this._modeId = modeId;
-		this._autoClosingPairs = contribution.autoClosingPairs;
-		this._surroundingPairs = Array.isArray(contribution.surroundingPairs) ? contribution.surroundingPairs : contribution.autoClosingPairs;
+		this._autoClosingPairs = config.autoClosingPairs;
+		if (!this._autoClosingPairs) {
+			this._autoClosingPairs = config.brackets ? config.brackets.map(b => ({ open: b[0], close: b[1] })) : [];
+		}
+		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}
 
 	public getAutoClosingPairs(): IAutoClosingPair[] {
@@ -29,8 +30,8 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 	}
 
 	public shouldAutoClosePair(character:string, context:ILineContext, offset:number): boolean {
-		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
+		return handleEvent(context, offset, (nestedModeId:string, context:ILineContext, offset:number) => {
+			if (this._modeId === nestedModeId) {
 
 				// Always complete on empty line
 				if (context.getTokenCount() === 0) {
@@ -54,11 +55,14 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 				}
 
 				return true;
-			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.characterPair) {
-				return nestedMode.richEditSupport.characterPair.shouldAutoClosePair(character, context, offset);
-			} else {
-				return null;
 			}
+
+			let characterPairSupport = this._registry.getCharacterPairSupport(nestedModeId);
+			if (characterPairSupport) {
+				return characterPairSupport.shouldAutoClosePair(character, context, offset);
+			}
+
+			return null;
 		});
 	}
 

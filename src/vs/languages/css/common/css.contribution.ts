@@ -10,6 +10,10 @@ import Platform = require('vs/platform/platform');
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import lintRules = require('vs/languages/css/common/services/lintRules');
+import {IRange} from 'vs/editor/common/editorCommon';
+import {Range} from 'vs/editor/common/core/range';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
 
 ModesRegistry.registerCompatMode({
 	id: 'css',
@@ -29,4 +33,9 @@ configurationRegistry.registerConfiguration({
 		'title': nls.localize('lint', "Controls CSS validation and problem severities."),
 		'properties': lintRules.getConfigurationProperties('css')
 	}]
+});
+
+CommonEditorRegistry.registerEditorCommand('_css.replaceText', -1, { primary: undefined }, true, void 0, (accessor, editor, args: { range: IRange; newText: string;}) => {
+	let {range, newText} = args;
+	editor.executeCommand('_css.replaceText', new ReplaceCommandWithoutChangingPosition(Range.lift(range), newText));
 });

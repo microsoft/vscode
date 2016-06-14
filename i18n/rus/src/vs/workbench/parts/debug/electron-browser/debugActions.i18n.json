@@ -11,9 +11,11 @@
 	"addWatchExpression": "Добавить выражение",
 	"clearRepl": "Очистить консоль",
 	"continueDebug": "Продолжить",
+	"copy": "Копировать",
 	"copyValue": "Копировать значение",
 	"deactivateBreakpoints": "Отключить точки останова",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugConsoleAction": "Консоль отладки",
 	"disableAllBreakpoints": "Отключить все точки останова",
 	"disconnectDebug": "Отключить",
 	"editConditionalBreakpoint": "Изменить точку останова",
@@ -29,13 +31,12 @@
 	"renameFunctionBreakpoint": "Переименовать точку останова в функции",
 	"renameWatchExpression": "Переименовать выражение",
 	"restartDebug": "Перезапустить",
-	"run": "Запуск",
 	"selectConfig": "Выбрать конфигурацию",
-	"startDebug": "Пуск",
+	"startDebug": "Начать отладку",
+	"startWithoutDebugging": "Начать без отладки",
 	"stepIntoDebug": "Шаг с заходом",
 	"stepOutDebug": "Шаг с выходом",
 	"stepOverDebug": "Шаг с обходом",
 	"stopDebug": "Остановить",
-	"toggleEnablement": "Включить или отключить точку останова",
-	"toggleRepl": "Консоль отладки"
+	"toggleEnablement": "Включить или отключить точку останова"
 }

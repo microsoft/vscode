@@ -5,7 +5,7 @@
 
 .monaco-editor .peekview-widget .head {
 	background-color: #fff;
-	border-top: 1px solid #007ACC;
+	border-top: 1px solid;
 	-webkit-box-sizing:	border-box;
 	-o-box-sizing: border-box;
 	-moz-box-sizing: border-box;
@@ -15,7 +15,6 @@
 
 .monaco-editor .peekview-widget .head .peekview-title {
 	display: inline-block;
-	font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", sans-serif, "Droid Sans Fallback";
 	font-size: 13px;
 	margin-left: 20px;
 	cursor: pointer;
@@ -35,6 +34,7 @@
 	display: inline-block;
 	position: absolute;
 	right: 2px;
+	top: 2px;
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions .action-label {
@@ -48,8 +48,9 @@
 }
 
 .monaco-editor .peekview-widget > .body {
-	border-top: 1px solid #007ACC;
-	border-bottom: 1px solid #007ACC;
+	border-top: 1px solid;
+	border-bottom: 1px solid;
+	position: relative;
 }
 
 /* Dark Theme */
@@ -57,6 +58,7 @@
 	background-color: #1E1E1E;
 }
 
+.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
 .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
 	background: url('media/close-inverse.svg') center center no-repeat;
 }
@@ -82,17 +84,6 @@
 .monaco-editor.hc-black .peekview-widget .head .peekview-title .dirname {
 	color: #fff;
 	opacity: 0.6;
-}
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: none;
-}
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action:before {
-	content: url('media/close-inverse.svg');
-	display: inline-block;
-	height: 16px;
-	width: 16px;
 }
 
 .monaco-editor.hc-black .peekview-widget > .body {

@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import collections = require('vs/base/common/collections');
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
-import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {KeybindingsRegistry, ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ICommandHandler} from 'vs/platform/keybinding/common/keybindingService';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -31,7 +31,7 @@ export interface IWorkbenchActionRegistry {
 	 * Registers a workbench action to the platform. Workbench actions are not
 	 * visible by default and can only be invoked through a keybinding if provided.
 	 */
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void;
 
 	/**
 	 * Unregisters a workbench action from the platform.
@@ -49,28 +49,41 @@ export interface IWorkbenchActionRegistry {
 	getWorkbenchActions(): SyncActionDescriptor[];
 
 	/**
+	 * Returns the alias associated with the given action or null iff none.
+	 */
+	getAlias(actionId: string): string;
+
+	/**
 	 * Returns the category for the given action or null iff none.
 	 */
 	getCategory(actionId: string): string;
 }
 
+interface IActionMeta {
+	alias: string;
+	category?: string;
+}
+
 class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 	private workbenchActions: collections.IStringDictionary<SyncActionDescriptor>;
-	private mapActionIdToCategory: { [id: string]: string; };
+	private mapActionIdToMeta: { [id: string]: IActionMeta; };
 
 	constructor() {
 		this.workbenchActions = Object.create(null);
-		this.mapActionIdToCategory = Object.create(null);
+		this.mapActionIdToMeta = Object.create(null);
 	}
 
-	public registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void {
+	public registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void {
 		if (!this.workbenchActions[descriptor.id]) {
 			this.workbenchActions[descriptor.id] = descriptor;
 			registerWorkbenchCommandFromAction(descriptor);
 
-			if (category) {
-				this.mapActionIdToCategory[descriptor.id] = category;
+			let meta: IActionMeta = { alias };
+			if (typeof category === 'string') {
+				meta.category = category;
 			}
+
+			this.mapActionIdToMeta[descriptor.id] = meta;
 		}
 	}
 
@@ -80,7 +93,7 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 		}
 
 		delete this.workbenchActions[id];
-		delete this.mapActionIdToCategory[id];
+		delete this.mapActionIdToMeta[id];
 
 		return true;
 	}
@@ -90,7 +103,11 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 	}
 
 	public getCategory(id: string): string {
-		return this.mapActionIdToCategory[id] || null;
+		return (this.mapActionIdToMeta[id] && this.mapActionIdToMeta[id].category) || null;
+	}
+
+	public getAlias(id: string): string {
+		return (this.mapActionIdToMeta[id] && this.mapActionIdToMeta[id].alias) || null;
 	}
 
 	public getWorkbenchActions(): SyncActionDescriptor[] {
@@ -99,16 +116,16 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 
 	public setWorkbenchActions(actions: SyncActionDescriptor[]): void {
 		this.workbenchActions = Object.create(null);
-		this.mapActionIdToCategory = Object.create(null);
+		this.mapActionIdToMeta = Object.create(null);
 
-		actions.forEach(action => this.registerWorkbenchAction(action), this);
+		actions.forEach(action => this.registerWorkbenchAction(action, ''), this);
 	}
 }
 
 Registry.add(Extensions.WorkbenchActions, new WorkbenchActionRegistry());
 
 function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor): void {
-	let context = descriptor.keybindingContext;
+	let when = descriptor.keybindingContext;
 	let weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
 	let keybindings = descriptor.keybindings;
 
@@ -116,7 +133,7 @@ function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor): v
 		id: descriptor.id,
 		handler: createCommandHandler(descriptor),
 		weight: weight,
-		context: context,
+		when: when,
 		primary: keybindings && keybindings.primary,
 		secondary: keybindings && keybindings.secondary,
 		win: keybindings && keybindings.win,
@@ -152,7 +169,7 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	}
 
 	if (telemetryService) {
-		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from: args.from || 'keybinding' });
+		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from: args && args.from || 'keybinding' });
 	}
 
 	// run action when workbench is created

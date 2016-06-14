@@ -84,6 +84,7 @@ export class OutputPanel extends StringEditor {
 		options.lineDecorationsWidth = 20;
 		options.rulers = [];
 		options.folding = false;
+		options.scrollBeyondLastLine = false;
 
 		const channel = this.outputService.getActiveChannel();
 		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
@@ -95,9 +96,10 @@ export class OutputPanel extends StringEditor {
 		return super.setInput(input, options).then(() => this.revealLastLine());
 	}
 
-	public create(parent: Builder): TPromise<void> {
-		return super.create(parent)
-			.then(() => this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null));
+	public createEditor(parent: Builder): void {
+		super.createEditor(parent);
+
+		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
 	}
 
 	public focus(): void {

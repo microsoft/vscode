@@ -10,10 +10,6 @@ import {workspace, languages, ExtensionContext, extensions, Uri} from 'vscode';
 import {LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-namespace TelemetryNotification {
-	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
-}
-
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
 }
@@ -41,7 +37,7 @@ export function activate(context: ExtensionContext) {
 	languages.getLanguages().then(languageIds => {
 
 		// The server is implemented in node
-		let serverModule = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
+		let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
 		// The debug options for the server
 		let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
 
@@ -59,7 +55,7 @@ export function activate(context: ExtensionContext) {
 			synchronize: {
 				// Synchronize the setting section 'json' to the server
 				configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
-				fileEvents: workspace.createFileSystemWatcher('**/.json')
+				fileEvents: workspace.createFileSystemWatcher('**/*.json')
 			},
 			initializationOptions: {
 				languageIds
@@ -68,7 +64,7 @@ export function activate(context: ExtensionContext) {
 
 		// Create the language client and start the client.
 		let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
-		client.onNotification(TelemetryNotification.type, e => {
+		client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
 			}
@@ -94,16 +90,14 @@ export function activate(context: ExtensionContext) {
 
 		languages.setLanguageConfiguration('json', {
 			wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g,
-			__characterPairSupport: {
-				autoClosingPairs: [
-					{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-					{ open: '`', close: '`', notIn: ['string', 'comment'] }
-				]
-			}
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '"', close: '"', notIn: ['string'] },
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '`', close: '`', notIn: ['string', 'comment'] }
+			]
 		});
 	});
 }

@@ -6,11 +6,13 @@
 'use strict';
 
 import 'vs/css!./viewCursors';
-import * as browser from 'vs/base/browser/browser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 
 enum RenderType {
 	Hidden,
@@ -25,10 +27,11 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: string;
 	private _cursorStyle: editorCommon.TextEditorCursorStyle;
+	private _canUseTranslate3d: boolean;
 
 	private _isVisible: boolean;
 
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode;
 
 	private _blinkTimer: number;
 
@@ -37,23 +40,21 @@ export class ViewCursors extends ViewPart {
 	private _primaryCursor: ViewCursor;
 	private _secondaryCursors: ViewCursor[];
 
-	constructor(context: IViewContext) {
+	constructor(context: ViewContext) {
 		super(context);
 
 		this._readOnly = this._context.configuration.editor.readOnly;
-		this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
-		this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
+		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
 
-		this._domNode = document.createElement('div');
+		this._domNode = createFastDomNode(document.createElement('div'));
 		this._updateDomClassName();
-		if (browser.canUseTranslate3d) {
-			this._domNode.style.transform = 'translate3d(0px, 0px, 0px)';
-		}
 
-		this._domNode.appendChild(this._primaryCursor.getDomNode());
+		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._blinkTimer = -1;
 
@@ -70,7 +71,7 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
 	// --- begin event handlers
@@ -146,16 +147,19 @@ export class ViewCursors extends ViewPart {
 		if (e.readOnly) {
 			this._readOnly = this._context.configuration.editor.readOnly;
 		}
-		if (e.cursorBlinking) {
-			this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
+		if (e.viewInfo.cursorBlinking) {
+			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		}
-		if (e.cursorStyle) {
-			this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		if (e.viewInfo.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		}
+		if (e.viewInfo.canUseTranslate3d) {
+			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 		}
 
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
-		if (e.cursorStyle) {
+		if (e.viewInfo.cursorStyle) {
 			this._updateDomClassName();
 		}
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
@@ -163,7 +167,7 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
@@ -171,12 +175,6 @@ export class ViewCursors extends ViewPart {
 	}
 	public onZonesChanged(): boolean {
 		return true;
-	}
-	public onScrollWidthChanged(scrollWidth: number): boolean {
-		return true;
-	}
-	public onScrollHeightChanged(scrollHeight: number): boolean {
-		return false;
 	}
 	public onViewFocusChanged(isFocused: boolean): boolean {
 		this._editorHasFocus = isFocused;
@@ -231,7 +229,7 @@ export class ViewCursors extends ViewPart {
 	// --- end blinking logic
 
 	private _updateDomClassName(): void {
-		this._domNode.className = this._getClassName();
+		this._domNode.setClassName(this._getClassName());
 	}
 
 	private _getClassName(): string {
@@ -294,6 +292,12 @@ export class ViewCursors extends ViewPart {
 		this._primaryCursor.render(ctx);
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].render(ctx);
+		}
+
+		if (this._canUseTranslate3d) {
+			this._domNode.setTransform('translate3d(0px, 0px, 0px)');
+		} else {
+			this._domNode.setTransform('');
 		}
 	}
 }

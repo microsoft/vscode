@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('./json-toolbox/json');
-import {IJSONSchema} from './json-toolbox/jsonSchema';
-import {IXHROptions, IXHRResponse, getErrorStatusDescription} from './utils/httpRequest';
+import Json = require('jsonc-parser');
+import {IJSONSchema, IJSONSchemaMap} from './jsonSchema';
+import {XHROptions, XHRResponse, getErrorStatusDescription} from 'request-light';
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
 import Parser = require('./jsonParser');
+import {RemoteConsole} from 'vscode-languageserver';
+
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -204,11 +206,11 @@ export interface ITelemetryService {
 }
 
 export interface IWorkspaceContextService {
-	toResource(workspaceRelativePath: string): string;
+	resolveRelativePath(relativePath: string, resource: string): string;
 }
 
 export interface IRequestService {
-	(options: IXHROptions): Thenable<IXHRResponse>;
+	(options: XHROptions): Thenable<XHRResponse>;
 }
 
 export class JSONSchemaService implements IJSONSchemaService {
@@ -225,7 +227,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 	private telemetryService: ITelemetryService;
 	private requestService: IRequestService;
 
-	constructor(requestService: IRequestService, contextService?: IWorkspaceContextService, telemetryService?: ITelemetryService) {
+	constructor(requestService: IRequestService, contextService?: IWorkspaceContextService, telemetryService?: ITelemetryService, private console?: RemoteConsole) {
 		this.contextService = contextService;
 		this.requestService = requestService;
 		this.telemetryService = telemetryService;
@@ -254,10 +256,8 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	private normalizeId(id: string) {
-		if (id.length > 0 && id.charAt(id.length - 1) === '#') {
-			return id.substring(0, id.length - 1);
-		}
-		return id;
+		// remove trailing '#', normalize drive capitalization
+		return URI.parse(id).toString();
 	}
 
 	public setSchemaContributions(schemaContributions: ISchemaContributions): void {
@@ -362,7 +362,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				let errors = jsonErrors.length ? [localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), jsonErrors[0])] : [];
 				return new UnresolvedSchema(schemaContent, errors);
 			},
-			(error: IXHRResponse) => {
+			(error: XHRResponse) => {
 				let errorMessage = localize('json.schema.unabletoload', 'Unable to load schema from \'{0}\': {1}', toDisplayString(url), error.responseText || getErrorStatusDescription(error.status) || error.toString());
 				return new UnresolvedSchema(<IJSONSchema>{}, [errorMessage]);
 			}
@@ -411,36 +411,54 @@ export class JSONSchemaService implements IJSONSchemaService {
 			});
 		};
 
-		let resolveRefs = (node: any, parentSchema: any): Thenable<any> => {
-			let toWalk = [node];
-			let seen: any[] = [];
+		let resolveRefs = (node: IJSONSchema, parentSchema: IJSONSchema): Thenable<any> => {
+			let toWalk : IJSONSchema[] = [node];
+			let seen: IJSONSchema[] = [];
 
 			let openPromises: Thenable<any>[] = [];
 
+			let collectEntries = (...entries: IJSONSchema[]) => {
+				for (let entry of entries) {
+					if (typeof entry === 'object') {
+						toWalk.push(entry);
+					}
+				}
+			};
+			let collectMapEntries = (...maps: IJSONSchemaMap[]) => {
+				for (let map of maps) {
+					if (typeof map === 'object') {
+						for (let key in map) {
+							let entry = map[key];
+							toWalk.push(entry);
+						}
+					}
+				}
+			};
+			let collectArrayEntries = (...arrays: IJSONSchema[][]) => {
+				for (let array of arrays) {
+					if (Array.isArray(array)) {
+						toWalk.push.apply(toWalk, array);
+					}
+				}
+			};
 			while (toWalk.length) {
 				let next = toWalk.pop();
 				if (seen.indexOf(next) >= 0) {
 					continue;
 				}
 				seen.push(next);
-				if (Array.isArray(next)) {
-					next.forEach(item => {
-						toWalk.push(item);
-					});
-				} else if (next) {
-					if (next.$ref) {
-						let segments = next.$ref.split('#', 2);
-						if (segments[0].length > 0) {
-							openPromises.push(resolveExternalLink(next, segments[0], segments[1]));
-							continue;
-						} else {
-							resolveLink(next, parentSchema, segments[1]);
-						}
-					}
-					for (let key in next) {
-						toWalk.push(next[key]);
+				if (next.$ref) {
+					let segments = next.$ref.split('#', 2);
+					if (segments[0].length > 0) {
+						openPromises.push(resolveExternalLink(next, segments[0], segments[1]));
+						continue;
+					} else {
+						resolveLink(next, parentSchema, segments[1]);
 					}
 				}
+				collectEntries(next.items, next.additionalProperties, next.not);
+				collectMapEntries(next.definitions, next.properties, next.patternProperties, <IJSONSchemaMap> next.dependencies);
+				collectArrayEntries(next.anyOf, next.allOf, next.oneOf, <IJSONSchema[]> next.items);
 			}
 			return Promise.all(openPromises);
 		};
@@ -455,13 +473,8 @@ export class JSONSchemaService implements IJSONSchemaService {
 			let schemaProperties = (<Parser.ObjectASTNode>document.root).properties.filter((p) => (p.key.value === '$schema') && !!p.value);
 			if (schemaProperties.length > 0) {
 				let schemeId = <string>schemaProperties[0].value.getValue();
-				if (!Strings.startsWith(schemeId, 'http://') && !Strings.startsWith(schemeId, 'https://') && !Strings.startsWith(schemeId, 'file://')) {
-					if (this.contextService) {
-						let resourceURL = this.contextService.toResource(schemeId);
-						if (resourceURL) {
-							schemeId = resourceURL.toString();
-						}
-					}
+				if (Strings.startsWith(schemeId, '.') && this.contextService) {
+					schemeId = this.contextService.resolveRelativePath(schemeId, resource);
 				}
 				if (schemeId) {
 					let id = this.normalizeId(schemeId);

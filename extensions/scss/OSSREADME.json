@@ -1,0 +1,10 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[
+	{
+		"name": "atom/language-sass",
+		"version": "0.52.0",
+		"license": "MIT",
+		"repositoryURL": "https://github.com/atom/language-sass",
+		"description": "The file syntaxes/scss.json was derived from the Atom package https://github.com/atom/language-sass which was originally converted from the TextMate bundle https://github.com/alexsancho/SASS.tmbundle."
+	}
+]

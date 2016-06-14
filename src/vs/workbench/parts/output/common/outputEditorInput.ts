@@ -105,7 +105,7 @@ export class OutputEditorInput extends StringEditorInput {
 		}
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return OUTPUT_EDITOR_INPUT_ID;
 	}
 

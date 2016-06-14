@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {EditorEvent, EventType, CompositeEvent} from 'vs/workbench/common/events';
+import {EventType, CompositeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 
@@ -35,25 +35,13 @@ export abstract class ScopedService {
 	}
 
 	public registerListeners(): void {
-		this.eventService.addListener(EventType.EDITOR_CLOSED, (e: EditorEvent) => {
-			if (e.editorId === this.scopeId) {
-				this.onScopeDeactivated();
-			}
-		});
-
-		this.eventService.addListener(EventType.EDITOR_OPENED, (e: EditorEvent) => {
-			if (e.editorId === this.scopeId) {
-				this.onScopeActivated();
-			}
-		});
-
-		this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
+		this.eventService.addListener2(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
 			if (e.compositeId === this.scopeId) {
 				this.onScopeDeactivated();
 			}
 		});
 
-		this.eventService.addListener(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
+		this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === this.scopeId) {
 				this.onScopeActivated();
 			}
@@ -76,7 +64,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		this.progressbar = progressbar;
 		this.isActive = isActive || types.isUndefinedOrNull(scopeId); // If service is unscoped, enable by default
-		this.progressState = {};
+		this.progressState = Object.create(null);
 	}
 
 	public onScopeDeactivated(): void {
@@ -114,11 +102,11 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 	}
 
 	private clearProgressState(): void {
-		delete this.progressState.infinite;
-		delete this.progressState.done;
-		delete this.progressState.worked;
-		delete this.progressState.total;
-		delete this.progressState.whilePromise;
+		this.progressState.infinite = void 0;
+		this.progressState.done = void 0;
+		this.progressState.worked = void 0;
+		this.progressState.total = void 0;
+		this.progressState.whilePromise = void 0;
 	}
 
 	public show(infinite: boolean, delay?: number): IProgressRunner;
@@ -192,8 +180,8 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 				// Otherwise the progress bar does not support worked(), we fallback to infinite() progress
 				else {
 					this.progressState.infinite = true;
-					delete this.progressState.worked;
-					delete this.progressState.total;
+					this.progressState.worked = void 0;
+					this.progressState.total = void 0;
 					this.progressbar.infinite().getContainer().show();
 				}
 			},

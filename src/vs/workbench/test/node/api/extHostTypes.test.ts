@@ -119,11 +119,17 @@ suite('ExtHostTypes', function() {
 		let p1 = new types.Position(1, 3);
 
 		assert.ok(p1.translate() === p1);
+		assert.ok(p1.translate({}) === p1);
 		assert.ok(p1.translate(0, 0) === p1);
 		assert.ok(p1.translate(0) === p1);
 		assert.ok(p1.translate(undefined, 0) === p1);
+		assert.ok(p1.translate(undefined) === p1);
 
 		let res = p1.translate(-1);
+		assert.equal(res.line, 0);
+		assert.equal(res.character, 3);
+
+		res = p1.translate({ lineDelta: -1 });
 		assert.equal(res.line, 0);
 		assert.equal(res.character, 3);
 
@@ -131,11 +137,19 @@ suite('ExtHostTypes', function() {
 		assert.equal(res.line, 1);
 		assert.equal(res.character, 2);
 
+		res = p1.translate({ characterDelta: -1 });
+		assert.equal(res.line, 1);
+		assert.equal(res.character, 2);
+
 		res = p1.translate(11);
 		assert.equal(res.line, 12);
 		assert.equal(res.character, 3);
 
+		assert.throws(() => p1.translate(null));
+		assert.throws(() => p1.translate(null, null));
 		assert.throws(() => p1.translate(-2));
+		assert.throws(() => p1.translate({ lineDelta: -2 }));
+		assert.throws(() => p1.translate(-2, null));
 		assert.throws(() => p1.translate(0, -4));
 	});
 
@@ -146,9 +160,20 @@ suite('ExtHostTypes', function() {
 		assert.ok(p1.with(1) === p1);
 		assert.ok(p1.with(undefined, 3) === p1);
 		assert.ok(p1.with(1, 3) === p1);
+		assert.ok(p1.with(undefined) === p1);
+		assert.ok(p1.with({ line: 1 }) === p1);
+		assert.ok(p1.with({ character: 3 }) === p1);
+		assert.ok(p1.with({ line: 1, character: 3 }) === p1);
 
+		let p2 = p1.with({ line: 0, character: 11 });
+		assert.equal(p2.line, 0);
+		assert.equal(p2.character, 11);
+
+		assert.throws(() => p1.with(null));
 		assert.throws(() => p1.with(-9));
 		assert.throws(() => p1.with(0, -9));
+		assert.throws(() => p1.with({ line: -1 }));
+		assert.throws(() => p1.with({ character: -1 }));
 	});
 
 	test('Range', function() {
@@ -267,12 +292,29 @@ suite('ExtHostTypes', function() {
 		assert.ok(range.with(range.start, range.end) === range);
 		assert.ok(range.with(new types.Position(1, 1)) === range);
 		assert.ok(range.with(undefined, new types.Position(2, 11)) === range);
+		assert.ok(range.with() === range);
+		assert.ok(range.with({ start: range.start }) === range);
+		assert.ok(range.with({ start: new types.Position(1, 1) }) === range);
+		assert.ok(range.with({ end: range.end }) === range);
+		assert.ok(range.with({ end: new types.Position(2, 11) }) === range);
 
 		let res = range.with(undefined, new types.Position(9, 8));
 		assert.equal(res.end.line, 9);
 		assert.equal(res.end.character, 8);
 		assert.equal(res.start.line, 1);
 		assert.equal(res.start.character, 1);
+
+		res = range.with({ end: new types.Position(9, 8) });
+		assert.equal(res.end.line, 9);
+		assert.equal(res.end.character, 8);
+		assert.equal(res.start.line, 1);
+		assert.equal(res.start.character, 1);
+
+		res = range.with({ end: new types.Position(9, 8), start: new types.Position(2, 3)});
+		assert.equal(res.end.line, 9);
+		assert.equal(res.end.character, 8);
+		assert.equal(res.start.line, 2);
+		assert.equal(res.start.character, 3);
 
 		assert.throws(() => range.with(null));
 		assert.throws(() => range.with(undefined, null));

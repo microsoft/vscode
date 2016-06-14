@@ -8,8 +8,8 @@ import * as strings from 'vs/base/common/strings';
 import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -40,11 +40,11 @@ export class ShiftCommand implements ICommand {
 	}
 
 	private _opts: IShiftCommandOpts;
-	private _selection: IEditorSelection;
+	private _selection: Selection;
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
 
-	constructor(range: IEditorSelection, opts:IShiftCommandOpts) {
+	constructor(range: Selection, opts:IShiftCommandOpts) {
 		this._opts = opts;
 		this._selection = range;
 		this._useLastEditRangeForCursorEndPosition = false;
@@ -101,7 +101,7 @@ export class ShiftCommand implements ICommand {
 				if (contentStartVisibleColumn % tabSize !== 0) {
 					// The current line is "miss-aligned", so let's see if this is expected...
 					// This can only happen when it has trailing commas in the indent
-					let enterAction = getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+					let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
 					if (enterAction) {
 						extraSpaces = previousLineExtraSpaces;
 						if (enterAction.appendText) {
@@ -152,7 +152,7 @@ export class ShiftCommand implements ICommand {
 		this._selectionId = builder.trackSelection(this._selection);
 	}
 
-	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
 		if (this._useLastEditRangeForCursorEndPosition) {
 			var lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);

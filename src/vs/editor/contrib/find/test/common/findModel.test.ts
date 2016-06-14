@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import {Position} from 'vs/editor/common/core/position';
+import {Selection} from 'vs/editor/common/core/selection';
 import {Range} from 'vs/editor/common/core/range';
 import {Handler, ICommonCodeEditor, IRange} from 'vs/editor/common/editorCommon';
 import {FindModelBoundToEditorModel, parseReplaceString} from 'vs/editor/contrib/find/common/findModel';
@@ -355,7 +356,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 
@@ -715,7 +716,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1031,7 +1032,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1192,7 +1193,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1211,7 +1212,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[8, 16, 8, 16],
+			[6, 17, 6, 17],
 			null,
 			[ ]
 		);
@@ -1247,7 +1248,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[9, 3, 9, 3],
+			[1, 1, 1, 1],
 			null,
 			[
 				[6, 1, 6, 3],
@@ -1284,7 +1285,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[11, 16, 11, 16],
+			[1, 1, 1, 1],
 			null,
 			[]
 		);
@@ -1313,7 +1314,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[14, 3, 14, 3],
+			[1, 1, 1, 1],
 			null,
 			[]
 		);
@@ -1321,6 +1322,36 @@ suite('FindModel', () => {
 		assert.equal(editor.getModel().getLineContent(12), '\t><');
 		assert.equal(editor.getModel().getLineContent(13), '\t><');
 		assert.equal(editor.getModel().getLineContent(14), '\t>ciao');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('issue #3516: "replace all" moves page/cursor/focus/scroll to the place of the last replacement', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'include', replaceString: 'bar' }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[2, 2, 2, 9],
+				[3, 2, 3, 9]
+			]
+		);
+
+		findModel.replaceAll();
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[]
+		);
+
+		assert.equal(editor.getModel().getLineContent(2), '#bar "cool.h"');
+		assert.equal(editor.getModel().getLineContent(3), '#bar <iostream>');
 
 		findModel.dispose();
 		findState.dispose();
@@ -1389,6 +1420,48 @@ suite('FindModel', () => {
 			[1, 1, 1, 1],
 			null,
 			[]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('selectAllMatches', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.selectAllMatches();
+
+		assert.deepEqual(editor.getSelections().map(s => s.toString()), [
+			new Selection(6, 14, 6, 19),
+			new Selection(6, 27, 6, 32),
+			new Selection(7, 14, 7, 19),
+			new Selection(8, 14, 8, 19)
+		].map(s => s.toString()));
+
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
 		);
 
 		findModel.dispose();

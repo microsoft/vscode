@@ -5,6 +5,7 @@
 
 'use strict';
 
+import assert = require('assert');
 import _parser = require('vs/languages/sass/common/parser/sassParser');
 import nodes = require ('vs/languages/css/common/parser/cssNodes');
 import errors = require ('vs/languages/css/common/parser/cssErrors');
@@ -13,8 +14,8 @@ import sassErrors = require('vs/languages/sass/common/parser/sassErrors');
 import cssParserTests = require('vs/languages/css/test/common/parser.test');
 
 
-function assertNode(text: string, parser: _parser.SassParser, f: ()=>nodes.Node):void {
-	cssParserTests.assertNode(text, parser, f);
+function assertNode(text: string, parser: _parser.SassParser, f: ()=>nodes.Node):nodes.Node {
+	return cssParserTests.assertNode(text, parser, f);
 }
 
 function assertError(text: string, parser: _parser.SassParser, f: ()=>nodes.Node, error: nodes.IRule):void {

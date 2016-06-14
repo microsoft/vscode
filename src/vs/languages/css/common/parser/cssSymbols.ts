@@ -139,9 +139,10 @@ export class ScopeBuilder implements nodes.IVisitor {
 			case nodes.NodeType.Keyframe:
 				this.addSymbol(node, (<nodes.Keyframe> node).getName(), nodes.ReferenceType.Keyframe);
 				return true;
+			case nodes.NodeType.Declaration:
+				return this.visitDeclarationNode(<nodes.Declaration>node);
 			case nodes.NodeType.VariableDeclaration:
-				this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
-				return true;
+				return this.visitVariableDeclarationNode(<nodes.VariableDeclaration>node);
 			case nodes.NodeType.Ruleset:
 				return this.visitRuleSet(<nodes.RuleSet> node);
 			case nodes.NodeType.MixinDeclaration:
@@ -176,17 +177,44 @@ export class ScopeBuilder implements nodes.IVisitor {
 
 	public visitRuleSet(node:nodes.RuleSet):boolean {
 		var current = this.scope.findScope(node.offset, node.length);
-		node.getSelectors().getChildren().forEach((node) => {
-			if (node instanceof nodes.Selector) {
-				if (node.getChildren().length === 1) { // only selectors with a single element can be extended
-					current.addSymbol(new Symbol(node.getChild(0).getText(), node, nodes.ReferenceType.Rule));
+		node.getSelectors().getChildren().forEach((child) => {
+			if (child instanceof nodes.Selector) {
+				if (child.getChildren().length === 1) { // only selectors with a single element can be extended
+					current.addSymbol(new Symbol(child.getChild(0).getText(), child, nodes.ReferenceType.Rule));
 				}
 			}
 		});
+
 		return true;
 	}
-}
 
+	public visitVariableDeclarationNode(node:nodes.VariableDeclaration):boolean {
+		this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
+		return true;
+	}
+
+	public visitDeclarationNode(node:nodes.Declaration):boolean {
+		if (Symbols.isCssVariable(node.getProperty().getIdentifier())) {
+			this.addCSSVariable(node.getProperty(), node.getProperty().getName(), nodes.ReferenceType.Variable);
+		}
+		return true;
+	}
+
+	private addCSSVariable(node:nodes.Node, name:string, type: nodes.ReferenceType) : void {
+		if (node.offset !== -1) {
+			var globalScope = this.getGlobalScope(node, name, type);
+			globalScope.addSymbol(new Symbol(name, node, type));
+		}
+	}
+
+	private getGlobalScope(node:nodes.Node, name:string, type: nodes.ReferenceType): Scope {
+		let current = this.scope.findScope(node.offset, node.length);
+		while (current.parent !== null) {
+			current= current.parent;
+		}
+		return current;
+	}
+}
 
 export class Symbols {
 
@@ -253,6 +281,9 @@ export class Symbols {
 			if (referenceTypes) {
 				return referenceTypes;
 			} else {
+				if (Symbols.isCssVariable(node)) {
+					return [ nodes.ReferenceType.Variable ];
+				}
 				// are a reference to a keyframe?
 				var decl = nodes.getParentDeclaration(node);
 				if (decl) {
@@ -323,5 +354,9 @@ export class Symbols {
 			scope = scope.parent;
 		}
 		return null;
+	}
+
+	public static isCssVariable(identifier: nodes.Identifier):boolean {
+		return /^--/.test(identifier.getText());
 	}
 }

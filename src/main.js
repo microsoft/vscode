@@ -9,6 +9,8 @@ global.vscodeStart = Date.now();
 var app = require('electron').app;
 var fs = require('fs');
 var path = require('path');
+var paths = require('./paths');
+var pkg = require('../package.json');
 
 function stripComments(content) {
 	var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
@@ -50,11 +52,11 @@ function getNLSConfiguration() {
 
 	if (!locale) {
 		var userData = app.getPath('userData');
-		localeConfig = path.join(userData, 'User', 'locale.json');
+		var localeConfig = path.join(userData, 'User', 'locale.json');
 		if (fs.existsSync(localeConfig)) {
 			try {
 				var content = stripComments(fs.readFileSync(localeConfig, 'utf8'));
-				value = JSON.parse(content).locale;
+				var value = JSON.parse(content).locale;
 				if (value && typeof value === 'string') {
 					locale = value;
 				}
@@ -63,7 +65,8 @@ function getNLSConfiguration() {
 		}
 	}
 
-	locale = locale || app.getLocale();
+	var appLocale = app.getLocale();
+	locale = locale || appLocale;
 	// Language tags are case insensitve however an amd loader is case sensitive
 	// To make this work on case preserving & insensitive FS we do the following:
 	// the language bundles have lower case language tags and we always lower case
@@ -73,53 +76,58 @@ function getNLSConfiguration() {
 		return { locale: locale, availableLanguages: {}, pseudo: true }
 	}
 	var initialLocale = locale;
-	if (process.env.VSCODE_DEV) {
+	if (process.env['VSCODE_DEV']) {
 		return { locale: locale, availableLanguages: {} };
 	}
+
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
-	while (locale) {
-		var candidate = path.join(__dirname, 'vs', 'workbench', 'electron-main', 'main.nls.') + locale + '.js';
-		if (fs.existsSync(candidate)) {
-			return { locale: initialLocale, availableLanguages: { '*': locale } };
-		} else {
-			var index = locale.lastIndexOf('-');
-			if (index > 0) {
-				locale = locale.substring(0, index);
-			} else {
-				locale = null;
-			}
-		}
+
+	// Check if we have an English locale. If so fall to default since that is our
+	// English translation (we don't ship *.nls.en.json files)
+	if (locale && (locale == 'en' || locale.startsWith('en-'))) {
+		return { locale: locale, availableLanguages: {} };
 	}
 
-	return { locale: initialLocale, availableLanguages: {} };
+	function resolveLocale(locale) {
+		while (locale) {
+			var candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
+			if (fs.existsSync(candidate)) {
+				return { locale: initialLocale, availableLanguages: { '*': locale } };
+			} else {
+				var index = locale.lastIndexOf('-');
+				if (index > 0) {
+					locale = locale.substring(0, index);
+				} else {
+					locale = null;
+				}
+			}
+		}
+		return null;
+	}
+
+	var resolvedLocale = resolveLocale(locale);
+	if (!resolvedLocale && appLocale && appLocale !== locale) {
+		resolvedLocale = resolveLocale(appLocale);
+	}
+	return resolvedLocale ? resolvedLocale : { locale: initialLocale, availableLanguages: {} };
 }
 
 // Update cwd based on environment and platform
 try {
 	if (process.platform === 'win32') {
-		process.env.VSCODE_CWD = process.cwd(); // remember as environment variable
+		process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
 		process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
-	} else if (process.env.VSCODE_CWD) {
-		process.chdir(process.env.VSCODE_CWD);
+	} else if (process.env['VSCODE_CWD']) {
+		process.chdir(process.env['VSCODE_CWD']);
 	}
 } catch (err) {
 	console.error(err);
 }
 
-// Set path according to being built or not
-if (process.env.VSCODE_DEV) {
-	var appData = app.getPath('appData');
-	app.setPath('userData', path.join(appData, 'Code-Development'));
-}
-
-// Use custom user data dir if specified, required to run as root on Linux
-var args = process.argv;
-args.forEach(function (arg) {
-	if (arg.indexOf('--user-data-dir=') === 0) {
-		app.setPath('userData', arg.split('=')[1]);
-	}
-});
+// Set userData path before app 'ready' event
+var userData = paths.getUserDataPath(process.platform, pkg.name, process.argv);
+app.setPath('userData', userData);
 
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 // the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
@@ -132,5 +140,5 @@ app.on('open-file', function (event, path) {
 app.once('ready', function () {
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	require('./bootstrap-amd').bootstrap('vs/workbench/electron-main/main');
+	require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
 });

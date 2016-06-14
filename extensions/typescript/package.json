@@ -81,6 +81,12 @@
 					"default": true,
 					"description": "%typescript.validate.enable%"
 				},
+				"typescript.tsserver.trace": {
+					"type": "string",
+					"enum": ["off", "messages", "verbose"],
+					"default": "off",
+					"description": "%typescript.tsserver.trace%"
+				},
 				"typescript.format.insertSpaceAfterCommaDelimiter": {
 					"type": "boolean",
 					"default": true,

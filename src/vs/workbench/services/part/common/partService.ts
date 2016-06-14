@@ -51,6 +51,16 @@ export interface IPartService {
 	isVisible(part: Parts): boolean;
 
 	/**
+	 * Checks if the statusbar is currently hidden or not
+	 */
+	isStatusBarHidden(): boolean;
+
+	/**
+	 * Set statusbar hidden or not
+	 */
+	setStatusBarHidden(hidden: boolean): void;
+
+	/**
 	 * Checks if the sidebar is currently hidden or not
 	 */
 	isSideBarHidden(): boolean;

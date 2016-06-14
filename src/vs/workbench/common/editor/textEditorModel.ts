@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EndOfLinePreference, IModel, EventType} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IModel} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EditorModel} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
@@ -15,7 +15,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {RawText} from 'vs/editor/common/model/textModel';
 
 /**
- * The base text editor model leverages the monaco code editor model. This class is only intended to be subclassed and not instantiated.
+ * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;
@@ -40,9 +40,9 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 			// Since we did not create the model, we need to listen to it disposing
 			// and properly trigger our dispose function so that events get emitted
-			const unbind = model.addListener(EventType.ModelDispose, () => {
+			const unbind = model.onWillDispose(() => {
 				this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
-				unbind();
+				unbind.dispose();
 				this.dispose();
 			});
 		}
@@ -63,7 +63,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource);
 			this.createdEditorModel = true;
 
-			this.textEditorModelHandle = model.getAssociatedResource();
+			this.textEditorModelHandle = model.uri;
 
 			return this;
 		});

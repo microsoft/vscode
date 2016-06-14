@@ -6,8 +6,6 @@
 /* Commit view */
 
 .git-viewlet > .changes-view > .commit-view {
-	-moz-box-sizing: border-box;
-	-webkit-box-sizing: border-box;
 	box-sizing: border-box;
 	padding: 5px 9px 5px 16px;
 }

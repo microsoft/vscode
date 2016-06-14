@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionEntry, Delegate, Renderer, ExtensionState } from './extensionsList';
-import { IGalleryService } from '../common/extensions';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -43,7 +43,7 @@ export class ExtensionsViewlet extends Viewlet {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IGalleryService private galleryService: IGalleryService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService

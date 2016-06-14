@@ -9,21 +9,20 @@ import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import paths = require('vs/base/common/paths');
-import {EventType as EditorEventType, IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
-import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 interface ILanguageConfiguration {
 	markdown: {
@@ -36,10 +35,10 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 	private static RELOAD_MARKDOWN_DELAY = 300; // delay before reloading markdown preview after user typing
 
-	private fileChangeListener: () => void;
-	private configFileChangeListener: () => void;
+	private fileChangeListener: IDisposable;
+	private configFileChangeListener: IDisposable;
 	private themeChangeListener: IDisposable;
-	private editorInputChangeListener: () => void;
+	private editorInputChangeListener: IDisposable;
 	private markdownConfigurationThumbprint: string;
 	private markdownConfigurationPaths: string[];
 	private reloadTimeout: number;
@@ -49,6 +48,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		@IModeService private modeService: IModeService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModelService private modelService: IModelService,
@@ -64,11 +64,11 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.fileChangeListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e));
-		this.configFileChangeListener = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigFileChange(e));
+		this.fileChangeListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e));
+		this.configFileChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigFileChange(e));
 
 		// reload markdown editors when their resources change
-		this.editorInputChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e));
+		this.editorInputChangeListener = this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged());
 
 		// initially read the config for CSS styles in preview
 		this.readMarkdownConfiguration(this.configurationService.getConfiguration<ILanguageConfiguration>());
@@ -80,23 +80,21 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private onEditorInputChanged(e: EditorEvent): void {
-		let input = e.editorInput;
+	private onEditorsChanged(): void {
+		let input = this.editorService.getActiveEditorInput();
 		if (input instanceof MarkdownEditorInput) {
 			let markdownResource = input.getResource();
 			let editorModel = this.modelService.getModel(markdownResource);
 			if (editorModel && !this.hasModelListenerOnResourcePath[markdownResource.toString()]) {
-				let toUnbind: Function[] = [];
+				let toUnbind: IDisposable[] = [];
 				let unbind = () => {
-					while (toUnbind.length) {
-						toUnbind.pop()();
-					}
+					toUnbind = dispose(toUnbind);
 
 					this.hasModelListenerOnResourcePath[markdownResource.toString()] = false;
 				};
 
 				// Listen on changes to the underlying resource of the markdown preview
-				toUnbind.push(editorModel.addListener(EditorEventType.ModelContentChanged, (modelEvent: IModelContentChangedEvent) => {
+				toUnbind.push(editorModel.onDidChangeContent(() => {
 					if (this.reloadTimeout) {
 						window.clearTimeout(this.reloadTimeout);
 					}
@@ -112,8 +110,8 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 				this.hasModelListenerOnResourcePath[markdownResource.toString()] = true;
 
 				// Unbind when input or model gets disposed
-				toUnbind.push(input.addListener(EventType.DISPOSE, unbind));
-				toUnbind.push(editorModel.addListener(EditorEventType.ModelDispose, unbind));
+				toUnbind.push(input.addListener2(EventType.DISPOSE, unbind));
+				toUnbind.push(editorModel.onWillDispose(unbind));
 			}
 		}
 	}
@@ -150,7 +148,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 			if (markdownConfiguration && types.isArray(markdownConfiguration.styles)) {
 				newMarkdownConfigurationThumbprint = markdownConfiguration.styles.join('');
 
-				let styles: string[] = markdownConfiguration.styles.map((style: string) => paths.makeAbsolute(paths.normalize(style)));
+				let styles: string[] = markdownConfiguration.styles.map((style: string) => paths.makePosixAbsolute(paths.normalize(style)));
 				this.markdownConfigurationPaths = styles;
 			}
 		}
@@ -190,17 +188,17 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 	public dispose(): void {
 		if (this.fileChangeListener) {
-			this.fileChangeListener();
+			this.fileChangeListener.dispose();
 			this.fileChangeListener = null;
 		}
 
 		if (this.configFileChangeListener) {
-			this.configFileChangeListener();
+			this.configFileChangeListener.dispose();
 			this.configFileChangeListener = null;
 		}
 
 		if (this.editorInputChangeListener) {
-			this.editorInputChangeListener();
+			this.editorInputChangeListener.dispose();
 			this.editorInputChangeListener = null;
 		}
 	}

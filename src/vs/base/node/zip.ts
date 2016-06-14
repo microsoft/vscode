@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import * as path from 'path';
 import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
-import { nfcall, ninvoke } from 'vs/base/common/async';
+import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { open as openZip, Entry, ZipFile } from 'yauzl';
@@ -34,37 +34,38 @@ function modeFromEntry(entry: Entry) {
 		.reduce((a, b) => a + b, attr & 61440 /* S_IFMT */);
 }
 
-function extractEntry(zipfile: ZipFile, entry: Entry, targetPath: string, options: IOptions): Promise {
-	const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions): Promise {
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	const targetFileName = path.join(targetPath, fileName);
-	const mode = modeFromEntry(entry);
 
-	return ninvoke(zipfile, zipfile.openReadStream, entry)
-		.then(ostream => mkdirp(targetDirName)
-			.then(() => new Promise((c, e) => {
-				let istream = createWriteStream(targetFileName, { mode });
-				istream.once('finish', () => c(null));
-				istream.once('error', e);
-				ostream.once('error', e);
-				ostream.pipe(istream);
-			})));
+	return mkdirp(targetDirName).then(() => new Promise((c, e) => {
+		let istream = createWriteStream(targetFileName, { mode });
+		istream.once('finish', () => c(null));
+		istream.once('error', e);
+		stream.once('error', e);
+		stream.pipe(istream);
+	}));
 }
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Promise {
 	return new Promise((c, e) => {
-		const promises: Promise[] = [];
+		const throttler = new SimpleThrottler();
+		let last = TPromise.as(null);
 
 		zipfile.once('error', e);
+		zipfile.once('close', () => last.then(c, e));
 		zipfile.on('entry', (entry: Entry) => {
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				return;
 			}
 
-			promises.push(extractEntry(zipfile, entry, targetPath, options));
+			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
+			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+			const mode = modeFromEntry(entry);
+
+			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
 		});
-		zipfile.once('close', () => Promise.join(promises).done(c, e));
 	});
 }
 

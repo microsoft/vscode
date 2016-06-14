@@ -9,7 +9,6 @@
 }
 
 .monaco-findInput .monaco-inputbox {
-	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	font-size: 13px;
 	width: 100%;
 	height: 25px;
@@ -76,27 +75,17 @@
 	background: #555;
 }
 
+.hc-black .monaco-findInput > .controls > .custom-checkbox.case-sensitive,
 .vs-dark .monaco-findInput > .controls > .custom-checkbox.case-sensitive {
 	background: url('case-sensitive-dark.svg') center center no-repeat;
 }
 
+.hc-black .monaco-findInput > .controls > .custom-checkbox.whole-word,
 .vs-dark .monaco-findInput > .controls > .custom-checkbox.whole-word {
 	background: url('whole-word-dark.svg') center center no-repeat;
 }
 
+.hc-black .monaco-findInput > .controls > .custom-checkbox.regex,
 .vs-dark .monaco-findInput > .controls > .custom-checkbox.regex {
 	background: url('regex-dark.svg') center center no-repeat;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-findInput > .controls > .custom-checkbox.case-sensitive:before {
-	content: url('case-sensitive-dark.svg');
-}
-
-.hc-black .monaco-findInput > .controls > .custom-checkbox.whole-word:before {
-	content: url('whole-word-dark.svg');
-}
-
-.hc-black .monaco-findInput > .controls > .custom-checkbox.regex:before {
-	content: url('regex-dark.svg');
 }

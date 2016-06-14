@@ -9,7 +9,7 @@ import 'vs/css!./iPadShowKeyboard';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import {EventType, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {IEditorContribution} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
@@ -25,7 +25,7 @@ export class IPadShowKeyboard implements IEditorContribution {
 		this.editor = editor;
 		this.toDispose = [];
 		if (browser.isIPad) {
-			this.toDispose.push(editor.addListener2(EventType.ConfigurationChanged, () => this.update()));
+			this.toDispose.push(editor.onDidChangeConfiguration(() => this.update()));
 			this.update();
 		}
 	}

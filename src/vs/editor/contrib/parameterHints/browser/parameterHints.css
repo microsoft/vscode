@@ -2,18 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* Parameter Hints */
 
 .monaco-editor .parameter-hints-widget {
 	font-size: 12px;
 	width: 440px;
 	z-index: 10;
-	-webkit-user-select: none;
-	-ms-user-select: none;
-	-khtml-user-select: none;
-	-moz-user-select: -moz-none;
-	-o-user-select: none;
-	user-select: none;
+}
+
+.monaco-editor.mac .suggest-widget {
+	font-size: 11px;
 }
 
 .monaco-editor .parameter-hints-widget.visible {
@@ -89,109 +86,50 @@
 
 .monaco-editor .parameter-hints-widget .signature .parameter {
 	display: inline-block;
-	color: #999;
 }
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
-	color: black;
 	font-weight: bold;
-}
-
-.monaco-editor .parameter-hints-widget .signature .return-type,
-.monaco-editor .parameter-hints-widget .signature .parameter.active .parameter-type {
-	color: #0035DD;
+	text-decoration: underline;
 }
 
 .monaco-editor .parameter-hints-widget .documentation {
 	max-height: 3.2em;
 	overflow: hidden;
-	font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", sans-serif, "Droid Sans Fallback";
 	color: #A21B1B;
 }
 
-.monaco-editor .parameter-hints-widget .documentation .parameter {
-	color: black;
+.monaco-editor .parameter-hints-widget .documentation-parameter > .parameter {
 	font-weight: bold;
 	margin-right: 0.5em;
 }
 
-/* VS Dark theme */
+/*** VS Dark */
 
 .monaco-editor.vs-dark .parameter-hints-widget .wrapper {
 	border-color: #707070;
-}
-
-.monaco-editor.vs-dark .parameter-hints-widget .signature .parameter.active {
-	color: #D8D8D8;
-}
-
-.monaco-editor.vs-dark .parameter-hints-widget .signature .return-type,
-.monaco-editor.vs-dark .parameter-hints-widget .signature .parameter.active .parameter-type {
-	color: #219AE4;
-}
-
-.monaco-editor.vs-dark .parameter-hints-widget .signature {
-	color: #777;
 }
 
 .monaco-editor.vs-dark .parameter-hints-widget .documentation {
 	color: #C07A7A;
 }
 
-.monaco-editor.vs-dark .parameter-hints-widget .documentation .parameter {
-	color: #D8D8D8;
-}
-
+.monaco-editor.hc-black .parameter-hints-widget .button.previous,
 .monaco-editor.vs-dark .parameter-hints-widget .button.previous {
 	background-image: url('arrow-up-dark.svg');
 }
 
+.monaco-editor.hc-black .parameter-hints-widget .button.next,
 .monaco-editor.vs-dark .parameter-hints-widget .button.next {
 	background-image: url('arrow-down-dark.svg');
 }
 
-/* High Contrast Theming */
+/*** High Contrast */
 
 .monaco-editor.hc-black .parameter-hints-widget .wrapper {
 	border-color: #707070;
 }
 
-.monaco-editor.hc-black .parameter-hints-widget .signature .parameter.active {
-	color: #D8D8D8;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .signature .return-type,
-.monaco-editor.hc-black .parameter-hints-widget .signature .parameter.active .parameter-type {
-	color: #219AE4;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .signature {
-	color: #777;
-}
-
 .monaco-editor.hc-black .parameter-hints-widget .documentation {
 	color: #C07A7A;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .documentation .parameter {
-	color: #D8D8D8;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button {
-	background: none;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button:before {
-	position: relative;
-	opacity: 0.8;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button.previous:before {
-	content: url('arrow-up-dark.svg');
-	top: -2px;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button.next:before {
-	content: url('arrow-down-dark.svg');
-	top: -4px;
 }

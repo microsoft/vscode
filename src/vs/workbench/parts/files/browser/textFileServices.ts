@@ -7,20 +7,20 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
-import {EventType} from 'vs/workbench/common/events';
-import {WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
+import {IResult, ITextFileOperationResult, ITextFileService, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -31,8 +31,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	public serviceId = ITextFileService;
 
-	private listenerToUnbind: ListenerUnbind[];
-	private _workingFilesModel: WorkingFilesModel;
+	private listenerToUnbind: IDisposable[];
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 
@@ -44,7 +43,8 @@ export abstract class TextFileService implements ITextFileService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService private eventService: IEventService
 	) {
 		this.listenerToUnbind = [];
@@ -65,29 +65,17 @@ export abstract class TextFileService implements ITextFileService {
 		return this._onAutoSaveConfigurationChange.event;
 	}
 
-	private get workingFilesModel(): WorkingFilesModel {
-		if (!this._workingFilesModel) {
-			this._workingFilesModel = this.instantiationService.createInstance(WorkingFilesModel);
-		}
-
-		return this._workingFilesModel;
-	}
-
-	private registerListeners(): void {
-
-		// Lifecycle
-		this.lifecycleService.addBeforeShutdownParticipant(this);
-		this.lifecycleService.onShutdown(this.dispose, this);
+	protected registerListeners(): void {
 
 		// Configuration changes
-		this.listenerToUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config)));
+		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Editor focus change
-		window.addEventListener('blur', () => this.onEditorFocusChange(), true);
-		this.listenerToUnbind.push(this.eventService.addListener(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorFocusChange()));
+		window.addEventListener('blur', () => this.onEditorsChanged(), true);
+		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
-	private onEditorFocusChange(): void {
+	private onEditorsChanged(): void {
 		if (this.configuredAutoSaveOnFocusChange && this.getDirty().length) {
 			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
 		}
@@ -208,13 +196,15 @@ export abstract class TextFileService implements ITextFileService {
 				}
 			}, (error) => {
 
-				// FileNotFound means the file got deleted meanwhile, so dispose this model
+				// FileNotFound means the file got deleted meanwhile, so dispose
 				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-					let clients = FileEditorInput.getAll(model.getResource());
-					clients.forEach((input) => input.dispose(true));
 
-					// also make sure to have it removed from any working files
-					this.workingFilesModel.removeEntry(model.getResource());
+					// Inputs
+					let clients = FileEditorInput.getAll(model.getResource());
+					clients.forEach(input => input.dispose());
+
+					// Model
+					CACHE.dispose(model.getResource());
 
 					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;
@@ -230,18 +220,6 @@ export abstract class TextFileService implements ITextFileService {
 				results: Object.keys(mapResourceToResult).map((k) => mapResourceToResult[k])
 			};
 		});
-	}
-
-	public beforeShutdown(): boolean | TPromise<boolean> {
-
-		// Propagate to working files model
-		this.workingFilesModel.shutdown();
-
-		return false; // no veto
-	}
-
-	public getWorkingFilesModel(): WorkingFilesModel {
-		return this.workingFilesModel;
 	}
 
 	public getAutoSaveMode(): AutoSaveMode {
@@ -264,11 +242,7 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public dispose(): void {
-		while (this.listenerToUnbind.length) {
-			this.listenerToUnbind.pop()();
-		}
-
-		this.workingFilesModel.dispose();
+		this.listenerToUnbind = dispose(this.listenerToUnbind);
 
 		// Clear all caches
 		CACHE.clear();

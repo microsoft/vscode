@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import Objects = require('vs/base/common/objects');
 import Json = require('vs/base/common/json');
 import http = require('vs/base/common/http');
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {IJSONSchema, IJSONSchemaMap} from 'vs/base/common/jsonSchema';
 import Strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
 import Types = require('vs/base/common/types');
@@ -19,7 +19,7 @@ import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export interface IJSONSchemaService {
 
@@ -214,20 +214,17 @@ export class JSONSchemaService implements IJSONSchemaService {
 
 	private requestService: IRequestService;
 	private contextService : IWorkspaceContextService;
-	private callOnDispose:Function[];
-	private telemetryService: ITelemetryService;
+	private callOnDispose:IDisposable[];
 
 	constructor(@IRequestService requestService: IRequestService,
-		@ITelemetryService telemetryService?: ITelemetryService,
 		@IWorkspaceContextService contextService?: IWorkspaceContextService,
 		@IResourceService resourceService?: IResourceService) {
 		this.requestService = requestService;
 		this.contextService = contextService;
-		this.telemetryService = telemetryService;
 		this.callOnDispose = [];
 
 		if (resourceService) {
-			this.callOnDispose.push(resourceService.addListener_(ResourceEvents.CHANGED, (e: IResourceChangedEvent) => this.onResourceChange(e)));
+			this.callOnDispose.push(resourceService.addListener2_(ResourceEvents.CHANGED, (e: IResourceChangedEvent) => this.onResourceChange(e)));
 		}
 
 		this.contributionSchemas = {};
@@ -238,9 +235,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	public dispose(): void {
-		while(this.callOnDispose.length > 0) {
-			this.callOnDispose.pop()();
-		}
+		this.callOnDispose = dispose(this.callOnDispose);
 	}
 
 	private onResourceChange(e: IResourceChangedEvent): void {
@@ -264,25 +259,6 @@ export class JSONSchemaService implements IJSONSchemaService {
 			for (let id in schemas) {
 				id = this.normalizeId(id);
 				this.contributionSchemas[id] = this.addSchemaHandle(id, schemas[id]);
-			}
-		}
-		if (schemaContributions.schemaAssociations) {
-			var schemaAssociations = schemaContributions.schemaAssociations;
-			for (let pattern in schemaAssociations) {
-				var associations = schemaAssociations[pattern];
-				if (this.contextService) {
-					let env = this.contextService.getConfiguration().env;
-					if (env) {
-						pattern = pattern.replace(/%APP_SETTINGS_HOME%/, URI.file(env.appSettingsHome).toString());
-					}
-				}
-				this.contributionAssociations[pattern] = associations;
-
-				var fpa = this.getOrAddFilePatternAssociation(pattern);
-				associations.forEach(schemaId => {
-					var id = this.normalizeId(schemaId);
-					fpa.addSchema(id);
-				});
 			}
 		}
 	}
@@ -346,12 +322,6 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	public loadSchema(url:string) : WinJS.TPromise<UnresolvedSchema> {
-		if (this.telemetryService && Strings.startsWith(url, 'https://schema.management.azure.com')) {
-			this.telemetryService.publicLog('json.schema', {
-				schemaURL: url
-			});
-		}
-
 		return this.requestService.makeRequest({ url: url }).then(
 			request => {
 				var content = request.responseText;
@@ -361,9 +331,9 @@ export class JSONSchemaService implements IJSONSchemaService {
 				}
 
 				var schemaContent: IJSONSchema = {};
-				var jsonErrors = [];
-				schemaContent = Json.parse(content, errors);
-				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), jsonErrors[0])] : [];
+				var jsonErrors: Json.ParseError[] = [];
+				schemaContent = Json.parse(content, jsonErrors);
+				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), Json.getParseErrorMessage(jsonErrors[0].error))] : [];
 				return new UnresolvedSchema(schemaContent, errors);
 			},
 			(error : http.IXHRResponse) => {
@@ -411,37 +381,56 @@ export class JSONSchemaService implements IJSONSchemaService {
 			});
 		};
 
-		var resolveRefs = (node:any, parentSchema: any) : WinJS.Promise => {
-			var toWalk = [ node ];
-			var seen: any[] = [];
+		let resolveRefs = (node: IJSONSchema, parentSchema: IJSONSchema): WinJS.Promise => {
+			let toWalk : IJSONSchema[] = [node];
+			let seen: IJSONSchema[] = [];
 
 			var openPromises: WinJS.Promise[] = [];
 
+			let collectEntries = (...entries: IJSONSchema[]) => {
+				for (let entry of entries) {
+					if (typeof entry === 'object') {
+						toWalk.push(entry);
+					}
+				}
+			};
+			let collectMapEntries = (...maps: IJSONSchemaMap[]) => {
+				for (let map of maps) {
+					if (typeof map === 'object') {
+						for (let key in map) {
+							let entry = map[key];
+							toWalk.push(entry);
+						}
+					}
+				}
+			};
+			let collectArrayEntries = (...arrays: IJSONSchema[][]) => {
+				for (let array of arrays) {
+					if (Array.isArray(array)) {
+						toWalk.push.apply(toWalk, array);
+					}
+				}
+			};
 			while (toWalk.length) {
-				var next = toWalk.pop();
+				let next = toWalk.pop();
 				if (seen.indexOf(next) >= 0) {
 					continue;
 				}
 				seen.push(next);
-				if (Array.isArray(next)) {
-					next.forEach(item => {
-						toWalk.push(item);
-					});
-				} else if (Types.isObject(next)) {
-					if (next.$ref) {
-						var segments = next.$ref.split('#', 2);
-						if (segments[0].length > 0) {
-							openPromises.push(resolveExternalLink(next, segments[0], segments[1]));
-							continue;
-						} else {
-							resolveLink(next, parentSchema, segments[1]);
-						}
-					}
-					for (var key in next) {
-						toWalk.push(next[key]);
+				if (next.$ref) {
+					let segments = next.$ref.split('#', 2);
+					if (segments[0].length > 0) {
+						openPromises.push(resolveExternalLink(next, segments[0], segments[1]));
+						continue;
+					} else {
+						resolveLink(next, parentSchema, segments[1]);
 					}
 				}
+				collectEntries(next.items, next.additionalProperties, next.not);
+				collectMapEntries(next.definitions, next.properties, next.patternProperties, <IJSONSchemaMap> next.dependencies);
+				collectArrayEntries(next.anyOf, next.allOf, next.oneOf, <IJSONSchema[]> next.items);
 			}
+
 			return WinJS.Promise.join(openPromises);
 		};
 

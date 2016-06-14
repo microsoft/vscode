@@ -6,46 +6,68 @@
 
 import types = require('vs/base/common/types');
 import * as Platform from 'vs/base/common/platform';
+import Event, {Emitter} from 'vs/base/common/event';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
-interface ISafeWindow {
-	Worker: any;
+class ZoomManager {
+
+	public static INSTANCE = new ZoomManager();
+
+	private _zoomLevel: number = 0;
+	private _pixelRatioCache: number = 0;
+	private _pixelRatioComputed: boolean = false;
+
+	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
+	public onDidChangeZoomLevel:Event<number> = this._onDidChangeZoomLevel.event;
+
+	public getZoomLevel(): number {
+		return this._zoomLevel;
+	}
+
+	public setZoomLevel(zoomLevel:number): void {
+		if (this._zoomLevel === zoomLevel) {
+			return;
+		}
+
+		this._zoomLevel = zoomLevel;
+		this._pixelRatioComputed = false;
+		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+	}
+
+	public getPixelRatio(): number {
+		if (!this._pixelRatioComputed) {
+			this._pixelRatioCache = this._computePixelRatio();
+			this._pixelRatioComputed = true;
+		}
+		return this._pixelRatioCache;
+	}
+
+	private _computePixelRatio(): number {
+		let ctx = document.createElement('canvas').getContext('2d');
+		let dpr = window.devicePixelRatio || 1;
+		let bsr = 	(<any>ctx).webkitBackingStorePixelRatio ||
+					(<any>ctx).mozBackingStorePixelRatio ||
+					(<any>ctx).msBackingStorePixelRatio ||
+					(<any>ctx).oBackingStorePixelRatio ||
+					(<any>ctx).backingStorePixelRatio || 1;
+		return dpr / bsr;
+	}
 }
 
-interface ISafeDocument {
-	URL: string;
-	createElement(tagName: 'div'): HTMLDivElement;
-	createElement(tagName: string): HTMLElement;
+export function getZoomLevel(): number {
+	return ZoomManager.INSTANCE.getZoomLevel();
+}
+export function getPixelRatio(): number {
+	return ZoomManager.INSTANCE.getPixelRatio();
+}
+export function setZoomLevel(zoomLevel:number): void {
+	ZoomManager.INSTANCE.setZoomLevel(zoomLevel);
+}
+export function onDidChangeZoomLevel(callback:(zoomLevel:number)=>void): IDisposable {
+	return ZoomManager.INSTANCE.onDidChangeZoomLevel(callback);
 }
 
-interface INavigator {
-	userAgent: string;
-}
-
-interface IGlobalScope {
-	navigator: INavigator;
-	document: ISafeDocument;
-	history: {
-		pushState: any
-	};
-}
-
-const globals = <IGlobalScope><any>(typeof self === 'object' ? self : global);
-
-// MAC:
-// chrome: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_2) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.100 Safari/535.2"
-// safari: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_2) AppleWebKit/534.51.22 (KHTML, like Gecko) Version/5.1.1 Safari/534.51.22"
-//
-// WINDOWS:
-// chrome: "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.102 Safari/535.2"
-// IE: "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; WOW64; Trident/5.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; .NET4.0C; .NET4.0E; MS-RTC LM 8; InfoPath.3; Zune 4.7)"
-// Opera:	"Opera/9.80 (Windows NT 6.1; U; en) Presto/2.9.168 Version/11.52"
-// FF: "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:8.0) Gecko/20100101 Firefox/8.0"
-
-// LINUX:
-// chrome: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36"
-// firefox: "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:34.0) Gecko/20100101 Firefox/34.0"
-
-const userAgent = globals.navigator ? globals.navigator.userAgent : '';
+const userAgent = navigator.userAgent;
 
 // DOCUMENTED FOR FUTURE REFERENCE:
 // When running IE11 in IE10 document mode, the code below will identify the browser as being IE10,
@@ -68,22 +90,6 @@ export const canUseTranslate3d = !isIE9 && !isFirefox;
 
 export const enableEmptySelectionClipboard = isWebKit;
 
-let _disablePushState = false;
-
-/**
- * Returns if the browser supports the history.pushState function or not.
- */
-export function canPushState() {
-	return (!_disablePushState && globals.history && globals.history.pushState);
-}
-
-/**
- * Helpful when we detect that pushing state does not work for some reason (e.g. FF prevents pushState for security reasons in some cases)
- */
-export function disablePushState() {
-	_disablePushState = true;
-}
-
 /**
  * Returns if the browser supports CSS 3 animations.
  */
@@ -92,12 +98,8 @@ export function hasCSSAnimationSupport() {
 		return this._hasCSSAnimationSupport;
 	}
 
-	if (!globals.document) {
-		return false;
-	}
-
 	let supported = false;
-	let element = globals.document.createElement('div');
+	let element = document.createElement('div');
 	let properties = ['animationName', 'webkitAnimationName', 'msAnimationName', 'MozAnimationName', 'OAnimationName'];
 	for (let i = 0; i < properties.length; i++) {
 		let property = properties[i];
@@ -114,10 +116,6 @@ export function hasCSSAnimationSupport() {
 	}
 
 	return this._hasCSSAnimationSupport;
-}
-
-export function isInWebWorker(): boolean {
-	return !globals.document && typeof ((<any>globals).importScripts) !== 'undefined';
 }
 
 export function supportsExecCommand(command: string): boolean {

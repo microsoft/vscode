@@ -74,7 +74,7 @@
 	"tags.ion.optionbutton": "Elemento secundario de ionItem. Crea un botón de opción dentro de un elemento de lista que queda visible cuando el usuario pasa el elemento a la izquierda.",
 	"tags.ion.pane": "Contenedor simple que se ajusta al contenido, sin efectos secundarios. Agrega la clase \"pane\" al elemento.",
 	"tags.ion.popoverview": "Popover es una vista que flota sobre el contenido de una aplicación. Las vistas Popover son una forma fácil de presentar información del usuario o de recopilarla.",
-	"tags.ion.radio": "La directiva radio de ion no difiere de la entrada de radio HTML, salvo en el estilo. ionRadio se comporta como una entrada de radio AngularJS.",
+	"tags.ion.radio": "La directiva ionRadio no difiere de la entrada de radio HTML, salvo en el estilo. ionRadio se comporta como una entrada de radio AngularJS.",
 	"tags.ion.refresher": "Elemento secundario de ionContent o ionScroll. Permite agregar la opción de incorporar cambios para actualizar a una vista scrollView. Colóquelo como primer elemento secundario del elemento ionContent o ionScroll.",
 	"tags.ion.reorderbutton": "Elemento secundario de ionItem.",
 	"tags.ion.scroll": "Crea un contenedor desplazable para todo el contenido incluido.",

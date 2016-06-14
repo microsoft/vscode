@@ -6,13 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
-import {workspace, window, Position} from 'vscode';
+import {workspace, window, Position, Range} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp} from './utils';
-import {join} from 'path';
 
-suite("editor tests", () => {
+suite('editor tests', () => {
 
 	teardown(cleanUp);
 
@@ -25,6 +22,29 @@ suite("editor tests", () => {
 					}).then(applied => {
 						assert.ok(applied);
 						assert.equal(doc.getText(), 'Hello World');
+						assert.ok(doc.isDirty);
+
+						return doc.save().then(saved => {
+							assert.ok(saved);
+							assert.ok(!doc.isDirty);
+
+							return deleteFile(file);
+						});
+					});
+				});
+			});
+		});
+	});
+
+	test('issue #6281: Edits fail to validate ranges correctly before applying', () => {
+		return createRandomFile('Hello world!').then(file => {
+			return workspace.openTextDocument(file).then(doc => {
+				return window.showTextDocument(doc).then((editor) => {
+					return editor.edit((builder) => {
+						builder.replace(new Range(0, 0, Number.MAX_VALUE, Number.MAX_VALUE), 'new');
+					}).then(applied => {
+						assert.ok(applied);
+						assert.equal(doc.getText(), 'new');
 						assert.ok(doc.isDirty);
 
 						return doc.save().then(saved => {

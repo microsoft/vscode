@@ -75,6 +75,7 @@
 
 .quick-open-widget .quick-open-tree .quick-open-entry-meta {
 	opacity: 0.7;
+	line-height: normal;
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry-description {
@@ -168,6 +169,12 @@
 
 .vs-dark .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
 	color: #0097FB;
+}
+
+.quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected,
+.quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.focused {
+	background: #DCEBFC;
+	color: inherit;
 }
 
 /* High Contrast Theming */

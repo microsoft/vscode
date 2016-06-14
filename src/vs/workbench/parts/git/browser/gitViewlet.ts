@@ -21,9 +21,9 @@ import gitless = require('vs/workbench/parts/git/browser/views/gitless/gitlessVi
 import notroot = require('vs/workbench/parts/git/browser/views/notroot/notrootView');
 import noworkspace = require('vs/workbench/parts/git/browser/views/noworkspace/noworkspaceView');
 import { DisabledView } from './views/disabled/disabledView';
+import { HugeView } from './views/huge/hugeView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 import IGitService = git.IGitService;
@@ -62,7 +62,8 @@ export class GitViewlet
 			this.instantiationService.createInstance(gitless.GitlessView),
 			new notroot.NotRootView(),
 			new noworkspace.NoWorkspaceView(),
-			new DisabledView()
+			new DisabledView(),
+			this.instantiationService.createInstance(HugeView)
 		];
 
 		views.forEach(v => {
@@ -70,7 +71,7 @@ export class GitViewlet
 			this.toDispose.push(v);
 		});
 
-		this.toUnbind.push(this.gitService.addBulkListener(() => this.onGitServiceChanges()));
+		this.toUnbind.push(this.gitService.addBulkListener2(() => this.onGitServiceChanges()));
 	}
 
 	// GitView.IController
@@ -163,14 +164,6 @@ export class GitViewlet
 		return this.currentView ? this.currentView.getSecondaryActions() : [];
 	}
 
-	public getSelection(): ISelection {
-		if (!this.currentView) {
-			return Selection.EMPTY;
-		}
-
-		return this.currentView.getSelection();
-	}
-
 	public getControl(): eventemitter.IEventEmitter {
 		if (!this.currentView) {
 			return null;
@@ -200,6 +193,9 @@ export class GitViewlet
 			this.progressRunner = null;
 		} else if (this.gitService.getState() === git.ServiceState.NotAtRepoRoot) {
 			this.setView('notroot');
+			this.progressRunner = null;
+		} else if (this.gitService.getState() === git.ServiceState.Huge) {
+			this.setView('huge');
 			this.progressRunner = null;
 		} else if (this.gitService.isIdle()) {
 			this.setView('changes');

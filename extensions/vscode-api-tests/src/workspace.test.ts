@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, TextDocument, window, Position, Uri, EventEmitter, CancellationTokenSource, Disposable, WorkspaceEdit} from 'vscode';
+import {workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp, pathEquals} from './utils';
 import {join, basename} from 'path';
 import * as fs from 'fs';
@@ -14,6 +14,24 @@ import * as fs from 'fs';
 suite('workspace-namespace', () => {
 
 	teardown(cleanUp);
+
+	test('configuration, defaults', () => {
+		const config = workspace.getConfiguration('farboo');
+
+		assert.ok(config.has('config0'));
+		assert.equal(config.get('config0'), true);
+		assert.equal(config.get('config4'), '');
+
+		assert.ok(config.has('nested.config1'));
+		assert.equal(config.get('nested.config1'), 42);
+		assert.ok(config.has('nested.config2'));
+		assert.equal(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+	});
+
+	test('configuration, getConfig/value', () => {
+		const value = workspace.getConfiguration('farboo.config0');
+		assert.equal(Object.keys(value).length, 2);
+	});
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(workspace.textDocuments));
@@ -26,7 +44,7 @@ suite('workspace-namespace', () => {
 	});
 
 	test('openTextDocument', () => {
-		let len = workspace.textDocuments.length
+		let len = workspace.textDocuments.length;
 		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
 			assert.ok(doc);
 			assert.equal(workspace.textDocuments.length, len + 1);
@@ -41,41 +59,44 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, untitled is dirty', function(done) {
+	test('openTextDocument, untitled is dirty', function (done) {
 		if (process.platform === 'win32') {
 			return done(); // TODO@Joh this test fails on windows
 		}
 
-		workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
+		workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 			done();
 		});
 	});
 
-	test('openTextDocument, untitled closes on save', function() {
+	test('openTextDocument, untitled closes on save', function (done) {
 		const path = join(workspace.rootPath, './newfile.txt');
 
-		return workspace.openTextDocument(Uri.parse('untitled://' + path)).then(doc => {
+		return workspace.openTextDocument(Uri.parse('untitled:' + path)).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 
 			let closed: TextDocument;
 			let d0 = workspace.onDidCloseTextDocument(e => closed = e);
 
-			return doc.save().then(() => {
-				assert.ok(closed === doc);
-				assert.ok(!doc.isDirty);
-				assert.ok(fs.existsSync(path));
+			return window.showTextDocument(doc).then(() => {
+				return doc.save().then(() => {
+					assert.ok(closed === doc);
+					assert.ok(!doc.isDirty);
+					assert.ok(fs.existsSync(path));
 
-				d0.dispose();
+					d0.dispose();
 
-				return deleteFile(Uri.file(join(workspace.rootPath, './newfile.txt')));
+					return deleteFile(Uri.file(join(workspace.rootPath, './newfile.txt'))).then(() => done(null));
+				});
 			});
+
 		});
 	});
 
-	test('openTextDocument, uri scheme/auth/path', function() {
+	test('openTextDocument, uri scheme/auth/path', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('sc', {
 			provideTextDocumentContent() {
@@ -99,7 +120,7 @@ suite('workspace-namespace', () => {
 		]).then(() => {
 			registration.dispose();
 		});
-	})
+	});
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
 		return createRandomFile().then(file => {
@@ -145,7 +166,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('registerTextDocumentContentProvider, simple', function() {
+	test('registerTextDocumentContentProvider, simple', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
@@ -162,53 +183,53 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('registerTextDocumentContentProvider, constrains', function() {
+	test('registerTextDocumentContentProvider, constrains', function () {
 
 		// built-in
-		assert.throws(function() {
+		assert.throws(function () {
 			workspace.registerTextDocumentContentProvider('untitled', { provideTextDocumentContent() { return null; } });
 		});
 		// built-in
-		assert.throws(function() {
+		assert.throws(function () {
 			workspace.registerTextDocumentContentProvider('file', { provideTextDocumentContent() { return null; } });
 		});
 
 		// missing scheme
 		return workspace.openTextDocument(Uri.parse('notThere://foo/far/boo/bar')).then(() => {
-			assert.ok(false, 'expected failure')
+			assert.ok(false, 'expected failure');
 		}, err => {
 			// expected
-		})
+		});
 	});
 
-	test('registerTextDocumentContentProvider, multiple', function() {
+	test('registerTextDocumentContentProvider, multiple', function () {
 
 		// duplicate registration
 		let registration1 = workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
 				if (uri.authority === 'foo') {
-					return '1'
+					return '1';
 				}
 			}
 		});
 		let registration2 = workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
 				if (uri.authority === 'bar') {
-					return '2'
+					return '2';
 				}
 			}
 		});
 
 		return Promise.all([
-			workspace.openTextDocument(Uri.parse('foo://foo/bla')).then(doc => { assert.equal(doc.getText(), '1') }),
-			workspace.openTextDocument(Uri.parse('foo://bar/bla')).then(doc => { assert.equal(doc.getText(), '2') })
+			workspace.openTextDocument(Uri.parse('foo://foo/bla')).then(doc => { assert.equal(doc.getText(), '1'); }),
+			workspace.openTextDocument(Uri.parse('foo://bar/bla')).then(doc => { assert.equal(doc.getText(), '2'); })
 		]).then(() => {
 			registration1.dispose();
 			registration2.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, evil provider', function() {
+	test('registerTextDocumentContentProvider, evil provider', function () {
 
 		// duplicate registration
 		let registration1 = workspace.registerTextDocumentContentProvider('foo', {
@@ -218,7 +239,7 @@ suite('workspace-namespace', () => {
 		});
 		let registration2 = workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri): string {
-				throw new Error('fail')
+				throw new Error('fail');
 			}
 		});
 
@@ -229,22 +250,22 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('registerTextDocumentContentProvider, invalid text', function() {
+	test('registerTextDocumentContentProvider, invalid text', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
-				return <any> 123
+				return <any>123;
 			}
 		});
 		return workspace.openTextDocument(Uri.parse('foo://auth/path')).then(() => {
-			assert.ok(false, 'expected failure')
+			assert.ok(false, 'expected failure');
 		}, err => {
 			// expected
 			registration.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, show virtual document', function() {
+	test('registerTextDocumentContentProvider, show virtual document', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
@@ -258,11 +279,11 @@ suite('workspace-namespace', () => {
 				assert.ok(editor.document === doc);
 				assert.equal(editor.document.getText(), 'I am virtual');
 				registration.dispose();
-			})
+			});
 		});
 	});
 
-	test('registerTextDocumentContentProvider, open/open document', function() {
+	test('registerTextDocumentContentProvider, open/open document', function () {
 
 		let callCount = 0;
 		let registration = workspace.registerTextDocumentContentProvider('foo', {
@@ -283,7 +304,24 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('registerTextDocumentContentProvider, change event', function() {
+	test('registerTextDocumentContentProvider, empty doc', function () {
+
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				return '';
+			}
+		});
+
+		const uri = Uri.parse('foo:doc/empty');
+
+		return workspace.openTextDocument(uri).then(doc => {
+			assert.equal(doc.getText(), '');
+			assert.equal(doc.uri.toString(), uri.toString());
+			registration.dispose();
+		});
+	});
+
+	test('registerTextDocumentContentProvider, change event', function () {
 
 		let callCount = 0;
 		let emitter = new EventEmitter<Uri>();
@@ -339,7 +377,7 @@ suite('workspace-namespace', () => {
 
 	test('applyEdit', () => {
 
-		return workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './new2.txt'))).then(doc => {
+		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './new2.txt'))).then(doc => {
 			let edit = new WorkspaceEdit();
 			edit.insert(doc.uri, new Position(0, 0), new Array(1000).join('Hello World'));
 			return workspace.applyEdit(edit);

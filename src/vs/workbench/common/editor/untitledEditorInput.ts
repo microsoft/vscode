@@ -9,12 +9,17 @@ import URI from 'vs/base/common/uri';
 import {isUnspecific, guessMimeTypes, MIME_TEXT, suggestFilename} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, IInputStatus} from 'vs/workbench/common/editor';
+import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEventService} from 'vs/platform/event/common/event';
+import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
+
+import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -29,6 +34,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 
+	private toUnbind: IDisposable[];
+
 	constructor(
 		resource: URI,
 		hasAssociatedFilePath: boolean,
@@ -36,16 +43,32 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IEventService private eventService: IEventService
 	) {
 		super();
 
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
+		this.toUnbind = [];
+
+		this.registerListeners();
 	}
 
-	public getId(): string {
+	private registerListeners(): void {
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
+	}
+
+	private onDirtyStateChange(e: UntitledEditorEvent): void {
+		if (e.resource.toString() === this.resource.toString()) {
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	public getTypeId(): string {
 		return UntitledEditorInput.ID;
 	}
 
@@ -65,13 +88,18 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return this.cachedModel && this.cachedModel.isDirty();
 	}
 
-	public getStatus(): IInputStatus {
-		let isDirty = this.isDirty();
-		if (isDirty) {
-			return { state: 'dirty', decoration: '\u25cf' };
-		}
+	public confirmSave(): ConfirmResult {
+		return this.textFileService.confirmSave([this.resource]);
+	}
 
-		return null;
+	public save(): TPromise<boolean> {
+		return this.textFileService.save(this.resource);
+	}
+
+	public revert(): TPromise<boolean> {
+		this.cachedModel.revert();
+
+		return TPromise.as(true);
 	}
 
 	public suggestFileName(): string {
@@ -132,8 +160,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 				mime = mimeFromPath; // take most specific mime type if file path is associated and mime is specific
 			}
 		}
-		return this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT,
-			this.resource, this.hasAssociatedFilePath);
+
+		return this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
 	}
 
 	public matches(otherInput: any): boolean {
@@ -152,11 +180,16 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public dispose(): void {
-		super.dispose();
 
+		// Listeners
+		dispose(this.toUnbind);
+
+		// Model
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
+		super.dispose();
 	}
 }

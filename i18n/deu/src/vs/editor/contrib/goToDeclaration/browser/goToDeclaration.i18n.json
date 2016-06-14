@@ -6,7 +6,6 @@
 {
 	"actions.goToDecl.label": "Gehe zu Definition",
 	"actions.goToDeclToSide.label": "Definition an der Seite öffnen",
-	"actions.gotoTypeDecl.label": "Gehe zu Typdefinition",
 	"actions.previewDecl.label": "Peek-Definition",
 	"meta.title": " – {0} Definitionen",
 	"multipleResults": "Klicken Sie, um die gefundenen {0}-Definitionen anzuzeigen."

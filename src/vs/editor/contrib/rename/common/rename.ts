@@ -6,24 +6,26 @@
 'use strict';
 
 import {localize} from 'vs/nls';
-import {sequence} from 'vs/base/common/async';
+import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IRenameResult, RenameRegistry} from 'vs/editor/common/modes';
+import {WorkspaceEdit, RenameProviderRegistry} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 
-export function rename(model: IModel, position: IPosition, newName: string): TPromise<IRenameResult> {
+export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
 
-	const supports = RenameRegistry.ordered(model);
-	const resource = model.getAssociatedResource();
+	const supports = RenameProviderRegistry.ordered(model);
 	const rejects: string[] = [];
 	let hasResult = false;
 
 	const factory = supports.map(support => {
 		return () => {
 			if (!hasResult) {
-				return support.rename(resource, position, newName).then(result => {
+				return asWinJsPromise((token) => {
+					return support.provideRenameEdits(model, position, newName, token);
+				}).then(result => {
 					if (!result) {
 						// ignore
 					} else if (!result.rejectReason) {
@@ -37,17 +39,15 @@ export function rename(model: IModel, position: IPosition, newName: string): TPr
 		};
 	});
 
-	return sequence(factory).then(values => {
+	return sequence(factory).then((values): WorkspaceEdit => {
 		let result = values[0];
 		if (rejects.length > 0) {
-			return <IRenameResult>{
-				currentName: undefined,
+			return {
 				edits: undefined,
 				rejectReason: rejects.join('\n')
 			};
 		} else if (!result) {
-			return <IRenameResult>{
-				currentName: undefined,
+			return {
 				edits: undefined,
 				rejectReason: localize('no result', "No result.")
 			};

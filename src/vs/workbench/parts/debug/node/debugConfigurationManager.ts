@@ -5,8 +5,12 @@
 
 import path = require('path');
 import nls = require('vs/nls');
+import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
+import types = require('vs/base/common/types');
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -19,6 +23,7 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -72,6 +77,10 @@ export var debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExt
 			runtimeArgs : {
 				description: nls.localize('vscode.extension.contributes.debuggers.runtimeArgs', "Optional runtime arguments."),
 				type: 'array'
+			},
+			variables : {
+				description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g ${action.pickProcess}) in `launch.json` to a command."),
+				type: 'object'
 			},
 			initialConfigurations: {
 				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
@@ -141,14 +150,14 @@ const schema: IJSONSchema = {
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
-jsonRegistry.addSchemaFileAssociation('/.vscode/launch.json', schemaId);
 
-export class ConfigurationManager {
+export class ConfigurationManager implements debug.IConfigurationManager {
 
-	private configuration: debug.IConfig;
+	public configuration: debug.IConfig;
 	private systemVariables: SystemVariables;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
+	private _onDidConfigurationChange: Emitter<string>;
 
 	constructor(
 		configName: string,
@@ -157,8 +166,10 @@ export class ConfigurationManager {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
+		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
 		this.setConfiguration(configName);
 		this.adapters = [];
@@ -171,7 +182,7 @@ export class ConfigurationManager {
 
 			extensions.forEach(extension => {
 				extension.value.forEach(rawAdapter => {
-					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description.extensionFolderPath);
+					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description);
 					const duplicate = this.adapters.filter(a => a.type === adapter.type)[0];
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
 						extension.collector.error(nls.localize('debugNoType', "Debug adapter 'type' can not be omitted and must be of type 'string'."));
@@ -182,7 +193,7 @@ export class ConfigurationManager {
 							if (adapter[attribute]) {
 								if (attribute === 'enableBreakpointsFor') {
 									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
-								} else if (duplicate[attribute] && attribute !== 'type') {
+								} else if (duplicate[attribute] && attribute !== 'type' && attribute !== 'extensionDescription') {
 									// give priority to the later registered extension.
 									duplicate[attribute] = adapter[attribute];
 									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
@@ -214,39 +225,109 @@ export class ConfigurationManager {
 		});
 	}
 
-	public getConfiguration(): debug.IConfig {
-		return this.configuration;
+	public get onDidConfigurationChange(): Event<string> {
+		return this._onDidConfigurationChange.event;
 	}
 
-	public getConfigurationName(): string {
+	public get configurationName(): string {
 		return this.configuration ? this.configuration.name : null;
 	}
 
-	public getAdapter(): Adapter {
+	public get adapter(): Adapter {
+		if (!this.configuration || !this.configuration.type) {
+			return null;
+		}
+
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
 	}
 
-	public setConfiguration(name: string): TPromise<void> {
+	/**
+	 * Resolve all interactive variables in configuration #6569
+	 */
+	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
+		if (!this.configuration) {
+			return TPromise.as(null);
+		}
+
+		// We need a map from interactive variables to keys because we only want to trigger an action once per action -
+		// even though it might occure multiple times in configuration #7026.
+		const interactiveVariablesToKeys: { [key: string]: string[] } = {};
+		Object.keys(this.configuration).forEach(key => {
+			if (typeof this.configuration[key] === 'string') {
+				const matches = /\${action.(.+)}/.exec(this.configuration[key]);
+				if (matches && matches.length === 2) {
+					const interactiveVariable = matches[1];
+					if (!interactiveVariablesToKeys[interactiveVariable]) {
+						interactiveVariablesToKeys[interactiveVariable] = [];
+					}
+					interactiveVariablesToKeys[interactiveVariable].push(key);
+				}
+			}
+		});
+
+		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToKeys).map(interactiveVariable => {
+			return () => {
+				const commandId = this.adapter.variables ? this.adapter.variables[interactiveVariable] : null;
+				if (!commandId) {
+					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, interactiveVariable));
+				} else {
+					return this.keybindingService.executeCommand<string>(commandId, this.configuration).then(result => {
+						if (!result) {
+							this.configuration.silentlyAbort = true;
+						}
+						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = result);
+					});
+				}
+			};
+		});
+
+		return sequence(factory).then(() => this.configuration);
+	}
+
+	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
-			if (!config || !config.configurations) {
-				this.configuration = null;
-				return;
+			if (types.isObject(nameOrConfig)) {
+				this.configuration = objects.deepClone(nameOrConfig) as debug.IConfig;
+			} else {
+				if (!config || !config.configurations) {
+					this.configuration = null;
+					return;
+				}
+				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
+				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
+
+				this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
+				if (config && this.configuration) {
+					this.configuration.debugServer = config.debugServer;
+				}
 			}
 
-			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-			const filtered = name ? config.configurations.filter(cfg => cfg.name === name) : [config.configurations[0]];
-
-			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
 			if (this.configuration) {
+				// Set operating system specific properties #1873
+				if (isWindows && this.configuration.windows) {
+					Object.keys(this.configuration.windows).forEach(key => {
+						this.configuration[key] = this.configuration.windows[key];
+					});
+				}
+				if (isMacintosh && this.configuration.osx) {
+					Object.keys(this.configuration.osx).forEach(key => {
+						this.configuration[key] = this.configuration.osx[key];
+					});
+				}
+				if (isLinux && this.configuration.linux) {
+					Object.keys(this.configuration.linux).forEach(key => {
+						this.configuration[key] = this.configuration.linux[key];
+					});
+				}
+
+				// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 				if (this.systemVariables) {
 					Object.keys(this.configuration).forEach(key => {
 						this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
 					});
 				}
-				this.configuration.debugServer = config.debugServer;
 			}
-		});
+		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -284,12 +365,16 @@ export class ConfigurationManager {
 				return null;
 			}
 
-			return this.massageInitialConfigurations(adapter).then(() =>
-				JSON.stringify({
-					version: '0.2.0',
-					configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
-				}, null, '\t')
-			);
+			return this.massageInitialConfigurations(adapter).then(() => {
+				let editorConfig = this.configurationService.getConfiguration<any>();
+				return JSON.stringify(
+					{
+						version: '0.2.0',
+						configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
+					},
+					null,
+					editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
+			});
 		});
 	}
 
@@ -326,7 +411,7 @@ export class ConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: editor.IModel): boolean {
-		if (model.getAssociatedResource().scheme === Schemas.inMemory) {
+		if (model.uri.scheme === Schemas.inMemory) {
 			return false;
 		}
 

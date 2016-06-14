@@ -8,7 +8,6 @@
 
 import 'vs/css!./quickOutline';
 import * as nls from 'vs/nls';
-import * as arrays from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {matchesFuzzy} from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
@@ -17,8 +16,9 @@ import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {ICommonCodeEditor, IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
-import {IOutlineEntry} from 'vs/editor/common/modes';
+import {SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry} from 'vs/editor/common/modes';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
+import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
 let SCOPE_PREFIX = ':';
 
@@ -107,19 +107,11 @@ class SymbolEntry extends QuickOpenEntryGroup {
 	}
 }
 
-interface OutlineNode {
-	label: string;
-	type: string;
-	range: IRange;
-	children?: OutlineNode[];
-	parentScope?: string[];
-}
-
 export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 	public static ID = 'editor.action.quickOutline';
 
-	private cachedResult: IOutlineEntry[];
+	private cachedResult: SymbolInformation[];
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor, nls.localize('QuickOutlineAction.label', "Go to Symbol..."), Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
@@ -130,28 +122,23 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 	}
 
 	public isSupported(): boolean {
-		let mode = this.editor.getModel().getMode();
-
-		return !!mode && !!mode.outlineSupport && super.isSupported();
+		return (DocumentSymbolProviderRegistry.has(this.editor.getModel()) && super.isSupported());
 	}
 
 	public run(): TPromise<boolean> {
 		let model = this.editor.getModel();
-		let mode = model.getMode();
-		let outlineSupport = mode.outlineSupport;
 
-		// Only works for models with outline support
-		if (!outlineSupport) {
+		if (!DocumentSymbolProviderRegistry.has(model)) {
 			return null;
 		}
 
 		// Resolve outline
-		let promise = outlineSupport.getOutline(model.getAssociatedResource());
-		return promise.then((result: IOutlineEntry[]) => {
-			if (Array.isArray(result) && result.length > 0) {
+		let promise = getDocumentSymbols(model);
+		return promise.then((result: IOutline) => {
+			if (result.entries.length > 0) {
 
 				// Cache result
-				this.cachedResult = result;
+				this.cachedResult = result.entries;
 
 				return super.run();
 			}
@@ -184,14 +171,8 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		return nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to");
 	}
 
-	private toQuickOpenEntries(outline: OutlineNode[], searchValue: string): SymbolEntry[] {
+	private toQuickOpenEntries(flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
 		let results: SymbolEntry[] = [];
-
-		// Flatten
-		let flattened: OutlineNode[] = [];
-		if (outline) {
-			this.flatten(outline, flattened);
-		}
 
 		// Convert to Entries
 		let normalizedSearchValue = searchValue;
@@ -201,7 +182,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 		for (let i = 0; i < flattened.length; i++) {
 			let element = flattened[i];
-			let label = strings.trim(element.label);
+			let label = strings.trim(element.name);
 
 			// Check for meatch
 			let highlights = matchesFuzzy(normalizedSearchValue, label);
@@ -209,12 +190,12 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 				// Show parent scope as description
 				let description: string = null;
-				if (element.parentScope) {
-					description = arrays.tail(element.parentScope);
+				if (element.containerName) {
+					description = element.containerName;
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, element.type, description, element.range, highlights, this.editor, this));
+				results.push(new SymbolEntry(label, SymbolKind.from(element.kind), description, element.location.range, highlights, this.editor, this));
 			}
 		}
 
@@ -286,27 +267,6 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		}
 
 		return type;
-	}
-
-	private flatten(outline: OutlineNode[], flattened: OutlineNode[], parentScope?: string[]): void {
-		for (let i = 0; i < outline.length; i++) {
-			let element = outline[i];
-			flattened.push(element);
-
-			if (parentScope) {
-				element.parentScope = parentScope;
-			}
-
-			if (element.children) {
-				let elementScope: string[] = [];
-				if (parentScope) {
-					elementScope = parentScope.slice(0);
-				}
-				elementScope.push(element.label);
-
-				this.flatten(element.children, flattened, elementScope);
-			}
-		}
 	}
 
 	private sortNormal(searchValue: string, elementA: SymbolEntry, elementB: SymbolEntry): number {

@@ -8,23 +8,25 @@
 import {coalesce} from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IComputeExtraInfoResult, ExtraInfoRegistry} from 'vs/editor/common/modes';
+import {Hover, HoverProviderRegistry} from 'vs/editor/common/modes';
+import {asWinJsPromise} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
-export function getExtraInfoAtPosition(model: IModel, position: IPosition): TPromise<IComputeExtraInfoResult[]> {
+export function getHover(model: IReadOnlyModel, position: Position): TPromise<Hover[]> {
 
-	const resource = model.getAssociatedResource();
-	const supports = ExtraInfoRegistry.ordered(model);
-	const values: IComputeExtraInfoResult[] = [];
+	const supports = HoverProviderRegistry.ordered(model);
+	const values: Hover[] = [];
 
 	const promises = supports.map((support, idx) => {
-		return support.computeInfo(resource, position).then(result => {
+		return asWinJsPromise((token) => {
+			return support.provideHover(model, position, token);
+		}).then((result) => {
 			if (result) {
 				let hasRange = (typeof result.range !== 'undefined');
-				let hasValue = (typeof result.value !== 'undefined');
 				let hasHtmlContent = (typeof result.htmlContent !== 'undefined' && result.htmlContent && result.htmlContent.length > 0);
-				if (hasRange && (hasValue || hasHtmlContent)) {
+				if (hasRange && hasHtmlContent) {
 					values[idx]  = result;
 				}
 			}
@@ -36,4 +38,4 @@ export function getExtraInfoAtPosition(model: IModel, position: IPosition): TPro
 	return TPromise.join(promises).then(() => coalesce(values));
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeHoverProvider', getExtraInfoAtPosition);
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeHoverProvider', getHover);

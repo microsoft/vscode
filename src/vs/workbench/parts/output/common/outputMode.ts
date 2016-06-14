@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {MonarchMode} from 'vs/editor/common/modes/monarch/monarch';
-import types = require('vs/editor/common/modes/monarch/monarchTypes');
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {IModeDescriptor} from 'vs/editor/common/modes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -15,59 +12,38 @@ import {OutputWorker} from 'vs/workbench/parts/output/common/outputWorker';
 import winjs = require('vs/base/common/winjs.base');
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import URI from 'vs/base/common/uri';
-import Modes = require('vs/editor/common/modes');
+import * as modes from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {wireCancellationToken} from 'vs/base/common/async';
 
-export const language: types.ILanguage = {
-	displayName: 'Log',
-	name: 'Log',
-	defaultToken: '',
-	ignoreCase: true,
-
-	tokenizer: {
-		root: [
-
-			// Monaco log levels
-			[/^\[trace.*?\]|trace:?/, 'debug-token.output'],
-			[/^\[http.*?\]|http:?/, 'debug-token.output'],
-			[/^\[debug.*?\]|debug:?/, 'debug-token.output'],
-			[/^\[verbose.*?\]|verbose:?/, 'debug-token.output'],
-			[/^\[information.*?\]|information:?/, 'info-token.output'],
-			[/^\[info.*?\]|info:?/, 'info-token.output'],
-			[/^\[warning.*?\]|warning:?/, 'warn-token.output'],
-			[/^\[warn.*?\]|warn:?/, 'warn-token.output'],
-			[/^\[error.*?\]|error:?/, 'error-token.output'],
-			[/^\[fatal.*?\]|fatal:?/, 'error-token.output']
-		]
-	}
-};
-
-export class OutputMode extends MonarchMode {
-
-	public linkSupport:Modes.ILinkSupport;
+export class OutputMode extends AbstractMode {
 
 	private _modeWorkerManager: ModeWorkerManager<OutputWorker>;
 
 	constructor(
-		descriptor:IModeDescriptor,
+		descriptor: IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor.id, compile(language), modeService, modelService, editorWorkerService);
+		super(descriptor.id);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
-		this.linkSupport = this;
+		modes.LinkProviderRegistry.register(this.getId(), {
+			provideLinks: (model, token): Thenable<modes.ILink[]> => {
+				return wireCancellationToken(token, this._provideLinks(model.uri));
+			}
+		});
 	}
 
-	private _worker<T>(runner:(worker:OutputWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
+	private _worker<T>(runner: (worker: OutputWorker) => winjs.TPromise<T>): winjs.TPromise<T> {
 		return this._modeWorkerManager.worker(runner);
 	}
 
-	static $computeLinks = OneWorkerAttr(OutputMode, OutputMode.prototype.computeLinks);
-	public computeLinks(resource:URI):winjs.TPromise<Modes.ILink[]> {
-		return this._worker((w) => w.computeLinks(resource));
+	static $_provideLinks = OneWorkerAttr(OutputMode, OutputMode.prototype._provideLinks);
+	private _provideLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
+		return this._worker((w) => w.provideLinks(resource));
 	}
 }

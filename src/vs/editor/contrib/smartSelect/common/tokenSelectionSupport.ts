@@ -8,11 +8,18 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
-import {ILogicalSelectionEntry, ILogicalSelectionSupport} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Node, build, find} from './tokenTree';
 
-export class TokenSelectionSupport implements ILogicalSelectionSupport {
+/**
+ * Interface used to compute a hierachry of logical ranges.
+ */
+export interface ILogicalSelectionEntry {
+	type:string;
+	range:IRange;
+}
+
+export class TokenSelectionSupport {
 
 	private _modelService: IModelService;
 

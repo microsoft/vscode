@@ -5,20 +5,20 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class CopyLinesCommand implements editorCommon.ICommand {
 
-	private _selection: editorCommon.IEditorSelection;
+	private _selection: Selection;
 	private _isCopyingDown: boolean;
 
-	private _selectionDirection:editorCommon.SelectionDirection;
+	private _selectionDirection:SelectionDirection;
 	private _selectionId: string;
 	private _startLineNumberDelta: number;
 	private _endLineNumberDelta: number;
 
-	constructor(selection: editorCommon.IEditorSelection, isCopyingDown: boolean) {
+	constructor(selection: Selection, isCopyingDown: boolean) {
 		this._selection = selection;
 		this._isCopyingDown = isCopyingDown;
 	}
@@ -57,7 +57,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 		this._selectionDirection = this._selection.getDirection();
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):editorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {

@@ -8,15 +8,15 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IEntryRunContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
-import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
-import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
+import {KeyMod} from 'vs/base/common/keyCodes';
+import {QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
+import {TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const GOTO_LINE_PREFIX = ':';
@@ -80,7 +80,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return model && types.isFunction((<ITextModel>model).getLineCount) ? (<ITextModel>model).getLineCount() : -1;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -88,8 +88,8 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.runPreview();
 	}
 
-	public getInput(): EditorInput {
-		return <EditorInput>this.editorService.getActiveEditorInput();
+	public getInput(): IEditorInput {
+		return this.editorService.getActiveEditorInput();
 	}
 
 	public getOptions(): EditorOptions {
@@ -100,7 +100,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return options;
 	}
 
-	public runOpen(context: IContext): boolean {
+	public runOpen(context: IEntryRunContext): boolean {
 
 		// No-op if range is not valid
 		if (this.invalidRange()) {
@@ -108,8 +108,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		}
 
 		// Check for sideBySide use
-		let event = context.event;
-		let sideBySide = (event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))));
+		let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 		if (sideBySide) {
 			this.editorService.openEditor(this.getInput(), this.getOptions(), true).done(null, errors.onUnexpectedError);
 		}

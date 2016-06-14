@@ -19,11 +19,11 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
-import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
+import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
-
-import win = require('vs/workbench/electron-browser/window');
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ElectronWindow} from 'vs/workbench/electron-browser/window';
+import * as browser from 'vs/base/browser/browser';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -58,7 +58,7 @@ export class ElectronIntegration {
 	public integrate(shellContainer: HTMLElement): void {
 
 		// Register the active window
-		let activeWindow = this.instantiationService.createInstance(win.ElectronWindow, currentWindow, shellContainer);
+		let activeWindow = this.instantiationService.createInstance(ElectronWindow, currentWindow, shellContainer);
 		this.windowService.registerWindow(activeWindow);
 
 		// Support runAction event
@@ -116,9 +116,12 @@ export class ElectronIntegration {
 			this.messageService.show(Severity.Info, message);
 		});
 
+		// Ensure others can listen to zoom level changes
+		browser.setZoomLevel(webFrame.getZoomLevel());
+
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
-		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+		this.configurationService.onDidUpdateConfiguration(e => {
 			let windowConfig: IWindowConfiguration = e.config;
 
 			let newZoomLevel = 0;
@@ -135,6 +138,7 @@ export class ElectronIntegration {
 
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
+				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
 			}
 		});
 

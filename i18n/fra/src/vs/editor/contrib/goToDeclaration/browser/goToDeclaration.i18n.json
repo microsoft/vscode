@@ -6,8 +6,7 @@
 {
 	"actions.goToDecl.label": "Atteindre la définition",
 	"actions.goToDeclToSide.label": "Ouvrir la définition sur le côté",
-	"actions.gotoTypeDecl.label": "Atteindre la définition de type",
-	"actions.previewDecl.label": "Définition de l'aperçu",
+	"actions.previewDecl.label": "Apercu de définition",
 	"meta.title": " – {0} définitions",
 	"multipleResults": "Cliquez pour afficher les {0} définitions trouvées."
 }

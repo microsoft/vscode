@@ -74,6 +74,10 @@ export class SassParser extends cssParser.Parser {
 			}
 		}
 
+		if (this.peek(scanner.TokenType.SemiColon)) {
+			node.semicolonPosition = this.token.offset; // not part of the declaration, but useful information for code assist
+		}
+
 		return this.finish(node);
 	}
 
@@ -175,7 +179,7 @@ export class SassParser extends cssParser.Parser {
 		}
 		return this._parseVariableDeclaration() // variable declaration
 			|| this._tryParseRuleset(true) // nested ruleset
-			|| this._parseDeclaration(); // try declaration as last so in the error case, the ast will contain a declaration
+			|| super._parseRuleSetDeclaration(); // try css ruleset declaration as last so in the error case, the ast will contain a declaration
 	}
 
 	public _parseDeclaration(resyncStopTokens?:scanner.TokenType[]): nodes.Declaration {
@@ -521,9 +525,11 @@ export class SassParser extends cssParser.Parser {
 				node.setIdentifier(argument);
 			}
 		}
+
 		if (node.setValue(this._parseExpr(true))) {
 			return this.finish(node);
 		}
+
 		return null;
 	}
 }

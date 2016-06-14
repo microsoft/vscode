@@ -8,27 +8,24 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import {isPromiseCanceledError, onUnexpectedError} from 'vs/base/common/errors';
-import Event, { Emitter } from 'vs/base/common/event';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {addClass, append, emmet as $, hide, removeClass, show, toggleClass} from 'vs/base/browser/dom';
-import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import {IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent} from 'vs/base/browser/ui/list/list';
-import {List} from 'vs/base/browser/ui/list/listWidget';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {EventType, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
-import {SuggestRegistry} from 'vs/editor/common/modes';
-import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
-import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
-import {CompletionItem, CompletionModel} from './completionModel';
-import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
-import {alert} from 'vs/base/browser/ui/aria/aria';
-import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { addClass, append, emmet as $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { Context as SuggestContext } from '../common/suggest';
+import { CompletionItem, CompletionModel } from './completionModel';
+import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from './suggestModel';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -38,6 +35,7 @@ interface ISuggestionTemplateData {
 	typeLabel: HTMLElement;
 	documentationDetails: HTMLElement;
 	documentation: HTMLElement;
+	disposables: IDisposable[];
 }
 
 class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
@@ -46,6 +44,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	constructor(
 		private widget: SuggestWidget,
+		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const keybindings = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
@@ -58,19 +57,34 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
 		const data = <ISuggestionTemplateData>Object.create(null);
+		data.disposables = [];
 		data.root = container;
-
 		data.icon = append(container, $('.icon'));
 		data.colorspan = append(data.icon, $('span.colorspan'));
 
 		const text = append(container, $('.text'));
 		const main = append(text, $('.main'));
 		data.highlightedLabel = new HighlightedLabel(main);
+		data.disposables.push(data.highlightedLabel);
 		data.typeLabel = append(main, $('span.type-label'));
+
 		const docs = append(text, $('.docs'));
 		data.documentation = append(docs, $('span.docs-text'));
 		data.documentationDetails = append(docs, $('span.docs-details.octicon.octicon-info'));
 		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+
+		const configureFont = () => {
+			const fontInfo = this.editor.getConfiguration().fontInfo;
+			main.style.fontFamily = fontInfo.fontFamily;
+		};
+
+		configureFont();
+
+		data.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
+			if (e.fontInfo) {
+				configureFont();
+			}
+		}));
 
 		return data;
 	}
@@ -117,6 +131,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
 		templateData.highlightedLabel.dispose();
+		templateData.disposables = dispose(templateData.disposables);
 	}
 }
 
@@ -182,27 +197,44 @@ class SuggestionDetails {
 	private el: HTMLElement;
 	private title: HTMLElement;
 	private back: HTMLElement;
-	private scrollable: DomNodeScrollable;
-	private scrollbar: ScrollableElement;
+	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
-	private ariaLabel:string;
+	private ariaLabel: string;
+	private disposables: IDisposable[];
 
-	constructor(container: HTMLElement, private widget: SuggestWidget) {
+	constructor(
+		container: HTMLElement,
+		private widget: SuggestWidget,
+		private editor: ICodeEditor
+	) {
+		this.disposables = [];
+
 		this.el = append(container, $('.details'));
+		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
+
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
 		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
-		this.scrollable = new DomNodeScrollable(this.body);
-		this.scrollbar = new ScrollableElement(this.body, this.scrollable, {});
+
+		this.scrollbar = new DomScrollableElement(this.body, { canUseTranslate3d: false });
 		append(this.el, this.scrollbar.getDomNode());
+		this.disposables.push(this.scrollbar);
+
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
-
 		this.ariaLabel = null;
+
+		this.configureFont();
+
+		this.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
+			if (e.fontInfo) {
+				this.configureFont();
+			}
+		}));
 	}
 
 	get element() {
@@ -231,8 +263,7 @@ class SuggestionDetails {
 			this.widget.toggleDetails();
 		};
 
-		this.scrollbar.onElementDimensions();
-		this.scrollable.onContentsDimensions();
+		this.scrollbar.scanDomNode();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.typeLabel || '', item.suggestion.documentationLabel || '');
 	}
@@ -257,12 +288,14 @@ class SuggestionDetails {
 		this.scrollUp(80);
 	}
 
-	dispose(): void {
-		this.scrollbar.dispose();
-		this.scrollable.dispose();
+	private configureFont() {
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		this.title.style.fontFamily = fontInfo.fontFamily;
+		this.type.style.fontFamily = fontInfo.fontFamily;
+	}
 
-		this.el.parentElement.removeChild(this.el);
-		this.el = null;
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -274,12 +307,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
 	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
 
-	public allowEditorOverflow: boolean = true; // Editor.IContentWidget.allowEditorOverflow
+	allowEditorOverflow: boolean = true; // Editor.IContentWidget.allowEditorOverflow
 
 	private state: State;
 	private isAuto: boolean;
-	private shouldShowEmptySuggestionList: boolean;
-	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
 	private focusedItem: CompletionItem;
@@ -296,12 +327,13 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
+	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
+	private suggestWidgetMultipleSuggestions: IKeybindingContextKey<boolean>;
+	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
+
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
-
-	private _onDidVisibilityChange: Emitter<boolean> = new Emitter();
-	public get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
 
 	constructor(
 		private editor: ICodeEditor,
@@ -312,7 +344,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
-		this.suggestionSupportsAutoAccept = keybindingService.createKey(CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, true);
 
 		this.telemetryData = null;
 		this.telemetryService = telemetryService;
@@ -322,34 +353,33 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.element.style.top = '0';
 		this.element.style.left = '0';
 
-		if (!this.editor.getConfiguration().iconsInSuggestions) {
+		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
 			addClass(this.element, 'no-icons');
 		}
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element, this);
+		this.details = new SuggestionDetails(this.element, this, this.editor);
 
-		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this);
+		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
 		this.delegate = new Delegate(() => this.list);
 		this.list = new List(this.listElement, this.delegate, [renderer]);
 
 		this.toDispose = [
-			editor.addListener2(EventType.ModelChanged, () => this.onModelModeChanged()),
-			editor.addListener2(EventType.ModelModeChanged, () => this.onModelModeChanged()),
-			editor.addListener2(EventType.ModelModeSupportChanged, (e: IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
-			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
-			editor.addListener2(EventType.EditorTextBlur, () => this.onEditorBlur()),
+			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.addListener2(EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
+			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
 			this.model.onDidTrigger(e => this.onDidTrigger(e)),
 			this.model.onDidSuggest(e => this.onDidSuggest(e)),
 			this.model.onDidCancel(e => this.onDidCancel(e))
 		];
 
-		this.onModelModeChanged();
+		this.suggestWidgetVisible = keybindingService.createKey(SuggestContext.Visible, false);
+		this.suggestWidgetMultipleSuggestions = keybindingService.createKey(SuggestContext.MultipleSuggestions, false);
+		this.suggestionSupportsAutoAccept = keybindingService.createKey(SuggestContext.AcceptOnKey, true);
+
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
 
@@ -425,14 +455,14 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
-		if (this.currentSuggestionDetails) {
-			this.currentSuggestionDetails.cancel();
-			this.currentSuggestionDetails = null;
-		}
-
 		if (!e.elements.length) {
-			this._ariaAlert(null);
+			if (this.currentSuggestionDetails) {
+				this.currentSuggestionDetails.cancel();
+				this.currentSuggestionDetails = null;
+				this.focusedItem = null;
+			}
 
+			this._ariaAlert(null);
 			// TODO@Alex: Chromium bug
 			// this.editor.setAriaActiveDescendant(null);
 
@@ -452,18 +482,20 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
+		if (this.currentSuggestionDetails) {
+			this.currentSuggestionDetails.cancel();
+			this.currentSuggestionDetails = null;
+		}
+
 		const index = e.indexes[0];
 
 		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 		this.focusedItem = item;
-		this.list.setFocus(index);
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 
-		const resource = this.editor.getModel().getAssociatedResource();
 		const position = this.model.getRequestPosition() || this.editor.getPosition();
-
-		this.currentSuggestionDetails = item.resolveDetails(resource, position)
+		this.currentSuggestionDetails = item.resolveDetails(this.editor.getModel(), position)
 			.then(details => {
 				item.updateDetails(details);
 				this.list.setFocus(index);
@@ -474,12 +506,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
 			.then(() => this.currentSuggestionDetails = null);
-	}
-
-	private onModelModeChanged(): void {
-		const model = this.editor.getModel();
-		const supports = SuggestRegistry.all(model);
-		this.shouldShowEmptySuggestionList = supports.some(s => s.shouldShowEmptySuggestionList());
 	}
 
 	private setState(state: State): void {
@@ -570,16 +596,13 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		let visibleCount = this.completionModel.items.length;
 
 		const isEmpty = visibleCount === 0;
+		this.suggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
 		if (isEmpty) {
 			if (e.auto) {
 				this.setState(State.Hidden);
 			} else {
-				if (this.shouldShowEmptySuggestionList) {
-					this.setState(State.Empty);
-				} else {
-					this.setState(State.Hidden);
-				}
+				this.setState(State.Empty);
 			}
 
 			this.completionModel = null;
@@ -641,7 +664,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectNextPage(): boolean {
+	selectNextPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -656,7 +679,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectNext(): boolean {
+	selectNext(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -671,7 +694,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectPreviousPage(): boolean {
+	selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -686,7 +709,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectPrevious(): boolean {
+	selectPrevious(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -697,13 +720,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				return !this.isAuto;
 			default:
 				this.list.focusPrevious(1, true);
-				return true;
+				return false;
 		}
 	}
 
-	public acceptSelectedSuggestion(): boolean {
+	acceptSelectedSuggestion(): boolean {
 		switch (this.state) {
 			case State.Hidden:
+				return false;
+			case State.Empty:
 				return false;
 			case State.Loading:
 				return !this.isAuto;
@@ -718,7 +743,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public toggleDetails(): void {
+	toggleDetails(): void {
 		if (this.state === State.Details) {
 			this.setState(State.Open);
 			this.editor.focus();
@@ -741,7 +766,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 	private show(): void {
 		this.updateWidgetHeight();
-		this._onDidVisibilityChange.fire(true);
+		this.suggestWidgetVisible.set(true);
 		this.renderDetails();
 		this.showTimeout = TPromise.timeout(100).then(() => {
 			addClass(this.element, 'visible');
@@ -749,11 +774,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private hide(): void {
-		this._onDidVisibilityChange.fire(false);
+		this.suggestWidgetVisible.reset();
 		removeClass(this.element, 'visible');
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		if (this.state === State.Details) {
 			this.toggleDetails();
 		} else {
@@ -761,7 +786,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition {
 		if (this.state === State.Hidden) {
 			return null;
 		}
@@ -772,11 +797,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		};
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		return this.element;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return SuggestWidget.ID;
 	}
 
@@ -816,7 +841,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.state = null;
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
@@ -832,8 +857,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.list.dispose();
 		this.list = null;
 		this.toDispose = dispose(this.toDispose);
-		this._onDidVisibilityChange.dispose();
-		this._onDidVisibilityChange = null;
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;

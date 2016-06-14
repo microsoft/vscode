@@ -12,7 +12,7 @@ import LintRules = require('vs/languages/css/common/services/lintRules');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 
 ModesRegistry.registerCompatMode({
-	id: 'sass',
+	id: 'scss',
 	extensions: ['.scss'],
 	aliases: ['Sass', 'sass', 'scss'],
 	mimetypes: ['text/x-scss', 'text/scss'],
@@ -22,11 +22,11 @@ ModesRegistry.registerCompatMode({
 
 var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>Platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);
 configurationRegistry.registerConfiguration({
-	'id': 'sass',
+	'id': 'scss',
 	'order': 24,
-	'title': nls.localize('sassConfigurationTitle', "Sass configuration"),
+	'title': nls.localize('sassConfigurationTitle', "SCSS (Sass) configuration"),
 	'allOf': [{
-		'title': nls.localize('sassLint', "Controls Sass validation and problem severities."),
+		'title': nls.localize('sassLint', "Controls SCSS validation and problem severities."),
 		'properties': LintRules.getConfigurationProperties('sass')
 	}]
 });

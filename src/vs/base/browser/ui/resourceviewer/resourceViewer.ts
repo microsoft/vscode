@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
+import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes = {
@@ -69,7 +69,7 @@ const mapExtToMediaMimes = {
  */
 export class ResourceViewer {
 
-	public static show(name: string, resource: URI, container: Builder, scrollable?: DomNodeScrollable): void {
+	public static show(name: string, resource: URI, container: Builder, scrollbar?: DomScrollableElement): void {
 
 		// Ensure CSS class
 		$(container).addClass('monaco-resource-viewer');
@@ -91,10 +91,10 @@ export class ResourceViewer {
 				.empty()
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.img({
-					src: resource.toString() + '?' + new Date().getTime() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString() + '?' + Date.now() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollable) {
-						scrollable.onContentsDimensions();
+					if (scrollbar) {
+						scrollbar.scanDomNode();
 					}
 				});
 		}
@@ -106,7 +106,7 @@ export class ResourceViewer {
 				.style({ padding: 0, margin: 0 }) // We really do not want any paddings or margins when displaying PDFs
 				.element('object')
 				.attr({
-					data: resource.toString() + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					data: resource.toString() + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					width: '100%',
 					height: '100%',
 					type: mime
@@ -120,12 +120,12 @@ export class ResourceViewer {
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('audio')
 				.attr({
-					src: resource.toString() + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString() + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollable) {
-						scrollable.onContentsDimensions();
+					if (scrollbar) {
+						scrollbar.scanDomNode();
 					}
 				});
 		}
@@ -137,12 +137,12 @@ export class ResourceViewer {
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('video')
 				.attr({
-					src: resource.toString() + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString() + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollable) {
-						scrollable.onContentsDimensions();
+					if (scrollbar) {
+						scrollbar.scanDomNode();
 					}
 				});
 		}
@@ -156,8 +156,8 @@ export class ResourceViewer {
 					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
-			if (scrollable) {
-				scrollable.onContentsDimensions();
+			if (scrollbar) {
+				scrollbar.scanDomNode();
 			}
 		}
 	}

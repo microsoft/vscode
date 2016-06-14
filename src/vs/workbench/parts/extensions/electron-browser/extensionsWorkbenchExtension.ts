@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/platform/platform');
 import { Promise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionsService, IGalleryService, IExtensionTipsService, ExtensionsLabel } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
@@ -17,7 +17,6 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction, ListSuggestedExtensionsAction } from './extensionsActions';
-import { ExtensionTipsService } from './extensionTipsService';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import {ipcRenderer as ipc} from 'electron';
 
@@ -29,10 +28,11 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsService private extensionsService: IExtensionsService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IGalleryService galleryService: IGalleryService
+		@IExtensionTipsService extenstionTips: IExtensionTipsService, // this is to eagerly start the service
+		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
 		this.registerListeners();
 
@@ -42,11 +42,8 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
 		}
 
-		// add service
-		instantiationService.addSingleton(IExtensionTipsService, this.instantiationService.createInstance(ExtensionTipsService));
-
 		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
-		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), ExtensionsLabel);
+		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), 'Extensions: Show Installed Extensions', ExtensionsLabel);
 
 		(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 			new QuickOpenHandlerDescriptor(
@@ -59,7 +56,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 		if (galleryService.isEnabled()) {
 
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), 'Extensions: Install Extension', ExtensionsLabel);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
@@ -71,7 +68,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 				)
 			);
 
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), 'Extensions: Show Outdated Extensions', ExtensionsLabel);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
@@ -83,7 +80,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			);
 
 			// add extension tips services
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), 'Extensions: Show Extension Recommendations', ExtensionsLabel);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
@@ -105,7 +102,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 	}
 
 	private install(extensions: string[]): Promise {
-		return Promise.join(extensions.map(extPath =>	this.extensionsService.install(extPath)))
+		return Promise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
 			.then(extensions => {
 				this.messageService.show(
 					Severity.Info,

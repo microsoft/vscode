@@ -6,10 +6,12 @@
 
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {ILineTokens, IModel, IPosition, IRange, IRichEditBracket} from 'vs/editor/common/editorCommon';
-import {IModeTransition, IRichEditBrackets} from 'vs/editor/common/modes';
+import {ILineTokens, IModel, IPosition, IRichEditBracket} from 'vs/editor/common/editorCommon';
+import {IRichEditBrackets} from 'vs/editor/common/modes';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export enum TokenTreeBracket {
 	None = 0,
@@ -19,17 +21,17 @@ export enum TokenTreeBracket {
 
 export class Node {
 
-	start: IPosition;
+	start: Position;
 
-	end: IPosition;
+	end: Position;
 
-	get range(): IRange {
-		return {
-			startLineNumber: this.start.lineNumber,
-			startColumn: this.start.column,
-			endLineNumber: this.end.lineNumber,
-			endColumn: this.end.column
-		};
+	get range(): Range {
+		return new Range(
+			this.start.lineNumber,
+			this.start.column,
+			this.end.lineNumber,
+			this.end.column
+		);
 	}
 
 	parent: Node;
@@ -39,13 +41,13 @@ export class NodeList extends Node {
 
 	children: Node[];
 
-	get start(): IPosition {
+	get start(): Position {
 		return this.hasChildren
 			? this.children[0].start
 			: this.parent.start;
 	}
 
-	get end(): IPosition {
+	get end(): Position {
 		return this.hasChildren
 			? this.children[this.children.length - 1].end
 			: this.parent.end;
@@ -80,11 +82,11 @@ export class Block extends Node {
 	close: Node;
 	elements: NodeList;
 
-	get start(): IPosition {
+	get start(): Position {
 		return this.open.start;
 	}
 
-	get end(): IPosition {
+	get end(): Position {
 		return this.close.end;
 	}
 
@@ -96,7 +98,7 @@ export class Block extends Node {
 }
 
 interface Token {
-	range: IRange;
+	range: Range;
 	bracket: TokenTreeBracket;
 	type: string;
 	__debugContent?: string;
@@ -104,8 +106,8 @@ interface Token {
 
 function newNode(token: Token): Node {
 	var node = new Node();
-	node.start = Position.startPosition(token.range);
-	node.end = Position.endPosition(token.range);
+	node.start = token.range.getStartPosition();
+	node.end = token.range.getEndPosition();
 	return node;
 }
 
@@ -117,7 +119,7 @@ class TokenScanner {
 	private _currentTokenIndex: number;
 	private _currentTokenStart: number;
 	private _currentLineTokens: ILineTokens;
-	private _currentLineModeTransitions: IModeTransition[];
+	private _currentLineModeTransitions: ModeTransition[];
 	private _currentModeIndex: number;
 	private _nextModeStart: number;
 	private _currentModeBrackets: IRichEditBrackets;
@@ -159,7 +161,7 @@ class TokenScanner {
 			this._currentModeIndex++;
 			this._nextModeStart = (this._currentModeIndex + 1 < this._currentLineModeTransitions.length ? this._currentLineModeTransitions[this._currentModeIndex + 1].startIndex : this._currentLineText.length + 1);
 			let mode = (this._currentModeIndex < this._currentLineModeTransitions.length ? this._currentLineModeTransitions[this._currentModeIndex] : null);
-			this._currentModeBrackets = (mode && mode.mode.richEditSupport ? mode.mode.richEditSupport.brackets : null);
+			this._currentModeBrackets = (mode ? LanguageConfigurationRegistry.getBracketsSupport(mode.modeId) : null);
 		}
 
 		let tokenType = this._currentLineTokens.getTokenType(this._currentTokenIndex);
@@ -189,12 +191,12 @@ class TokenScanner {
 			let token: Token = {
 				type: tokenType,
 				bracket: TokenTreeBracket.None,
-				range: {
-					startLineNumber: this._currentLineNumber,
-					startColumn: 1 + this._currentTokenStart,
-					endLineNumber: this._currentLineNumber,
-					endColumn: 1 + tmpTokenEndIndex
-				}
+				range: new Range(
+					this._currentLineNumber,
+					1 + this._currentTokenStart,
+					this._currentLineNumber,
+					1 + tmpTokenEndIndex
+				)
 			};
 			// console.log('TOKEN: <<' + this._currentLineText.substring(this._currentTokenStart, tmpTokenEndIndex) + '>>');
 
@@ -212,12 +214,12 @@ class TokenScanner {
 		let token: Token = {
 			type: type,
 			bracket: bracketIsOpen ? TokenTreeBracket.Open : TokenTreeBracket.Close,
-			range: {
-				startLineNumber: this._currentLineNumber,
-				startColumn: 1 + this._currentTokenStart,
-				endLineNumber: this._currentLineNumber,
-				endColumn: nextBracket.endColumn
-			}
+			range: new Range(
+				this._currentLineNumber,
+				1 + this._currentTokenStart,
+				this._currentLineNumber,
+				nextBracket.endColumn
+			)
 		};
 		// console.log('BRACKET: <<' + this._currentLineText.substring(this._currentTokenStart, nextBracket.endColumn - 1) + '>>');
 

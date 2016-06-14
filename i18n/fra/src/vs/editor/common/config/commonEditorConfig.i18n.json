@@ -38,6 +38,6 @@
 	"tabSize": "Nombre d'espaces correspondant à une tabulation.",
 	"tabSize.errorMessage": "'number' attendu. Notez que la valeur \"auto\" a été remplacée par le paramètre 'editor.detectIndentation'.",
 	"wordSeparators": "Caractères utilisés comme séparateurs de mots durant la navigation ou les opérations basées sur les mots",
-	"wrappingColumn": "Contrôle le nombre de caractères après lequel l'éditeur renvoie à la ligne suivante. La valeur 0 active le renvoi en fonction de la largeur de la fenêtre d'affichage",
+	"wrappingColumn": "Contrôle le nombre de caractères après lesquels l'éditeur effectue un retour automatique à la ligne suivante. Si vous affectez la valeur 0, le retour automatique à la ligne s'effectue en fonction de la largeur de la fenêtre d'affichage (retour automatique à la ligne). Si vous affectez la valeur -1, l'éditeur n'effectue jamais de retour automatique à la ligne.",
 	"wrappingIndent": "Contrôle le retrait des lignes renvoyées. La valeur peut être 'none', 'same' ou 'indent'."
 }

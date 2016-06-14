@@ -11,9 +11,11 @@
 	"addWatchExpression": "Ausdruck hinzufügen",
 	"clearRepl": "Konsole löschen",
 	"continueDebug": "Weiter",
+	"copy": "Kopieren",
 	"copyValue": "Wert kopieren",
 	"deactivateBreakpoints": "Haltepunkte deaktivieren",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugConsoleAction": "Debugkonsole",
 	"disableAllBreakpoints": "Alle Haltepunkte deaktivieren",
 	"disconnectDebug": "Trennen",
 	"editConditionalBreakpoint": "Haltepunkt bearbeiten",
@@ -29,13 +31,12 @@
 	"renameFunctionBreakpoint": "Funktionshaltepunkt umbenennen",
 	"renameWatchExpression": "Ausdruck umbenennen",
 	"restartDebug": "Neu starten",
-	"run": "Ausführen",
 	"selectConfig": "Konfiguration auswählen",
-	"startDebug": "Starten",
+	"startDebug": "Debuggen starten",
+	"startWithoutDebugging": "Ohne Debuggen starten",
 	"stepIntoDebug": "Einzelschritt",
 	"stepOutDebug": "Prozedurschritt",
 	"stepOverDebug": "Prozedurschritt",
 	"stopDebug": "Beenden",
-	"toggleEnablement": "Haltepunkt aktivieren/deaktivieren",
-	"toggleRepl": "Konsole debuggen"
+	"toggleEnablement": "Haltepunkt aktivieren/deaktivieren"
 }

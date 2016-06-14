@@ -36,6 +36,8 @@ interface INavigator {
 declare let navigator: INavigator;
 declare let self: any;
 
+export const LANGUAGE_DEFAULT = 'en';
+
 // OS detection
 if (typeof process === 'object') {
 	_isWindows = (process.platform === 'win32');
@@ -49,7 +51,7 @@ if (typeof process === 'object') {
 			let resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.locale;
 			// VSCode's default language is 'en'
-			_language = resolved ? resolved : 'en';
+			_language = resolved ? resolved : LANGUAGE_DEFAULT;
 		} catch (e) {
 		}
 	}

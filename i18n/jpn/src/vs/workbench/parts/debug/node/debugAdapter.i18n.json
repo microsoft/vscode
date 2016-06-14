@@ -8,5 +8,6 @@
 	"debugPrelaunchTask": "デバッグ セッションの開始前に実行するタスク。",
 	"debugRequest": "構成の要求の種類。\"launch\" または \"attach\" です。",
 	"debugType": "構成の種類。",
+	"internalConsoleOptions": "内部デバッグ コンソールの動作を制御します。",
 	"relativePathsNotConverted": "相対パスが絶対パスに自動的に変換されなくなります。${workspaceRoot} をプレフィックスとして使用することを考慮してください。"
 }

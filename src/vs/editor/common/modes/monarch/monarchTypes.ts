@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ISuggestion} from 'vs/editor/common/modes';
-
 /*
  * Interface types for Monarch language definitions
  * These descriptions are really supposed to be JSON values but if using typescript
@@ -15,36 +13,15 @@ import {ISuggestion} from 'vs/editor/common/modes';
 /**
  * A Monarch language definition
  */
-export interface ILanguage {
-	/**
-	 * unique name to identify the language.
-	 */
-	name: string;
+export interface IMonarchLanguage {
 	/**
 	 * map from string to ILanguageRule[]
 	 */
-	tokenizer: Object;
-
-	/**
-	 * nice display name
-	 */
-	displayName?: string;
+	tokenizer: {[name:string]:IMonarchLanguageRule[]};
 	/**
 	 * is the language case insensitive?
 	 */
 	ignoreCase?: boolean;
-	/**
-	 * used to insert/delete line comments in the editor
-	 */
-	lineComment?: string;
-	/**
-	 * used to insert/delete block comments in the editor
-	 */
-	blockCommentStart?: string;
-	/**
-	 * used to insert/delete block comments in the editor
-	 */
-	blockCommentEnd?: string;
 	/**
 	 * if no match in the tokenizer assign this token class (default 'source')
 	 */
@@ -52,9 +29,7 @@ export interface ILanguage {
 	/**
 	 * for example [['{','}','delimiter.curly']]
 	 */
-	brackets?: ILanguageBracket[];
-
-	// advanced
+	brackets?: IMonarchLanguageBracket[];
 	/**
 	 * start symbol in the tokenizer (by default the first entry is used)
 	 */
@@ -62,30 +37,7 @@ export interface ILanguage {
 	/**
 	 * attach this to every token class (by default '.' + name)
 	 */
-	tokenPostfix?: string;
-	/**
-	 * for example [['"','"']]
-	 */
-	autoClosingPairs?: string[][];
-	/**
-	 * word definition regular expression
-	 */
-	wordDefinition?: RegExp;
-	/**
-	 * characters that could potentially cause outdentation
-	 */
-	outdentTriggers?: string;
-	// /**
-	//  * Advanced auto completion, auto indenting, and bracket matching
-	//  */
-	// enhancedBrackets?: IRegexBracketPair[];
-
-	suggestSupport?: {
-		textualCompletions?: boolean;
-		disableAutoTrigger?: boolean;
-		triggerCharacters?: string[];
-		snippets?: ISuggestion[];
-	};
+	tokenPostfix: string;
 }
 
 /**
@@ -93,7 +45,7 @@ export interface ILanguage {
  * 		shorthands: [reg,act] == { regex: reg, action: act}
  *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
  */
-export interface ILanguageRule {
+export interface IMonarchLanguageRule {
 	/**
 	 * match tokens
 	 */
@@ -101,7 +53,7 @@ export interface ILanguageRule {
 	/**
 	 * action to take on match
 	 */
-	action?: ILanguageAction;
+	action?: IMonarchLanguageAction;
 
 	/**
 	 * or an include rule. include all rules from the included state
@@ -114,11 +66,11 @@ export interface ILanguageRule {
  * ... or a case statement with guards...
  * ... or a basic action with a token value.
  */
-export interface ILanguageAction {
+export interface IMonarchLanguageAction {
 	/**
 	 * array of actions for each parenthesized match group
 	 */
-	group?: ILanguageAction[];
+	group?: IMonarchLanguageAction[];
 
 	/**
 	 * map from string to ILanguageAction
@@ -158,7 +110,7 @@ export interface ILanguageAction {
 /**
  * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
  */
-export interface ILanguageBracket {
+export interface IMonarchLanguageBracket {
 	/**
 	 * open bracket
 	 */

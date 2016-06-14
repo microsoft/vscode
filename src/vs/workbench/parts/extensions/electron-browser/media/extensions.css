@@ -36,7 +36,7 @@
 	opacity: 0.6;
 }
 
-.quick-open-widget .extension .installCount:not(:empty) {
+.quick-open-widget .extension .install {
 	margin-left: 6px;
 	padding: 1px 3px;
 	border-radius: 3px;
@@ -45,12 +45,15 @@
 	opacity: 0.7;
 }
 
-.quick-open-widget .extension .installCount:not(:empty):before {
-	margin-right: 2px;
+.quick-open-widget .extension .install > .octicon {
+	font-size: small;
+	margin-right: 3px;
 }
 
 .quick-open-widget .extension .icon.octicon-x:before {
 	margin-right: 2px;
+	margin-top: 2px;
+	display: inline-block;
 }
 
 .quick-open-widget .extension .published {
@@ -138,10 +141,6 @@
 }
 
 .quick-open-widget .extension .actions .action-item:active {
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
 	transform: none;
 }
 

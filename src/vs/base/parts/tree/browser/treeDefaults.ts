@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {Action} from 'vs/base/common/actions';
 import platform = require('vs/base/common/platform');
 import touch = require('vs/base/browser/touch');
 import errors = require('vs/base/common/errors');
@@ -424,5 +427,26 @@ export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 
 	getAriaLabel(tree: _.ITree, element: any): string {
 		return null;
+	}
+}
+
+export class CollapseAllAction extends Action {
+
+	constructor(private viewer: _.ITree, enabled: boolean) {
+		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), 'monaco-tree-action collapse-all', enabled);
+	}
+
+	public run(context?: any): TPromise<any> {
+		if (this.viewer.getHighlight()) {
+			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+		}
+
+		this.viewer.collapseAll();
+		this.viewer.clearSelection();
+		this.viewer.clearFocus();
+		this.viewer.DOMFocus();
+		this.viewer.focusFirst();
+
+		return TPromise.as(null);
 	}
 }

@@ -181,9 +181,13 @@
 }
 
 .monaco-workbench .action-bar-select {
-	height: 20px;
 	width: 100%;
-	margin-top: 9px; /* Center the select box */
+	height: 20px;
+	margin-top: 8px; /* Center the select box */
+}
+
+.monaco-workbench .action-bar-select.windows {
+	margin-top: 7px; /* Center the select box */
 }
 
 .vs-dark .monaco-workbench .action-bar-select {

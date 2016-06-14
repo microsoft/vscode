@@ -4,103 +4,149 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
+import {Disposable} from 'vs/base/common/lifecycle';
+import Event, {Emitter} from 'vs/base/common/event';
 
-export interface IScrollable {
-	getScrollHeight():number;
-	getScrollWidth():number;
-	getScrollLeft():number;
-	setScrollLeft(scrollLeft:number);
-	getScrollTop():number;
-	setScrollTop(scrollTop:number);
-	addScrollListener(callback:(newValues:ScrollEvent)=>void): IDisposable;
-}
-
-export class ScrollEvent {
-	_scrollEventTrait: void;
-
-	scrollTop: number;
-	scrollLeft: number;
+export interface ScrollEvent {
+	width: number;
 	scrollWidth: number;
-	scrollHeight: number;
-	vertical: boolean;
-	horizontal: boolean;
-
-	constructor(scrollTop:number, scrollLeft:number, scrollWidth:number, scrollHeight:number, vertical:boolean, horizontal:boolean) {
-		this.scrollTop = Math.round(scrollTop);
-		this.scrollLeft = Math.round(scrollLeft);
-		this.scrollWidth = Math.round(scrollWidth);
-		this.scrollHeight = Math.round(scrollHeight);
-		this.vertical = Boolean(vertical);
-		this.horizontal = Boolean(horizontal);
-	}
-}
-
-export class ScrollableValues {
-	_scrollableValuesTrait: void;
-
-	scrollTop: number;
 	scrollLeft: number;
-	scrollWidth: number;
+
+	height: number;
 	scrollHeight: number;
+	scrollTop: number;
 
-	constructor(scrollTop:number, scrollLeft:number, scrollWidth:number, scrollHeight:number) {
-		this.scrollTop = Math.round(scrollTop);
-		this.scrollLeft = Math.round(scrollLeft);
-		this.scrollWidth = Math.round(scrollWidth);
-		this.scrollHeight = Math.round(scrollHeight);
-	}
+	widthChanged: boolean;
+	scrollWidthChanged: boolean;
+	scrollLeftChanged: boolean;
 
-	public equals(other:ScrollEvent): boolean {
-		return (
-			this.scrollTop === other.scrollTop
-			&& this.scrollLeft === other.scrollLeft
-			&& this.scrollWidth === other.scrollWidth
-			&& this.scrollHeight === other.scrollHeight
-		);
-	}
+	heightChanged: boolean;
+	scrollHeightChanged: boolean;
+	scrollTopChanged: boolean;
 }
 
-export class DelegateScrollable extends Disposable {
+export interface INewScrollState {
+	width?: number;
+	scrollWidth?: number;
+	scrollLeft?: number;
 
-	private _actual:IScrollable;
-	private _onChange:()=>void;
+	height?: number;
+	scrollHeight?: number;
+	scrollTop?: number;
+}
 
-	private _values: ScrollableValues;
+export class Scrollable extends Disposable {
 
-	constructor(actual:IScrollable, onChange:()=>void) {
+	_scrollableBrand: void;
+
+	private _width: number;
+	private _scrollWidth: number;
+	private _scrollLeft: number;
+
+	private _height: number;
+	private _scrollHeight: number;
+	private _scrollTop: number;
+
+	private _onScroll = this._register(new Emitter<ScrollEvent>());
+	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+
+	constructor() {
 		super();
-		this._actual = actual;
-		this._onChange = onChange;
 
-		this._values = new ScrollableValues(this._actual.getScrollTop(), this._actual.getScrollLeft(), this._actual.getScrollWidth(), this._actual.getScrollHeight());
-		this._register(this._actual.addScrollListener((newValues) => this._update(newValues)));
+		this._width = 0;
+		this._scrollWidth = 0;
+		this._scrollLeft = 0;
+
+		this._height = 0;
+		this._scrollHeight = 0;
+		this._scrollTop = 0;
 	}
 
-	public dispose(): void {
-		super.dispose();
+	public getWidth(): number {
+		return this._width;
+	}
+	public getScrollWidth(): number {
+		return this._scrollWidth;
+	}
+	public getScrollLeft(): number {
+		return this._scrollLeft;
 	}
 
-	private _update(e:ScrollEvent): void {
-		if (this._values.equals(e)) {
+	public getHeight(): number {
+		return this._height;
+	}
+	public getScrollHeight(): number {
+		return this._scrollHeight;
+	}
+	public getScrollTop(): number {
+		return this._scrollTop;
+	}
+
+	public updateState(newState:INewScrollState): void {
+		let width = (typeof newState.width !== 'undefined' ? newState.width|0 : this._width);
+		let scrollWidth = (typeof newState.scrollWidth !== 'undefined' ? newState.scrollWidth|0 : this._scrollWidth);
+		let scrollLeft = (typeof newState.scrollLeft !== 'undefined' ? newState.scrollLeft|0 : this._scrollLeft);
+
+		let height = (typeof newState.height !== 'undefined' ? newState.height|0 : this._height);
+		let scrollHeight = (typeof newState.scrollHeight !== 'undefined' ? newState.scrollHeight|0 : this._scrollHeight);
+		let scrollTop = (typeof newState.scrollTop !== 'undefined' ? newState.scrollTop|0 : this._scrollTop);
+
+		if (width < 0) {
+			width = 0;
+		}
+		if (scrollLeft + width > scrollWidth) {
+			scrollLeft = scrollWidth - width;
+		}
+		if (scrollLeft < 0) {
+			scrollLeft = 0;
+		}
+
+		if (height < 0) {
+			height = 0;
+		}
+		if (scrollTop + height > scrollHeight) {
+			scrollTop = scrollHeight - height;
+		}
+		if (scrollTop < 0) {
+			scrollTop = 0;
+		}
+
+		let widthChanged = (this._width !== width);
+		let scrollWidthChanged = (this._scrollWidth !== scrollWidth);
+		let scrollLeftChanged = (this._scrollLeft !== scrollLeft);
+
+		let heightChanged = (this._height !== height);
+		let scrollHeightChanged = (this._scrollHeight !== scrollHeight);
+		let scrollTopChanged = (this._scrollTop !== scrollTop);
+
+		if (!widthChanged && !scrollWidthChanged && !scrollLeftChanged && !heightChanged && !scrollHeightChanged && !scrollTopChanged) {
 			return;
 		}
 
-		this._values = new ScrollableValues(e.scrollTop, e.scrollLeft, e.scrollWidth, e.scrollHeight);
+		this._width = width;
+		this._scrollWidth = scrollWidth;
+		this._scrollLeft = scrollLeft;
 
-		this._onChange();
-	}
+		this._height = height;
+		this._scrollHeight = scrollHeight;
+		this._scrollTop = scrollTop;
 
-	public getScrollTop():number { return this._values.scrollTop; }
-	public getScrollLeft():number { return this._values.scrollLeft; }
-	public getScrollWidth():number { return this._values.scrollWidth; }
-	public getScrollHeight():number { return this._values.scrollHeight; }
+		this._onScroll.fire({
+			width: this._width,
+			scrollWidth: this._scrollWidth,
+			scrollLeft: this._scrollLeft,
 
-	public setScrollTop(scrollTop:number): void {
-		this._actual.setScrollTop(scrollTop);
-	}
+			height: this._height,
+			scrollHeight: this._scrollHeight,
+			scrollTop: this._scrollTop,
 
-	public setScrollLeft(scrollLeft:number): void {
-		this._actual.setScrollLeft(scrollLeft);
+			widthChanged: widthChanged,
+			scrollWidthChanged: scrollWidthChanged,
+			scrollLeftChanged: scrollLeftChanged,
+
+			heightChanged: heightChanged,
+			scrollHeightChanged: scrollHeightChanged,
+			scrollTopChanged: scrollTopChanged,
+		});
 	}
 }

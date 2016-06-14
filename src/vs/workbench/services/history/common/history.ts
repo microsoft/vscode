@@ -5,19 +5,41 @@
 'use strict';
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 export var IHistoryService = createDecorator<IHistoryService>('historyService');
 
 export interface IHistoryService {
-	serviceId : ServiceIdentifier<any>;
+
+	serviceId: ServiceIdentifier<any>;
+
+	/**
+	 * Removes and returns the last closed editor if any.
+	 */
+	popLastClosedEditor(): IEditorInput;
 
 	/**
 	 * Navigate forwards in history.
 	 */
-	forward():void;
+	forward(): void;
 
 	/**
 	 * Navigate backwards in history.
 	 */
-	back():void;
+	back(): void;
+
+	/**
+	 * Removes an entry from history.
+	 */
+	remove(input: IEditorInput): void;
+
+	/**
+	 * Clears all history.
+	 */
+	clear(): void;
+
+	/**
+	 * Get the entire history of opened editors.
+	 */
+	getHistory(): IEditorInput[];
 }

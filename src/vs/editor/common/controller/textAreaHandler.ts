@@ -8,10 +8,10 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import Event, {Emitter} from 'vs/base/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {IClipboardEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
+import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorPosition, IEditorRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 
 enum ReadFromTextArea {
 	Type,
@@ -56,22 +56,25 @@ export class TextAreaHandler extends Disposable {
 	private _onCompositionStart = this._register(new Emitter<ICompositionStartData>());
 	public onCompositionStart: Event<ICompositionStartData> = this._onCompositionStart.event;
 
-	private _onCompositionEnd = this._register(new Emitter<void>());
-	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+	private _onCompositionUpdate = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionUpdate: Event<ICompositionEvent> = this._onCompositionUpdate.event;
+
+	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
 
 	private Browser:IBrowser;
 	private textArea:ITextAreaWrapper;
 	private model:ISimpleModel;
 	private flushAnyAccumulatedEvents:()=>void;
 
-	private selection:IEditorRange;
-	private selections:IEditorRange[];
+	private selection:Range;
+	private selections:Range[];
 	private hasFocus:boolean;
 
 	private asyncTriggerCut: RunOnceScheduler;
 
 	private lastCompositionEndTime:number;
-	private cursorPosition:IEditorPosition;
+	private cursorPosition:Position;
 
 	private textAreaState:TextAreaState;
 	private textareaIsShownAtCursor: boolean;
@@ -108,8 +111,8 @@ export class TextAreaHandler extends Disposable {
 
 		this.textareaIsShownAtCursor = false;
 
-		this._register(this.textArea.onCompositionStart(() => {
-			let timeSinceLastCompositionEnd = (new Date().getTime()) - this.lastCompositionEndTime;
+		this._register(this.textArea.onCompositionStart((e) => {
+
 			if (this.textareaIsShownAtCursor) {
 				return;
 			}
@@ -117,7 +120,7 @@ export class TextAreaHandler extends Disposable {
 			this.textareaIsShownAtCursor = true;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			let shouldEmptyTextArea = (timeSinceLastCompositionEnd >= 100);
+			let shouldEmptyTextArea = true;
 			if (shouldEmptyTextArea) {
 				if (!this.Browser.isIE11orEarlier) {
 					this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
@@ -136,11 +139,17 @@ export class TextAreaHandler extends Disposable {
 				showAtLineNumber = this.cursorPosition.lineNumber;
 				showAtColumn = this.cursorPosition.column;
 			}
-
 			this._onCompositionStart.fire({
 				showAtLineNumber: showAtLineNumber,
 				showAtColumn: showAtColumn
 			});
+		}));
+
+		this._register(this.textArea.onCompositionUpdate((e) => {
+			this.textAreaState = this.textAreaState.fromText(e.data);
+			let typeInput = this.textAreaState.updateComposition();
+			this._onType.fire(typeInput);
+			this._onCompositionUpdate.fire(e);
 		}));
 
 		let readFromTextArea = () => {
@@ -157,9 +166,11 @@ export class TextAreaHandler extends Disposable {
 			}
 		};
 
-		this._register(this.textArea.onCompositionEnd(() => {
-			// console.log('onCompositionEnd: ' + this.textArea.getValue());
-			// readFromTextArea();
+		this._register(this.textArea.onCompositionEnd((e) => {
+			// console.log('onCompositionEnd: ' + e.data);
+			this.textAreaState = this.textAreaState.fromText(e.data);
+			let typeInput = this.textAreaState.updateComposition();
+			this._onType.fire(typeInput);
 
 			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {
@@ -232,13 +243,13 @@ export class TextAreaHandler extends Disposable {
 		}
 	}
 
-	public setCursorSelections(primary: IEditorRange, secondary: IEditorRange[]): void {
+	public setCursorSelections(primary: Range, secondary: Range[]): void {
 		this.selection = primary;
 		this.selections = [primary].concat(secondary);
 		this._writePlaceholderAndSelectTextArea('selection changed');
 	}
 
-	public setCursorPosition(primary: IEditorPosition): void {
+	public setCursorPosition(primary: Position): void {
 		this.cursorPosition = primary;
 	}
 
@@ -256,7 +267,7 @@ export class TextAreaHandler extends Disposable {
 	private _onKeyDownHandler(e:IKeyboardEventWrapper): void {
 		if (e.equals(CommonKeybindings.ESCAPE)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
-			// See http://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
+			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 			e.preventDefault();
 		}
 		this._onKeyDown.fire(e);
@@ -331,7 +342,7 @@ export class TextAreaHandler extends Disposable {
 		let selections = this.selections;
 
 		if (selections.length === 1) {
-			let range:IEditorRange = selections[0];
+			let range:Range = selections[0];
 			if (range.isEmpty()) {
 				if (this.Browser.enableEmptySelectionClipboard) {
 					let modelLineNumber = this.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;

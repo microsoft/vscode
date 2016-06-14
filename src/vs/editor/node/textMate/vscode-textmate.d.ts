@@ -10,6 +10,7 @@ declare module "vscode-textmate" {
  */
 export interface IGrammarLocator {
 	getFilePath(scopeName:string): string;
+	getInjections(scopeName:string): string[];
 }
 
 /**

@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
+import {Selection} from 'vs/editor/common/core/selection';
 import {Range} from 'vs/editor/common/core/range';
 import {IRange} from 'vs/editor/common/editorCommon';
 import {CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction} from 'vs/editor/contrib/find/common/findController';
@@ -94,7 +95,6 @@ suite('FindController', () => {
 			'import nls = require(\'vs/nls\');'
 		], {}, (editor, cursor) => {
 
-			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor);
 
@@ -110,6 +110,34 @@ suite('FindController', () => {
 			assert.deepEqual(fromRange(editor.getSelection()), [1, 8, 1, 11]);
 
 			findController.dispose();
+			nextMatchFindAction.dispose();
+		});
+	});
+
+	test('issue #6149: Auto-escape highlighted text for search and replace regex mode', () => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3  * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let startFindAction = new StartFindAction({id:'',label:''}, editor);
+			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor);
+
+			editor.setSelection(new Selection(1, 9, 1, 13));
+
+			findController.toggleRegex();
+			startFindAction.run();
+
+			nextMatchFindAction.run();
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 13]);
+
+			nextMatchFindAction.run();
+			assert.deepEqual(fromRange(editor.getSelection()), [1, 9, 1, 13]);
+
+			findController.dispose();
+			startFindAction.dispose();
 			nextMatchFindAction.dispose();
 		});
 	});

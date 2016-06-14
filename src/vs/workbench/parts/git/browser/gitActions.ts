@@ -212,7 +212,7 @@ export class RefreshAction extends GitAction {
 }
 
 export abstract class BaseStageAction extends GitAction {
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
@@ -283,7 +283,10 @@ export class StageAction extends BaseStageAction {
 	static ID = 'workbench.action.git.stage';
 	static LABEL = nls.localize('stageChanges', "Stage");
 
-	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+	constructor(
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
 		super(StageAction.ID, StageAction.LABEL, 'git-action stage', gitService, editorService);
 	}
 }
@@ -485,7 +488,7 @@ export class GlobalUndoAction extends BaseUndoAction {
 
 export abstract class BaseUnstageAction extends GitAction {
 
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
@@ -559,9 +562,13 @@ export abstract class BaseUnstageAction extends GitAction {
 
 export class UnstageAction extends BaseUnstageAction {
 	static ID = 'workbench.action.git.unstage';
+	static LABEL = nls.localize('unstage', "Unstage");
 
-	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(UnstageAction.ID, nls.localize('unstage', "Unstage"), 'git-action unstage', gitService, editorService);
+	constructor(
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(UnstageAction.ID, UnstageAction.LABEL, 'git-action unstage', gitService, editorService);
 	}
 }
 
@@ -674,7 +681,7 @@ export class BranchAction extends GitAction {
 	private checkout:boolean;
 
 	constructor(checkout: boolean, @IGitService gitService: IGitService) {
-		super(BranchAction.ID, nls.localize('branch', "Branch"), 'git-action checkout', gitService);
+		super(BranchAction.ID, 'Branch', 'git-action checkout', gitService);
 		this.checkout = checkout;
 	}
 
@@ -867,7 +874,7 @@ export class SmartCommitAction extends BaseCommitAction {
 export class PullAction extends GitAction {
 
 	static ID = 'workbench.action.git.pull';
-	static LABEL = nls.localize('pull', "Pull");
+	static LABEL = 'Pull';
 
 	constructor(
 		id = PullAction.ID,
@@ -916,7 +923,7 @@ export class PullAction extends GitAction {
 export class PullWithRebaseAction extends PullAction {
 
 	static ID = 'workbench.action.git.pull.rebase';
-	static LABEL = nls.localize('pullWithRebase', "Pull (Rebase)");
+	static LABEL = 'Pull (Rebase)';
 
 	constructor(@IGitService gitService: IGitService) {
 		super(PullWithRebaseAction.ID, PullWithRebaseAction.LABEL, gitService);
@@ -930,7 +937,7 @@ export class PullWithRebaseAction extends PullAction {
 export class PushAction extends GitAction {
 
 	static ID = 'workbench.action.git.push';
-	static LABEL = nls.localize('push', "Push");
+	static LABEL = 'Push';
 
 	constructor(
 		id: string = PushAction.ID,
@@ -1029,9 +1036,15 @@ export class PublishAction extends GitAction {
 
 			promise = TPromise.as(result ? remoteName : null);
 		} else {
-			promise = this.quickOpenService.pick(remotes.map(r => r.name), {
-				placeHolder: nls.localize('publishPickMessage', "Pick a remote to publish the branch '{0}' to:", branchName)
-			});
+			const picks = remotes.map(({ name, url }) => ({
+				label: name,
+				description: url
+			}));
+
+			const placeHolder = nls.localize('publishPickMessage', "Pick a remote to publish the branch '{0}' to:", branchName);
+
+			promise = this.quickOpenService.pick(picks, { placeHolder })
+				.then(pick => pick && pick.label);
 		}
 
 		return promise
@@ -1089,7 +1102,7 @@ export abstract class BaseSyncAction extends GitAction {
 export class SyncAction extends BaseSyncAction {
 
 	static ID = 'workbench.action.git.sync';
-	static LABEL = nls.localize('sync', "Sync");
+	static LABEL = 'Sync';
 
 	constructor(id: string, label: string, @IGitService gitService: IGitService) {
 		super(id, label, 'git-action sync', gitService);
@@ -1103,7 +1116,7 @@ export class LiveSyncAction extends BaseSyncAction {
 	static CLASS_NAME_LOADING = 'git-action live-sync loading';
 
 	constructor(@IGitService gitService: IGitService) {
-		super(LiveSyncAction.ID, nls.localize('sync', "Sync"), LiveSyncAction.CLASS_NAME, gitService);
+		super(LiveSyncAction.ID, 'sync', LiveSyncAction.CLASS_NAME, gitService);
 	}
 
 	protected onGitServiceChange(): void {
@@ -1180,7 +1193,7 @@ export class UndoLastCommitAction extends GitAction {
 export class StartGitCheckoutAction extends Action {
 
 	public static ID = 'workbench.action.git.startGitCheckout';
-	public static LABEL = nls.localize('checkout', "Checkout");
+	public static LABEL = 'Checkout';
 	private quickOpenService: IQuickOpenService;
 
 	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
@@ -1197,7 +1210,7 @@ export class StartGitCheckoutAction extends Action {
 export class StartGitBranchAction extends Action {
 
 	public static ID = 'workbench.action.git.startGitBranch';
-	public static LABEL = nls.localize('branch2', "Branch");
+	public static LABEL = 'Branch';
 	private quickOpenService: IQuickOpenService;
 
 	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {

@@ -7,8 +7,11 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, IRenderingContext, IRestrictedRenderingContext, IViewContext, IViewZone} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, IViewZone} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {IWhitespaceManager} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export interface IMyViewZone {
 	whitespaceId: number;
@@ -27,13 +30,13 @@ interface IComputedViewZoneProps {
 
 export class ViewZones extends ViewPart {
 
-	private _whitespaceManager:editorCommon.IWhitespaceManager;
+	private _whitespaceManager:IWhitespaceManager;
 	private _zones: { [id:string]:IMyViewZone; };
 	private _lineHeight:number;
 
 	public domNode: HTMLElement;
 
-	constructor(context:IViewContext, whitespaceManager:editorCommon.IWhitespaceManager) {
+	constructor(context:ViewContext, whitespaceManager:IWhitespaceManager) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._whitespaceManager = whitespaceManager;
@@ -84,16 +87,12 @@ export class ViewZones extends ViewPart {
 		return this._recomputeWhitespacesProps();
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
-	}
-
-	public onScrollWidthChanged(newScrollWidth: number): boolean {
-		return true;
+		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
 
 	public onZonesChanged(): boolean {
@@ -220,6 +219,7 @@ export class ViewZones extends ViewPart {
 			// TODO@Alex: change `newOrdinal` too
 
 			if (changed) {
+				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 				this.setShouldRender();
 			}
 		}

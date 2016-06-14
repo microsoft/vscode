@@ -42,6 +42,7 @@ export class ResourceEditorInput extends EditorInput {
 		} else {
 			array.unshift(provider);
 		}
+		
 		return {
 			dispose() {
 				let array = ResourceEditorInput.registry[scheme];
@@ -76,14 +77,18 @@ export class ResourceEditorInput extends EditorInput {
 			// the loading such that we don't create the same model
 			// twice
 			ResourceEditorInput.loadingModels[resource.toString()] = loadingModel = new TPromise<IModel>((resolve, reject) => {
-
 				let result: IModel;
 				let lastError: any;
 
 				sequence(array.map(provider => {
 					return () => {
 						if (!result) {
-							return provider.provideTextContent(resource).then(value => {
+							const contentPromise = provider.provideTextContent(resource);
+							if (!contentPromise) {
+								return TPromise.wrapError<any>(`No resolver for the scheme '${resource.scheme}' found.`);
+							}
+
+							return contentPromise.then(value => {
 								result = value;
 							}, err => {
 								lastError = err;
@@ -98,18 +103,16 @@ export class ResourceEditorInput extends EditorInput {
 					}
 				}, reject);
 
-			}, function() {
+			}, function () {
 				// no cancellation when caching promises
 			});
 
-			// remove the cached promise 'cos the model is now
-			// known to the model service (see above)
+			// remove the cached promise 'cos the model is now known to the model service (see above)
 			loadingModel.then(() => delete ResourceEditorInput.loadingModels[resource.toString()], () => delete ResourceEditorInput.loadingModels[resource.toString()]);
 		}
 
 		return loadingModel;
 	}
-
 
 	public static ID: string = 'workbench.editors.resourceEditorInput';
 
@@ -133,7 +136,7 @@ export class ResourceEditorInput extends EditorInput {
 		this.resource = resource;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return ResourceEditorInput.ID;
 	}
 
@@ -155,9 +158,9 @@ export class ResourceEditorInput extends EditorInput {
 		// Otherwise Create Model and handle dispose event
 		return ResourceEditorInput.getOrCreateModel(this.modelService, this.resource).then(() => {
 			let model = this.instantiationService.createInstance(ResourceEditorModel, this.resource);
-			const unbind = model.addListener(EventType.DISPOSE, () => {
+			const unbind = model.addListener2(EventType.DISPOSE, () => {
 				this.cachedModel = null; // make sure we do not dispose model again
-				unbind();
+				unbind.dispose();
 				this.dispose();
 			});
 

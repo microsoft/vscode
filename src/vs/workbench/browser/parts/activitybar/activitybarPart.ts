@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/activityBarPart';
+import 'vs/css!./media/activitybarpart';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
@@ -39,16 +39,16 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private globalToolBar: ToolBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
-	private instantiationService: IInstantiationService;
 
 	constructor(
-		private viewletService: IViewletService,
-		private messageService: IMessageService,
-		private telemetryService: ITelemetryService,
-		private eventService: IEventService,
-		private contextMenuService: IContextMenuService,
-		private keybindingService: IKeybindingService,
-		id: string
+		id: string,
+		@IViewletService private viewletService: IViewletService,
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEventService private eventService: IEventService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
 
@@ -58,17 +58,13 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.registerListeners();
 	}
 
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
-	}
-
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_OPENING, (e: CompositeEvent) => this.onCompositeOpening(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.COMPOSITE_OPENING, (e: CompositeEvent) => this.onCompositeOpening(e)));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => this.onCompositeClosed(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => this.onCompositeClosed(e)));
 	}
 
 	private onCompositeOpening(e: CompositeEvent): void {
@@ -185,7 +181,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		});
 		this.globalToolBar.getContainer().addClass('global');
 
-		this.globalToolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
+		this.globalToolBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -263,7 +259,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 class ViewletActivityAction extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
-	private static lastRun: number = 0;
+	private lastRun: number = 0;
 
 	private viewlet: ViewletDescriptor;
 
@@ -279,12 +275,12 @@ class ViewletActivityAction extends ActivityAction {
 
 	public run(): TPromise<any> {
 
-		// cheap trick to prevent accident trigger on a doubleclick (to help nervous people)
-		let now = new Date().getTime();
-		if (now - ViewletActivityAction.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
+		// prevent accident trigger on a doubleclick (to help nervous people)
+		let now = Date.now();
+		if (now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
 			return TPromise.as(true);
 		}
-		ViewletActivityAction.lastRun = now;
+		this.lastRun = now;
 
 		let sideBarHidden = this.partService.isSideBarHidden();
 		let activeViewlet = this.viewletService.getActiveViewlet();

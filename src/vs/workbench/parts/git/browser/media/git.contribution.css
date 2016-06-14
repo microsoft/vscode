@@ -69,7 +69,6 @@
 	position: absolute;
 	bottom: -4px;
 	margin-left: 5px;
-	-moz-box-sizing: border-box;
 	box-sizing: border-box;
 	border-left: 4px solid rgba(185, 19, 26, 0.76);
 	border-top: 4px solid transparent;
@@ -95,47 +94,6 @@
 	padding: 0.8em 1em;
 }
 
-.monaco-shell .git-credentials > .monaco-credentials {
-	width: 300px;
-	overflow: hidden;
-	padding: 1em;
-	border-top: none;
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
-	outline: 0;
-	box-shadow: 0 2px 8px #A8A8A8;
-	border: none;
-	color: #646465;
-	background-color: white;
-	-webkit-animation: fadeIn 0.083s linear;
-	-o-animation: fadeIn 0.083s linear;
-	-moz-animation: fadeIn 0.083s linear;
-	-ms-animation: fadeIn 0.083s linear;
-	animation: fadeIn 0.083s linear;
-}
-
-.monaco-shell .git-credentials .credentials {
-	margin: 10px 0 0 0;
-}
-
-.monaco-shell .git-credentials .credentials > .field {
-	margin: 4px 0 0;
-}
-
-.monaco-shell .git-credentials .credentials > .field .label {
-	display: inline-block;
-	width: 110px;
-}
-
-.monaco-shell.vs-dark .git-credentials > .monaco-credentials {
-	box-shadow: 0 2px 8px #000;
-	color: #BBB;
-	background-color: #2D2F31;
-}
-
-.monaco-shell.vs-dark .git-credentials > .monaco-credentials input {
-	background-color: #3C3C3C;
-}
-
 /* Quick Open */
 
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.git {
@@ -158,17 +116,9 @@
 
 .monaco-shell .git-action.live-sync.icon.loading {
 	animation:			spin-forever 1.6s linear infinite;
-	-ms-animation:		spin-forever 1.6s linear infinite;
-	-webkit-animation:	spin-forever 1.6s linear infinite;
-	-moz-animation:		spin-forever 1.6s linear infinite;
-	-o-animation:		spin-forever 1.6s linear infinite;
 }
 
 @keyframes			spin-forever { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@-ms-keyframes		spin-forever { from { -ms-transform: rotate(0deg); } to { -ms-transform: rotate(360deg); } }
-@-o-keyframes		spin-forever { from { -o-transform: rotate(0deg); } to { -o-transform: rotate(360deg); } }
-@-webkit-keyframes	spin-forever { from { -webkit-transform: rotate(0deg); } to { -webkit-transform: rotate(360deg); } }
-@-moz-keyframes		spin-forever { from { -moz-transform: rotate(0deg); } to { -moz-transform: rotate(360deg); } }
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench > .activitybar .monaco-action-bar .action-label.git:before {

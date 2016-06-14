@@ -10,6 +10,7 @@ import nodes = require('vs/languages/css/common/parser/cssNodes');
 import parser = require('vs/languages/css/common/parser/cssParser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import resourceService = require('vs/editor/common/services/resourceService');
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 interface Entry {
 	node:nodes.Stylesheet;
@@ -50,7 +51,7 @@ export class CSSLanguageService implements ILanguageService {
 	private entries:{[url:string]:Entry;};
 	private activeDelay:PromiseWithTrigger<any>;
 	private onChangeHandle:number;
-	private callOnDispose:Function[];
+	private callOnDispose:IDisposable[];
 	private createParser: () => parser.Parser;
 
 	constructor(service:resourceService.IResourceService, createParser: () => parser.Parser, private _cssModeId:string) {
@@ -60,15 +61,13 @@ export class CSSLanguageService implements ILanguageService {
 		this.createParser = createParser;
 
 		this.updateResources();
-		this.callOnDispose.push(this.resourceService.addListener_(resourceService.ResourceEvents.ADDED, (e: resourceService.IResourceAddedEvent) => this.onResourceAdded(e)));
-		this.callOnDispose.push(this.resourceService.addListener_(resourceService.ResourceEvents.REMOVED, (e: resourceService.IResourceRemovedEvent) => this.onResourceRemoved(e)));
-		this.callOnDispose.push(this.resourceService.addListener_(resourceService.ResourceEvents.CHANGED, (e: resourceService.IResourceChangedEvent) => this.onResourceChange(e)));
+		this.callOnDispose.push(this.resourceService.addListener2_(resourceService.ResourceEvents.ADDED, (e: resourceService.IResourceAddedEvent) => this.onResourceAdded(e)));
+		this.callOnDispose.push(this.resourceService.addListener2_(resourceService.ResourceEvents.REMOVED, (e: resourceService.IResourceRemovedEvent) => this.onResourceRemoved(e)));
+		this.callOnDispose.push(this.resourceService.addListener2_(resourceService.ResourceEvents.CHANGED, (e: resourceService.IResourceChangedEvent) => this.onResourceChange(e)));
 	}
 
 	public dispose():void {
-		while(this.callOnDispose.length > 0) {
-			this.callOnDispose.pop()();
-		}
+		this.callOnDispose = dispose(this.callOnDispose);
 		clearTimeout(this.onChangeHandle);
 		this.onChangeHandle = null;
 		this.entries = null;
@@ -126,7 +125,7 @@ export class CSSLanguageService implements ILanguageService {
 
 		this.resourceService.all().filter((element) => this._isMyMirrorModel(element)).forEach((model:EditorCommon.IMirrorModel) => {
 			// Reparse changes or new models
-			var url = model.getAssociatedResource().toString(),
+			var url = model.uri.toString(),
 				entry = this.entries[url],
 				hasEntry = typeof entry !== 'undefined';
 

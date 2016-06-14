@@ -898,7 +898,7 @@ export class JSONParser {
 				if (_scanner.getToken() === Json.SyntaxKind.Unknown) {
 					// give a more helpful error message
 					var value = _scanner.getTokenValue();
-					if (value.length > 0 && (value.charAt(0) === '\'' || Json.isLetter(value.charAt(0).charCodeAt(0)))) {
+					if (value.match(/^['\w]/)) {
 						_error(nls.localize('DoubleQuotesExpected', 'Property keys must be doublequoted'));
 					}
 				}

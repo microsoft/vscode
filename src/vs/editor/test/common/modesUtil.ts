@@ -5,23 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Model} from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
-
-export interface IRelaxedToken {
-	startIndex:number;
-	type:string;
-}
+import {RichEditSupport, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ITestItem {
 	line: string;
-	tokens: IRelaxedToken[];
+	tokens: modes.IToken[];
 }
 
 export function assertWords(actual:string[], expected:string[], message?:string): void {
@@ -34,7 +25,7 @@ export function assertTokenization(tokenizationSupport: modes.ITokenizationSuppo
 		assert.ok(true, tests[i].line);
 		var result = tokenizationSupport.tokenize(tests[i].line, state);
 		if (tests[i].tokens) {
-			assert.deepEqual(toRelaxedTokens(result.tokens), toRelaxedTokens(tests[i].tokens), JSON.stringify(result.tokens, null, '\t'));
+			assert.deepEqual(result.tokens, tests[i].tokens, JSON.stringify(result.tokens, null, '\t'));
 		}
 
 		state = result.endState;
@@ -48,13 +39,14 @@ export interface IOnEnterAsserter {
 	indentsOutdents(oneLineAboveText:string, beforeText:string, afterText:string): void;
 }
 
-export function createOnEnterAsserter(modeId:string, richEditSupport: modes.IRichEditSupport): IOnEnterAsserter {
+export function createOnEnterAsserter(modeId:string, conf: LanguageConfiguration): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
 			Model.DEFAULT_CREATION_OPTIONS,
 			new MockMode(modeId)
 		);
+		var richEditSupport = new RichEditSupport(modeId, null, conf);
 		var actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
 		if (expected === modes.IndentAction.None) {
 			assert.equal(actual, null, oneLineAboveText + '\\n' + beforeText + '|' + afterText);
@@ -86,26 +78,6 @@ export function executeTests(tokenizationSupport: modes.ITokenizationSupport, te
 	}
 }
 
-
-export function executeMonarchTokenizationTests(name:string, language:ILanguage, tests:ITestItem[][]): void {
-	var lexer = compile(language);
-
-	var modeService = createMockModeService();
-
-	var tokenizationSupport = createTokenizationSupport(modeService, new MockMode(), lexer);
-
-	executeTests(tokenizationSupport, tests);
-}
-
-function toRelaxedTokens(tokens: modes.IToken[]): IRelaxedToken[] {
-	return tokens.map((t) => {
-		return {
-			startIndex: t.startIndex,
-			type: t.type
-		};
-	});
-}
-
 function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITestItem[]): void {
 	var state = tokenizationSupport.getInitialState();
 	for (var i = 0, len = tests.length; i < len; i++) {
@@ -121,6 +93,6 @@ function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITes
 	}
 }
 
-function assertTokens(actual:modes.IToken[], expected:IRelaxedToken[], message?:string): void {
-	assert.deepEqual(toRelaxedTokens(actual), toRelaxedTokens(expected), message + ': ' + JSON.stringify(actual, null, '\t'));
+function assertTokens(actual:modes.IToken[], expected:modes.IToken[], message?:string): void {
+	assert.deepEqual(actual, expected, message + ': ' + JSON.stringify(actual, null, '\t'));
 }

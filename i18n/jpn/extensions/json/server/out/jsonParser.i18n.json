@@ -29,7 +29,7 @@
 	"exclusiveMaximumWarning": "値が排他の最大値 {0} を超えています",
 	"exclusiveMinimumWarning": "値が排他の最小値 {0} を下回っています",
 	"maxItemsWarning": "配列の項目が多すぎます。{0} 個以下にする必要があります",
-	"maxLengthWarning": "文字列は最大長より短くなっています: ",
+	"maxLengthWarning": "文字列は次の最大長より短くなっています: ",
 	"maximumWarning": "値が最大値 {0} を超えています",
 	"minItemsWarning": "配列の項目が少なすぎます。{0} 個以上にする必要があります",
 	"minLengthWarning": "文字列が最小長より短くなっています: ",

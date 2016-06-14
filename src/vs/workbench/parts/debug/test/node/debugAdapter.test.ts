@@ -37,7 +37,7 @@ suite('Debug - Adapter', () => {
 				}
 			}
 		},
-
+		variables: null,
 		initialConfigurations: [
 			{
 				name: 'Mock-Debug',
@@ -49,7 +49,7 @@ suite('Debug - Adapter', () => {
 	}
 
 	setup(() => {
-		adapter = new Adapter(rawAdapter, null, extensionFolderPath);
+		adapter = new Adapter(rawAdapter, null, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null });
 	});
 
 	teardown(() => {

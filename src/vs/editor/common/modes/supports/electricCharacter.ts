@@ -8,6 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import * as modes from 'vs/editor/common/modes';
 import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
+import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
@@ -21,20 +22,21 @@ export interface IDocComment {
 
 export interface IBracketElectricCharacterContribution {
 	docComment?: IDocComment;
-	caseInsensitive?: boolean;
 	embeddedElectricCharacters?: string[];
 }
 
 export class BracketElectricCharacterSupport implements modes.IRichEditElectricCharacter {
 
+	private _registry: LanguageConfigurationRegistryImpl;
 	private _modeId: string;
 	private contribution: IBracketElectricCharacterContribution;
 	private brackets: Brackets;
 
-	constructor(modeId: string, brackets: modes.IRichEditBrackets, contribution: IBracketElectricCharacterContribution) {
+	constructor(registry:LanguageConfigurationRegistryImpl, modeId: string, brackets: modes.IRichEditBrackets, contribution: IBracketElectricCharacterContribution) {
+		this._registry = registry;
 		this._modeId = modeId;
 		this.contribution = contribution || {};
-		this.brackets = new Brackets(modeId, brackets, this.contribution.docComment, this.contribution.caseInsensitive);
+		this.brackets = new Brackets(modeId, brackets, this.contribution.docComment);
 	}
 
 	public getElectricCharacters(): string[]{
@@ -45,14 +47,15 @@ export class BracketElectricCharacterSupport implements modes.IRichEditElectricC
 	}
 
 	public onElectricCharacter(context:modes.ILineContext, offset:number): modes.IElectricAction {
-		return handleEvent(context, offset, (nestedMode:modes.IMode, context:modes.ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
+		return handleEvent(context, offset, (nestedModeId:string, context:modes.ILineContext, offset:number) => {
+			if (this._modeId === nestedModeId) {
 				return this.brackets.onElectricCharacter(context, offset);
-			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.electricCharacter) {
-				return nestedMode.richEditSupport.electricCharacter.onElectricCharacter(context, offset);
-			} else {
-				return null;
 			}
+			let electricCharacterSupport = this._registry.getElectricCharacterSupport(nestedModeId);
+			if (electricCharacterSupport) {
+				return electricCharacterSupport.onElectricCharacter(context, offset);
+			}
+			return null;
 		});
 	}
 }
@@ -65,7 +68,7 @@ export class Brackets {
 	private _richEditBrackets: modes.IRichEditBrackets;
 	private _docComment: IDocComment;
 
-	constructor(modeId: string, richEditBrackets: modes.IRichEditBrackets, docComment: IDocComment = null, caseInsensitive: boolean = false) {
+	constructor(modeId: string, richEditBrackets: modes.IRichEditBrackets, docComment: IDocComment = null) {
 		this._modeId = modeId;
 		this._richEditBrackets = richEditBrackets;
 		this._docComment = docComment ? docComment : null;

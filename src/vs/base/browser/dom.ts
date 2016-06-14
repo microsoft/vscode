@@ -10,7 +10,6 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import {isObject} from 'vs/base/common/types';
 import {isChrome, isWebKit} from 'vs/base/browser/browser';
-import {getService} from 'vs/base/browser/browserService';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 
@@ -168,10 +167,10 @@ export function removeClass(node: HTMLElement, className: string): void {
  */
 export function toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
 	_findClassName(node, className);
-	if (lastStart !== -1 && !shouldHaveIt) {
+	if (lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
 		removeClass(node, className);
 	}
-	if (lastStart === -1 && shouldHaveIt) {
+	if (lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
 		addClass(node, className);
 	}
 }
@@ -743,7 +742,7 @@ export function getCSSRule(selector: string, style: HTMLStyleElement = sharedSty
 	return null;
 }
 
-export function removeCSSRulesWithPrefix(ruleName: string, style = sharedStyle): void {
+export function removeCSSRulesContainingSelector(ruleName: string, style = sharedStyle): void {
 	if (!style) {
 		return;
 	}
@@ -753,7 +752,7 @@ export function removeCSSRulesWithPrefix(ruleName: string, style = sharedStyle):
 	for (let i = 0; i < rules.length; i++) {
 		let rule = rules[i];
 		let normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
-		if (normalizedSelectorText.indexOf(ruleName) === 0) {
+		if (normalizedSelectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}
@@ -764,7 +763,10 @@ export function removeCSSRulesWithPrefix(ruleName: string, style = sharedStyle):
 }
 
 export function isHTMLElement(o: any): o is HTMLElement {
-	return getService().isHTMLElement(o);
+	if (typeof HTMLElement === 'object') {
+		return o instanceof HTMLElement;
+	}
+	return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
 }
 
 export const EventType = {
@@ -777,6 +779,7 @@ export const EventType = {
 	MOUSE_MOVE: 'mousemove',
 	MOUSE_OUT: 'mouseout',
 	CONTEXT_MENU: 'contextmenu',
+	WHEEL: 'wheel',
 	// Keyboard
 	KEY_DOWN: 'keydown',
 	KEY_PRESS: 'keypress',
@@ -979,4 +982,8 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	}
 
 	node.removeAttribute('tabindex');
+}
+
+export function getElementsByTagName(tag: string): HTMLElement[] {
+	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
 }

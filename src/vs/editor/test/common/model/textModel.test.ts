@@ -15,7 +15,8 @@ function testGuessIndentation(defaultInsertSpaces:boolean, defaultTabSize:number
 		tabSize: defaultTabSize,
 		insertSpaces: defaultInsertSpaces,
 		detectIndentation: true,
-		defaultEOL: DefaultEndOfLine.LF
+		defaultEOL: DefaultEndOfLine.LF,
+		trimAutoWhitespace: true
 	}));
 	var r = m.getOptions();
 	m.dispose();
@@ -434,12 +435,36 @@ suite('Editor Model - TextModel', () => {
 		], 'mixed whitespace 2');
 	});
 
+	test('validatePosition', () => {
+
+		var m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
+
+		assert.deepEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
+		assert.deepEqual(m.validatePosition(new Position(1, 30)), new Position(1, 9));
+
+		assert.deepEqual(m.validatePosition(new Position(2, 0)), new Position(2, 1));
+		assert.deepEqual(m.validatePosition(new Position(2, 1)), new Position(2, 1));
+		assert.deepEqual(m.validatePosition(new Position(2, 2)), new Position(2, 2));
+		assert.deepEqual(m.validatePosition(new Position(2, 30)), new Position(2, 9));
+
+		assert.deepEqual(m.validatePosition(new Position(3, 0)), new Position(2, 9));
+		assert.deepEqual(m.validatePosition(new Position(3, 1)), new Position(2, 9));
+		assert.deepEqual(m.validatePosition(new Position(3, 30)), new Position(2, 9));
+
+		assert.deepEqual(m.validatePosition(new Position(30, 30)), new Position(2, 9));
+
+	});
+
 	test('modifyPosition', () => {
 
 		var m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.deepEqual(m.modifyPosition(new Position(1,1), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(0,0), 0), new Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 1));
+		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
 
 		assert.deepEqual(m.modifyPosition(new Position(1,1), 17), new Position(2, 9));
 		assert.deepEqual(m.modifyPosition(new Position(1,1), 1), new Position(1, 2));
@@ -455,13 +480,13 @@ suite('Editor Model - TextModel', () => {
 		assert.deepEqual(m.modifyPosition(new Position(2, 9), -13), new Position(1, 5));
 		assert.deepEqual(m.modifyPosition(new Position(2, 9), -16), new Position(1, 2));
 
-		assert.throws(() => m.modifyPosition(new Position(1, 2), 17));
-		assert.throws(() => m.modifyPosition(new Position(1, 2), 100));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), 17), new Position(2, 9));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), 100), new Position(2, 9));
 
-		assert.throws(() => m.modifyPosition(new Position(1, 2), -2));
-		assert.throws(() => m.modifyPosition(new Position(1, 2), -100));
-		assert.throws(() => m.modifyPosition(new Position(2, 2), -100));
-		assert.throws(() => m.modifyPosition(new Position(2, 9), -18));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), -2), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), -100), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(2, 2), -100), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(2, 9), -18), new Position(1, 1));
 	});
 
 	test('normalizeIndentation 1', () => {
@@ -473,6 +498,7 @@ suite('Editor Model - TextModel', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: false,
+				trimAutoWhitespace: true,
 				defaultEOL: DefaultEndOfLine.LF
 			}
 		});
@@ -511,6 +537,7 @@ suite('Editor Model - TextModel', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
+				trimAutoWhitespace: true,
 				defaultEOL: DefaultEndOfLine.LF
 			}
 		});

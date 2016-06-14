@@ -8,7 +8,7 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, createServices, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
-import { Client, connect } from 'vs/base/node/service.net';
+import { Client, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
 

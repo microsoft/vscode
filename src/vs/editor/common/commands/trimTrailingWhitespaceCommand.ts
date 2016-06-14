@@ -8,13 +8,14 @@ import * as strings from 'vs/base/common/strings';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 
-	private selection:editorCommon.IEditorSelection;
+	private selection:Selection;
 	private selectionId:string;
 
-	constructor(selection:editorCommon.IEditorSelection) {
+	constructor(selection:Selection) {
 		this.selection = selection;
 	}
 
@@ -29,7 +30,7 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 		this.selectionId = builder.trackSelection(this.selection);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):editorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }

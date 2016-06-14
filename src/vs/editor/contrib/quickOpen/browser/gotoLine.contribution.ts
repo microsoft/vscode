@@ -14,4 +14,4 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GotoLineAct
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
-}));
+}, 'Go to Line...'));

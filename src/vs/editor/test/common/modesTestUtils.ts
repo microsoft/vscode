@@ -6,25 +6,7 @@
 
 import {Arrays} from 'vs/editor/common/core/arrays';
 import * as modes from 'vs/editor/common/modes';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-
-class ModeWithRichEditSupport extends MockMode {
-
-	public richEditSupport: modes.IRichEditSupport;
-
-	constructor(id:string, wordRegExp:RegExp) {
-		super(id);
-		this.richEditSupport = new RichEditSupport(id, null, {
-			wordPattern: wordRegExp
-		});
-	}
-}
-
-export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode {
-	return new ModeWithRichEditSupport(id, wordRegExp);
-}
 
 export interface TokenText {
 	text: string;

@@ -22,7 +22,7 @@ function equalRange(left, right) {
 
 function contentChangedFlushEvent(detail: editorCommon.IRawText): editorCommon.IModelContentChangedFlushEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedFlush,
+		changeType: editorCommon.EventType.ModelRawContentChangedFlush,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -32,7 +32,7 @@ function contentChangedFlushEvent(detail: editorCommon.IRawText): editorCommon.I
 
 function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedLinesDeleted,
+		changeType: editorCommon.EventType.ModelRawContentChangedLinesDeleted,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -43,7 +43,7 @@ function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: n
 
 function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, detail: string): editorCommon.IModelContentChangedLinesInsertedEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedLinesInserted,
+		changeType: editorCommon.EventType.ModelRawContentChangedLinesInserted,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -55,7 +55,7 @@ function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: 
 
 function contentChangedLineChanged(lineNumber: number, detail: string): editorCommon.IModelContentChangedLineChangedEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedLineChanged,
+		changeType: editorCommon.EventType.ModelRawContentChangedLineChanged,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -106,6 +106,7 @@ suite('Editor Model - MirrorModel', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
+				trimAutoWhitespace: true,
 				defaultEOL: editorCommon.DefaultEndOfLine.LF
 			}
 		})]));
@@ -118,14 +119,16 @@ suite('Editor Model - MirrorModel', () => {
 		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 1, column: 1}), 0);
 		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 1, column: 3}), 2);
 		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 2, column: 1}), 6);
-		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 4, column: 7}), 24);
+		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 4, column: 6}), 23);
+		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 4, column: 7}), 23);
 	});
 
 	test('get position from offset', () => {
 		assert.deepEqual(mirrorModel.getPositionFromOffset(0), {lineNumber: 1, column: 1});
 		assert.deepEqual(mirrorModel.getPositionFromOffset(2), {lineNumber: 1, column: 3});
 		assert.deepEqual(mirrorModel.getPositionFromOffset(6), {lineNumber: 2, column: 1});
-		assert.deepEqual(mirrorModel.getPositionFromOffset(24), {lineNumber: 4, column: 7});
+		assert.deepEqual(mirrorModel.getPositionFromOffset(23), {lineNumber: 4, column: 6});
+		assert.deepEqual(mirrorModel.getPositionFromOffset(24), {lineNumber: 4, column: 6});
 	});
 
 	test('get (all/unique) words', () => {
@@ -336,6 +339,7 @@ suite('Editor Model - MirrorModel Eventing', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
+				trimAutoWhitespace: true,
 				defaultEOL: editorCommon.DefaultEndOfLine.LF
 			}
 		})]));

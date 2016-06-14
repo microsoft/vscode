@@ -11,10 +11,11 @@ import URI from 'vs/base/common/uri';
 import {getPathLabel, IWorkspaceProvider} from 'vs/base/common/labels';
 import {isBinaryMime} from 'vs/base/common/mime';
 import {EventType} from 'vs/base/common/events';
-import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, BaseDiffEditorInput} from 'vs/workbench/common/editor';
+import {EditorModel, IFileEditorInput, EditorInput, BaseDiffEditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -24,7 +25,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 
 	public static ID = 'workbench.editors.diffEditorInput';
 
-	private _toUnbind: { (): void; }[];
+	private _toUnbind: IDisposable[];
 	private name: string;
 	private description: string;
 	private cachedModel: DiffEditorModel;
@@ -45,24 +46,27 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	private registerListeners(): void {
 
 		// When the original or modified input gets disposed, dispose this diff editor input
-		this._toUnbind.push(this.originalInput.addListener(EventType.DISPOSE, () => {
+		this._toUnbind.push(this.originalInput.addListener2(EventType.DISPOSE, () => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		this._toUnbind.push(this.modifiedInput.addListener(EventType.DISPOSE, () => {
+		this._toUnbind.push(this.modifiedInput.addListener2(EventType.DISPOSE, () => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
+
+		// When the modified model gets dirty, re-emit this to the outside
+		this._toUnbind.push(this.modifiedInput.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 	}
 
 	public get toUnbind() {
 		return this._toUnbind;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
 
@@ -72,26 +76,6 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 
 	public getDescription(): string {
 		return this.description;
-	}
-
-	public getStatus(): IInputStatus {
-		if (this.modifiedInput) {
-			let modifiedStatus = this.modifiedInput.getStatus();
-
-			if (modifiedStatus) {
-				return modifiedStatus;
-			}
-		}
-
-		if (this.originalInput) {
-			let originalStatus = this.originalInput.getStatus();
-
-			if (originalStatus) {
-				return originalStatus;
-			}
-		}
-
-		return super.getStatus();
 	}
 
 	public setOriginalInput(input: EditorInput): void {
@@ -169,6 +153,10 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 		});
 	}
 
+	public supportsSplitEditor(): boolean {
+		return false;
+	}
+
 	public matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
@@ -187,19 +175,13 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	}
 
 	public dispose(): void {
-		while (this._toUnbind.length) {
-			this._toUnbind.pop()();
-		}
+		this._toUnbind = dispose(this._toUnbind);
 
 		// Dispose Model
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
-
-		// Delegate to Inputs
-		this.originalInput.dispose();
-		this.modifiedInput.dispose();
 
 		super.dispose();
 	}

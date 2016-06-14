@@ -6,14 +6,15 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {ViewLineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
-function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
+function cmpLineDecorations(a:InlineDecoration, b:InlineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean, indentGuides:boolean): LineParts {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:InlineDecoration[], renderWhitespace:boolean, indentGuides:boolean): LineParts {
 	if (indentGuides || renderWhitespace) {
 		let oldLength = rawLineDecorations.length;
 		rawLineDecorations = insertCustomLineDecorations(indentGuides, renderWhitespace, lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
@@ -95,16 +96,11 @@ function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): Vie
 const _tab = '\t'.charCodeAt(0);
 const _space = ' '.charCodeAt(0);
 
-function insertOneCustomLineDecoration(dest:ILineDecoration[], lineNumber:number, startColumn:number, endColumn:number, className:string): void {
-	dest.push({
-		range: new Range(lineNumber, startColumn, lineNumber, endColumn),
-		options: {
-			inlineClassName: className
-		}
-	});
+function insertOneCustomLineDecoration(dest:InlineDecoration[], lineNumber:number, startColumn:number, endColumn:number, className:string): void {
+	dest.push(new InlineDecoration(new Range(lineNumber, startColumn, lineNumber, endColumn), className));
 }
 
-function insertCustomLineDecorations(indentGuides:boolean, renderWhitespace:boolean, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
+function insertCustomLineDecorations(indentGuides:boolean, renderWhitespace:boolean, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
 	if (!indentGuides && !renderWhitespace) {
 		return rawLineDecorations;
 	}
@@ -175,7 +171,7 @@ function insertCustomLineDecorations(indentGuides:boolean, renderWhitespace:bool
 	return insertCustomLineDecorationsWithStateMachine(lineNumber, lineContent, tabSize, rawLineDecorations, sm_endIndex, sm_decoration);
 }
 
-function insertCustomLineDecorationsWithStateMachine(lineNumber:number, lineContent: string, tabSize:number, rawLineDecorations: ILineDecoration[], sm_endIndex: number[], sm_decoration: string[]): ILineDecoration[] {
+function insertCustomLineDecorationsWithStateMachine(lineNumber:number, lineContent: string, tabSize:number, rawLineDecorations: InlineDecoration[], sm_endIndex: number[], sm_decoration: string[]): InlineDecoration[] {
 	let lineLength = lineContent.length;
 	let currentStateIndex = 0;
 	let stateEndIndex = sm_endIndex[currentStateIndex];
@@ -217,7 +213,7 @@ function insertCustomLineDecorationsWithStateMachine(lineNumber:number, lineCont
 }
 
 export class LineParts {
-	_linePartsTrait: void;
+	_linePartsBrand: void;
 	private _parts: ViewLineToken[];
 
 	constructor(parts: ViewLineToken[]) {
@@ -243,7 +239,7 @@ function createFastViewLineParts(lineTokens:ViewLineTokens, lineContent:string):
 	return new LineParts(parts);
 }
 
-function createViewLineParts(lineNumber:number, minLineColumn:number, lineTokens:ViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]): LineParts {
+function createViewLineParts(lineNumber:number, minLineColumn:number, lineTokens:ViewLineTokens, lineContent:string, rawLineDecorations:InlineDecoration[]): LineParts {
 	// lineDecorations might overlap on top of each other, so they need to be normalized
 	var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, minLineColumn, rawLineDecorations),
 		lineDecorationsIndex = 0,
@@ -360,13 +356,6 @@ class Stack {
 	}
 }
 
-export interface ILineDecoration {
-	range: IEditorRange;
-	options: {
-		inlineClassName?: string;
-	};
-}
-
 export class LineDecorationsNormalizer {
 	/**
 	 * A number that is guaranteed to be larger than the maximum line column
@@ -376,7 +365,7 @@ export class LineDecorationsNormalizer {
 	/**
 	 * Normalize line decorations. Overlapping decorations will generate multiple segments
 	 */
-	public static normalize(lineNumber:number, minLineColumn:number, lineDecorations:ILineDecoration[]): DecorationSegment[] {
+	public static normalize(lineNumber:number, minLineColumn:number, lineDecorations:InlineDecoration[]): DecorationSegment[] {
 
 		var result:DecorationSegment[] = [];
 
@@ -386,7 +375,7 @@ export class LineDecorationsNormalizer {
 
 		var stack = new Stack(),
 			nextStartOffset = 0,
-			d:ILineDecoration,
+			d:InlineDecoration,
 			currentStartOffset:number,
 			currentEndOffset:number,
 			i:number,
@@ -418,7 +407,7 @@ export class LineDecorationsNormalizer {
 			if (stack.count === 0) {
 				nextStartOffset = currentStartOffset;
 			}
-			stack.insert(currentEndOffset, d.options.inlineClassName);
+			stack.insert(currentEndOffset, d.inlineClassName);
 		}
 
 		stack.consumeLowerThan(LineDecorationsNormalizer.MAX_LINE_LENGTH, nextStartOffset, result);

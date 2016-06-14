@@ -6,7 +6,6 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {Action} from 'vs/base/common/actions';
@@ -41,11 +40,6 @@ export interface IMessageService {
 	show(sev: Severity, message: string[]): () => void;
 	show(sev: Severity, message: Error[]): () => void;
 	show(sev: Severity, message: IMessageWithAction): () => void;
-
-	/**
-	 * Prints something to the status bar area with optional auto dispose and delay.
-	 */
-	setStatusMessage(message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable;
 
 	/**
 	 * Hide any messages showing currently.

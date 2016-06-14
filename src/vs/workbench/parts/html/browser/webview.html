@@ -34,7 +34,7 @@
 
 		// propagate focus
 		ipcRenderer.on('focus', function() {
-			target.contentDocument.body.focus();
+			target.contentWindow.focus();
 		});
 
 		// update iframe-contents
@@ -63,10 +63,15 @@
 			// script to bubble out link-clicks
 			const defaultScripts = newDocument.createElement('script');
 			defaultScripts.innerHTML = `
-				document.body.addEventListener('click', function (event) {
-					if(event.target.tagName === 'A' && event.target.href) {
-						window.parent.postMessage({ command: 'did-click-link', data: event.target.href }, 'file://');
-						event.preventDefault();
+				document.body.addEventListener('click', function(event) {
+					let node = event.target;
+					while (node) {
+						if (node.tagName === 'A' && node.href && node.href[0] !== '#') {
+							window.parent.postMessage({ command: 'did-click-link', data: node.href }, 'file://');
+							event.preventDefault();
+							break;
+						}
+						node = node.parentNode;
 					}
 				});`
 			newDocument.body.appendChild(defaultScripts);

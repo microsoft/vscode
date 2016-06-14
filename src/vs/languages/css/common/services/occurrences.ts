@@ -6,6 +6,7 @@
 
 import nodes = require('vs/languages/css/common/parser/cssNodes');
 import _symbols = require('vs/languages/css/common/parser/cssSymbols');
+import {DocumentHighlightKind} from 'vs/editor/common/modes';
 
 export function findDeclaration(stylesheet:nodes.Node, offset:number):nodes.Node {
 
@@ -25,7 +26,7 @@ export function findDeclaration(stylesheet:nodes.Node, offset:number):nodes.Node
 }
 
 export interface IOccurrence {
-	kind:string;
+	kind:DocumentHighlightKind;
 	type:nodes.ReferenceType;
 	node:nodes.Node;
 }
@@ -66,10 +67,18 @@ export function findOccurrences(stylesheet:nodes.Node, offset:number):IOccurrenc
 	return result;
 }
 
-function getKind(node:nodes.Node):string {
+function getKind(node:nodes.Node):DocumentHighlightKind {
 
 	if (node.type === nodes.NodeType.Selector) {
-		return 'write';
+		return DocumentHighlightKind.Write;
+	}
+
+	if (node instanceof nodes.Identifier) {
+		if (node.parent && node.parent instanceof nodes.Property) {
+			if (_symbols.Symbols.isCssVariable(node)) {
+				return DocumentHighlightKind.Write;
+			}
+		}
 	}
 
 	if (node.parent) {
@@ -79,8 +88,9 @@ function getKind(node:nodes.Node):string {
 			case nodes.NodeType.Keyframe:
 			case nodes.NodeType.VariableDeclaration:
 			case nodes.NodeType.FunctionParameter:
-				return 'write';
+				return DocumentHighlightKind.Write;
 		}
 	}
-	return null;
+
+	return DocumentHighlightKind.Read;
 }

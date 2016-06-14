@@ -139,6 +139,18 @@ declare module DebugProtocol {
 		}
 	}
 
+	/** Event message for "module" event type.
+		The event indicates that some information about a module has changed.
+	 */
+	export interface ModuleEvent extends Event {
+		body: {
+			/** The reason for the event. */
+			reason: 'new' | 'changed' | 'removed';
+			/** The new, changed, or removed module. In case of 'removed' only the module id is used. */
+			module: Module;
+		}
+	}
+
 	//---- Requests
 
 	/** On error that is whenever 'success' is false, the body can provide more details.
@@ -301,16 +313,20 @@ declare module DebugProtocol {
 	}
 	/** Arguments for "continue" request. */
 	export interface ContinueArguments {
-		/** continue execution for this thread. */
+		/** Continue execution for the specified thread (if possible). If the backend cannot continue on a single thread but will continue on all threads, it should set the allThreadsContinued attribute in the response to true. */
 		threadId: number;
 	}
-	/** Response to "continue" request. This is just an acknowledgement, so no body field is required. */
+	/** Response to "continue" request. */
 	export interface ContinueResponse extends Response {
+		body: {
+			/** If true, the continue request has ignored the specified thread and continued all threads instead. If this attribute is missing a value of 'true' is assumed for backward compatibility. */
+			allThreadsContinued?: boolean;
+		};
 	}
 
 	/** Next request; value of command field is "next".
 		The request starts the debuggee to run again for one step.
-		penDebug will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
 	*/
 	export interface NextRequest extends Request {
 		arguments: NextArguments;
@@ -340,9 +356,9 @@ declare module DebugProtocol {
 	export interface StepInResponse extends Response {
 	}
 
-	/** StepOutIn request; value of command field is "stepOut".
+	/** StepOut request; value of command field is "stepOut".
 		The request starts the debuggee to run again for one step.
-		penDebug will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
 	*/
 	export interface StepOutRequest extends Request {
 		arguments: StepOutArguments;
@@ -354,6 +370,22 @@ declare module DebugProtocol {
 	}
 	/** Response to "stepOut" request. This is just an acknowledgement, so no body field is required. */
 	export interface StepOutResponse extends Response {
+	}
+
+	/** StepBack request; value of command field is "stepBack".
+		The request starts the debuggee to run one step backwards.
+		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
+	*/
+	export interface StepBackRequest extends Request {
+		arguments: StepBackArguments;
+	}
+	/** Arguments for "stepBack" request. */
+	export interface StepBackArguments {
+		/** Continue execution for this thread. */
+		threadId: number;
+	}
+	/** Response to "stepBack" request. This is just an acknowledgement, so no body field is required. */
+	export interface StepBackResponse extends Response {
 	}
 
 	/** Pause request; value of command field is "pause".
@@ -468,6 +500,29 @@ declare module DebugProtocol {
 		};
 	}
 
+	/**
+	 * Modules can be retrieved from the debug adapter with the ModulesRequest which can either return all modules or a range of modules to support paging.
+	 */
+	export interface ModulesRequest extends Request {
+		arguments: ModulesArguments;
+	}
+	/** Arguments for "modules" request. */
+	export interface ModulesArguments {
+		/** The index of the first module to return; if omitted modules start at 0. */
+		startModule?: number;
+		/** The number of modules to return. If moduleCount is not specified or 0, all modules are returned. */
+		moduleCount?: number;
+	}
+	/** Response to "modules" request. */
+	export interface ModulesResponse extends Response {
+		body: {
+			/** All modules or range of modules. */
+			modules: Module[];
+			/** The total number of modules available. */
+			totalModules?: number;
+		};
+	}
+
 	/** Evaluate request; value of command field is "evaluate".
 		Evaluates the given expression in the context of the top most stack frame.
 		The expression has access to any variables and arguments that are in scope.
@@ -508,6 +563,8 @@ declare module DebugProtocol {
 		supportsEvaluateForHovers?: boolean;
 		/** Available filters for the setExceptionBreakpoints request. */
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
+		/** The debug adapter supports stepping back. */
+		supportsStepBack?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -537,6 +594,66 @@ declare module DebugProtocol {
 		url?: string;
 		/** An optional label that is presented to the user as the UI for opening the url. */
 		urlLabel?: string;
+	}
+
+	/**
+	 * A Module object represents a row in the modules view.
+	 * Two attributes are mandatory: an id identifies a module in the modules view and is used in a ModuleEvent for identifying a module for adding, updating or deleting.
+	 * The name is used to minimally render the module in the UI.
+	 *
+	 * Additional attributes can be added to the module. They will show up in the module View if they have a corresponding ColumnDescriptor.
+	 *
+	 * To avoid an unnecessary proliferation of additional attributes with similar semantics but different names
+	 * we recommend to re-use attributes from the 'recommended' list below first, and only introduce new attributes if nothing appropriate could be found.
+	 */
+	export interface Module {
+		/** Unique identifier for the module. */
+		id: number | string;
+		/** A name of the module. */
+		name: string;
+
+		// optional but recommended attributes.
+		// always try to use these first before introducing additional attributes.
+
+		/** Logical full path to the module. The exact definition is implementation defined, but usually this would be a full path to the on-disk file for the module. */
+		path?: string
+		/** True if the module is optimized. */
+		isOptimized?: boolean
+		/** True if the module is considered 'user code' by a debugger that supports 'Just My Code'. */
+		isUseCode?: boolean
+		/** Version of Module. */
+		version? : string
+		/** User understandable description of if symbols were found for the module (ex: 'Symbols Loaded', 'Symbols not found', etc */
+		symbolStatus?: string
+		/** Logical full path to the symbol file. The exact definition is implementation defined. */
+		symbolFilePath?: string
+		/** Module created or modified. */
+		dateTimeStamp?: string
+		/** Address range covered by this module. */
+		addressRange?: string
+	}
+
+	/**
+	 * A ColumnDescriptor specifies what module attribute to show in a column of the ModulesView, how to format it, and what the column's label should be.
+	 * It is only used if the underlying UI actually supports this level of customization.
+	 */
+	export interface ColumnDescriptor {
+		/** Name of the attribute rendered in this column. */
+		attributeName: string;
+		/** Header UI label of column. */
+		label: string;
+		/** Format to use for the rendered values in this column. TBD how the format strings looks like. */
+		format: string;
+		/** Width of this column in characters (hint only). */
+		width: number;
+	}
+
+	/**
+	 * The ModulesViewDescriptor is the container for all declarative configuration options of a ModuleView.
+	 * For now it only specifies the columns to be shown in the modules view.
+	 */
+	export interface ModulesViewDescriptor {
+		columns: ColumnDescriptor[];
 	}
 
 	/** A Thread */

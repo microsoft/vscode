@@ -43,34 +43,21 @@ export declare class Promise {
 	public cancel():void;
 }
 
-export interface IXHROptions {
-	type?:string;
-	url?:string;
-	user?:string;
-	password?:string;
-	responseType?:string;
-	headers?:any;
-	customRequestInitializer?:(req:any)=>void;
-	data?:any;
-}
-
-export declare function xhr(options:IXHROptions):TPromise<XMLHttpRequest>;
-export declare function decoratePromise(promise:Promise, successCallback?:ValueCallback, errorCallback?:ErrorCallback):Promise;
-export declare function decoratePromise<T>(promise:TPromise<T>, successCallback?:TValueCallback<T>, errorCallback?:ErrorCallback):TPromise<T>;
-
-// --- Generic promise
+/**
+ * The value callback to complete a promise
+ */
 export interface TValueCallback<T> {
 	(value:T):void;
 }
 
-export interface TValueCallback<T> {
-	(value:T):void;
-}
 
 export interface TProgressCallback<T> {
 	(progress:T):void;
 }
 
+/**
+ * A Promise implementation that supports progress and cancelation.
+ */
 export declare class TPromise<V> {
 
 	constructor(init:(complete: TValueCallback<V>, error:(err:any)=>void, progress:ProgressCallback)=>void, oncancel?: any);
@@ -92,9 +79,10 @@ export declare class TPromise<V> {
 	public cancel():void;
 
 	public static as<ValueType>(value:ValueType):TPromise<ValueType>;
-	public static is(value: any): boolean;
+	public static is(value: any): value is TPromise<any>;
 	public static timeout(delay:number):TPromise<void>;
 	public static join<ValueType>(promises:TPromise<ValueType>[]):TPromise<ValueType[]>;
+	public static join<ValueType>(promises:Thenable<ValueType>[]):Thenable<ValueType[]>;
 	public static join<ValueType>(promises: {[n:string]:TPromise<ValueType>}):TPromise<{[n:string]:ValueType}>;
 	public static any<ValueType>(promises:TPromise<ValueType>[]):TPromise<{ key:string; value:TPromise<ValueType>;}>;
 	public static wrapError<ValueType>(error:any):TPromise<ValueType>;

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {LinkedMap} from 'vs/base/common/map';
+
 /**
  * The empty string.
  */
@@ -164,7 +166,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 export function endsWith(haystack: string, needle: string): boolean {
 	let diff = haystack.length - needle.length;
 	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === haystack.length - needle.length;
+		return haystack.lastIndexOf(needle) === diff;
 	} else if (diff === 0) {
 		return haystack === needle;
 	} else {
@@ -247,14 +249,13 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = Object.create(null);
-let cacheCounter = 0;
+const normalizedCache = new LinkedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
 
-	const cached = normalizedCache[str];
+	const cached = normalizedCache.get(str);
 	if (cached) {
 		return cached;
 	}
@@ -266,11 +267,8 @@ export function normalizeNFC(str: string): string {
 		res = str;
 	}
 
-	// Use the cache for fast lookup but do not let it grow unbounded
-	if (cacheCounter < 10000) {
-		normalizedCache[str] = res;
-		cacheCounter++;
-	}
+	// Use the cache for fast lookup
+	normalizedCache.set(str, res);
 
 	return res;
 }
@@ -305,8 +303,8 @@ export function getLeadingWhitespace(str: string): string {
  * Returns last index of the string that is not whitespace.
  * If string is empty or contains only whitespaces, returns -1
  */
-export function lastNonWhitespaceIndex(str: string): number {
-	for (let i = str.length - 1; i >= 0; i--) {
+export function lastNonWhitespaceIndex(str: string, startIndex: number = str.length - 1): number {
+	for (let i = startIndex; i >= 0; i--) {
 		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
 			return i;
 		}
@@ -589,4 +587,12 @@ export function appendWithLimit(first: string, second: string, maxLength: number
 
 export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
+}
+
+export function repeat(s:string, count: number): string {
+	var result = '';
+	for (var i = 0; i < count; i++) {
+		result += s;
+	}
+	return result;
 }

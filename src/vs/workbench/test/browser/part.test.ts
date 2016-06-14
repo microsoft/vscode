@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import {Build, Builder} from 'vs/base/browser/builder';
 import {Part} from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
-import * as TestUtils from 'vs/workbench/test/browser/servicesTestUtils';
+import * as TestUtils from 'vs/workbench/test/common/servicesTestUtils';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -106,7 +106,7 @@ suite('Workbench Part', () => {
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
 		context = new BaseWorkspaceContextService(TestUtils.TestWorkspace, TestUtils.TestConfiguration, null);
-		storage = new Storage(context, new InMemoryLocalStorage());
+		storage = new Storage(new InMemoryLocalStorage(), null, context);
 	});
 
 	teardown(() => {

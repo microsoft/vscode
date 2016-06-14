@@ -21,7 +21,6 @@ import GitActions = require('vs/workbench/parts/git/browser/gitActions');
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 
 import IGitService = git.IGitService;
 
@@ -99,7 +98,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 		var initSection = $('.section').appendTo(this.$el);
 		this.initButton = new Button(initSection);
 		this.initButton.label = nls.localize('gitinit', 'Initialize git repository');
-		this.initButton.on('click', (e) => {
+		this.initButton.addListener2('click', (e) => {
 			DOM.EventHelper.stop(e);
 
 			this.disableUI();
@@ -149,10 +148,6 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 		this.isVisible = visible;
 
 		return WinJS.TPromise.as(null);
-	}
-
-	public getSelection():ISelection {
-		return Selection.EMPTY;
 	}
 
 	public getControl(): EventEmitter.IEventEmitter {

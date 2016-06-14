@@ -11,9 +11,11 @@
 	"addWatchExpression": "添加表达式",
 	"clearRepl": "清除控制台",
 	"continueDebug": "继续",
+	"copy": "复制",
 	"copyValue": "复制值",
 	"deactivateBreakpoints": "停用断点",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugConsoleAction": "调试控制台",
 	"disableAllBreakpoints": "禁用所有断点",
 	"disconnectDebug": "断开连接",
 	"editConditionalBreakpoint": "编辑断点",
@@ -29,13 +31,12 @@
 	"renameFunctionBreakpoint": "重命名函数断点",
 	"renameWatchExpression": "重命名表达式",
 	"restartDebug": "重启",
-	"run": "运行",
 	"selectConfig": "选择配置",
-	"startDebug": "开始",
+	"startDebug": "开始调试",
+	"startWithoutDebugging": "开始执行(不调试)",
 	"stepIntoDebug": "单步调试",
 	"stepOutDebug": "单步跳出",
 	"stepOverDebug": "单步跳过",
 	"stopDebug": "停止",
-	"toggleEnablement": "启用/禁用断点",
-	"toggleRepl": "调试控制台"
+	"toggleEnablement": "启用/禁用断点"
 }

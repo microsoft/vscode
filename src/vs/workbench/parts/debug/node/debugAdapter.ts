@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class Adapter {
 
@@ -19,10 +21,11 @@ export class Adapter {
 	private _label: string;
 	private configurationAttributes: any;
 	public initialConfigurations: any[];
+	public variables: { [key: string]: string };
 	public enableBreakpointsFor: { languageIds: string[] };
 	public aiKey: string;
 
-	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, extensionFolderPath: string) {
+	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, public extensionDescription: IExtensionDescription) {
 		if (rawAdapter.windows) {
 			rawAdapter.win = rawAdapter.windows;
 		}
@@ -56,14 +59,15 @@ export class Adapter {
 
 		if (this.program) {
 			this.program = systemVariables ? systemVariables.resolve(this.program) : this.program;
-			this.program = paths.join(extensionFolderPath, this.program);
+			this.program = paths.join(extensionDescription.extensionFolderPath, this.program);
 		}
 		if (this.runtime && this.runtime.indexOf('./') === 0) {
 			this.runtime = systemVariables ? systemVariables.resolve(this.runtime) : this.runtime;
-			this.runtime = paths.join(extensionFolderPath, this.runtime);
+			this.runtime = paths.join(extensionDescription.extensionFolderPath, this.runtime);
 		}
 
 		this.type = rawAdapter.type;
+		this.variables = rawAdapter.variables;
 		this.configurationAttributes = rawAdapter.configurationAttributes;
 		this.initialConfigurations = rawAdapter.initialConfigurations;
 		this._label = rawAdapter.label;
@@ -106,10 +110,31 @@ export class Adapter {
 					default: null,
 					description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 				};
+				properties.internalConsoleOptions = {
+					enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+					default: 'openOnFirstSessionStart',
+					description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
+				};
 				this.warnRelativePaths(properties.outDir);
 				this.warnRelativePaths(properties.program);
 				this.warnRelativePaths(properties.cwd);
 				this.warnRelativePaths(properties.runtimeExecutable);
+				const osProperties = objects.deepClone(properties);
+				properties.windows = {
+					type: 'object',
+					description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
+					properties: osProperties
+				};
+				properties.osx = {
+					type: 'object',
+					description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
+					properties: osProperties
+				};
+				properties.linux = {
+					type: 'object',
+					description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
+					properties: osProperties
+				};
 
 				return attributes;
 			});

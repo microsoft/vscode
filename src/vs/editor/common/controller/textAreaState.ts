@@ -7,12 +7,18 @@
 import Event from 'vs/base/common/event';
 import {commonPrefixLength, commonSuffixLength} from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorPosition, IEditorRange, IRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IRange} from 'vs/editor/common/editorCommon';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
 	setTextData(text:string): void;
 	getTextData(): string;
+}
+
+export interface ICompositionEvent {
+	data: string;
+	locale: string;
 }
 
 export interface IKeyboardEventWrapper {
@@ -26,8 +32,9 @@ export interface ITextAreaWrapper {
 	onKeyDown: Event<IKeyboardEventWrapper>;
 	onKeyUp: Event<IKeyboardEventWrapper>;
 	onKeyPress: Event<IKeyboardEventWrapper>;
-	onCompositionStart: Event<void>;
-	onCompositionEnd: Event<void>;
+	onCompositionStart: Event<ICompositionEvent>;
+	onCompositionUpdate: Event<ICompositionEvent>;
+	onCompositionEnd: Event<ICompositionEvent>;
 	onInput: Event<void>;
 	onCut: Event<IClipboardEvent>;
 	onCopy: Event<IClipboardEvent>;
@@ -48,7 +55,7 @@ export interface ISimpleModel {
 	getValueInRange(range:IRange, eol:EndOfLinePreference): string;
 	getModelLineContent(lineNumber:number): string;
 	getLineCount(): number;
-	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): IEditorPosition;
+	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position;
 }
 
 export interface ITypeData {
@@ -101,9 +108,24 @@ export abstract class TextAreaState {
 
 	public abstract fromTextArea(textArea:ITextAreaWrapper): TextAreaState;
 
-	public abstract fromEditorSelection(model:ISimpleModel, selection:IEditorRange);
+	public abstract fromEditorSelection(model:ISimpleModel, selection:Range);
 
 	public abstract fromText(text:string): TextAreaState;
+
+	public updateComposition(): ITypeData {
+		if (!this.previousState) {
+			// This is the EMPTY state
+			return {
+				text: '',
+				replaceCharCnt: 0
+			};
+		}
+
+		return {
+			text: this.value,
+			replaceCharCnt: this.previousState.selectionEnd - this.previousState.selectionStart
+		};
+	}
 
 	public abstract resetSelection(): TextAreaState;
 
@@ -249,7 +271,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 		return new IENarratorTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode(), this.selectionToken);
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:Range): TextAreaState {
 		let LIMIT_CHARS = 100;
 		let PADDING_LINES_COUNT = 0;
 
@@ -361,7 +383,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		return new Range(startLineNumber, 1, endLineNumber, Number.MAX_VALUE);
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:Range): TextAreaState {
 
 		let selectionStartPage = NVDAPagedTextAreaState._getPageOfLine(selection.startLineNumber);
 		let selectionStartPageRange = NVDAPagedTextAreaState._getRangeForPage(selectionStartPage);
@@ -378,7 +400,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
 		let text:string = null;
-		if (selectionStartPage <= selectionEndPage) {
+		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
 			text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		} else {
@@ -389,6 +411,19 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 				+ String.fromCharCode(8230)
 				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
 			);
+		}
+
+		// Chromium handles very poorly text even of a few thousand chars
+		// Cut text to avoid stalling the entire UI
+		const LIMIT_CHARS = 500;
+		if (pretext.length > LIMIT_CHARS) {
+			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+		}
+		if (posttext.length > LIMIT_CHARS) {
+			posttext = posttext.substring(0, LIMIT_CHARS);
+		}
+		if (text.length > 2 * LIMIT_CHARS) {
+			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
 		return new NVDAPagedTextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
@@ -446,7 +481,7 @@ export class NVDAFullTextAreaState extends TextAreaState {
 		return new NVDAFullTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:Range): TextAreaState {
 		let pretext = model.getValueInRange(new Range(1, 1, selection.startLineNumber, selection.startColumn), EndOfLinePreference.LF);
 		let text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		let lastLine = model.getLineCount();

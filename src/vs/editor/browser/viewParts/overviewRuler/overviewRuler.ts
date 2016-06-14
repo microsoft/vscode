@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IConfigurationChangedEvent, IOverviewRulerPosition} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, OverviewRulerPosition, OverviewRulerZone, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IOverviewRuler, OverviewRulerZone, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IOverviewRuler} from 'vs/editor/browser/editorBrowser';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _overviewRuler:OverviewRulerImpl;
 
-	constructor(context:IViewContext, cssClassName:string, scrollHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(context:ViewContext, cssClassName:string, scrollHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		super();
 		this._context = context;
 		this._overviewRuler = new OverviewRulerImpl(0, cssClassName, scrollHeight, this._context.configuration.editor.lineHeight,
-					minimumHeight, maximumHeight, getVerticalOffsetForLine);
+					this._context.configuration.editor.viewInfo.canUseTranslate3d, minimumHeight, maximumHeight, getVerticalOffsetForLine);
 
 		this._context.addEventHandler(this);
 	}
@@ -37,6 +38,12 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
 			return true;
 		}
+
+		if (e.viewInfo.canUseTranslate3d) {
+			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, true);
+			return true;
+		}
+
 		return false;
 	}
 
@@ -48,16 +55,16 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return true;
 	}
 
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		this._overviewRuler.setScrollHeight(scrollHeight, true);
-		return true;
+	public onScrollChanged(e:IScrollEvent): boolean {
+		this._overviewRuler.setScrollHeight(e.scrollHeight, true);
+		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
 	public getDomNode(): HTMLElement {
 		return this._overviewRuler.getDomNode();
 	}
 
-	public setLayout(position:IOverviewRulerPosition): void {
+	public setLayout(position:OverviewRulerPosition): void {
 		this._overviewRuler.setLayout(position, true);
 	}
 

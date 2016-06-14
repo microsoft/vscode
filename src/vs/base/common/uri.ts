@@ -132,35 +132,35 @@ export default class URI {
 
 	// ---- modify to new -------------------------
 
-	public with(scheme: string, authority: string, path: string, query: string, fragment: string): URI {
-		var ret = new URI();
-		ret._scheme = scheme || this.scheme;
-		ret._authority = authority || this.authority;
-		ret._path = path || this.path;
-		ret._query = query || this.query;
-		ret._fragment = fragment || this.fragment;
+	public with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
+
+		if (!change) {
+			return this;
+		}
+
+		let scheme = change.scheme || this.scheme;
+		let authority = change.authority || this.authority;
+		let path = change.path || this.path;
+		let query = change.query || this.query;
+		let fragment = change.fragment || this.fragment;
+
+		if (scheme === this.scheme
+			&& authority === this.authority
+			&& path === this.path
+			&& query === this.query
+			&& fragment === this.fragment) {
+
+			return this;
+		}
+
+		const ret = new URI();
+		ret._scheme = scheme;
+		ret._authority = authority;
+		ret._path = path;
+		ret._query = query;
+		ret._fragment = fragment;
 		URI._validate(ret);
 		return ret;
-	}
-
-	public withScheme(value: string): URI {
-		return this.with(value, undefined, undefined, undefined, undefined);
-	}
-
-	public withAuthority(value: string): URI {
-		return this.with(undefined, value, undefined, undefined, undefined);
-	}
-
-	public withPath(value: string): URI {
-		return this.with(undefined, undefined, value, undefined, undefined);
-	}
-
-	public withQuery(value: string): URI {
-		return this.with(undefined, undefined, undefined, value, undefined);
-	}
-
-	public withFragment(value: string): URI {
-		return this.with(undefined, undefined, undefined, undefined, value);
 	}
 
 	// ---- parse & validate ------------------------
@@ -231,8 +231,8 @@ export default class URI {
 		return ret;
 	}
 
-	public static create(scheme?: string, authority?: string, path?: string, query?: string, fragment?: string): URI {
-		return new URI().with(scheme, authority, path, query, fragment);
+	public static from(components: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
+		return new URI().with(components);
 	}
 
 	private static _validate(ret: URI): void {

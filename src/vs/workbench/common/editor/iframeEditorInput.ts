@@ -28,7 +28,7 @@ export abstract class IFrameEditorInput extends EditorInput {
 		this.description = description;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return IFrameEditorInput.ID;
 	}
 

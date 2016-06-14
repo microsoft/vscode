@@ -16,7 +16,6 @@ import {assign} from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IEnv} from 'vs/base/node/env';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
@@ -28,8 +27,18 @@ import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
-const timers = (<any>window).MonacoEnvironment.timers;
-const domContentLoaded: Function = (<any>winjs).Utilities.ready;
+const timers = (<any>window).GlobalEnvironment.timers;
+
+function domContentLoaded(): winjs.Promise {
+	return new winjs.Promise((c, e) => {
+		var readyState = document.readyState;
+		if (readyState === 'complete' || (document && document.body !== null)) {
+			window.setImmediate(c);
+		} else {
+			window.addEventListener('DOMContentLoaded', c, false);
+		}
+	});
+}
 
 export interface IPath {
 	filePath: string;
@@ -43,13 +52,16 @@ export interface IMainEnvironment extends IEnvironment {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	extensionsToInstall?: string[];
-	userEnv: IEnv;
+	userEnv: { [key: string]: string; };
 }
 
 export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
 
 	// Inherit the user environment
-	assign(process.env, environment.userEnv);
+	// TODO@Joao: this inheritance should **not** happen here!
+	if (process.env['VSCODE_CLI'] !== '1') {
+		assign(process.env, environment.userEnv);
+	}
 
 	// Shell Configuration
 	let shellConfiguration: IConfiguration = {
@@ -135,7 +147,7 @@ function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, opt
 	return configurationService.initialize().then(() => {
 		timers.beforeReady = new Date();
 
-		return domContentLoaded(() => {
+		return domContentLoaded().then(() => {
 			timers.afterReady = new Date();
 
 			// Open Shell
@@ -159,6 +171,6 @@ function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, opt
 					}
 				}
 			});
-		}, true);
+		});
 	});
 }

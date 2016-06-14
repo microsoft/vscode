@@ -7,5 +7,6 @@
 	"globalConsoleActionMacLinux": "Abrir nuevo terminal",
 	"globalConsoleActionWin": "Abrir nuevo símbolo del sistema",
 	"scopedConsoleActionMacLinux": "Abrir en terminal",
-	"scopedConsoleActionWin": "Abrir en símbolo del sistema"
+	"scopedConsoleActionWin": "Abrir en símbolo del sistema",
+	"terminalConfigurationTitle": "Configuración de terminal"
 }

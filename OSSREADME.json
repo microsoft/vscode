@@ -2,7 +2,7 @@
 
 [{
 	"name": "atom-brightray",
-	"repositoryURL": "https://github.com/atom/brightray",
+	"repositoryURL": "https://github.com/electron/brightray",
 	"license": "MIT",
 	"isProd": true
 },
@@ -46,7 +46,7 @@
 	"name": "libchromiumcontent",
 	"version": "49.0.2623.75",
 	"license": "MIT",
-	"repositoryURL": "https://github.com/atom/libchromiumcontent",
+	"repositoryURL": "https://github.com/electron/libchromiumcontent",
 	"isProd": true
 },
 {
@@ -59,7 +59,7 @@
 	"name": "electron",
 	"version": "0.37.6",
 	"license": "MIT",
-	"repositoryURL": "https://github.com/atom/electron",
+	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true
 },
 {
@@ -67,7 +67,7 @@
 	"version": "5.5.6",
 	"repositoryURL": "https://github.com/jrsoftware/issrc",
 	"isProd": true
-},
+}
 
 
 // ----------------------------------------------------------
@@ -75,75 +75,18 @@
 // defining licenses for dependencies where licensing cannot
 // be inferred by tooling:
 
-{
-	// Reason: LICENSE file missing in repo
-	// SOURCE: https://github.com/isaacs/core-util-is/blob/master/lib/util.js
-	"name":"core-util-is",
-	"isLicense": true,
-	"licenseDetail": [
-		"Copyright Joyent, Inc. and other Node contributors.",
-		"",
-		"Permission is hereby granted, free of charge, to any person obtaining a",
-		"copy of this software and associated documentation files (the",
-		"\"Software\"), to deal in the Software without restriction, including",
-		"without limitation the rights to use, copy, modify, merge, publish,",
-		"distribute, sublicense, and/or sell copies of the Software, and to permit",
-		"persons to whom the Software is furnished to do so, subject to the",
-		"following conditions:",
-		"",
-		"The above copyright notice and this permission notice shall be included",
-		"in all copies or substantial portions of the Software.",
-		"",
-		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS",
-		"OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF",
-		"MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN",
-		"NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,",
-		"DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR",
-		"OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE",
-		"USE OR OTHER DEALINGS IN THE SOFTWARE."
-	]
-},
-{
-	// Reason: windows-mutex is not public yet
-	// TODO: Remove once windows-mutex visibility is made public
-	"name": "windows-mutex",
-	"isLicense": true,
-	"licenseDetail": [
-		"The MIT License (MIT)",
-		"",
-		"Copyright (c) Microsoft Corporation",
-		"",
-		"Permission is hereby granted, free of charge, to any person obtaining a copy",
-		"of this software and associated documentation files (the \"Software\"), to deal",
-		"in the Software without restriction, including without limitation the rights",
-		"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
-		"copies of the Software, and to permit persons to whom the Software is",
-		"furnished to do so, subject to the following conditions:",
-		"",
-		"The above copyright notice and this permission notice shall be included in all",
-		"copies or substantial portions of the Software.",
-		"",
-		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
-		"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
-		"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
-		"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
-		"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
-		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
-		"SOFTWARE."
-	]
-},
-{
+
+/*{
 	// Reason: LICENSE file missing in repo
 	"name": "winreg",
 	"isLicense": true,
 	"licenseDetail": [
-		"Copyright (c) Paul Bottin",
+		"This project is released under BSD 2-Clause License.",
 		"",
-		"The BSD License",
+		"Copyright (c) 2016, Paul Bottin All rights reserved.",
 		"",
-		"Redistribution and use in source and binary forms, with or without",
-		"modification, are permitted provided that the following conditions",
-		"are met:",
+		"Redistribution and use in source and binary forms, with or without modification,",
+		"are permitted provided that the following conditions are met:",
 		"",
 		"1. Redistributions of source code must retain the above copyright",
 		"   notice, this list of conditions and the following disclaimer.",
@@ -164,31 +107,5 @@
 		"OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN",
 		"IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 	]
-},
-{
-	// Reason: LICENSE file doesn't have Copyright statement
-	"name": "readdirp",
-	"isLicense": true,
-	"licenseDetail": [
-		"This software is released under the MIT license:",
-		"",
-		"Copyright (c) Thorsten Lorenz",
-		"",
-		"Permission is hereby granted, free of charge, to any person obtaining a copy of",
-		"this software and associated documentation files (the \"Software\"), to deal in",
-		"the Software without restriction, including without limitation the rights to",
-		"use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of",
-		"the Software, and to permit persons to whom the Software is furnished to do so,",
-		"subject to the following conditions:",
-		"",
-		"The above copyright notice and this permission notice shall be included in all",
-		"copies or substantial portions of the Software.",
-		"",
-		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
-		"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS",
-		"FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR",
-		"COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER",
-		"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN",
-		"CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
-	]
-}]
+}*/
+]

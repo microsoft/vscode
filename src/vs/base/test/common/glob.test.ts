@@ -8,6 +8,59 @@ import * as assert from 'assert';
 import glob = require('vs/base/common/glob');
 
 suite('Glob', () => {
+
+	// test('perf', function () {
+
+	// 	let patterns = [
+	// 		'{**/*.cs,**/*.json,**/*.csproj,**/*.sln}',
+	// 		'{**/*.cs,**/*.csproj,**/*.sln}',
+	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6}',
+	// 		'**/*.go',
+	// 		'{**/*.ps,**/*.ps1}',
+	// 		'{**/*.c,**/*.cpp,**/*.h}',
+	// 		'{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}',
+	// 		'{**/*.js,**/*.jsx,**/*.es6}',
+	// 		'{**/*.ts,**/*.tsx}',
+	// 		'{**/*.php}',
+	// 		'{**/*.php}',
+	// 		'{**/*.php}',
+	// 		'{**/*.php}',
+	// 		'{**/*.py}',
+	// 		'{**/*.py}',
+	// 		'{**/*.py}',
+	// 		'{**/*.rs,**/*.rslib}',
+	// 		'{**/*.cpp,**/*.cc,**/*.h}',
+	// 		'{**/*.md}',
+	// 		'{**/*.md}',
+	// 		'{**/*.md}'
+	// 	];
+
+	// 	let paths = [
+	// 		'/DNXConsoleApp/Program.cs',
+	// 		'C:\\DNXConsoleApp\\foo\\Program.cs',
+	// 		'test/qunit',
+	// 		'test/test.txt',
+	// 		'test/node_modules',
+	// 		'.hidden.txt',
+	// 		'/node_module/test/foo.js'
+	// 	];
+
+	// 	let results = 0;
+	// 	let c = 1000;
+	// 	console.profile('glob.match');
+	// 	while (c-- > 0) {
+	// 		for (let path of paths) {
+	// 			for (let pattern of patterns) {
+	// 				let r = glob.match(pattern, path);
+	// 				if (r) {
+	// 					results += 42;
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// 	console.profileEnd();
+	// });
+
 	test('simple', function () {
 		var p = 'node_modules';
 
@@ -156,6 +209,19 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'some.js/test'));
 		assert(!glob.match(p, '/some.js/test'));
 		assert(!glob.match(p, '\\some.js\\test'));
+
+		p = '**/project.json';
+
+		assert(glob.match(p, 'project.json'));
+		assert(glob.match(p, '/project.json'));
+		assert(glob.match(p, 'some/folder/project.json'));
+		assert(!glob.match(p, 'some/folder/file_project.json'));
+		assert(!glob.match(p, 'some/folder/fileproject.json'));
+		// assert(!glob.match(p, '/rrproject.json')); TODO@ben this still fails if T1-3 are disabled
+		assert(!glob.match(p, 'some/rrproject.json'));
+		// assert(!glob.match(p, 'rrproject.json'));
+		// assert(!glob.match(p, '\\rrproject.json'));
+		assert(!glob.match(p, 'some\\rrproject.json'));
 
 		p = 'test/**';
 		assert(glob.match(p, 'test'));

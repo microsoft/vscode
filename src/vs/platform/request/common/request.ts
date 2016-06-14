@@ -5,8 +5,8 @@
 'use strict';
 
 import http = require('vs/base/common/http');
-import winjs = require('vs/base/common/winjs.base');
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
@@ -17,5 +17,5 @@ export interface IRequestService {
 	 * Wraps the call into WinJS.XHR to allow for mocking and telemetry. Use this instead
 	 * of calling WinJS.XHR directly.
 	 */
-	makeRequest(options: http.IXHROptions): winjs.TPromise<http.IXHRResponse>;
+	makeRequest(options: http.IXHROptions): TPromise<http.IXHRResponse>;
 }

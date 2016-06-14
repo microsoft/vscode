@@ -39,13 +39,14 @@ export class EditorActionDescriptor {
 	public ctor:editorCommon.IEditorActionContributionCtor;
 	public id:string;
 	public label:string;
-
+	public alias:string;
 	public kbOpts:IEditorActionKeybindingOptions;
 
-	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions) {
+	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions, alias?:string) {
 		this.ctor = ctor;
 		this.id = id;
 		this.label = label;
+		this.alias = alias;
 		this.kbOpts = kbOpts;
 	}
 }
@@ -78,7 +79,7 @@ export module CommonEditorRegistry {
 			id: commandId,
 			handler: createCommandHandler(commandId, handler),
 			weight: weight,
-			context: contextRule(needsTextFocus, needsKey),
+			when: whenRule(needsTextFocus, needsKey),
 			primary: keybinding.primary,
 			secondary: keybinding.secondary,
 			win: keybinding.win,
@@ -92,19 +93,16 @@ export module CommonEditorRegistry {
 	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
 		KeybindingsRegistry.registerCommandDesc({
 			id,
-			handler(accessor, args: any[]) {
-				if (args && args.length > 1 || typeof args[0] !== 'object') {
-					throw illegalArgument();
-				}
-				return handler(accessor, args && args[0]);
+			handler(accessor, args: any) {
+				return handler(accessor, args || {});
 			},
 			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 			primary: undefined,
-			context: undefined,
+			when: undefined,
 		});
 	}
 
-	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: editorCommon.IPosition, args: { [n: string]: any }) => any) {
+	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
 		registerLanguageCommand(id, function(accessor, args) {
 
 			const {resource, position} = args;
@@ -117,7 +115,9 @@ export module CommonEditorRegistry {
 				throw illegalArgument();
 			}
 
-			return handler(model, position, args);
+			const editorPosition = Position.lift(position);
+
+			return handler(model, editorPosition, args);
 		});
 	}
 }
@@ -138,10 +138,11 @@ class InternalEditorActionDescriptor implements editorCommon.ICommonEditorContri
 
 	private _descriptor: SyncDescriptor1<editorCommon.ICommonCodeEditor, editorCommon.IEditorContribution>;
 
-	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string) {
+	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, alias:string) {
 		this._descriptor = createSyncDescriptor(ctor, {
-			id: id,
-			label: label
+			id,
+			label,
+			alias
 		});
 	}
 
@@ -168,8 +169,9 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorAction(desc:EditorActionDescriptor): void {
-		var handler = desc.kbOpts.handler;
+		let handler = desc.kbOpts.handler;
 		if (!handler) {
+			// here
 			if (desc.kbOpts.context === ContextKey.EditorTextFocus || desc.kbOpts.context === ContextKey.EditorFocus) {
 				handler = triggerEditorAction.bind(null, desc.id);
 			} else {
@@ -177,22 +179,23 @@ class EditorContributionRegistry {
 			}
 		}
 
-		var context: KbExpr = null;
+		let when: KbExpr = null;
 		if (typeof desc.kbOpts.kbExpr === 'undefined') {
+			// here
 			if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
-				context = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
+				when = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
 			} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
-				context = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+				when = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
 			}
 		} else {
-			context = desc.kbOpts.kbExpr;
+			when = desc.kbOpts.kbExpr;
 		}
 
-		var commandDesc: ICommandDescriptor = {
+		let commandDesc: ICommandDescriptor = {
 			id: desc.id,
 			handler: handler,
 			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-			context: context,
+			when: when,
 			primary: desc.kbOpts.primary,
 			secondary: desc.kbOpts.secondary,
 			win: desc.kbOpts.win,
@@ -201,7 +204,7 @@ class EditorContributionRegistry {
 		};
 
 		KeybindingsRegistry.registerCommandDesc(commandDesc);
-		this.editorContributions.push(new InternalEditorActionDescriptor(desc.ctor, desc.id, desc.label));
+		this.editorContributions.push(new InternalEditorActionDescriptor(desc.ctor, desc.id, desc.label, desc.alias));
 	}
 
 	public getEditorContributions2(): editorCommon.ICommonEditorContributionDescriptor[] {
@@ -211,14 +214,14 @@ class EditorContributionRegistry {
 Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
 
 function triggerEditorAction(actionId: string, accessor: ServicesAccessor, args: any): void {
-	withCodeEditorFromCommandHandler(actionId, accessor, args,(editor) => {
+	withCodeEditorFromCommandHandler(actionId, accessor, (editor) => {
 		editor.trigger('keyboard', actionId, args);
 	});
 }
 
 function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor, args: any): void {
 	// TODO: this is not necessarily keyboard
-	var focusedEditor = findFocusedEditor(actionId, accessor, args, false);
+	var focusedEditor = findFocusedEditor(actionId, accessor, false);
 	if (focusedEditor) {
 		focusedEditor.trigger('keyboard', actionId, args);
 		return;
@@ -237,7 +240,7 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 
 var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { primary: null, context: ContextKey.EditorTextFocus };
 
-function contextRule(needsTextFocus: boolean, needsKey: string): KbExpr {
+function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
 	let base = KbExpr.has(needsTextFocus ? editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS : editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
 
@@ -250,8 +253,8 @@ function contextRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
 function createCommandHandler(commandId: string, handler: IEditorCommandHandler): ICommandHandler {
 	return (accessor, args) => {
-		withCodeEditorFromCommandHandler(commandId, accessor, args, (editor) => {
-			handler(accessor, editor, args);
+		withCodeEditorFromCommandHandler(commandId, accessor, (editor) => {
+			handler(accessor, editor, args||{});
 		});
 	};
 }

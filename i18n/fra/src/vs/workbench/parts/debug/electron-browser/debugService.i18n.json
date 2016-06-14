@@ -6,9 +6,8 @@
 {
 	"DebugTaskNotFound": "preLaunchTask '{0}' introuvable.",
 	"NewLaunchConfig": "Paramétrez le fichier de configuration de lancement pour votre application.",
-	"continue": "Continuer",
 	"debugAdapterCrash": "Le processus de l'adaptateur de débogage s'est terminé de manière inattendue",
-	"debugNoThread": "Impossible d'obtenir un thread à partir de l'adaptateur de débogage ayant l'ID {0}.",
+	"debugAnyway": "Déboguer quand même",
 	"debugSourceNotAvailable": "La source {0} n'est pas disponible.",
 	"debugTypeMissing": "Propriété 'type' manquante pour la configuration sélectionnée dans launch.json.",
 	"debugTypeNotSupported": "Le type de débogage '{0}' configuré n'est pas pris en charge.",
@@ -17,7 +16,7 @@
 	"debuggingStarted": "Débogage démarré.",
 	"debuggingStopped": "Débogage arrêté.",
 	"differentTaskRunning": "Une tâche {0} est en cours d'exécution. Impossible d'exécuter la tâche de préparation au lancement {1}.",
-	"preLaunchTaskError": "Erreur détectée durant l'exécution du preLaunchTask '{0}'.",
-	"preLaunchTaskErrors": "Erreurs détectées durant l'exécution du preLaunchTask '{0}'.",
+	"preLaunchTaskError": "Une erreur de build a été détectée durant le preLaunchTask '{0}'.",
+	"preLaunchTaskErrors": "Des erreurs de build ont été détectées durant le preLaunchTask '{0}'.",
 	"preLaunchTaskExitCode": "Le preLaunchTask '{0}' s'est terminé avec le code de sortie {1}."
 }

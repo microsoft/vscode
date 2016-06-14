@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import nls = require('vs/nls');
 import {FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import {getUntitledOrFileResource, IEditorContext} from 'vs/workbench/common/editor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -81,7 +81,7 @@ export class OpenPreviewToSideAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let activeInput = this.editorService.getActiveEditorInput();
 
 		// Do nothing if already in markdown preview
@@ -125,7 +125,7 @@ export class PreviewMarkdownAction extends Action {
 		this.markdownResource = markdownResource;
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(context?: IEditorContext): TPromise<any> {
 		let input = this.instantiationService.createInstance(MarkdownEditorInput, this.markdownResource, void 0, void 0);
 
 		return this.editorService.openEditor(input);
@@ -144,8 +144,9 @@ export class PreviewMarkdownEditorInputAction extends EditorInputAction {
 		this.order = 100; // far end
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(context: IEditorContext): TPromise<any> {
 		let input = <FileEditorInput>this.input;
+		const event = context ? context.event : null;
 
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let markdownInput = this.instantiationService.createInstance(MarkdownEditorInput, input.getResource(), void 0, void 0);

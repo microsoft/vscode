@@ -9,10 +9,11 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {FilteredLineTokens, IdentityFilteredLineTokens} from 'vs/editor/common/viewModel/filteredLineTokens';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {ILinesCollection} from 'vs/editor/common/viewModel/viewModel';
+import {ILinesCollection} from 'vs/editor/common/viewModel/viewModelImpl';
+import {ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 export class OutputPosition {
-	_outputPositionTrait: void;
+	_outputPositionBrand: void;
 	outputLineIndex: number;
 	outputOffset: number;
 
@@ -47,9 +48,9 @@ export interface ISplitLine {
 	getOutputLineContent(model: IModel, myLineNumber: number, outputLineIndex: number): string;
 	getOutputLineMinColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number;
 	getOutputLineMaxColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number;
-	getOutputLineTokens(model: IModel, myLineNumber: number, outputLineIndex: number): editorCommon.ViewLineTokens;
+	getOutputLineTokens(model: IModel, myLineNumber: number, outputLineIndex: number): ViewLineTokens;
 	getInputColumnOfOutputPosition(outputLineIndex: number, outputColumn: number): number;
-	getOutputPositionOfInputPosition(deltaLineNumber: number, inputColumn: number): editorCommon.IEditorPosition;
+	getOutputPositionOfInputPosition(deltaLineNumber: number, inputColumn: number): Position;
 }
 
 class IdentitySplitLine implements ISplitLine {
@@ -96,7 +97,7 @@ class IdentitySplitLine implements ISplitLine {
 		return model.getLineMaxColumn(myLineNumber);
 	}
 
-	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): editorCommon.ViewLineTokens {
+	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): ViewLineTokens {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -110,7 +111,7 @@ class IdentitySplitLine implements ISplitLine {
 		return outputColumn;
 	}
 
-	public getOutputPositionOfInputPosition(deltaLineNumber:number, inputColumn:number): editorCommon.IEditorPosition {
+	public getOutputPositionOfInputPosition(deltaLineNumber:number, inputColumn:number): Position {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -194,7 +195,7 @@ export class SplitLine implements ISplitLine {
 		return this.getOutputLineContent(model, myLineNumber, outputLineIndex).length + 1;
 	}
 
-	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): editorCommon.ViewLineTokens {
+	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): ViewLineTokens {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -222,7 +223,7 @@ export class SplitLine implements ISplitLine {
 		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex, adjustedColumn) + 1;
 	}
 
-	public getOutputPositionOfInputPosition(deltaLineNumber:number, inputColumn:number): editorCommon.IEditorPosition {
+	public getOutputPositionOfInputPosition(deltaLineNumber:number, inputColumn:number): Position {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -324,13 +325,13 @@ export class SplitLinesCollection implements ILinesCollection {
 		this.prefixSumComputer = new PrefixSumComputer(values);
 	}
 
-	private getHiddenAreas(): editorCommon.IEditorRange[] {
+	private getHiddenAreas(): Range[] {
 		return this.hiddenAreasIds.map((decId) => {
 			return this.model.getDecorationRange(decId);
 		}).sort(Range.compareRangesUsingStarts);
 	}
 
-	private _reduceRanges(_ranges:editorCommon.IRange[]): editorCommon.IEditorRange[] {
+	private _reduceRanges(_ranges:editorCommon.IRange[]): Range[] {
 		if (_ranges.length === 0) {
 			return [];
 		}
@@ -652,7 +653,7 @@ export class SplitLinesCollection implements ILinesCollection {
 		return this.lines[lineIndex].getOutputLineMaxColumn(this.model, lineIndex + 1, remainder);
 	}
 
-	public getOutputLineTokens(outputLineNumber: number): editorCommon.ViewLineTokens {
+	public getOutputLineTokens(outputLineNumber: number): ViewLineTokens {
 		this._ensureValidState();
 		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(outputLineNumber - 1);
@@ -662,7 +663,7 @@ export class SplitLinesCollection implements ILinesCollection {
 		return this.lines[lineIndex].getOutputLineTokens(this.model, lineIndex + 1, remainder);
 	}
 
-	public convertOutputPositionToInputPosition(viewLineNumber: number, viewColumn: number): editorCommon.IEditorPosition {
+	public convertOutputPositionToInputPosition(viewLineNumber: number, viewColumn: number): Position {
 		this._ensureValidState();
 		viewLineNumber = this._toValidOutputLineNumber(viewLineNumber);
 
@@ -675,7 +676,7 @@ export class SplitLinesCollection implements ILinesCollection {
 		return this.model.validatePosition(new Position(lineIndex+1, inputColumn));
 	}
 
-	public convertInputPositionToOutputPosition(_inputLineNumber: number, _inputColumn: number): editorCommon.IEditorPosition {
+	public convertInputPositionToOutputPosition(_inputLineNumber: number, _inputColumn: number): Position {
 		this._ensureValidState();
 
 		let validPosition = this.model.validatePosition(new Position(_inputLineNumber, _inputColumn));
@@ -694,7 +695,7 @@ export class SplitLinesCollection implements ILinesCollection {
 		}
 		let deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
 
-		let r:editorCommon.IEditorPosition;
+		let r:Position;
 		if (lineIndexChanged) {
 			r =  this.lines[lineIndex].getOutputPositionOfInputPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 		} else {

@@ -81,13 +81,13 @@ export class Lock {
 		var lock = this.getLock(item);
 
 		if (lock) {
-			var unbindListener: Events.ListenerUnbind;
+			var unbindListener: IDisposable;
 
 			return new WinJS.Promise((c, e) => {
-				unbindListener = lock.addOneTimeListener('unlock', () => {
+				unbindListener = lock.addOneTimeDisposableListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
-			}, () => unbindListener());
+			}, () => { unbindListener.dispose(); });
 		}
 
 		var result: WinJS.Promise;
@@ -391,6 +391,10 @@ export class Item extends Events.EventEmitter {
 			}
 
 			const result = childrenPromise.then((elements: any[]) => {
+				if (this.isDisposed()) {
+					return WinJS.TPromise.as(null);
+				}
+
 				elements = !elements ? [] : elements.slice(0);
 				elements = this.sort(elements);
 
@@ -1216,7 +1220,7 @@ export class TreeModel extends Events.EventEmitter {
 		return new TreeNavigator(this.getItem(element), subTreeOnly);
 	}
 
-	private getItem(element: any = null): Item {
+	public getItem(element: any = null): Item {
 		if (element === null) {
 			return this.input;
 		} else if (element instanceof Item) {

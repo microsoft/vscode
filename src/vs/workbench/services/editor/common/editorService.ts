@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 
-export enum EditorArrangement {
+export enum GroupArrangement {
 	MINIMIZE_OTHERS,
 	EVEN_WIDTH
 }
@@ -46,9 +47,8 @@ export interface IWorkbenchEditorService extends IEditorService {
 	isVisible(input: IEditorInput, includeDiff: boolean): boolean;
 
 	/**
-	 * Opens an Editor on the given input with the provided options at the given position. If the input parameter
-	 * is null, will cause the currently opened editor at the position to close. If sideBySide parameter is provided,
-	 * causes the editor service to decide in what position to open the input.
+	 * Opens an Editor on the given input with the provided options at the given position. If sideBySide parameter
+	 * is provided, causes the editor service to decide in what position to open the input.
 	 */
 	openEditor(input: IEditorInput, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
@@ -60,44 +60,35 @@ export interface IWorkbenchEditorService extends IEditorService {
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
 
 	/**
-	 * Opens the set of inputs replacing any other editor that is currently open. Use #openEditor() instead to open
-	 * a single editor.
+	 * Similar to #openEditor() but allows to open multiple editors for different positions at the same time. If there are
+	 * more than one editor per position, only the first one will be active and the others stacked behind inactive.
 	 */
-	setEditors(inputs: IEditorInput[]): TPromise<IEditor[]>;
-	setEditors(inputs: IResourceInput[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
-	 * Closes the editor at the provided position. If position is not provided, the current active editor is closed.
+	 * Given a list of editors to replace, will look across all groups where this editor is open (active or hidden)
+	 * and replace it with the new editor and the provied options.
 	 */
-	closeEditor(editor?: IEditor): TPromise<IEditor>;
-	closeEditor(position?: Position): TPromise<IEditor>;
+	replaceEditors(editors: { toReplace: IResourceInput, replaceWith: IResourceInput }[]): TPromise<IEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
-	 * Closes all editors or only others that are not active.
+	 * Closes the editor at the provided position.
 	 */
-	closeEditors(othersOnly?: boolean): TPromise<void>;
+	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 
 	/**
-	 * Focus the editor at the provided position. If position is not provided, the current active editor is focused.
+	 * Closes editors of a specific group at the provided position. If the optional editor is provided to exclude, it
+	 * will not be closed. The direction can be used in that case to control if all other editors should get closed,
+	 * or towards a specific direction.
 	 */
-	focusEditor(editor?: IEditor): TPromise<IEditor>;
-	focusEditor(position?: Position): TPromise<IEditor>;
+	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 
 	/**
-	 * Activate the editor at the provided position without moving focus.
+	 * Closes all editors across all groups. The optional position allows to keep one group alive.
 	 */
-	activateEditor(editor: IEditor): void;
-	activateEditor(position: Position): void;
-
-	/**
-	 * Allows to move the editor at position 1 to position 2.
-	 */
-	moveEditor(from: Position, to: Position): void;
-
-	/**
-	 * Allows to arrange editors according to the EditorArrangement enumeration.
-	 */
-	arrangeEditors(arrangement: EditorArrangement): void;
+	closeAllEditors(except?: Position): TPromise<void>;
 
 	/**
 	 * Resolves an input to its model representation. The optional parameter refresh allows to specify
@@ -114,5 +105,5 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input
 	 */
-	inputToType(input: IResourceInput): TPromise<IEditorInput>;
+	createInput(input: IResourceInput): TPromise<IEditorInput>;
 }

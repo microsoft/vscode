@@ -183,7 +183,7 @@ exports.skipDirectories = function () {
 	});
 };
 
-exports.cleanNodeModule = function (name, excludes, isNative) {
+exports.cleanNodeModule = function (name, excludes, includes) {
 	var glob = function (path) { return '**/node_modules/' + name + (path ? '/' + path : ''); };
 	var negate = function (str) { return '!' + str; };
 
@@ -194,8 +194,9 @@ exports.cleanNodeModule = function (name, excludes, isNative) {
 	var nodeModuleInput = input.pipe(allFilter);
 	var output = nodeModuleInput.pipe(filter(globs));
 
-	if (isNative) {
-		output = es.merge(output, nodeModuleInput.pipe(filter(glob('**/*.node'))));
+	if (includes) {
+		var includeGlobs = includes.map(glob);
+		output = es.merge(output, nodeModuleInput.pipe(filter(includeGlobs)));
 	}
 
 	output = output.pipe(allFilter.restore);

@@ -9,7 +9,8 @@ import WinJS = require('vs/base/common/winjs.base');
 import {DeferredAction} from 'vs/platform/actions/common/actions';
 import Actions = require('vs/base/common/actions');
 import EventEmitter = require('vs/base/common/eventEmitter');
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IEventService} from 'vs/platform/event/common/event';
 
@@ -37,11 +38,8 @@ class TestEventService extends EventEmitter.EventEmitter {
 suite('Platform actions', () => {
 	test('DeferredAction', (done) => {
 
-		let services: any = {
-			eventService: {}
-		};
-
-		let instantiationService = InstantiationService.createInstantiationService(services);
+		let services = new ServiceCollection([IEventService, <any>{}]);
+		let instantiationService = new InstantiationService(services);
 
 		let action = new DeferredAction(
 			instantiationService,

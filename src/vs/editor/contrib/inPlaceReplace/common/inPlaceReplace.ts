@@ -51,7 +51,7 @@ class InPlaceReplace extends EditorAction {
 		var selection = this.editor.getSelection(),
 			model = this.editor.getModel(),
 			support = model.getMode().inplaceReplaceSupport,
-			modelURI = model.getAssociatedResource();
+			modelURI = model.uri;
 
 		if(selection.startLineNumber !== selection.endLineNumber) {
 			// Can't accept multiline selection
@@ -148,8 +148,8 @@ class InPlaceReplaceDown extends InPlaceReplace {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InPlaceReplaceUp, InPlaceReplaceUp.ID, nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
-}));
+}, 'Replace with Previous Value'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InPlaceReplaceDown, InPlaceReplaceDown.ID, nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
-}));
+}, 'Replace with Next Value'));

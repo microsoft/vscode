@@ -139,7 +139,7 @@ export interface IEventsListener {
 	(events: ITimerEvent[]): void;
 }
 
-export class TimeKeeper /*extends EventEmitter.EventEmitter*/ {
+export class TimeKeeper {
 	/**
 	 * After being started for 1 minute, all timers are automatically stopped.
 	 */

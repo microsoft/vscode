@@ -27,8 +27,6 @@
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions {
-	padding-right: 8px;
-	padding-left: 5px;
 	width: 0; /* not using display: none for keyboard a11y reasons */
 }
 

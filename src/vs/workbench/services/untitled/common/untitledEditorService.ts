@@ -5,11 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export var IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -38,6 +37,11 @@ export interface IUntitledEditorService {
 	isDirty(resource: URI): boolean;
 
 	/**
+	 * Reverts the untitled resources if found.
+	 */
+	revertAll(resources?: URI[]): URI[];
+
+	/**
 	 * Creates a new untitled input with the optional resource URI or returns an existing one
 	 * if the provided resource exists already as untitled input.
 	 *
@@ -58,10 +62,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
-	private instantiationService: IInstantiationService;
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 	}
 
 	public get(resource: URI): UntitledEditorInput {
@@ -74,6 +75,22 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		return Object.keys(UntitledEditorService.CACHE).map((key) => UntitledEditorService.CACHE[key]);
+	}
+
+	public revertAll(resources?: URI[], force?: boolean): URI[] {
+		const reverted: URI[] = [];
+
+		const untitledInputs = this.getAll(resources);
+		untitledInputs.forEach(input => {
+			if (input) {
+				input.revert();
+				input.dispose();
+
+				reverted.push(input.getResource());
+			}
+		});
+
+		return reverted;
 	}
 
 	public isDirty(resource: URI): boolean {
@@ -115,7 +132,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			// Create new taking a resource URI that is not already taken
 			let counter = Object.keys(UntitledEditorService.CACHE).length + 1;
 			do {
-				resource = URI.create(UntitledEditorInput.SCHEMA, null, 'Untitled-' + counter);
+				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: 'Untitled-' + counter });
 				counter++;
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
@@ -123,7 +140,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 		let input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
 
 		// Remove from cache on dispose
-		input.addOneTimeListener(EventType.DISPOSE, () => {
+		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
 		});
@@ -139,7 +156,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			return resource;
 		}
 
-		return URI.create(UntitledEditorInput.SCHEMA, null, resource.fsPath);
+		return URI.from({ scheme: UntitledEditorInput.SCHEMA, path: resource.fsPath });
 	}
 
 	public hasAssociatedFilePath(resource: URI): boolean {

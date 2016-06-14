@@ -6,10 +6,8 @@
 'use strict';
 
 import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import {Identifiers} from 'vs/workbench/common/constants';
-import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -17,6 +15,7 @@ import dom = require('vs/base/browser/dom');
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, remote} from 'electron';
 
@@ -26,6 +25,7 @@ export interface IWindowConfiguration {
 	window: {
 		openFilesInNewWindow: boolean;
 		reopenFolders: string;
+		restoreFullscreen: boolean;
 		zoomLevel: number;
 	};
 }
@@ -41,6 +41,7 @@ export class ElectronWindow {
 		@IEventService private eventService: IEventService,
 		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		this.win = win;
@@ -52,8 +53,8 @@ export class ElectronWindow {
 
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
-			this.eventService.addListener(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => {
-				let fileInput = workbenchEditorCommon.asFileEditorInput(e.editorInput, true);
+			this.editorGroupService.onEditorsChanged(() => {
+				let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 				let representedFilename = '';
 				if (fileInput) {
 					representedFilename = fileInput.getResource().fsPath;
@@ -63,69 +64,48 @@ export class ElectronWindow {
 			});
 		}
 
-		// Prevent a dropped file from opening as nw application
+		// Prevent a dropped file from opening as application
 		window.document.body.addEventListener('dragover', (e: DragEvent) => {
 			e.preventDefault();
 		});
 
-		// Let a dropped file open inside Monaco (only if dropped over editor area)
+		// Let a dropped file open inside Code (only if dropped over editor area)
 		window.document.body.addEventListener('drop', (e: DragEvent) => {
 			e.preventDefault();
 
 			let editorArea = window.document.getElementById(Identifiers.EDITOR_PART);
 			if (dom.isAncestor(e.toElement, editorArea)) {
-				let pathsOpened = false;
 
 				// Check for native file transfer
 				if (e.dataTransfer && e.dataTransfer.files) {
 					let thepaths: string[] = [];
 					for (let i = 0; i < e.dataTransfer.files.length; i++) {
-						if (e.dataTransfer.files[i] && (<any>e.dataTransfer.files[i]).path) {
-							thepaths.push((<any>e.dataTransfer.files[i]).path);
+						if (e.dataTransfer.files[i] && e.dataTransfer.files[i].path) {
+							thepaths.push(e.dataTransfer.files[i].path);
 						}
 					}
 
 					if (thepaths.length) {
-						pathsOpened = true;
 						this.focus(); // make sure this window has focus so that the open call reaches the right window!
 						this.open(thepaths);
-					}
-				}
-
-				// Otherwise check for special webkit transfer
-				if (!pathsOpened && e.dataTransfer && (<any>e).dataTransfer.items) {
-					let items: { getAsString: (clb: (str: string) => void) => void; }[] = (<any>e).dataTransfer.items;
-					if (items.length && typeof items[0].getAsString === 'function') {
-						items[0].getAsString((str) => {
-							try {
-								let resource = uri.parse(str);
-								if (resource.scheme === 'file') {
-
-									// Do not allow to drop a child of the currently active workspace. This prevents an issue
-									// where one would drop a folder from the explorer by accident into the editor area and
-									// loose all the context.
-									let workspace = this.contextService.getWorkspace();
-									if (workspace && paths.isEqualOrParent(resource.fsPath, workspace.resource.fsPath)) {
-										return;
-									}
-
-									this.focus(); // make sure this window has focus so that the open call reaches the right window!
-									this.open([decodeURIComponent(resource.fsPath)]);
-								}
-							} catch (error) {
-								// not a resource
-							}
-						});
 					}
 				}
 			}
 		});
 
 		// Handle window.open() calls
-		(<any>window).open = function(url: string, target: string, features: string, replace: boolean) {
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
 			shell.openExternal(url);
 
 			return null;
+		};
+
+		// Patch focus to also focus the entire window
+		const originalFocus = window.focus;
+		const $this = this;
+		window.focus = function() {
+			originalFocus.call(this, arguments);
+			$this.focus();
 		};
 	}
 
@@ -166,7 +146,7 @@ export class ElectronWindow {
 			return dialog.showSaveDialog(this.win, options, callback);
 		}
 
-		return dialog.showSaveDialog(this.win, options); // https://github.com/atom/electron/issues/4936
+		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
 	public setFullScreen(fullscreen: boolean): void {

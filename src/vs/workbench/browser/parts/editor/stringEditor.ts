@@ -27,7 +27,7 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
 /**
  * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
- * Uses the Monaco TextEditor widget to show the contents.
+ * Uses the TextEditor widget to show the contents.
  */
 export class StringEditor extends BaseTextEditor {
 
@@ -51,10 +51,10 @@ export class StringEditor extends BaseTextEditor {
 
 		this.mapResourceToEditorViewState = Object.create(null);
 
-		this.toUnbind.push(this.eventService.addListener(EventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledDeletedEvent(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onUntitledSavedEvent(e)));
 	}
 
-	private onUntitledDeletedEvent(e: UntitledEditorEvent): void {
+	private onUntitledSavedEvent(e: UntitledEditorEvent): void {
 		delete this.mapResourceToEditorViewState[e.resource.toString()];
 	}
 
@@ -160,10 +160,6 @@ export class StringEditor extends BaseTextEditor {
 			let lastLine = model.getLineCount();
 			codeEditor.revealLine(lastLine);
 		}
-	}
-
-	public supportsSplitEditor(): boolean {
-		return true;
 	}
 
 	public clearInput(): void {

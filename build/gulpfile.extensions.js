@@ -31,13 +31,11 @@ var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
 var tasks = compilations.map(function(tsconfigFile) {
 	var absolutePath = path.join(extensionsPath, tsconfigFile);
-	var absoluteDirname = path.dirname(absolutePath);
 	var relativeDirname = path.dirname(tsconfigFile);
 
 	var tsOptions = require(absolutePath).compilerOptions;
 	tsOptions.verbose = !quiet;
 	tsOptions.sourceMap = true;
-	tsOptions.sourceRoot = util.toFileUri(path.join(absoluteDirname, 'src'));
 
 	var name = relativeDirname.replace(/\//g, '-');
 
@@ -74,7 +72,10 @@ var tasks = compilations.map(function(tsconfigFile) {
 				.pipe(sourcemaps.write('.', {
 					addComment: false,
 					includeContent: !!build,
-					sourceRoot: tsOptions.sourceRoot
+					sourceRoot: function(file) {
+						var levels = file.relative.split(path.sep).length;
+						return '../'.repeat(levels) + 'src';
+					}
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18n, out) : es.through())

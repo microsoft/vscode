@@ -51,8 +51,9 @@ export class DebugViewlet extends Viewlet {
 		this.progressRunner = null;
 		this.viewletSettings = this.getMemento(storageService, memento.Scope.WORKSPACE);
 		this.toDispose = [];
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			this.onDebugServiceStateChange();
+		this.views = [];
+		this.toDispose.push(this.debugService.onDidChangeState((state) => {
+			this.onDebugServiceStateChange(state);
 		}));
 	}
 
@@ -116,7 +117,7 @@ export class DebugViewlet extends Viewlet {
 	}
 
 	public getActions(): actions.IAction[] {
-		if (this.debugService.getState() === debug.State.Disabled) {
+		if (this.debugService.state === debug.State.Disabled) {
 			return [];
 		}
 
@@ -144,12 +145,12 @@ export class DebugViewlet extends Viewlet {
 		return null;
 	}
 
-	private onDebugServiceStateChange(): void {
+	private onDebugServiceStateChange(newState: debug.State): void {
 		if (this.progressRunner) {
 			this.progressRunner.done();
 		}
 
-		if (this.debugService.getState() === debug.State.Initializing) {
+		if (newState === debug.State.Initializing) {
 			this.progressRunner = this.progressService.show(true);
 		} else {
 			this.progressRunner = null;

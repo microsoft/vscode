@@ -37,10 +37,6 @@ export class GitDiffEditorInput
 		this.status = status;
 	}
 
-	public getId(): string {
-		throw new Error('To implement.');
-	}
-
 	public getFileStatus():git.IFileStatus {
 		return this.status;
 	}
@@ -50,12 +46,12 @@ export class GitDiffEditorInput
 			return true;
 		}
 
-		var originalInput = this.getOriginalInput();
+		var originalInput = this.originalInput;
 		if (originalInput && originalInput.matches(otherInput)) {
 			return true;
 		}
 
-		var modifiedInput = this.getModifiedInput();
+		var modifiedInput = this.modifiedInput;
 		if (modifiedInput && modifiedInput.matches(otherInput)) {
 			return true;
 		}
@@ -66,26 +62,26 @@ export class GitDiffEditorInput
 
 export class GitWorkingTreeDiffEditorInput extends GitDiffEditorInput {
 
-	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitWorkingTreeDiffEditorInput';
+	static ID = 'vs.git.workingTreeDiffInput';
 
 	constructor(name:string, description:string, originalInput:WorkbenchEditorCommon.EditorInput, modifiedInput:WorkbenchEditorCommon.EditorInput, status:git.IFileStatus) {
 		super(name, description, originalInput, modifiedInput, status);
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return GitWorkingTreeDiffEditorInput.ID;
 	}
 }
 
 export class GitIndexDiffEditorInput extends GitDiffEditorInput {
 
-	static ID:string = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitIndexDiffEditorInput';
+	static ID:string = 'vs.git.indexDiffInput';
 
 	constructor(name:string, description:string, originalInput:WorkbenchEditorCommon.EditorInput, modifiedInput:WorkbenchEditorCommon.EditorInput, status:git.IFileStatus) {
 		super(name, description, originalInput, modifiedInput, status);
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return GitIndexDiffEditorInput.ID;
 	}
 }
@@ -94,7 +90,7 @@ export class NativeGitIndexStringEditorInput
 	extends stringei.StringEditorInput
 	implements IEditorInputWithStatus
 {
-	public static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.NativeGitIndexStringEditorInput';
+	public static ID = 'vs.git.stringEditorInput';
 
 	private gitService: IGitService;
 	private editorService: IWorkbenchEditorService;
@@ -123,7 +119,7 @@ export class NativeGitIndexStringEditorInput
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION_END, () => this.onGitServiceStateChange()));
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return NativeGitIndexStringEditorInput.ID;
 	}
 

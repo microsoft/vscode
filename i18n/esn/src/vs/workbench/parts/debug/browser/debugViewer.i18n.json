@@ -9,6 +9,7 @@
 	"functionBreakPointInputAriaLabel": "Escribir punto de interrupción de función",
 	"functionBreakpointAriaLabel": "Punto de interrupción de función {0}, puntos de interrupción, depuración",
 	"functionBreakpointPlaceholder": "Función donde interrumpir",
+	"loadMoreStackFrames": "Cargar más marcos de pila",
 	"stackFrameAriaLabel": "Marco de pila {0} línea {1} {2}, pila de llamadas, depuración",
 	"threadAriaLabel": "Subproceso {0}, pila de llamadas, depuración",
 	"variableAriaLabel": "{0} valor {1}, variables, depuración",

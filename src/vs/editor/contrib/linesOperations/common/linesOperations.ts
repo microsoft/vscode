@@ -268,52 +268,52 @@ class InsertLineAfterAction extends HandlerEditorAction {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DeleteLinesAction, DeleteLinesAction.ID, nls.localize('lines.delete', "Delete Line"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
-}));
+}, 'Delete Line'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesAscendingAction, SortLinesAscendingAction.ID, nls.localize('lines.sortAscending', "Sort Lines Ascending"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
-}));
+}, 'Sort Lines Ascending'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesDescendingAction, SortLinesDescendingAction.ID, nls.localize('lines.sortDescending', "Sort Lines Descending"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
-}));
+}, 'Sort Lines Descending'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TrimTrailingWhitespaceAction, TrimTrailingWhitespaceAction.ID, nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X
-}));
+}, 'Trim Trailing Whitespace'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesDownAction, MoveLinesDownAction.ID, nls.localize('lines.moveDown', "Move Line Down"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.DownArrow,
 	linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
-}));
+}, 'Move Line Down'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesUpAction, MoveLinesUpAction.ID, nls.localize('lines.moveUp', "Move Line Up"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.UpArrow,
 	linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
-}));
+}, 'Move Line Up'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(CopyLinesDownAction, CopyLinesDownAction.ID, nls.localize('lines.copyDown', "Copy Line Down"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
-}));
+}, 'Copy Line Down'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(CopyLinesUpAction, CopyLinesUpAction.ID, nls.localize('lines.copyUp', "Copy Line Up"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
-}));
+}, 'Copy Line Up'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentLinesAction, IndentLinesAction.ID, nls.localize('lines.indent', "Indent Line"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
-}));
+}, 'Indent Line'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OutdentLinesAction, OutdentLinesAction.ID, nls.localize('lines.outdent', "Outdent Line"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
-}));
+}, 'Outdent Line'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineBeforeAction, InsertLineBeforeAction.ID, nls.localize('lines.insertBefore', "Insert Line Above"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-}));
+}, 'Insert Line Above'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineAfterAction, InsertLineAfterAction.ID, nls.localize('lines.insertAfter', "Insert Line Below"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter
-}));
+}, 'Insert Line Below'));

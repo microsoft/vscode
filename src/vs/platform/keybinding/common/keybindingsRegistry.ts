@@ -13,7 +13,7 @@ import {Registry} from 'vs/platform/platform';
 export interface ICommandRule extends IKeybindings {
 	id: string;
 	weight: number;
-	context: KbExpr;
+	when: KbExpr;
 }
 
 export interface ICommandDescriptor extends ICommandRule {
@@ -88,12 +88,14 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	public registerCommandRule(rule: ICommandRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
+		// here
 		if (actualKb && actualKb.primary) {
-			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.context);
+			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
 		}
 
+		// here
 		if (actualKb && Array.isArray(actualKb.secondary)) {
-			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(k, rule.id, rule.weight, -i - 1, rule.context));
+			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(k, rule.id, rule.weight, -i - 1, rule.when));
 		}
 	}
 
@@ -114,9 +116,9 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			for (let arg of description.args) {
 				constraints.push(arg.constraint);
 			}
-			handler = function(accesor, args) {
+			handler = function (accesor, ...args: any[]) {
 				validateConstraints(args, constraints);
-				return desc.handler(accesor, args);
+				return desc.handler(accesor, ...args);
 			};
 		}
 
@@ -131,7 +133,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return this._commands;
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, context: KbExpr): void {
+	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: KbExpr): void {
 		if (platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
 				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
@@ -142,7 +144,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._keybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			context: context,
+			when: when,
 			weight1: weight1,
 			weight2: weight2
 		});

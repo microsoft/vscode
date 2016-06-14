@@ -74,7 +74,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCurso
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
 	}
-}));
+}, 'Add Cursor Above'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorBelow, InsertCursorBelow.ID, nls.localize('mutlicursor.insertBelow', "Add Cursor Below"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
@@ -82,8 +82,8 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCurso
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
 	}
-}));
+}, 'Add Cursor Below'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorAtEndOfEachLineSelected, InsertCursorAtEndOfEachLineSelected.ID, nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create Multiple Cursors from Selected Lines"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
-}));
+}, 'Create Multiple Cursors from Selected Lines'));

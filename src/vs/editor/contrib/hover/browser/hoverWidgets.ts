@@ -5,29 +5,28 @@
 'use strict';
 
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Position} from 'vs/editor/common/core/position';
-import {IEditorPosition, IPosition} from 'vs/editor/common/editorCommon';
+import {IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import {Widget} from 'vs/base/browser/ui/widget';
 
-export class ContentHoverWidget implements editorBrowser.IContentWidget {
+export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 
 	private _id: string;
-	_editor: editorBrowser.ICodeEditor;
-	_isVisible: boolean;
+	protected _editor: editorBrowser.ICodeEditor;
+	protected _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
-	_domNode: HTMLElement;
-	_showAtPosition: IEditorPosition;
+	protected _domNode: HTMLElement;
+	protected _showAtPosition: Position;
 	private _stoleFocus: boolean;
-	private _toDispose: IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
 	constructor(id: string, editor: editorBrowser.ICodeEditor) {
+		super();
 		this._id = id;
 		this._editor = editor;
 		this._isVisible = false;
@@ -39,10 +38,16 @@ export class ContentHoverWidget implements editorBrowser.IContentWidget {
 		this._domNode.style.display = 'inline-block';
 		this._containerDomNode.appendChild(this._domNode);
 		this._containerDomNode.tabIndex = 0;
-		this._toDispose = [];
-		this._toDispose.push(dom.addStandardDisposableListener(this._containerDomNode, 'keydown', (e: IKeyboardEvent) => {
+		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.hide();
+			}
+		});
+
+		this._editor.applyFontInfo(this._domNode);
+		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
+			if (e.fontInfo) {
+				this._editor.applyFontInfo(this._domNode);
 			}
 		}));
 
@@ -111,21 +116,21 @@ export class ContentHoverWidget implements editorBrowser.IContentWidget {
 	}
 
 	public dispose(): void {
-		this.hide();
-		this._toDispose = dispose(this._toDispose);
+		this._editor.removeContentWidget(this);
+		super.dispose();
 	}
 }
 
-export class GlyphHoverWidget implements editorBrowser.IOverlayWidget {
+export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWidget {
 
 	private _id: string;
-	_editor: editorBrowser.ICodeEditor;
-	_isVisible: boolean;
-	_domNode: HTMLElement;
-	_showAtLineNumber: number;
+	protected _editor: editorBrowser.ICodeEditor;
+	protected _isVisible: boolean;
+	protected _domNode: HTMLElement;
+	protected _showAtLineNumber: number;
 
 	constructor(id: string, editor: editorBrowser.ICodeEditor) {
-
+		super();
 		this._id = id;
 		this._editor = editor;
 		this._isVisible = false;
@@ -137,6 +142,14 @@ export class GlyphHoverWidget implements editorBrowser.IOverlayWidget {
 		this._domNode.setAttribute('role', 'presentation');
 
 		this._showAtLineNumber = -1;
+
+		this._editor.applyFontInfo(this._domNode);
+		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
+			if (e.fontInfo) {
+				this._editor.applyFontInfo(this._domNode);
+			}
+		}));
+
 		this._editor.addOverlayWidget(this);
 	}
 
@@ -177,6 +190,7 @@ export class GlyphHoverWidget implements editorBrowser.IOverlayWidget {
 	}
 
 	public dispose(): void {
-		this.hide();
+		this._editor.removeOverlayWidget(this);
+		super.dispose();
 	}
 }

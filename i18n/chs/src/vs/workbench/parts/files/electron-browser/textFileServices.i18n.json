@@ -6,7 +6,7 @@
 {
 	"allFiles": "所有文件",
 	"cancel": "取消",
-	"dontSave": "不保存(&&S)",
+	"dontSave": "不保存(&&N)",
 	"save": "保存(&&S)",
 	"saveAll": "全部保存(&&S)",
 	"saveChangesDetail": "如果不保存，更改将丢失。",

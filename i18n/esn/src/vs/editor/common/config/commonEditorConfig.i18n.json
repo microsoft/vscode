@@ -38,6 +38,6 @@
 	"tabSize": "El número de espacios a los que equivale una tabulación.",
 	"tabSize.errorMessage": "Se esperaba \"number\". Tenga en cuenta que el ajuste \"editor.detectIndentation\" ha reemplazado al valor \"auto\".",
 	"wordSeparators": "Caracteres que se usarán como separadores de palabras al realizar operaciones o navegaciones relacionadas con palabras.",
-	"wrappingColumn": "Controla el número de caracteres tras los cuales el editor salta a la línea siguiente. Si el valor se establece en 0, se activa el ajuste del ancho de la ventanilla",
+	"wrappingColumn": "Controla el número de caracteres tras los cuales el editor salta a la línea siguiente. Si el valor se establece en 0, se activa el ajuste del ancho de la ventanilla (ajuste de línea). Si se establece en -1, hace que el editor no ajuste las líneas nunca.",
 	"wrappingIndent": "Controla el sangrado de las líneas ajustadas. Puede ser uno los valores 'none', 'same' o 'indent'."
 }

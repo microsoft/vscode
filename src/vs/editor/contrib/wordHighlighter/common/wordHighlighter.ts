@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {sequence} from 'vs/base/common/async';
+import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IOccurence, OccurrencesRegistry} from 'vs/editor/common/modes';
+import {DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {Position} from 'vs/editor/common/core/position';
 
-export function getOccurrencesAtPosition(model: editorCommon.IModel, position: editorCommon.IPosition):TPromise<IOccurence[]> {
+export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position):TPromise<DocumentHighlight[]> {
 
-	const resource = model.getAssociatedResource();
-	const orderedByScore = OccurrencesRegistry.ordered(model);
+	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 	let foundResult = false;
 
 	// in order of score ask the occurrences provider
@@ -24,7 +25,9 @@ export function getOccurrencesAtPosition(model: editorCommon.IModel, position: e
 	return sequence(orderedByScore.map(provider => {
 		return () => {
 			if (!foundResult) {
-				return provider.findOccurrences(resource, position).then(data => {
+				return asWinJsPromise((token) => {
+					return provider.provideDocumentHighlights(model, position, token);
+				}).then(data => {
 					if (Array.isArray(data) && data.length > 0) {
 						foundResult = true;
 						return data;
@@ -45,14 +48,14 @@ class WordHighlighter {
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private model: editorCommon.IModel;
-	private _lastWordRange: editorCommon.IEditorRange;
+	private _lastWordRange: Range;
 	private _decorationIds: string[];
-	private toUnhook: Function[];
+	private toUnhook: IDisposable[];
 
 	private workerRequestTokenId:number = 0;
-	private workerRequest:TPromise<IOccurence[]> = null;
+	private workerRequest:TPromise<DocumentHighlight[]> = null;
 	private workerRequestCompleted:boolean = false;
-	private workerRequestValue:IOccurence[] = [];
+	private workerRequestValue:DocumentHighlight[] = [];
 
 	private lastCursorPositionChangeTime:number = 0;
 	private renderDecorationsTimer:number = -1;
@@ -61,14 +64,14 @@ class WordHighlighter {
 		this.editor = editor;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.addListener(editorCommon.EventType.CursorPositionChanged, (e:editorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
 			this._onPositionChanged(e);
 		}));
-		this.toUnhook.push(editor.addListener(editorCommon.EventType.ModelChanged, (e) => {
+		this.toUnhook.push(editor.onDidChangeModel((e) => {
 			this._stopAll();
 			this.model = this.editor.getModel();
 		}));
-		this.toUnhook.push(editor.addListener('change', (e) => {
+		this.toUnhook.push(editor.onDidChangeModelContent((e) => {
 			this._stopAll();
 		}));
 
@@ -117,13 +120,13 @@ class WordHighlighter {
 	private _onPositionChanged(e:editorCommon.ICursorPositionChangedEvent): void {
 
 		// ignore typing & other
-		if (e.reason !== 'explicit') {
+		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {
 			this._stopAll();
 			return;
 		}
 
 		// no providers for this model
-		if(!OccurrencesRegistry.has(this.model)) {
+		if(!DocumentHighlightProviderRegistry.has(this.model)) {
 			this._stopAll();
 			return;
 		}
@@ -234,16 +237,17 @@ class WordHighlighter {
 		var decorations:editorCommon.IModelDeltaDecoration[] = [];
 		for(var i = 0, len = this.workerRequestValue.length; i < len; i++) {
 			var info = this.workerRequestValue[i];
-			var className = 'wordHighlight';
 			var color = '#A0A0A0';
 
-			if (info.kind === 'write') {
-				className = className + 'Strong';
-			} else if (info.kind === 'text') {
+			let className:string;
+			if (info.kind === DocumentHighlightKind.Write) {
+				className = 'wordHighlightStrong';
+			} else if (info.kind === DocumentHighlightKind.Text) {
 				className = 'selectionHighlight';
-				// Keep the same color for now
-				//color = 'rgba(249, 206, 130, 0.7)';
+			} else {
+				className = 'wordHighlight';
 			}
+
 			decorations.push({
 				range: info.range,
 				options: {
@@ -263,9 +267,7 @@ class WordHighlighter {
 
 	public destroy(): void {
 		this._stopAll();
-		while(this.toUnhook.length > 0) {
-			this.toUnhook.pop()();
-		}
+		this.toUnhook = dispose(this.toUnhook);
 	}
 }
 

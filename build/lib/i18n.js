@@ -91,12 +91,6 @@ function sortLanguages(directoryNames) {
         return a.iso639_2 < b.iso639_2 ? -1 : (a.iso639_2 > b.iso639_2 ? 1 : 0);
     });
 }
-var headerComment = [
-    '/*---------------------------------------------------------------------------------------------',
-    ' * Copyright (c) Microsoft Corporation. All rights reserved.',
-    ' * Licensed under the MIT License. See License.txt in the project root for license information.',
-    ' *---------------------------------------------------------------------------------------------*/'
-].join('\n');
 function stripComments(content) {
     /**
     * First capturing group matches double quoted string
@@ -164,7 +158,7 @@ function escapeCharacters(value) {
     }
     return result.join('');
 }
-function processCoreBundleFormat(json, emitter) {
+function processCoreBundleFormat(fileHeader, json, emitter) {
     var keysSection = json.keys;
     var messageSection = json.messages;
     var bundleSection = json.bundles;
@@ -236,7 +230,7 @@ function processCoreBundleFormat(json, emitter) {
         Object.keys(bundleSection).forEach(function (bundle) {
             var modules = bundleSection[bundle];
             var contents = [
-                headerComment,
+                fileHeader,
                 ("define(\"" + bundle + ".nls." + language.iso639_2 + "\", {")
             ];
             modules.forEach(function (module, index) {
@@ -273,7 +267,7 @@ function processCoreBundleFormat(json, emitter) {
         }
     });
 }
-function processNlsFiles() {
+function processNlsFiles(opts) {
     return event_stream_1.through(function (file) {
         var fileName = path.basename(file.path);
         if (fileName === 'nls.metadata.json') {
@@ -285,7 +279,7 @@ function processNlsFiles() {
                 this.emit('error', "Failed to read component file: " + file.relative);
             }
             if (BundledFormat.is(json)) {
-                processCoreBundleFormat(json, this);
+                processCoreBundleFormat(opts.fileHeader, json, this);
             }
         }
         this.emit('data', file);

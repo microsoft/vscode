@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, combinedDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
+import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -20,18 +20,11 @@ import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/comm
 import * as modes from 'vs/editor/common/modes';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
-import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
-import {IRichEditConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {Token} from 'vs/editor/common/modes/supports';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -394,18 +387,18 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
-	private _registerModeSupport<T>(mode:modes.IMode, support: string, callback: (mode: modes.IMode) => T): IDisposable {
-		if (mode.registerSupport) {
-			return mode.registerSupport(support, callback);
+	private _registerTokenizationSupport<T>(mode:modes.IMode, callback: (mode: modes.IMode) => T): IDisposable {
+		if (mode.setTokenizationSupport) {
+			return mode.setTokenizationSupport(callback);
 		} else {
-			console.warn('Cannot register support ' + support + ' on mode ' + mode.getId() + ' because it does not support it.');
+			console.warn('Cannot register tokenizationSupport on mode ' + mode.getId() + ' because it does not support it.');
 			return EmptyDisposable;
 		}
 	}
 
-	protected registerModeSupport<T>(modeId: string, support: string, callback: (mode: modes.IMode) => T): IDisposable {
+	private registerModeSupport<T>(modeId: string, callback: (mode: modes.IMode) => T): IDisposable {
 		if (this._instantiatedModes.hasOwnProperty(modeId)) {
-			return this._registerModeSupport(this._instantiatedModes[modeId], support, callback);
+			return this._registerTokenizationSupport(this._instantiatedModes[modeId], callback);
 		}
 
 		let cc: (disposable:IDisposable)=>void;
@@ -416,7 +409,7 @@ export class ModeServiceImpl implements IModeService {
 				return;
 			}
 
-			cc(this._registerModeSupport(mode, support, callback));
+			cc(this._registerTokenizationSupport(mode, callback));
 			disposable.dispose();
 		});
 
@@ -427,33 +420,101 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
-	protected doRegisterMonarchDefinition(modeId:string, lexer: ILexer): IDisposable {
-		return combinedDisposable(
-			this.registerTokenizationSupport(modeId, (mode: modes.IMode) => {
-				return createTokenizationSupport(this, mode, lexer);
-			}),
-
-			this.registerRichEditSupport(modeId, createRichEditSupport(lexer))
-		);
-	}
-
-	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
-		var lexer = compile(objects.clone(language));
-		return this.doRegisterMonarchDefinition(modeId, lexer);
-	}
-
-
-	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
-		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
-	}
-
-	public registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new DeclarationSupport(modeId, contribution));
-	}
-
 	public registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'tokenizationSupport', callback);
+		return this.registerModeSupport(modeId, callback);
 	}
+
+	public registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable {
+		return this.registerModeSupport(modeId, (mode) => {
+			return new TokenizationSupport2Adapter(mode, support);
+		});
+	}
+}
+
+export class TokenizationState2Adapter implements modes.IState {
+
+	private _mode: modes.IMode;
+	private _actual: modes.IState2;
+	private _stateData: modes.IState;
+
+	constructor(mode: modes.IMode, actual: modes.IState2, stateData: modes.IState) {
+		this._mode = mode;
+		this._actual = actual;
+		this._stateData = stateData;
+	}
+
+	public get actual(): modes.IState2 { return this._actual; }
+
+	public clone(): TokenizationState2Adapter {
+		return new TokenizationState2Adapter(this._mode, this._actual.clone(), AbstractState.safeClone(this._stateData));
+	}
+
+	public equals(other:modes.IState): boolean {
+		if (other instanceof TokenizationState2Adapter) {
+			if (!this._actual.equals(other._actual)) {
+				return false;
+			}
+			return AbstractState.safeEquals(this._stateData, other._stateData);
+		}
+		return false;
+	}
+
+	public getMode(): modes.IMode {
+		return this._mode;
+	}
+
+	public tokenize(stream:any): any {
+		throw new Error('Unexpected tokenize call!');
+	}
+
+	public getStateData(): modes.IState {
+		return this._stateData;
+	}
+
+	public setStateData(stateData:modes.IState): void {
+		this._stateData = stateData;
+	}
+}
+
+export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
+
+	public shouldGenerateEmbeddedModels = false;
+
+	private _mode: modes.IMode;
+	private _actual: modes.TokensProvider;
+
+	constructor(mode: modes.IMode, actual: modes.TokensProvider) {
+		this._mode = mode;
+		this._actual = actual;
+	}
+
+	public getInitialState(): modes.IState {
+		return new TokenizationState2Adapter(this._mode, this._actual.getInitialState(), null);
+	}
+
+	public tokenize(line:string, state:modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
+		if (state instanceof TokenizationState2Adapter) {
+			let actualResult = this._actual.tokenize(line, state.actual);
+			let tokens: modes.IToken[] = [];
+			actualResult.tokens.forEach((t) => {
+				if (typeof t.scopes === 'string') {
+					tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
+				} else if (Array.isArray(t.scopes) && t.scopes.length === 1) {
+					tokens.push(new Token(t.startIndex + offsetDelta, t.scopes[0]));
+				} else {
+					throw new Error('Only token scopes as strings or of precisely 1 length are supported at this time!');
+				}
+			});
+			return {
+				tokens: tokens,
+				actualStopOffset: offsetDelta + line.length,
+				endState: new TokenizationState2Adapter(state.getMode(), actualResult.endState, state.getStateData()),
+				modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
+			};
+		}
+		throw new Error('Unexpected state to tokenize with!');
+	}
+
 }
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {
@@ -462,9 +523,9 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	private _onReadyPromise: TPromise<boolean>;
 
 	constructor(
-		threadService:IThreadService,
-		extensionService:IExtensionService,
-		configurationService: IConfigurationService
+		@IThreadService threadService:IThreadService,
+		@IExtensionService extensionService:IExtensionService,
+		@IConfigurationService configurationService:IConfigurationService
 	) {
 		super(threadService, extensionService);
 		this._configurationService = configurationService;
@@ -503,7 +564,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 
 		});
 
-		this._configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config));
+		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
 	}
 
 	public onReady(): TPromise<boolean> {
@@ -560,18 +621,6 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		this._getModeServiceWorkerHelper().instantiateMode(modeId);
 		return super._createMode(modeId);
 	}
-
-	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
-		this._getModeServiceWorkerHelper().registerMonarchDefinition(modeId, language);
-		var lexer = compile(objects.clone(language));
-		return combinedDisposable(
-			super.doRegisterMonarchDefinition(modeId, lexer),
-
-			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {
-				return createSuggestSupport(modelService, editorWorkerService, modeId, lexer);
-			})
-		);
-	}
 }
 
 export interface IWorkerInitData {
@@ -606,9 +655,5 @@ export class ModeServiceWorkerHelper {
 
 	public configureModeById(modeId:string, options:any):void {
 		this._modeService.configureMode(modeId, options);
-	}
-
-	public registerMonarchDefinition(modeId:string, language:ILanguage): void {
-		this._modeService.registerMonarchDefinition(null, null, modeId, language);
 	}
 }

@@ -13,7 +13,7 @@ import {EventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
-import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
@@ -25,15 +25,16 @@ import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeDefaults';
 import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {IDisposable,dispose} from 'vs/base/common/lifecycle';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
 	onCancel: () => void;
 	onType: (value: string) => void;
 	onShow?: () => void;
-	onHide?: () => void;
+	onHide?: (focusLost?: boolean) => void;
 	onFocusLost?: () => boolean /* veto close */;
 }
 
@@ -44,6 +45,11 @@ export interface IQuickOpenOptions {
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
 	enableAnimations?: boolean;
+}
+
+export interface IShowOptions {
+	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+	autoFocus?: IAutoFocus;
 }
 
 export interface IQuickOpenUsageLogger {
@@ -61,12 +67,18 @@ export class QuickOpenController extends DefaultController {
 	}
 }
 
+export enum HideReason {
+	ELEMENT_SELECTED,
+	FOCUS_LOST,
+	CANCELED
+}
+
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
 
 export class QuickOpenWidget implements IModelProvider {
 
-	public static MAX_WIDTH = 600;				// Max total width of quick open widget
-	public static MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
+	private static MAX_WIDTH = 600;				// Max total width of quick open widget
+	private static MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
 
 	private options: IQuickOpenOptions;
 	private builder: Builder;
@@ -79,7 +91,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private visible: boolean;
 	private isLoosingFocus: boolean;
 	private callbacks: IQuickOpenCallbacks;
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 	private currentInputToken: string;
 	private quickNavigateConfiguration: IQuickNavigateConfiguration;
 	private container: HTMLElement;
@@ -115,12 +127,12 @@ export class QuickOpenWidget implements IModelProvider {
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
 
-					this.hide(true);
+					this.hide(HideReason.CANCELED);
 				}
 			})
-			.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
-			.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
-			.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
+				.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
+				.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
+				.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
 
 			// Progress Bar
 			this.progressBar = new ProgressBar(div.clone());
@@ -187,104 +199,104 @@ export class QuickOpenWidget implements IModelProvider {
 					filter: new Filter(this),
 					accessibilityProvider: new AccessibilityProvider(this)
 				}, {
-					twistiePixels: 11,
-					indentPixels: 0,
-					alwaysFocused: true,
-					verticalScrollMode: 'visible',
-					ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
-				});
+						twistiePixels: 11,
+						indentPixels: 0,
+						alwaysFocused: true,
+						verticalScrollMode: ScrollbarVisibility.Visible,
+						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
+					});
 
 				this.treeElement = this.tree.getHTMLElement();
 
 				// Handle Focus and Selection event
-				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {
+				this.toUnbind.push(this.tree.addListener2(EventType.FOCUS, (event: IFocusEvent) => {
 					this.elementFocused(event.focus, event);
 				}));
 
-				this.toUnbind.push(this.tree.addListener(EventType.SELECTION, (event: ISelectionEvent) => {
+				this.toUnbind.push(this.tree.addListener2(EventType.SELECTION, (event: ISelectionEvent) => {
 					if (event.selection && event.selection.length > 0) {
 						this.elementSelected(event.selection[0], event);
 					}
 				}));
 			}).
-			on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+				on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
-				// Only handle when in quick navigation mode
-				if (!this.quickNavigateConfiguration) {
-					return;
-				}
-
-				// Support keyboard navigation in quick navigation mode
-				if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
-					DOM.EventHelper.stop(e, true);
-
-					this.navigateInTree(keyboardEvent.keyCode);
-				}
-			}).
-			on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-				let keyCode = keyboardEvent.keyCode;
-
-				// Only handle when in quick navigation mode
-				if (!this.quickNavigateConfiguration) {
-					return;
-				}
-
-				// Select element when keys are pressed that signal it
-				let quickNavKeys = this.quickNavigateConfiguration.keybindings;
-				let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
-					if (k.hasShift() && keyCode === KeyCode.Shift) {
-						if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
-							return false; // this is an optimistic check for the shift key being used to navigate back in quick open
-						}
-
-						return true;
+					// Only handle when in quick navigation mode
+					if (!this.quickNavigateConfiguration) {
+						return;
 					}
 
-					if (k.hasAlt() && keyCode === KeyCode.Alt) {
-						return true;
+					// Support keyboard navigation in quick navigation mode
+					if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+						DOM.EventHelper.stop(e, true);
+
+						this.navigateInTree(keyboardEvent.keyCode);
+					}
+				}).
+				on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					let keyCode = keyboardEvent.keyCode;
+
+					// Only handle when in quick navigation mode
+					if (!this.quickNavigateConfiguration) {
+						return;
 					}
 
-					// Mac is a bit special
-					if (platform.isMacintosh) {
-						if (k.hasCtrlCmd() && keyCode === KeyCode.Meta) {
+					// Select element when keys are pressed that signal it
+					let quickNavKeys = this.quickNavigateConfiguration.keybindings;
+					let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
+						if (k.hasShift() && keyCode === KeyCode.Shift) {
+							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
+								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+							}
+
 							return true;
 						}
 
-						if (k.hasWinCtrl() && keyCode === KeyCode.Ctrl) {
-							return true;
-						}
-					}
-
-					// Windows/Linux are not :)
-					else {
-						if (k.hasCtrlCmd() && keyCode === KeyCode.Ctrl) {
+						if (k.hasAlt() && keyCode === KeyCode.Alt) {
 							return true;
 						}
 
-						if (k.hasWinCtrl() && keyCode === KeyCode.Meta) {
-							return true;
+						// Mac is a bit special
+						if (platform.isMacintosh) {
+							if (k.hasCtrlCmd() && keyCode === KeyCode.Meta) {
+								return true;
+							}
+
+							if (k.hasWinCtrl() && keyCode === KeyCode.Ctrl) {
+								return true;
+							}
+						}
+
+						// Windows/Linux are not :)
+						else {
+							if (k.hasCtrlCmd() && keyCode === KeyCode.Ctrl) {
+								return true;
+							}
+
+							if (k.hasWinCtrl() && keyCode === KeyCode.Meta) {
+								return true;
+							}
+						}
+
+						return false;
+					});
+
+					if (wasTriggerKeyPressed) {
+						let focus = this.tree.getFocus();
+						if (focus) {
+							this.elementSelected(focus, e);
 						}
 					}
-
-					return false;
-				});
-
-				if (wasTriggerKeyPressed) {
-					let focus = this.tree.getFocus();
-					if (focus) {
-						this.elementSelected(focus, e);
-					}
-				}
-			}).
-			clone();
+				}).
+				clone();
 		})
 
-		// Widget Attributes
-		.addClass('quick-open-widget')
-		.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
-		.build(this.container);
+			// Widget Attributes
+			.addClass('quick-open-widget')
+			.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
+			.build(this.container);
 
 		// Support layout
 		if (this.layoutDimensions) {
@@ -389,7 +401,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// ARIA
 		this.inputElement.setAttribute('aria-activedescendant', this.treeElement.getAttribute('aria-activedescendant'));
 
-		const context: IContext = { event: event, quickNavigateConfiguration: this.quickNavigateConfiguration };
+		const context: IEntryRunContext = { event: event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 		this.model.runner.run(value, Mode.PREVIEW, context);
 	}
 
@@ -398,7 +410,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
-			const context: IContext = { event: event, quickNavigateConfiguration: this.quickNavigateConfiguration };
+			const context: IEntryRunContext = { event: event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 			hide = this.model.runner.run(value, Mode.OPEN, context);
 		}
 
@@ -412,20 +424,22 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Hide if command was run successfully
 		if (hide) {
-			this.hide();
+			this.hide(HideReason.ELEMENT_SELECTED);
 		}
 	}
 
-	public show(prefix: string): void;
-	public show(input: IModel<any>, autoFocus?: IAutoFocus, quickNavigateConfiguration?: IQuickNavigateConfiguration): void;
-	public show(param: any, autoFocus?: IAutoFocus, quickNavigateConfiguration?: IQuickNavigateConfiguration): void {
-		if (types.isUndefined(autoFocus)) {
-			autoFocus = {};
-		}
+	private extractKeyMods(event: any): number[] {
+		const isCtrlCmd = event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey)));
 
+		return isCtrlCmd ? [KeyMod.CtrlCmd] : [];
+	}
+
+	public show(prefix: string, options?: IShowOptions): void;
+	public show(input: IModel<any>, options?: IShowOptions): void;
+	public show(param: any, options?: IShowOptions): void {
 		this.visible = true;
 		this.isLoosingFocus = false;
-		this.quickNavigateConfiguration = quickNavigateConfiguration;
+		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
@@ -460,7 +474,7 @@ export class QuickOpenWidget implements IModelProvider {
 		if (types.isString(param)) {
 			this.doShowWithPrefix(param);
 		} else {
-			this.doShowWithInput(param, autoFocus);
+			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
 		}
 
 		if (this.callbacks.onShow) {
@@ -654,7 +668,7 @@ export class QuickOpenWidget implements IModelProvider {
 		return height;
 	}
 
-	public hide(isCancel: boolean = false): void {
+	public hide(reason?: HideReason): void {
 		if (!this.isVisible()) {
 			return;
 		}
@@ -664,7 +678,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.builder.domBlur();
 
 		// report failure cases
-		if (isCancel) {
+		if (reason === HideReason.CANCELED) {
 			if (this.model) {
 				let entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
 				if (this.usageLogger) {
@@ -694,15 +708,19 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		// Callbacks
-		if (isCancel) {
+		if (reason === HideReason.CANCELED) {
 			this.callbacks.onCancel();
 		} else {
 			this.callbacks.onOk();
 		}
 
 		if (this.callbacks.onHide) {
-			this.callbacks.onHide();
+			this.callbacks.onHide(reason === HideReason.FOCUS_LOST);
 		}
+	}
+
+	public isQuickNavigating(): boolean {
+		return !!this.quickNavigateConfiguration;
 	}
 
 	public setPlaceHolder(placeHolder: string): void {
@@ -828,15 +846,13 @@ export class QuickOpenWidget implements IModelProvider {
 
 			const veto = this.callbacks.onFocusLost && this.callbacks.onFocusLost();
 			if (!veto) {
-				this.hide(false /* Do not treat loosing focus as cancel! */);
+				this.hide(HideReason.FOCUS_LOST);
 			}
 		});
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 
 		this.progressBar.dispose();
 		this.inputBox.dispose();

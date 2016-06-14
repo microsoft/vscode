@@ -15,18 +15,18 @@ import async = require('vs/base/common/async');
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import {isString} from 'vs/base/common/types';
-import Actions = require('vs/base/common/actions');
+import {IAction, ActionRunner as BaseActionRunner, IActionRunner} from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {$} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {LocalFileChangeEvent, ConfirmResult, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
-import {EditorOptions} from 'vs/workbench/common/editor';
+import {EditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
 import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -143,7 +143,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasActions(tree, stat);
 	}
 
-	public getActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
+	public getActions(tree: ITree, stat: FileStat): TPromise<IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return TPromise.as([]);
 		}
@@ -159,7 +159,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasSecondaryActions(tree, stat);
 	}
 
-	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
+	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return TPromise.as([]);
 		}
@@ -167,7 +167,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getSecondaryActions(tree, stat);
 	}
 
-	public runAction(tree: ITree, stat: FileStat, action: Actions.IAction, context?: any): TPromise<any>;
+	public runAction(tree: ITree, stat: FileStat, action: IAction, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
 		context = objects.mixin({
@@ -176,7 +176,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		}, context);
 
 		if (!isString(arg)) {
-			let action = <Actions.IAction>arg;
+			let action = <IAction>arg;
 			if (action.enabled) {
 				return action.run(context);
 			}
@@ -187,7 +187,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		let id = <string>arg;
 		let promise = this.hasActions(tree, stat) ? this.getActions(tree, stat) : TPromise.as([]);
 
-		return promise.then((actions: Actions.IAction[]) => {
+		return promise.then((actions: IAction[]) => {
 			for (let i = 0, len = actions.length; i < len; i++) {
 				if (actions[i].id === id && actions[i].enabled) {
 					return actions[i].run(context);
@@ -196,7 +196,7 @@ export class FileActionProvider extends ContributableActionProvider {
 
 			promise = this.hasSecondaryActions(tree, stat) ? this.getSecondaryActions(tree, stat) : TPromise.as([]);
 
-			return promise.then((actions: Actions.IAction[]) => {
+			return promise.then((actions: IAction[]) => {
 				for (let i = 0, len = actions.length; i < len; i++) {
 					if (actions[i].id === id && actions[i].enabled) {
 						return actions[i].run(context);
@@ -237,7 +237,7 @@ export class FileViewletState implements IFileViewletState {
 	}
 }
 
-export class ActionRunner extends Actions.ActionRunner implements Actions.IActionRunner {
+export class ActionRunner extends BaseActionRunner implements IActionRunner {
 	private viewletState: FileViewletState;
 
 	constructor(state: FileViewletState) {
@@ -246,7 +246,7 @@ export class ActionRunner extends Actions.ActionRunner implements Actions.IActio
 		this.viewletState = state;
 	}
 
-	public run(action: Actions.IAction, context?: any): TPromise<any> {
+	public run(action: IAction, context?: any): TPromise<any> {
 		return super.run(action, { viewletState: this.viewletState });
 	}
 }
@@ -257,7 +257,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 	constructor(
 		state: FileViewletState,
-		actionRunner: Actions.IActionRunner,
+		actionRunner: IActionRunner,
 		@IContextViewService private contextViewService: IContextViewService
 	) {
 		super({
@@ -300,7 +300,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		let done = async.once<boolean, void>(commit => {
+		let done = async.once(commit => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
@@ -450,12 +450,7 @@ export class FileController extends DefaultController {
 			if (!stat.isDirectory) {
 				tree.setSelection([stat], payload);
 
-				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey));
-
-				// Doubleclick: add to working files set
-				if (isDoubleClick) {
-					this.textFileService.getWorkingFilesModel().addEntry(stat);
-				}
+				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
 			}
 		}
 
@@ -580,13 +575,10 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean): void {
+	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean, pinned = false): void {
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			let editorOptions = new EditorOptions();
-			if (preserveFocus) {
-				editorOptions.preserveFocus = true;
-			}
+			let editorOptions = EditorOptions.create({ preserveFocus, pinned });
 
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
@@ -730,10 +722,6 @@ export class FileDragAndDrop implements IDragAndDrop {
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): IDragOverReaction {
 		let isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
 		let fromDesktop = data instanceof DesktopDragAndDropData;
-
-		if (this.contextService.getOptions().readOnly) {
-			return DRAG_OVER_REJECT;
-		}
 
 		// Desktop DND
 		if (fromDesktop) {

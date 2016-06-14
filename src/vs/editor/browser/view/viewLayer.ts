@@ -5,9 +5,11 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
 export interface IVisibleLineData {
 	getDomNode(): HTMLElement;
@@ -23,7 +25,7 @@ export interface IVisibleLineData {
 	getLineOuterHTML(out:string[], lineNumber: number, deltaTop: number): void;
 	getLineInnerHTML(lineNumber: number): string;
 
-	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:editorCommon.IModelDecoration[]): boolean;
+	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean;
 	layoutLine(lineNumber: number, deltaTop:number): void;
 }
 
@@ -32,7 +34,7 @@ interface IRendererContext {
 	rendLineNumberStart: number;
 	lines: IVisibleLineData[];
 	linesLength: number;
-	getInlineDecorationsForLineInViewport(lineNumber:number): editorCommon.IModelDecoration[];
+	getInlineDecorationsForLineInViewport(lineNumber:number): InlineDecoration[];
 	viewportTop: number;
 	viewportHeight: number;
 	scrollDomNode: HTMLElement;
@@ -50,7 +52,7 @@ export abstract class ViewLayer extends ViewPart {
 	private _scrollDomNode: HTMLElement;
 	private _scrollDomNodeIsAbove: boolean;
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super(context);
 
 		this.domNode = this._createDomNode();
@@ -85,12 +87,12 @@ export abstract class ViewLayer extends ViewPart {
 		return true;
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
+		return e.scrollTopChanged;
 	}
 
 	public onZonesChanged(): boolean {
@@ -217,6 +219,10 @@ export abstract class ViewLayer extends ViewPart {
 	}
 
 	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
+		if (this._lines.length === 0) {
+			return false;
+		}
+
 		var changedFromIndex = e.fromLineNumber - this._rendLineNumberStart;
 		var changedToIndex = e.toLineNumber - this._rendLineNumberStart;
 
@@ -239,7 +245,7 @@ export abstract class ViewLayer extends ViewPart {
 
 
 	// ---- end view event handlers
-	public _renderLines(linesViewportData:editorCommon.ViewLinesViewportData): void {
+	public _renderLines(linesViewportData:ViewLinesViewportData): void {
 
 		var ctx: IRendererContext = {
 			domNode: this.domNode.domNode,
@@ -496,8 +502,8 @@ class ViewLayerRenderer {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
-	private static _resolveInlineDecorations(ctx: IRendererContext): editorCommon.IModelDecoration[][] {
-		let result: editorCommon.IModelDecoration[][] = [];
+	private static _resolveInlineDecorations(ctx: IRendererContext): InlineDecoration[][] {
+		let result: InlineDecoration[][] = [];
 		for (let i = 0, len = ctx.linesLength; i < len; i++) {
 			let lineNumber = i + ctx.rendLineNumberStart;
 			result[i] = ctx.getInlineDecorationsForLineInViewport(lineNumber);

@@ -76,8 +76,8 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.view.setModel(this.model);
 
-		this.addEmitter(this.model);
-		this.addEmitter(this.view);
+		this.addEmitter2(this.model);
+		this.addEmitter2(this.view);
 	}
 
 	public getHTMLElement(): HTMLElement {
@@ -158,6 +158,11 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 	public reveal(element:any, relativeTop:number = null): WinJS.Promise {
 		return this.model.reveal(element, relativeTop);
+	}
+
+	public getRelativeTop(element: any): number {
+		let item= this.model.getItem(element);
+		return this.view.getRelativeTop(item);
 	}
 
 	public getScrollPosition(): number {

@@ -11,9 +11,11 @@
 	"addWatchExpression": "式の追加",
 	"clearRepl": "コンソールのクリア",
 	"continueDebug": "続行",
+	"copy": "コピー",
 	"copyValue": "値のコピー",
 	"deactivateBreakpoints": "ブレークポイントの非アクティブ化",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugConsoleAction": "デバッグ コンソール",
 	"disableAllBreakpoints": "すべてのブレークポイントを無効にする",
 	"disconnectDebug": "切断",
 	"editConditionalBreakpoint": "ブレークポイントの編集",
@@ -29,13 +31,12 @@
 	"renameFunctionBreakpoint": "関数ブレークポイントの名前変更",
 	"renameWatchExpression": "式の名前変更",
 	"restartDebug": "再起動",
-	"run": "実行",
 	"selectConfig": "構成の選択",
-	"startDebug": "開始",
+	"startDebug": "デバッグの開始",
+	"startWithoutDebugging": "デバッグなしで開始",
 	"stepIntoDebug": "ステップ インする",
 	"stepOutDebug": "ステップ アウト",
 	"stepOverDebug": "ステップ オーバー",
 	"stopDebug": "停止",
-	"toggleEnablement": "ブレークポイントの有効化/無効化",
-	"toggleRepl": "デバッグ コンソール"
+	"toggleEnablement": "ブレークポイントの有効化/無効化"
 }

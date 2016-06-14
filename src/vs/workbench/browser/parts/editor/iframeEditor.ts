@@ -16,6 +16,7 @@ import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IFrameEditorModel} from 'vs/workbench/common/editor/iframeEditorModel';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -37,6 +38,7 @@ export class IFrameEditor extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IStorageService private storageService: IStorageService
 	) {
 		super(IFrameEditor.ID, telemetryService);
@@ -120,7 +122,7 @@ export class IFrameEditor extends BaseEditor {
 			if (!this.focusTracker) {
 				this.focusTracker = DOM.trackFocus((<HTMLIFrameElement>this.iframeBuilder.getHTMLElement()).contentWindow);
 				this.focusTracker.addFocusListener(() => {
-					this.editorService.activateEditor(this.position);
+					this.editorGroupService.activateGroup(this.position);
 				});
 			}
 		});
@@ -257,10 +259,6 @@ export class IFrameEditor extends BaseEditor {
 		// of a string and not a URL. to be on the safe side we reload the iframe when the position changes
 		// and we do it using a timeout of 0 to reload only after the position has been changed in the DOM
 		setTimeout(() => this.reload(true));
-	}
-
-	public supportsSplitEditor(): boolean {
-		return true;
 	}
 
 	/**

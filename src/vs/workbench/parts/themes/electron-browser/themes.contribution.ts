@@ -19,7 +19,7 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 class SelectThemeAction extends actions.Action {
 
 	public static ID = 'workbench.action.selectTheme';
-	public static LABEL = nls.localize('selectTheme.label', 'Color Theme');
+	public static LABEL = nls.localize('selectTheme.label', "Color Theme");
 
 	constructor(
 		id: string,
@@ -83,4 +83,4 @@ class SelectThemeAction extends actions.Action {
 
 const category = nls.localize('preferences', "Preferences");
 let workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry>platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectThemeAction, SelectThemeAction.ID, SelectThemeAction.LABEL), category);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectThemeAction, SelectThemeAction.ID, SelectThemeAction.LABEL), 'Preferences: Color Theme', category);

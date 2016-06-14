@@ -9,19 +9,10 @@
 	margin-top: -1px;
 	cursor: default;
 	z-index: 50;
-	-webkit-animation-duration: 0.15s;
-	-webkit-animation-name: fadeIn;
-	-moz-animation-duration: 0.15s;
-	-moz-animation-name: fadeIn;
-	-ms-animation-duration: 0.15s;
-	-ms-animation-name: fadeIn;
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
 	-webkit-user-select: text;
-
-	white-space: pre;
-
-	overflow: hidden;
+	word-break: break-all;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {

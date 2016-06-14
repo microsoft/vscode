@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IInternalIndentationOptions, IPosition, IEditorSelection} from 'vs/editor/common/editorCommon';
+import {IPosition} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IMoveResult {
@@ -14,11 +14,11 @@ export interface IMoveResult {
 }
 
 export interface IViewColumnSelectResult {
-	viewSelections: IEditorSelection[];
+	viewSelections: Selection[];
 	reversed: boolean;
 }
 export interface IColumnSelectResult extends IViewColumnSelectResult {
-	selections: IEditorSelection[];
+	selections: Selection[];
 	toLineNumber: number;
 	toVisualColumn: number;
 }
@@ -30,6 +30,20 @@ export interface ICursorMoveHelperModel {
 	getLineMaxColumn(lineNumber:number): number;
 	getLineLastNonWhitespaceColumn(lineNumber:number): number;
 	getLineContent(lineNumber:number): string;
+}
+
+/**
+ * Internal indentation options (computed) for the editor.
+ */
+export interface IInternalIndentationOptions {
+	/**
+	 * Tab size in spaces. This is used for rendering and for editing.
+	 */
+	tabSize:number;
+	/**
+	 * Insert spaces instead of tabs when indenting or when auto-indenting.
+	 */
+	insertSpaces:boolean;
 }
 
 export interface IConfiguration {
@@ -138,7 +152,7 @@ export class CursorMoveHelper {
 		let isRTL = (fromVisibleColumn > toVisibleColumn);
 		let isLTR = (fromVisibleColumn < toVisibleColumn);
 
-		let result: IEditorSelection[] = [];
+		let result: Selection[] = [];
 
 		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
 

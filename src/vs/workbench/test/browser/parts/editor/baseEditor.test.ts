@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import {BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor, Extensions, IEditorRegistry, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import * as Platform from 'vs/platform/platform';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
@@ -72,7 +72,7 @@ class MyInput extends EditorInput {
 		return ids[1];
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return '';
 	}
 
@@ -82,7 +82,7 @@ class MyInput extends EditorInput {
 }
 
 class MyOtherInput extends EditorInput {
-	public getId(): string {
+	public getTypeId(): string {
 		return '';
 	}
 
@@ -138,20 +138,18 @@ suite('Workbench BaseEditor', () => {
 			assert.strictEqual(input, e.getInput());
 			assert.strictEqual(options, e.getOptions());
 
-			return e.setVisible(true).then(function () {
-				assert(e.isVisible());
-				input.addListener('dispose', function () {
-					assert(false);
-				});
-				e.dispose();
-				e.clearInput();
-				return e.setVisible(false).then(function () {
-					assert(!e.isVisible());
-					assert(!e.getInput());
-					assert(!e.getOptions());
-					assert(!e.getControl());
-				});
+			e.setVisible(true);
+			assert(e.isVisible());
+			input.addListener2('dispose', function () {
+				assert(false);
 			});
+			e.dispose();
+			e.clearInput();
+			e.setVisible(false);
+			assert(!e.isVisible());
+			assert(!e.getInput());
+			assert(!e.getOptions());
+			assert(!e.getControl());
 		}).done(() => done());
 	});
 
@@ -192,7 +190,7 @@ suite('Workbench BaseEditor', () => {
 		EditorRegistry.registerEditor(d2, new SyncDescriptor(StringEditorInput));
 		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyStringInput));
 
-		let inst = InstantiationService.createInstantiationService({});
+		let inst = new InstantiationService();
 
 		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
 			assert.strictEqual(editor.getId(), 'myEditor');
@@ -213,7 +211,7 @@ suite('Workbench BaseEditor', () => {
 
 		EditorRegistry.registerEditor(d1, new SyncDescriptor(StringEditorInput));
 
-		let inst = InstantiationService.createInstantiationService({});
+		let inst = new InstantiationService();
 
 		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
 			assert.strictEqual('myOtherEditor', editor.getId());
@@ -223,7 +221,7 @@ suite('Workbench BaseEditor', () => {
 	});
 
 	test('Editor Input Action - triggers isEnabled properly', function () {
-		let inst = InstantiationService.createInstantiationService({});
+		let inst = new InstantiationService();
 
 		let action = new MyAction('id', 'label');
 		action.input = inst.createInstance(StringEditorInput, 'input', '', '', mime.MIME_TEXT, false);
@@ -231,7 +229,7 @@ suite('Workbench BaseEditor', () => {
 	});
 
 	test('Editor Input Action Contributor', function () {
-		let inst = InstantiationService.createInstantiationService({});
+		let inst = new InstantiationService();
 
 		let contributor = new MyEditorInputActionContributor();
 
@@ -257,7 +255,7 @@ suite('Workbench BaseEditor', () => {
 
 		// other input causes actions to loose input context
 		let myInput = new MyInput();
-		myInput.getId = function () {
+		myInput.getTypeId = function () {
 			return 'foo.id';
 		};
 
@@ -267,7 +265,7 @@ suite('Workbench BaseEditor', () => {
 	});
 
 	test('Editor Input Factory', function () {
-		EditorRegistry.setInstantiationService(InstantiationService.createInstantiationService({}));
+		EditorRegistry.setInstantiationService(new InstantiationService());
 		EditorRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
 		let factory = EditorRegistry.getEditorInputFactory('myInputId');

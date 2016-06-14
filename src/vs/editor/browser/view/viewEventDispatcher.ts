@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EmitterEvent, IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {IViewEventBus} from 'vs/editor/common/editorCommon';
-import {IViewEventHandler} from 'vs/editor/browser/editorBrowser';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
+import {IViewEventBus, IViewEventHandler} from 'vs/editor/common/view/viewContext';
 
 export class ViewEventDispatcher implements IViewEventBus {
 
 	private _eventHandlerGateKeeper:(callback:()=>void)=>void;
 	private _eventHandlers:IViewEventHandler[];
-	private _eventQueue:IEmitterEvent[];
+	private _eventQueue:EmitterEvent[];
 	private _isConsumingQueue:boolean;
 
 	constructor(eventHandlerGateKeeper:(callback:()=>void)=>void) {
@@ -54,7 +53,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		}
 	}
 
-	public emitMany(events:IEmitterEvent[]): void {
+	public emitMany(events:EmitterEvent[]): void {
 		if (this._eventQueue) {
 			this._eventQueue = this._eventQueue.concat(events);
 		} else {

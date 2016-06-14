@@ -14,6 +14,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {FindDecorations} from './findDecorations';
 import {FindReplaceState, FindReplaceStateChangedEvent} from './findState';
 import {ReplaceAllCommand} from './replaceAllCommand';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
@@ -29,7 +30,8 @@ export const FIND_IDS = {
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
 	ReplaceOneAction: 'editor.action.replaceOne',
-	ReplaceAllAction: 'editor.action.replaceAll'
+	ReplaceAllAction: 'editor.action.replaceAll',
+	SelectAllMatchesAction: 'editor.action.selectAllMatches'
 };
 
 export const MATCHES_LIMIT = 999;
@@ -55,18 +57,22 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.CursorPositionChanged, (e:editorCommon.ICursorPositionChangedEvent) => {
-			if (e.reason === 'explicit' || e.reason === 'undo' || e.reason === 'redo') {
+		this._toDispose.push(this._editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
+			if (
+				e.reason === editorCommon.CursorChangeReason.Explicit
+				|| e.reason === editorCommon.CursorChangeReason.Undo
+				|| e.reason === editorCommon.CursorChangeReason.Redo
+			) {
 				this._decorations.setStartPosition(this._editor.getPosition());
 			}
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeModelRawContent((e:editorCommon.IModelContentChangedEvent) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}
-			if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
+			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
 				// a model.setValue() was called
 				this._decorations.reset();
 			}
@@ -93,8 +99,8 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private static _getSearchRange(model:editorCommon.IModel, searchOnlyEditableRange:boolean, findScope:editorCommon.IEditorRange): editorCommon.IEditorRange {
-		let searchRange:editorCommon.IEditorRange;
+	private static _getSearchRange(model:editorCommon.IModel, searchOnlyEditableRange:boolean, findScope:Range): Range {
+		let searchRange:Range;
 
 		if (searchOnlyEditableRange) {
 			searchRange = model.getEditableRange();
@@ -110,8 +116,8 @@ export class FindModelBoundToEditorModel {
 		return searchRange;
 	}
 
-	private research(moveCursor:boolean, newFindScope?:editorCommon.IEditorRange): void {
-		let findScope: editorCommon.IEditorRange = null;
+	private research(moveCursor:boolean, newFindScope?:Range): void {
+		let findScope: Range = null;
 		if (typeof newFindScope !== 'undefined') {
 			findScope = newFindScope;
 		} else {
@@ -147,7 +153,7 @@ export class FindModelBoundToEditorModel {
 		return false;
 	}
 
-	private _moveToPrevMatch(before:editorCommon.IEditorPosition, isRecursed:boolean = false): void {
+	private _moveToPrevMatch(before:Position, isRecursed:boolean = false): void {
 		if (this._cannotFind()) {
 			return;
 		}
@@ -214,7 +220,7 @@ export class FindModelBoundToEditorModel {
 		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
 	}
 
-	public _moveToNextMatch(after:editorCommon.IEditorPosition, isRecursed:boolean = false): void {
+	public _moveToNextMatch(after:Position, isRecursed:boolean = false): void {
 		if (this._cannotFind()) {
 			return;
 		}
@@ -292,7 +298,7 @@ export class FindModelBoundToEditorModel {
 		return matchedString.replace(regexp, parsedReplaceString);
 	}
 
-	private _rangeIsMatch(range:editorCommon.IEditorRange): boolean {
+	private _rangeIsMatch(range:Range): boolean {
 		let selection = this._editor.getSelection();
 		let selectionText = this._editor.getModel().getValueInRange(selection);
 		let regexp = strings.createSafeRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
@@ -323,7 +329,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _findMatches(findScope: editorCommon.IEditorRange, limitResultCount:number): editorCommon.IEditorRange[] {
+	private _findMatches(findScope: Range, limitResultCount:number): Range[] {
 		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord, limitResultCount);
 	}
@@ -344,10 +350,23 @@ export class FindModelBoundToEditorModel {
 			replaceStrings.push(this.getReplaceString(model.getValueInRange(ranges[i])));
 		}
 
-		let command = new ReplaceAllCommand(ranges, replaceStrings);
+		let command = new ReplaceAllCommand(this._editor.getSelection(), ranges, replaceStrings);
 		this._executeEditorCommand('replaceAll', command);
 
 		this.research(false);
+	}
+
+	public selectAllMatches(): void {
+		if (!this._hasMatches()) {
+			return;
+		}
+
+		let findScope = this._decorations.getFindScope();
+
+		// Get all the ranges (even more than the highlighted ones)
+		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
+
+		this._editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
 	}
 
 	private _executeEditorCommand(source:string, command:editorCommon.ICommand): void {

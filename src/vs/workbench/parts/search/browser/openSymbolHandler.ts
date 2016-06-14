@@ -13,13 +13,14 @@ import {QuickOpenModel, QuickOpenEntry, IHighlight} from 'vs/base/parts/quickope
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import filters = require('vs/base/common/filters');
 import {IRange} from 'vs/editor/common/editorCommon';
-import {EditorInput} from 'vs/workbench/common/editor';
+import {EditorInput, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import labels = require('vs/base/common/labels');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITypeBearing, getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 
 class SymbolEntry extends EditorQuickOpenEntry {
@@ -30,7 +31,17 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	private type: string;
 	private range: IRange;
 
-	constructor(name: string, parameters: string, description: string, resource: URI, type: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService) {
+	constructor(
+		name: string,
+		parameters: string,
+		description: string,
+		resource: URI,
+		type: string,
+		range: IRange,
+		highlights: IHighlight[],
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super(editorService);
 
 		this.name = name;
@@ -73,14 +84,15 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	public getInput(): IResourceInput | EditorInput {
 		let input: IResourceInput = {
 			resource: this.resource,
+			options: {
+				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.quickOpenPreviews
+			}
 		};
 
 		if (this.range) {
-			input.options = {
-				selection: {
-					startLineNumber: this.range.startLineNumber,
-					startColumn: this.range.startColumn
-				}
+			input.options.selection = {
+				startLineNumber: this.range.startLineNumber,
+				startColumn: this.range.startColumn
 			};
 		}
 
@@ -179,7 +191,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 						container = element.containerName || path;
 					}
 
-					results.push(new SymbolEntry(element.name, element.parameters, container, resource, element.type, element.range, highlights, this.editorService));
+					results.push(this.instantiationService.createInstance(SymbolEntry, element.name, element.parameters, container, resource, element.type, element.range, highlights));
 				}
 			}
 		});

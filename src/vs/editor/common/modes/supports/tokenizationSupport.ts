@@ -85,7 +85,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		this.supportsNestedModes = supportsNestedModes;
 		this._embeddedModesListeners = {};
 		if (this.supportsNestedModes) {
-			if (!this._mode.registerSupport) {
+			if (!this._mode.setTokenizationSupport) {
 				throw new Error('Cannot be a mode with nested modes unless I can emit a tokenizationSupport changed event!');
 			}
 		}
@@ -239,7 +239,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 							}
 							if (e.tokenizationSupport) {
 								emitting = true;
-								this._mode.registerSupport('tokenizationSupport', (mode) => {
+								this._mode.setTokenizationSupport((mode) => {
 									return mode.tokenizationSupport;
 								});
 								emitting = false;

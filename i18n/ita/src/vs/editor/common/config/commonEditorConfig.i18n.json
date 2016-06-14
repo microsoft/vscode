@@ -38,6 +38,6 @@
 	"tabSize": "Numero di spazi a cui equivale una tabulazione.",
 	"tabSize.errorMessage": "È previsto 'number'. Nota: il valore \"auto\" è stato sostituito dall'impostazione `editor.detectIndentation`.",
 	"wordSeparators": "Caratteri che verranno usati come separatori di parola quando si eseguono operazioni o spostamenti correlati a parole",
-	"wrappingColumn": "Controlla il numero di caratteri dopo i quali l'editor attiverà l'a capo automatico alla riga successiva. Se è impostato su 0, verrà attivato l'a capo automatico in base alla larghezza del viewport",
+	"wrappingColumn": "Controlla il numero di caratteri dopo i quali l'editor attiverà l'a capo automatico alla riga successiva. Se è impostato su 0, verrà attivato l'a capo automatico in base alla larghezza del viewport (ritorno a capo automatico). Se è impostato su -1, forzerà l'editor a non eseguire mai il wrapping.",
 	"wrappingIndent": "Controlla il rientro delle righe con ritorno a capo. Può essere uno dei valori seguenti: 'none', 'same' o 'indent'."
 }

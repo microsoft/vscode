@@ -182,6 +182,9 @@ export class ContributableActionProvider implements IActionProvider {
 
 // Helper function used in parts to massage actions before showing in action areas
 export function prepareActions(actions: IAction[]): IAction[] {
+	if (!actions.length) {
+		return actions;
+	}
 
 	// Patch order if not provided
 	for (let l = 0; l < actions.length; l++) {
@@ -268,7 +271,7 @@ export interface IActionBarRegistry {
 
 	/**
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
-	 * that are used in the Monaco Workbench in the given scope.
+	 * that are used in the Workbench in the given scope.
 	 */
 	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void;
 

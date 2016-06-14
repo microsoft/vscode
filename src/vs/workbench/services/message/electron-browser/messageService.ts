@@ -11,18 +11,16 @@ import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/mes
 import {IConfirmation} from 'vs/platform/message/common/message';
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class MessageService extends WorkbenchMessageService {
 
 	constructor(
-		private contextService: IWorkspaceContextService,
-		private windowService: IWindowService,
-		telemetryService: ITelemetryService,
-		keybindingService: IKeybindingService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWindowService private windowService: IWindowService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(telemetryService, keybindingService);
+		super(telemetryService);
 	}
 
 	public confirm(confirmation: IConfirmation): boolean {
@@ -45,8 +43,10 @@ export class MessageService extends WorkbenchMessageService {
 			cancelId: 1
 		};
 
+		// Linux: buttons are swapped
 		if (isLinux) {
-			opts.defaultId = 1; // Linux: buttons are swapped
+			opts.defaultId = 1;
+			opts.cancelId = 0;
 		}
 
 		if (confirmation.detail) {
@@ -64,7 +64,7 @@ export class MessageService extends WorkbenchMessageService {
 
 	private mnemonicLabel(label: string): string {
 		if (!isWindows) {
-			return label.replace(/&&/g, ''); // no mnemonic support on mac/linux in buttons yet
+			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
 		}
 
 		return label.replace(/&&/g, '&');
