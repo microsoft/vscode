@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { $ } from 'vs/base/browser/builder';
+import { Widget } from 'vs/base/browser/ui/widget';
 import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -18,57 +19,56 @@ export interface IOptions {
 	ariaLabel?: string;
 }
 
-export class PatternInput {
+export class PatternInputWidget extends Widget {
 
 	static OPTION_CHANGE: string = 'optionChange';
 
-	private contextViewProvider: IContextViewProvider;
 	private onOptionChange: (event: Event) => void;
 	private width: number;
 	private placeholder: string;
 	private ariaLabel: string;
 
-	private listenersToRemove: any[];
+	private toDispose: any[];
 	private pattern: Checkbox;
-	public domNode: HTMLElement;
+	
+	private domNode: HTMLElement;
 	private inputNode: HTMLInputElement;
 	private inputBox: InputBox;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null)) {
-		this.contextViewProvider = contextViewProvider;
+	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null)) {
+		super();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
-		this.listenersToRemove = [];
+		this.toDispose = [];
 		this.pattern = null;
 		this.domNode = null;
 		this.inputNode = null;
 		this.inputBox = null;
 
-		this.buildDomNode();
+		this.render();
 
-		if (Boolean(parent)) {
-			parent.appendChild(this.domNode);
-		}
+		parent.appendChild(this.domNode);
 	}
 
-	public destroy(): void {
+	public dispose(): void {
+		super.dispose();
 		this.pattern.dispose();
-		this.listenersToRemove.forEach((element) => {
+		this.toDispose.forEach((element) => {
 			element();
 		});
-		this.listenersToRemove = [];
+		this.toDispose = [];
 	}
 
-	public on(eventType: string, handler: (event: Event) => void): PatternInput {
+	public on(eventType: string, handler: (event: Event) => void): PatternInputWidget {
 		switch (eventType) {
 			case 'keydown':
 			case 'keyup':
 				$(this.inputBox.inputElement).on(eventType, handler);
 				break;
-			case PatternInput.OPTION_CHANGE:
+			case PatternInputWidget.OPTION_CHANGE:
 				this.onOptionChange = handler;
 				break;
 		}
@@ -140,7 +140,7 @@ export class PatternInput {
 		this.inputBox.width = w;
 	}
 
-	private buildDomNode(): void {
+	private render(): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
 		$(this.domNode).addClass('monaco-findInput');

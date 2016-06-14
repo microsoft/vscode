@@ -49,7 +49,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
-import { PatternInput } from 'vs/workbench/parts/search/browser/patternInputWidget';
+import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { RefreshAction, SelectOrRemoveAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 
@@ -74,10 +74,10 @@ export class SearchViewlet extends Viewlet {
 	private findInput: FindInput;
 	private size: Dimension;
 	private queryDetails: HTMLElement;
-	private inputPatternExclusions: PatternInput;
+	private inputPatternExclusions: PatternInputWidget;
 	private inputPatternGlobalExclusions: InputBox;
 	private inputPatternGlobalExclusionsContainer: Builder;
-	private inputPatternIncludes: PatternInput;
+	private inputPatternIncludes: PatternInputWidget;
 	private results: Builder;
 
 	constructor(
@@ -211,7 +211,7 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
-				this.inputPatternIncludes = new PatternInput(builder.getContainer(), this.contextViewService, {
+				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
 				});
 
@@ -241,7 +241,7 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
-				this.inputPatternExclusions = new PatternInput(builder.getContainer(), this.contextViewService, {
+				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				});
 
@@ -909,6 +909,9 @@ export class SearchViewlet extends Viewlet {
 		if (this.tree) {
 			this.tree.dispose();
 		}
+
+		this.inputPatternIncludes.dispose();
+		this.inputPatternExclusions.dispose();
 
 		this.disposeModel();
 
