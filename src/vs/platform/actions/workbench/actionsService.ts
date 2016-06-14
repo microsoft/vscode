@@ -10,7 +10,7 @@ import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {IActionsService} from './actions';
+import {IActionsService} from '../common/actions';
 
 interface Commands {
 	commands: Command | Command[];
