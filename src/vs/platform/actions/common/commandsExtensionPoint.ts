@@ -8,14 +8,45 @@ import {localize} from 'vs/nls';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
+export interface ResourceFilter {
+	language?: string;
+	scheme?: string;
+	pattern?: string;
+}
+
+export interface Context {
+	path: 'editor/primary' | 'editor/secondary';
+	when: string | string[] | ResourceFilter | ResourceFilter[];
+}
+
 export interface Command {
 	command: string;
 	title: string;
 	category?: string;
+	context?: Context | Context[];
 }
 
 function isCommands(thing: Command | Command[]): thing is Command[] {
 	return Array.isArray(thing);
+}
+
+function isContexts(thing: Context | Context[]): thing is Context[] {
+	return Array.isArray(thing);
+}
+
+function isValidContext(context: Context, rejects: string[]): boolean {
+	if (!context) {
+		return true;
+	}
+	if (context.path !== 'editor/primary' && context.path !== 'editor/secondary') {
+		rejects.push(localize('requireenumtype', "property `path` is mandatory and must be one of `editor/primary`, `editor/secondary`"));
+		return false;
+	}
+	if (typeof context.when !== 'object') {
+		rejects.push(localize('requirefilter', "property `when` is mandatory and must be like `{language, scheme, pattern}`"));
+		return false;
+	}
+	return true;
 }
 
 function isValidCommand(candidate: Command, rejects: string[]): boolean {
@@ -34,6 +65,16 @@ function isValidCommand(candidate: Command, rejects: string[]): boolean {
 	if (candidate.category && typeof candidate.category !== 'string') {
 		rejects.push(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'));
 		return false;
+	}
+	if (candidate.context) {
+		let {context} = candidate;
+		if (isContexts(context)) {
+			if (!context.every(context => isValidContext(context, rejects))) {
+				return false;
+			}
+		} else if (!isValidContext(context, rejects)) {
+			return false;
+		}
 	}
 	return true;
 }
