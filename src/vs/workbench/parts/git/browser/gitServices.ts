@@ -131,7 +131,11 @@ class EditorInputCache
 				default:
 					return winjs.TPromise.as(new giteditorinputs.GitDiffEditorInput(fileSegment, nls.localize('gitMergeChanges', "{0} - Merge changes", folderSegment), leftInput, rightInput, status));
 			}
-		}).then((editorInput) => {
+		}).then((editorInput:WorkbenchEditorCommon.EditorInput) => {
+			editorInput.addOneTimeDisposableListener('dispose', () => {
+				delete this.cache[status.getId()];
+			});
+
 			return editorInput;
 		}, (errs) => {
 			return winjs.Promise.wrapError(types.isArray(errs) ? errs[0] || errs[1] : errs);
