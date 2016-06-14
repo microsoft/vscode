@@ -136,13 +136,8 @@
 	width: 16px;
 }
 
-.hc-black .monaco-workbench .close-editor-action:before {
+.hc-black .monaco-workbench .close-editor-action {
 	content: url('close-inverse.svg');
-	position: absolute;
-	top: 10px;
-	left: 4px;
-	height: 16px;
-	width: 16px;
 }
 
 .hc-black .monaco-workbench .split-editor-action:before {

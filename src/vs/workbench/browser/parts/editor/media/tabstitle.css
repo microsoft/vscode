@@ -129,22 +129,12 @@
 	background: none;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:before {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
 	content: url('close-dirty-inverse.svg');
-	position: absolute;
-	top: 10px;
-	left: 4px;
-	height: 16px;
-	width: 16px;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover:before {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
 	content: url('close-inverse.svg');
-	position: absolute;
-	top: 10px;
-	left: 4px;
-	height: 16px;
-	width: 16px;
 }
 
 /* Group Actions */
