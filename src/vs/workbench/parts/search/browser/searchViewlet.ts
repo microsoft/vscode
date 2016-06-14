@@ -47,7 +47,6 @@ import {MessageType, InputBox, IInputValidator} from 'vs/base/browser/ui/inputbo
 import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {ISearchProgressItem, IFileMatch, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {Range} from 'vs/editor/common/core/range';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -61,24 +60,9 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
+import { RemoveAction, RefreshAction, SelectOrRemoveAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 
 const ID = VIEWLET_ID;
-
-export class FindInFolderAction extends Action {
-	private resource: URI;
-
-	constructor(resource: URI, @IViewletService private viewletService: IViewletService) {
-		super('workbench.search.action.findInFolder', nls.localize('findInFolder', "Find in Folder"));
-
-		this.resource = resource;
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(this.resource);
-		});
-	}
-}
 
 export class SearchDataSource implements IDataSource {
 
@@ -216,25 +200,6 @@ class SearchActionProvider extends ContributableActionProvider {
 	}
 }
 
-class RemoveAction extends Action {
-	private viewer: ITree;
-	private fileMatch: FileMatch;
-
-	constructor(viewer: ITree, element: FileMatch) {
-		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
-
-		this.viewer = viewer;
-		this.fileMatch = element;
-	}
-
-	public run(): TPromise<any> {
-		let parent = this.fileMatch.parent();
-		parent.remove(this.fileMatch);
-
-		return this.viewer.refresh(parent);
-	}
-}
-
 class SearchRenderer extends ActionsRenderer {
 
 	constructor(actionRunner: IActionRunner, @IWorkspaceContextService private contextService: IWorkspaceContextService) {
@@ -305,147 +270,6 @@ class SearchRenderer extends ActionsRenderer {
 		}
 
 		return null;
-	}
-}
-
-export class RefreshAction extends Action {
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('refresh');
-
-		this.label = nls.localize('RefreshAction.label', "Refresh");
-		this.enabled = false;
-		this.class = 'search-action refresh';
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<void> {
-		this.viewlet.onQueryChanged(true);
-
-		return TPromise.as(null);
-	}
-}
-
-export class SelectOrRemoveAction extends Action {
-	private selectMode: boolean;
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('selectOrRemove');
-
-		this.label = nls.localize('SelectOrRemoveAction.selectLabel', "Select");
-		this.enabled = false;
-		this.selectMode = true;
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<any> {
-		let result: TPromise<any>;
-
-		if (this.selectMode) {
-			result = this.runAsSelect();
-		} else {
-			result = this.runAsRemove();
-		}
-
-		this.selectMode = !this.selectMode;
-		this.label = this.selectMode ? nls.localize('SelectOrRemoveAction.selectLabel', "Select") : nls.localize('SelectOrRemoveAction.removeLabel', "Remove");
-
-		return result;
-	}
-
-	private runAsSelect(): TPromise<void> {
-		this.viewlet.getResults().addClass('select');
-
-		return TPromise.as(null);
-	}
-
-	private runAsRemove(): TPromise<void> {
-		let elements: any[] = [];
-		let tree: ITree = this.viewlet.getControl();
-
-		tree.getInput().matches().forEach((fileMatch: FileMatch) => {
-			fileMatch.matches().filter((lineMatch: Match) => {
-				return (<any>lineMatch).$checked;
-			}).forEach((lineMatch: Match) => {
-				lineMatch.parent().remove(lineMatch);
-				elements.push(lineMatch.parent());
-			});
-		});
-
-		this.viewlet.getResults().removeClass('select');
-
-		if (elements.length > 0) {
-			return tree.refreshAll(elements).then(() => {
-				return tree.refresh();
-			});
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-export class CollapseAllAction extends Action {
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('collapseAll');
-
-		this.label = nls.localize('CollapseAllAction.label', "Collapse");
-		this.enabled = false;
-		this.class = 'search-action collapse';
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<void> {
-		let tree = this.viewlet.getControl();
-		if (tree) {
-			tree.collapseAll();
-			tree.clearSelection();
-			tree.clearFocus();
-			tree.DOMFocus();
-			tree.focusFirst();
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-export class ClearSearchResultsAction extends Action {
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('clearSearchResults');
-
-		this.label = nls.localize('ClearSearchResultsAction.label', "Clear Search Results");
-		this.enabled = false;
-		this.class = 'search-action clear-search-results';
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<void> {
-		this.viewlet.clearSearchResults();
-
-		return TPromise.as(null);
-	}
-}
-
-class ConfigureGlobalExclusionsAction extends Action {
-
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		super('configureGlobalExclusionsAction');
-
-		this.label = nls.localize('ConfigureGlobalExclusionsAction.label', "Open Settings");
-		this.enabled = true;
-		this.class = 'search-configure-exclusions';
-	}
-
-	public run(): TPromise<void> {
-		let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
-		action.run().done(() => action.dispose(), errors.onUnexpectedError);
-
-		return TPromise.as(null);
 	}
 }
 
@@ -1256,7 +1080,7 @@ export class SearchViewlet extends Viewlet {
 
 			this.actionRegistry['refresh'].enabled = true;
 			this.actionRegistry['selectOrRemove'].enabled = hasResults;
-			this.actionRegistry['collapseAll'].enabled = hasResults;
+			this.actionRegistry['vs.tree.collapse'].enabled = hasResults;
 			this.actionRegistry['clearSearchResults'].enabled = hasResults;
 
 			if (completed && completed.limitHit) {
@@ -1414,8 +1238,8 @@ export class SearchViewlet extends Viewlet {
 				}).done(null, errors.onUnexpectedError);
 
 				// since we have results now, enable some actions
-				if (!this.actionRegistry['collapseAll'].enabled) {
-					this.actionRegistry['collapseAll'].enabled = true;
+				if (!this.actionRegistry['vs.tree.collapse'].enabled) {
+					this.actionRegistry['vs.tree.collapse'].enabled = true;
 				}
 			}
 		}, 200);
@@ -1429,7 +1253,7 @@ export class SearchViewlet extends Viewlet {
 		// disable 'result'-actions
 		this.actionRegistry['refresh'].enabled = false;
 		this.actionRegistry['selectOrRemove'].enabled = false;
-		this.actionRegistry['collapseAll'].enabled = false;
+		this.actionRegistry['vs.tree.collapse'].enabled = false;
 		this.actionRegistry['clearSearchResults'].enabled = false;
 
 		// clean up ui
@@ -1486,7 +1310,7 @@ export class SearchViewlet extends Viewlet {
 	public getActions(): IAction[] {
 		return [
 			this.actionRegistry['refresh'],
-			this.actionRegistry['collapseAll'],
+			this.actionRegistry['vs.tree.collapse'],
 			this.actionRegistry['clearSearchResults']
 		];
 	}

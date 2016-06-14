@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/search.contribution';
 import {Registry} from 'vs/platform/platform';
-import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor} from 'vs/workbench/browser/viewlet';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import {IAction} from 'vs/base/common/actions';
@@ -24,8 +24,8 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {OpenSearchViewletAction} from 'vs/workbench/parts/search/browser/searchActions';
 
 export const VIEWLET_ID = 'workbench.view.search';
 
@@ -40,15 +40,6 @@ KeybindingsRegistry.registerCommandDesc({
 			.then(viewlet => (<any>viewlet).toggleFileTypes());
 	}
 });
-
-class OpenSearchViewletAction extends ToggleViewletAction {
-	public static ID = VIEWLET_ID;
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
-	}
-}
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 	private _instantiationService: IInstantiationService;
@@ -81,7 +72,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 
 			let action = new DeferredAction(
 				this._instantiationService,
-				new AsyncDescriptor('vs/workbench/parts/search/browser/searchViewlet', 'FindInFolderAction', fileResource.resource),
+				new AsyncDescriptor('vs/workbench/parts/search/browser/searchActions', 'FindInFolderAction', fileResource.resource),
 				'workbench.search.action.findInFolder',
 				nls.localize('findInFolder', "Find in Folder")
 			);
