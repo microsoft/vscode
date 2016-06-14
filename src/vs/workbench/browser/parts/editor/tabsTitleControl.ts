@@ -12,10 +12,12 @@ import {IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
+import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {Builder, $} from 'vs/base/browser/builder';
 import {MIME_BINARY} from 'vs/base/common/mime';
+import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -122,12 +124,14 @@ export class TabsTitleControl extends TitleControl {
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				const group = this.context;
 				if (group) {
+					const targetPosition = this.stacks.positionOfGroup(group);
+					const targetIndex = group.count;
+
+					// Local DND
 					if (TabsTitleControl.draggedEditor) {
 						e.preventDefault();
 
 						const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
-						const targetPosition = this.stacks.positionOfGroup(group);
-						const targetIndex = group.count;
 
 						// Move editor to target position and index
 						if (this.isMoveOperation(e, TabsTitleControl.draggedEditor.group, group)) {
@@ -138,6 +142,11 @@ export class TabsTitleControl extends TitleControl {
 						else {
 							this.editorService.openEditor(TabsTitleControl.draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
 						}
+					}
+
+					// External DND
+					else {
+						this.handleExternalDrop(e, targetPosition, targetIndex);
 					}
 				}
 			}
@@ -451,12 +460,14 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drop
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+			const targetPosition = this.stacks.positionOfGroup(group);
+			const targetIndex = group.indexOf(editor);
+
+			// Local DND
 			if (TabsTitleControl.draggedEditor) {
 				e.preventDefault();
 
 				const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
-				const targetPosition = this.stacks.positionOfGroup(group);
-				const targetIndex = group.indexOf(editor);
 
 				// Move editor to target position and index
 				if (this.isMoveOperation(e, TabsTitleControl.draggedEditor.group, group)) {
@@ -468,7 +479,52 @@ export class TabsTitleControl extends TitleControl {
 					this.editorService.openEditor(TabsTitleControl.draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
 				}
 			}
+
+			// External DND
+			else {
+				this.handleExternalDrop(e, targetPosition, targetIndex);
+			}
 		}));
+	}
+
+	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
+		let resources: URI[] = [];
+
+		if (e.dataTransfer.types.length > 0) {
+
+			// Check for in-app DND
+			const rawData = e.dataTransfer.getData(e.dataTransfer.types[0]);
+			if (rawData) {
+				const resource = URI.parse(rawData);
+				if (resource.scheme === 'file' || resource.scheme === 'untitled') {
+					resources.push(resource);
+				}
+			}
+
+			// Check for external app DND
+			else if (e.dataTransfer && e.dataTransfer.files) {
+				let thepaths: string[] = [];
+				for (let i = 0; i < e.dataTransfer.files.length; i++) {
+					if (e.dataTransfer.files[i] && (e.dataTransfer.files[i]).path) {
+						thepaths.push(e.dataTransfer.files[i].path);
+					}
+				}
+
+				resources = thepaths.map(p => URI.file(p));
+			}
+		}
+
+		// Open resources if found
+		if (resources.length) {
+			e.preventDefault();
+
+			this.editorService.openEditors(resources.map(resource => {
+				return {
+					input: { resource, options: { pinned: true, index: targetIndex } },
+					position: targetPosition
+				};
+			})).done(() => this.editorGroupService.focusGroup(targetPosition), errors.onUnexpectedError);
+		}
 	}
 
 	private isMoveOperation(e: DragEvent, source: IEditorGroup, target: IEditorGroup) {

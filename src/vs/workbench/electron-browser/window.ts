@@ -65,7 +65,7 @@ export class ElectronWindow {
 			});
 		}
 
-		// Prevent a dropped file from opening as nw application
+		// Prevent a dropped file from opening as application
 		window.document.body.addEventListener('dragover', (e: DragEvent) => {
 			e.preventDefault();
 		});
@@ -82,8 +82,8 @@ export class ElectronWindow {
 				if (e.dataTransfer && e.dataTransfer.files) {
 					let thepaths: string[] = [];
 					for (let i = 0; i < e.dataTransfer.files.length; i++) {
-						if (e.dataTransfer.files[i] && (<any>e.dataTransfer.files[i]).path) {
-							thepaths.push((<any>e.dataTransfer.files[i]).path);
+						if (e.dataTransfer.files[i] && e.dataTransfer.files[i].path) {
+							thepaths.push(e.dataTransfer.files[i].path);
 						}
 					}
 
@@ -95,8 +95,8 @@ export class ElectronWindow {
 				}
 
 				// Otherwise check for special webkit transfer
-				if (!pathsOpened && e.dataTransfer && (<any>e).dataTransfer.items) {
-					let items: { getAsString: (clb: (str: string) => void) => void; }[] = (<any>e).dataTransfer.items;
+				if (!pathsOpened && e.dataTransfer && e.dataTransfer.items) {
+					let items = e.dataTransfer.items;
 					if (items.length && typeof items[0].getAsString === 'function') {
 						items[0].getAsString((str) => {
 							try {
