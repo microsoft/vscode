@@ -21,12 +21,20 @@ export class CSSNavigation {
 		let node = nodes.getNodeAtOffset(stylesheet, offset);
 
 		if (!node) {
-			return null;
+			//workaround for https://github.com/Microsoft/vscode-languageserver-node/issues/45
+			return Promise.resolve({
+				uri: document.uri,
+				range: Range.create(position, position)
+			});
 		}
 
 		let symbol = symbols.findSymbolFromNode(node);
 		if (!symbol) {
-			return null;
+			//workaround for https://github.com/Microsoft/vscode-languageserver-node/issues/45
+			return Promise.resolve({
+				uri: document.uri,
+				range: Range.create(position, position)
+			});
 		}
 
 		return Promise.resolve({
