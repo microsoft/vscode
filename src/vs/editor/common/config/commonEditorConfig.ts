@@ -173,6 +173,7 @@ class InternalEditorOptionsHelper {
 			editorClassName: editorClassName,
 			stopRenderingLineAfter: stopRenderingLineAfter,
 			renderWhitespace: toBoolean(opts.renderWhitespace),
+			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			indentGuides: toBoolean(opts.indentGuides),
 			scrollbar: scrollbar,
 		});
@@ -658,6 +659,11 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			default: DefaultConfig.editor.renderWhitespace,
 			description: nls.localize('renderWhitespace', "Controls whether the editor should render whitespace characters")
+		},
+		'editor.renderControlCharacters': {
+			'type': 'boolean',
+			default: DefaultConfig.editor.renderControlCharacters,
+			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters")
 		},
 		// 'editor.indentGuides': {
 		// 	'type': 'boolean',
