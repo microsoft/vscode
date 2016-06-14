@@ -418,6 +418,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('quickOpenPreviews', "Controls if editors opened from quick open show as preview. Set to false to always open editors from quick open pinned."),
 			'default': true
+		},
+		'workbench.editorOpenPositioning': {
+			'type': 'string',
+			'enum': ['left', 'right', 'beginning', 'end'],
+			'default': 'right',
+			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'beginning' or 'end' to open editors independently from the currently active one.")
 		}
 	}
 });

@@ -663,10 +663,18 @@ export interface IEditorContext extends IEditorIdentifier {
 
 export type GroupIdentifier = number;
 
+export const EditorOpenPositioning = {
+	LEFT: 'left',
+	RIGHT: 'right',
+	BEGINNING: 'beginning',
+	END: 'end'
+};
+
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
 		showEditorTabs: boolean;
 		previewEditors: boolean;
 		quickOpenPreviews: boolean;
+		editorOpenPositioning: string;
 	};
 }

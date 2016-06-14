@@ -541,12 +541,14 @@ export const TestFileService = {
 export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
 	public serviceId = IConfigurationService;
 
+	private configuration = Object.create(null);
+
 	public loadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());
 	}
 
 	public getConfiguration(): any {
-		return {};
+		return this.configuration;
 	}
 
 	public hasWorkspaceConfiguration(): boolean {
@@ -558,6 +560,8 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 	}
 
 	public setUserConfiguration(key: any, value: any): Thenable<void> {
+		this.configuration[key] = value;
+
 		return TPromise.as(null);
 	}
 }

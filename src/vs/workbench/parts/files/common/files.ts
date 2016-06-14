@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
+import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -57,7 +57,7 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 	public abstract getEncoding(): string;
 }
 
-export interface IFilesConfiguration extends IFilesConfiguration {
+export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
 		openEditors: {
 			visible: number;

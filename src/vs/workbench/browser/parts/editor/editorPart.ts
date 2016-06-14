@@ -138,7 +138,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		this.previewEditors = configuration.workbench.previewEditors;
+		const newPreviewEditors = configuration.workbench.previewEditors;
+
+		// Pin all preview editors of the user chose to disable preview
+		if (this.previewEditors !== newPreviewEditors && !newPreviewEditors) {
+			this.stacks.groups.forEach(group => {
+				if (group.previewEditor) {
+					this.pinEditor(this.stacks.positionOfGroup(group), group.previewEditor);
+				}
+			});
+		}
+
+		this.previewEditors = newPreviewEditors;
 	}
 
 	private onEditorDirty(identifier: EditorIdentifier): void {

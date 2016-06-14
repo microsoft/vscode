@@ -6,11 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -26,6 +27,10 @@ function create(): EditorStacksModel {
 	services.set(IStorageService, new TestStorageService());
 	services.set(ILifecycleService, new TestLifecycleService());
 	services.set(IWorkspaceContextService, new TestContextService());
+
+	const config = new TestConfigurationService();
+	config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+	services.set(IConfigurationService, config);
 
 	let inst = new InstantiationService(services);
 
@@ -197,7 +202,6 @@ suite('Editor Stacks Model', () => {
 
 	teardown(() => {
 		index = 1;
-		setOpenEditorDirection(Direction.RIGHT);
 	});
 
 	test('Groups - Basic', function () {
@@ -594,6 +598,9 @@ suite('Editor Stacks Model', () => {
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
 
@@ -636,9 +643,19 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
-		setOpenEditorDirection(Direction.LEFT);
+		let services = new ServiceCollection();
+		services.set(IStorageService, new TestStorageService());
+		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(IWorkspaceContextService, new TestContextService());
 
-		const model = create();
+		const config = new TestConfigurationService();
+		services.set(IConfigurationService, config);
+		config.setUserConfiguration('workbench', { editorOpenPositioning: 'left' });
+
+		let inst = new InstantiationService(services);
+
+		const model = inst.createInstance(EditorStacksModel);
+
 		const group = model.openGroup('group');
 		const events = groupListener(group);
 
@@ -1165,6 +1182,9 @@ suite('Editor Stacks Model', () => {
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
 
@@ -1206,6 +1226,9 @@ suite('Editor Stacks Model', () => {
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
 
@@ -1285,6 +1308,9 @@ suite('Editor Stacks Model', () => {
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
 
@@ -1332,6 +1358,9 @@ suite('Editor Stacks Model', () => {
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
 
@@ -1371,6 +1400,9 @@ suite('Editor Stacks Model', () => {
 		services.set(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
 
@@ -1501,7 +1533,7 @@ suite('Editor Stacks Model', () => {
 		assert.ok(model.isOpen(input2Resource));
 		assert.ok(!model.isOpen(input1Resource));
 
-		group1.openEditor(input3, {pinned: true});
+		group1.openEditor(input3, { pinned: true });
 
 		assert.ok(model.isOpen(input2Resource));
 		assert.ok(model.isOpen(input3Resource));
@@ -1606,7 +1638,7 @@ suite('Editor Stacks Model', () => {
 
 		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
 
-		group1.openEditor(diffInput, { pinned: true, active: true});
+		group1.openEditor(diffInput, { pinned: true, active: true });
 		group1.openEditor(input1, { pinned: true, active: true });
 
 		group1.closeEditor(diffInput);
@@ -1625,11 +1657,11 @@ suite('Editor Stacks Model', () => {
 		const input1 = input();
 		const input2 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true});
+		group1.openEditor(input1, { pinned: true, active: true });
 		group2.openEditor(input2, { pinned: true, active: true });
 
 		let dirtyCounter = 0;
-		model.onEditorDirty(() => {
+		model.onEditorDirty(() => {
 			dirtyCounter++;
 		});
 

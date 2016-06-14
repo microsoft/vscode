@@ -42,6 +42,7 @@ export class ExplorerViewlet extends Viewlet {
 	private openEditorsVisible: boolean;
 	private lastFocusedView: ExplorerView | OpenEditorsView | EmptyView;
 	private focusListener: IDisposable;
+	private delayEditorOpeningInOpenedEditors: boolean;
 
 	private viewletSettings: any;
 	private viewletState: FileViewletState;
@@ -84,6 +85,9 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	private onConfigurationUpdated(config: IFilesConfiguration): TPromise<void> {
+
+		// No need to delay if preview is disabled
+		this.delayEditorOpeningInOpenedEditors = !!config.workbench.previewEditors;
 
 		// Open editors view should always be visible in no folder workspace.
 		let openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
@@ -146,7 +150,7 @@ export class ExplorerViewlet extends Viewlet {
 			const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
 				if (this.openEditorsView) {
 					let delay = 0;
-					if (arg3 === false /* not side by side */ || typeof arg3 !== 'number' /* no explicit position */) {
+					if (this.delayEditorOpeningInOpenedEditors && (arg3 === false /* not side by side */ || typeof arg3 !== 'number' /* no explicit position */)) {
 						const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
 						if (!activeGroup || !activeGroup.previewEditor) {
 							delay = 250; // a new editor entry is likely because there is either no group or no preview in group

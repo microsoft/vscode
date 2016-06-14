@@ -6,10 +6,11 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, GroupIdentifier, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
@@ -35,11 +36,6 @@ export interface IEditorOpenOptions {
 	pinned?: boolean;
 	active?: boolean;
 	index?: number;
-}
-
-let CONFIG_OPEN_EDITOR_DIRECTION = Direction.RIGHT; // open new editors to the right of existing ones
-export function setOpenEditorDirection(dir: Direction): void {
-	CONFIG_OPEN_EDITOR_DIRECTION = dir;
 }
 
 export interface ISerializedEditorInput {
@@ -69,6 +65,7 @@ export class EditorGroup implements IEditorGroup {
 	private active: EditorInput;  // editor in active state
 
 	private toDispose: IDisposable[];
+	private editorOpenPositioning: string;
 
 	private _onEditorActivated: Emitter<EditorInput>;
 	private _onEditorOpened: Emitter<EditorInput>;
@@ -83,7 +80,8 @@ export class EditorGroup implements IEditorGroup {
 
 	constructor(
 		arg1: string | ISerializedEditorGroup,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this._id = EditorGroup.IDS++;
 
@@ -91,6 +89,7 @@ export class EditorGroup implements IEditorGroup {
 		this.mru = [];
 		this.toDispose = [];
 		this.mapResourceToEditor = Object.create(null);
+		this.editorOpenPositioning = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editorOpenPositioning;
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
@@ -110,6 +109,16 @@ export class EditorGroup implements IEditorGroup {
 		} else {
 			this._label = arg1;
 		}
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
+		this.editorOpenPositioning = config.workbench.editorOpenPositioning;
 	}
 
 	public get id(): GroupIdentifier {
@@ -208,18 +217,28 @@ export class EditorGroup implements IEditorGroup {
 				targetIndex = options.index;
 			}
 
-			// Insert to the RIGHT of active editor
-			else if (CONFIG_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
-				targetIndex = indexOfActive + 1;
+			// Insert to the BEGINNING
+			else if (this.editorOpenPositioning === EditorOpenPositioning.BEGINNING) {
+				targetIndex = 0;
+			}
+
+			// Insert to the END
+			else if (this.editorOpenPositioning === EditorOpenPositioning.END) {
+				targetIndex = this.editors.length;
 			}
 
 			// Insert to the LEFT of active editor
-			else {
+			else if (this.editorOpenPositioning === EditorOpenPositioning.LEFT) {
 				if (indexOfActive === 0 || !this.editors.length) {
 					targetIndex = 0; // to the left becoming first editor in list
 				} else {
-					targetIndex = indexOfActive - 1; // to the left of active editor
+					targetIndex = indexOfActive; // to the left of active editor
 				}
+			}
+
+			// Insert to the RIGHT of active editor
+			else {
+				targetIndex = indexOfActive + 1;
 			}
 
 			// Insert into our list of editors if pinned or we have no preview editor
