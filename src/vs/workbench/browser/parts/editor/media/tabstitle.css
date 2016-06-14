@@ -31,7 +31,7 @@
 	border-left: 1px solid rgba(128, 128, 128, 0.2);
 	border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 	box-sizing: border-box;
-	opacity: 0.7;
+	opacity: 0.7 !important;
 	padding-left: 10px;
 }
 
@@ -49,7 +49,7 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active {
 	border-bottom: 0;
-	opacity: 1;
+	opacity: 1 !important;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
@@ -69,7 +69,7 @@
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dragged {
-	opacity: 0.7;
+	opacity: 0.7 !important;
 }
 
 /* Tab Close */
