@@ -33,6 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import Messages from 'vs/workbench/parts/markers/common/messages';
 
 export class MarkersPanel extends Panel {
 
@@ -157,6 +158,7 @@ export class MarkersPanel extends Panel {
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
+				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
 	}
 
