@@ -19,7 +19,7 @@ import {MIME_BINARY} from 'vs/base/common/mime';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {CommonKeybindings as Kb} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -353,20 +353,21 @@ export class TabsTitleControl extends TitleControl {
 			let handled = false;
 
 			// Run action on Enter/Space
-			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+			if (event.equals(Kb.ENTER) || event.equals(Kb.SPACE)) {
 				handled = true;
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
 			}
 
 			// Navigate in editors
-			else if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.HOME) || event.equals(CommonKeybindings.END)) {
+			else if ([Kb.LEFT_ARROW, Kb.RIGHT_ARROW, Kb.UP_ARROW, Kb.DOWN_ARROW, Kb.HOME, Kb.END].some(kb => event.equals(kb))) {
 				const index = group.indexOf(editor);
+
 				let targetIndex: number;
-				if (event.equals(CommonKeybindings.LEFT_ARROW)) {
+				if (event.equals(Kb.LEFT_ARROW) || event.equals(Kb.UP_ARROW)) {
 					targetIndex = index - 1;
-				} else if (event.equals(CommonKeybindings.RIGHT_ARROW)) {
+				} else if (event.equals(Kb.RIGHT_ARROW) || event.equals(Kb.DOWN_ARROW)) {
 					targetIndex = index + 1;
-				} else if (event.equals(CommonKeybindings.HOME)) {
+				} else if (event.equals(Kb.HOME)) {
 					targetIndex = 0;
 				} else {
 					targetIndex = group.count - 1;
