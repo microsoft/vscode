@@ -244,6 +244,7 @@ export class QuickOpenEntry {
 		let labelHighlights: IHighlight[] = [];
 		let descriptionHighlights: IHighlight[] = [];
 
+		const normalizedLookFor = strings.stripWildcards(lookFor);
 		const label = entry.getLabel();
 		const description = entry.getDescription();
 
@@ -266,6 +267,10 @@ export class QuickOpenEntry {
 					// If there are no highlights in the label, build a path out of description and highlight and match on both,
 					// then extract the individual label and description highlights back to the original positions
 					let pathHighlights = filters.matchesFuzzy(lookFor, pathPrefix + label, fuzzyHighlight);
+					if (!pathHighlights && lookFor !== normalizedLookFor) {
+						pathHighlights = filters.matchesFuzzy(normalizedLookFor, pathPrefix + label, fuzzyHighlight);
+					}
+
 					if (pathHighlights) {
 						pathHighlights.forEach(h => {
 
