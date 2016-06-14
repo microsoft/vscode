@@ -610,6 +610,7 @@ export interface IStacksModelChangeEvent {
 export interface IEditorStacksModel {
 
 	onModelChanged: Event<IStacksModelChangeEvent>;
+	onEditorClosed: Event<IGroupEvent>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -622,9 +623,6 @@ export interface IEditorStacksModel {
 
 	next(): IEditorIdentifier;
 	previous(): IEditorIdentifier;
-
-	popLastClosedEditor(): IEditorInput;
-	clearLastClosedEditors(): void;
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
@@ -659,6 +657,11 @@ export interface IEditorIdentifier {
 
 export interface IEditorContext extends IEditorIdentifier {
 	event: any;
+}
+
+export interface IGroupEvent {
+	editor: IEditorInput;
+	pinned: boolean;
 }
 
 export type GroupIdentifier = number;

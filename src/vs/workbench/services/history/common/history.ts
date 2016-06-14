@@ -14,6 +14,11 @@ export interface IHistoryService {
 	serviceId: ServiceIdentifier<any>;
 
 	/**
+	 * Removes and returns the last closed editor if any.
+	 */
+	popLastClosedEditor(): IEditorInput;
+
+	/**
 	 * Navigate forwards in history.
 	 */
 	forward(): void;

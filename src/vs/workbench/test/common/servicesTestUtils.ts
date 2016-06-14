@@ -66,6 +66,10 @@ export class TestHistoryService implements IHistoryService {
 
 	}
 
+	public popLastClosedEditor(): IEditorInput {
+		return null;
+	}
+
 	public getHistory(): IEditorInput[] {
 		return [];
 	}

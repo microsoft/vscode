@@ -889,7 +889,7 @@ export class ReopenClosedEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService,
+		@IHistoryService private historyService: IHistoryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
@@ -900,9 +900,9 @@ export class ReopenClosedEditorAction extends Action {
 		const stacks = this.editorGroupService.getStacksModel();
 
 		// Find an editor that was closed and is currently not opened in the group
-		let lastClosedEditor = stacks.popLastClosedEditor();
+		let lastClosedEditor = this.historyService.popLastClosedEditor();
 		while (lastClosedEditor && stacks.activeGroup && stacks.activeGroup.indexOf(lastClosedEditor) >= 0) {
-			lastClosedEditor = stacks.popLastClosedEditor();
+			lastClosedEditor = this.historyService.popLastClosedEditor();
 		}
 
 		if (lastClosedEditor) {
@@ -1081,9 +1081,6 @@ export class ClearEditorHistoryAction extends Action {
 
 		// Editor history
 		this.historyService.clear();
-
-		// Recently closed editors
-		this.editorGroupService.getStacksModel().clearLastClosedEditors();
 
 		return TPromise.as(true);
 	}

@@ -591,57 +591,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input4, group.getEditors()[2]);
 	});
 
-	test('Stack - Multiple Editors - Recently Closed Tracking', function () {
-		let services = new ServiceCollection();
-
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
-		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
-		services.set(IConfigurationService, config);
-
-		let inst = new InstantiationService(services);
-
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
-
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
-
-		const group1 = model.openGroup('group1');
-		const group2 = model.openGroup('group2');
-
-		const input1 = input();
-		const input2 = input();
-		const input3 = input();
-
-		group1.openEditor(input1, { pinned: false, active: true });
-		group1.openEditor(input2, { pinned: true, active: true });
-		group1.openEditor(input3, { pinned: true, active: true });
-
-		const input4 = input();
-		const input5 = input();
-
-		group2.openEditor(input4, { pinned: true, active: true });
-		group2.openEditor(input5, { pinned: true, active: true });
-
-		assert.ok(!model.popLastClosedEditor());
-
-		group1.closeEditor(input1);
-		assert.ok(!model.popLastClosedEditor()); // preview editors are not recorded
-
-		group1.closeEditor(input3);
-
-		assert.ok(input3.matches(model.popLastClosedEditor()));
-
-		group2.closeAllEditors();
-
-		assert.ok(input5.matches(model.popLastClosedEditor()));
-		assert.ok(input4.matches(model.popLastClosedEditor()));
-
-		assert.ok(!model.popLastClosedEditor());
-	});
-
 	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
 		let services = new ServiceCollection();
 		services.set(IStorageService, new TestStorageService());

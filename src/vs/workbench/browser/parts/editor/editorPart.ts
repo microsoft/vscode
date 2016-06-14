@@ -451,7 +451,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
 			this.doCloseActiveEditor(group);
-			this.stacks.popLastClosedEditor(); // remove from "last closed" history because this input is failing
 		}
 	}
 

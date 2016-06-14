@@ -10,7 +10,7 @@ import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
-import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
+import {TextEditorOptions, EditorInput, IGroupEvent} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
@@ -218,6 +218,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static STORAGE_KEY = 'history.entries';
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
+	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -225,6 +226,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private currentFileEditorState: EditorState;
 
 	private history: IEditorInput[];
+	private recentlyClosed: IEditorInput[];
 	private loaded: boolean;
 	private registry: IEditorRegistry;
 
@@ -241,6 +243,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		this.index = -1;
 		this.stack = [];
+		this.recentlyClosed = [];
 		this.loaded = false;
 		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
@@ -250,6 +253,35 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private registerListeners(): void {
 		this.toUnbind.push(this.lifecycleService.onShutdown(() => this.save()));
 		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
+		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
+	}
+
+	private onEditorClosed(event: IGroupEvent): void {
+
+		// Track closing of pinned editor to support to reopen closed editors
+		if (event.pinned) {
+			const editor = event.editor;
+
+			// Remove all inputs matching and add as last recently closed
+			this.removeFromRecentlyClosed(editor);
+			this.recentlyClosed.push(editor);
+
+			// Bounding
+			if (this.recentlyClosed.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
+				this.recentlyClosed = this.recentlyClosed.slice(this.recentlyClosed.length - HistoryService.MAX_RECENTLY_CLOSED_EDITORS); // upper bound of recently closed
+			}
+
+			// Restore on dispose
+			editor.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+				this.restoreInRecentlyClosed(editor);
+			});
+		}
+	}
+
+	public popLastClosedEditor(): IEditorInput {
+		this.ensureLoaded();
+
+		return this.recentlyClosed.pop();
 	}
 
 	public forward(): void {
@@ -272,6 +304,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.index = -1;
 		this.stack.splice(0);
 		this.history = [];
+		this.recentlyClosed = [];
 	}
 
 	private navigate(): void {
@@ -358,6 +391,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	public remove(input: IEditorInput): void {
 		this.removeFromHistory(input);
 		this.removeFromStack(input);
+		setTimeout(() => this.removeFromRecentlyClosed(input)); // race condition with editor close and dispose
 	}
 
 	private removeFromHistory(input: IEditorInput, index?: number): void {
@@ -495,6 +529,26 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
+	private restoreInRecentlyClosed(input: IEditorInput): void {
+		let restoredInput: EditorInput;
+		let restored = false;
+
+		this.recentlyClosed.forEach((e, i) => {
+			if (e.matches(input)) {
+				if (!restored) {
+					restoredInput = this.restoreInput(input);
+					restored = true;
+				}
+
+				if (restoredInput) {
+					this.recentlyClosed[i] = restoredInput;
+				} else {
+					this.stack.splice(i, 1);
+				}
+			}
+		});
+	}
+
 	private restoreInput(input: IEditorInput): EditorInput {
 		if (input instanceof EditorInput) {
 			const factory = this.registry.getEditorInputFactory(input.getTypeId());
@@ -516,6 +570,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				if (this.index >= i) {
 					this.index--; // reduce index if the element is before index
 				}
+			}
+		});
+	}
+
+	private removeFromRecentlyClosed(input: IEditorInput): void {
+		this.recentlyClosed.forEach((e, i) => {
+			if (e.matches(input)) {
+				this.recentlyClosed.splice(i, 1);
 			}
 		});
 	}

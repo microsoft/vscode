@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -22,9 +22,8 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 // TODO@Ben currently only files and untitled editors are tracked with their resources in the stacks model
 // Once the resource is a base concept of all editor inputs, every resource should be tracked for any editor
 
-export interface GroupEvent {
+export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
-	pinned: boolean;
 }
 
 export interface EditorIdentifier extends IEditorIdentifier {
@@ -624,13 +623,11 @@ export class EditorGroup implements IEditorGroup {
 interface ISerializedEditorStacksModel {
 	groups: ISerializedEditorGroup[];
 	active: number;
-	lastClosed: ISerializedEditorInput[];
 }
 
 export class EditorStacksModel implements IEditorStacksModel {
 
 	private static STORAGE_KEY = 'editorStacks.model';
-	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private toDispose: IDisposable[];
 	private loaded: boolean;
@@ -638,8 +635,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _groups: EditorGroup[];
 	private _activeGroup: EditorGroup;
 	private groupToIdentifier: { [id: number]: EditorGroup };
-
-	private recentlyClosedEditors: ISerializedEditorInput[];
 
 	private _onGroupOpened: Emitter<EditorGroup>;
 	private _onGroupClosed: Emitter<EditorGroup>;
@@ -649,6 +644,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupRenamed: Emitter<EditorGroup>;
 	private _onEditorDisposed: Emitter<EditorIdentifier>;
 	private _onEditorDirty: Emitter<EditorIdentifier>;
+	private _onEditorClosed: Emitter<GroupEvent>;
 	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
 	constructor(
@@ -662,8 +658,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._groups = [];
 		this.groupToIdentifier = Object.create(null);
 
-		this.recentlyClosedEditors = [];
-
 		this._onGroupOpened = new Emitter<EditorGroup>();
 		this._onGroupClosed = new Emitter<EditorGroup>();
 		this._onGroupActivated = new Emitter<EditorGroup>();
@@ -673,8 +667,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onModelChanged = new Emitter<IStacksModelChangeEvent>();
 		this._onEditorDisposed = new Emitter<EditorIdentifier>();
 		this._onEditorDirty = new Emitter<EditorIdentifier>();
+		this._onEditorClosed = new Emitter<GroupEvent>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorClosed);
 
 		this.registerListeners();
 	}
@@ -717,6 +712,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onEditorDirty(): Event<EditorIdentifier> {
 		return this._onEditorDirty.event;
+	}
+
+	public get onEditorClosed(): Event<GroupEvent> {
+		return this._onEditorClosed.event;
 	}
 
 	public get groups(): EditorGroup[] {
@@ -957,8 +956,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		return {
 			groups: serializableGroups,
-			active: serializableActiveIndex,
-			lastClosed: this.recentlyClosedEditors
+			active: serializableActiveIndex
 		};
 	}
 
@@ -994,7 +992,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 			this._groups = serialized.groups.map(s => this.doCreateGroup(s));
 			this._activeGroup = this._groups[serialized.active];
-			this.recentlyClosedEditors = serialized.lastClosed || [];
 		} else {
 			this.migrate();
 		}
@@ -1036,7 +1033,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 				this._groups = [];
 				this._activeGroup = void 0;
 				this.groupToIdentifier = Object.create(null);
-				this.recentlyClosedEditors = [];
 			}
 		}
 	}
@@ -1082,7 +1078,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const unbind: IDisposable[] = [];
 		unbind.push(group.onEditorsStructureChanged(editor => this._onModelChanged.fire({ group, editor, structural: true })));
 		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
-		unbind.push(group.onEditorClosed(e => this.onEditorClosed(e)));
+		unbind.push(group.onEditorClosed(event => {
+			this.handleOnEditorClosed(event);
+			this._onEditorClosed.fire(event);
+		}));
 		unbind.push(group.onEditorDisposed(editor => this._onEditorDisposed.fire({ editor, group })));
 		unbind.push(group.onEditorDirty(editor => this._onEditorDirty.fire({ editor, group })));
 		unbind.push(this.onGroupClosed(g => {
@@ -1094,26 +1093,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return group;
 	}
 
-	public popLastClosedEditor(): EditorInput {
-		this.ensureLoaded();
-
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-
-		let serializedEditor = this.recentlyClosedEditors.pop();
-		if (serializedEditor) {
-			return registry.getEditorInputFactory(serializedEditor.id).deserialize(this.instantiationService, serializedEditor.value);
-		}
-
-		return null;
-	}
-
-	public clearLastClosedEditors(): void {
-		this.ensureLoaded();
-
-		this.recentlyClosedEditors = [];
-	}
-
-	private onEditorClosed(event: GroupEvent): void {
+	private handleOnEditorClosed(event: GroupEvent): void {
 		const editor = event.editor;
 
 		// Close the editor when it is no longer open in any group
@@ -1127,22 +1107,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 						editor.close();
 					}
 				});
-			}
-		}
-
-		// Track closing of pinned editor to support to reopen closed editors
-		if (event.pinned) {
-			const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-
-			const factory = registry.getEditorInputFactory(editor.getTypeId());
-			if (factory) {
-				let value = factory.serialize(editor);
-				if (typeof value === 'string') {
-					this.recentlyClosedEditors.push({ id: editor.getTypeId(), value });
-					if (this.recentlyClosedEditors.length > EditorStacksModel.MAX_RECENTLY_CLOSED_EDITORS) {
-						this.recentlyClosedEditors = this.recentlyClosedEditors.slice(this.recentlyClosedEditors.length - EditorStacksModel.MAX_RECENTLY_CLOSED_EDITORS); // upper bound of recently closed
-					}
-				}
 			}
 		}
 	}
