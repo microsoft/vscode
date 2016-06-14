@@ -26,8 +26,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {OpenSearchViewletAction} from 'vs/workbench/parts/search/browser/searchActions';
-
-export const VIEWLET_ID = 'workbench.view.search';
+import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',

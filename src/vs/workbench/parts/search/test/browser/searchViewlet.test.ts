@@ -13,7 +13,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchViewlet';
+import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchResultsView';
 import {TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
 
 suite('Search - Viewlet', () => {
