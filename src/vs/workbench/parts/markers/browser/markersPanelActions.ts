@@ -63,8 +63,10 @@ export class CollapseAllAction extends TreeCollapseAction {
 
 export class FilterAction extends Action {
 
+	public static ID:string = 'workbench.actions.problems.filter';
+
 	constructor(private markersPanel: MarkersPanel) {
-		super('workbench.actions.problems.filter', Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
+		super(FilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
 	}
 
 }

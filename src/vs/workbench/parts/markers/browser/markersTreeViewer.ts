@@ -145,17 +145,8 @@ export class Renderer implements IRenderer {
 
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 		templateData.source.set(marker.source, element.sourceMatches);
-		if (marker.source) {
-			let title= Messages.MARKERS_PANEL_TITLE_SOURCE(marker.source);
-			templateData.source.element.title= title;
-			templateData.source.element.setAttribute('aria-label', title);
-		}
 
 		templateData.lnCol.textContent= Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-		let title= Messages.MARKERS_PANEL_TITLE_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-		templateData.lnCol.title= title;
-		templateData.lnCol.setAttribute('aria-label', title);
-
 	}
 
 	private static iconClassNameFor(element: IMarker): string {

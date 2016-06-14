@@ -108,7 +108,10 @@ export class MarkersPanel extends Panel {
 
 		if (this.markersModel.hasFilteredResources()) {
 			this.tree.DOMFocus();
-			this.revealProblemsForCurrentActiveEditor(true);
+			if (this.tree.getSelection().length === 0) {
+				this.tree.focusFirst();
+			}
+			this.autoReveal(true);
 		} else {
 			this.messageBox.focus();
 		}
@@ -242,10 +245,10 @@ export class MarkersPanel extends Panel {
 		});
 	}
 
-	private autoReveal(): void {
+	private autoReveal(focus: boolean= false): void {
 		let conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
 		if (conf && conf.problems && conf.problems.autoReveal) {
-			this.revealProblemsForCurrentActiveEditor();
+			this.revealProblemsForCurrentActiveEditor(focus);
 		}
 	}
 
@@ -293,7 +296,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	public getActionItem(action: Action): IActionItem {
-		if (action.id === 'workbench.markers.panel.action.filter') {
+		if (action.id === FilterAction.ID) {
 			return this.instantiationService.createInstance(FilterInputBoxActionItem, this, action);
 		}
 		return super.getActionItem(action);
