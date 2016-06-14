@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
-import labels = require('vs/base/common/labels');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
@@ -230,13 +229,11 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private openAsFolder(input: EditorInput): boolean {
 
-		// Since we cannot open a folder, we have to restore the previous input if any or close the editor
-		let handleEditorPromise: TPromise<any>;
+		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
+		let handleEditorPromise: TPromise<any> = this.editorService.closeEditor(this.position, this.input);
 		let previousInput = this.historyService.getHistory()[1];
 		if (previousInput) {
-			handleEditorPromise = this.editorService.openEditor(previousInput, null, this.position);
-		} else {
-			handleEditorPromise = this.editorService.closeEditor(this.position, this.input);
+			handleEditorPromise = handleEditorPromise.then(() => this.editorService.openEditor(previousInput, null, this.position));
 		}
 
 		handleEditorPromise.done(() => {
@@ -250,11 +247,6 @@ export class TextFileEditor extends BaseTextEditor {
 					this.viewletService.openViewlet(VIEWLET_ID, true).done((viewlet: ExplorerViewlet) => {
 						return viewlet.getExplorerView().select(fileEditorInput.getResource(), true);
 					}, errors.onUnexpectedError);
-				}
-
-				// Otherwise inform the user
-				else {
-					this.messageService.show(Severity.Info, nls.localize('folderOutofWorkspace', "The folder '{0}' is outside the currently opened root folder and can not be opened in this instance.", labels.getPathLabel(fileEditorInput.getResource())));
 				}
 			}
 		}, errors.onUnexpectedError);
