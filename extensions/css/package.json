@@ -8,7 +8,7 @@
 	"activationEvents": [
 		"onLanguage:css",
 		"onLanguage:less",
-		"onLanguage:sass",
+		"onLanguage:scss",
 		"onCommand:_css.applyCodeAction"
 	],
 	"main": "./client/out/cssMain",
