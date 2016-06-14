@@ -73,7 +73,10 @@ function openPreview(sideBySide?: boolean): void {
 	}
 
 	let markdownPreviewUri = getMarkdownUri(activeEditor.document);
-	vscode.commands.executeCommand('vscode.previewHtml', markdownPreviewUri, getViewColumn(sideBySide));
+	vscode.commands.executeCommand('vscode.previewHtml',
+		markdownPreviewUri,
+		getViewColumn(sideBySide),
+		`Preview '${path.basename(activeEditor.document.fileName)}'`);
 }
 
 function getViewColumn(sideBySide): ViewColumn {
