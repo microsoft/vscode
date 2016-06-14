@@ -88,7 +88,7 @@ export class EditorGroup implements IEditorGroup {
 		this.mru = [];
 		this.toDispose = [];
 		this.mapResourceToEditor = Object.create(null);
-		this.editorOpenPositioning = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editorOpenPositioning;
+		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();

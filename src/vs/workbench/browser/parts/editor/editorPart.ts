@@ -128,6 +128,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.stacks = this.instantiationService.createInstance(EditorStacksModel);
 
+		this.previewEditors = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.previewEditors;
+
 		this.registerListeners();
 	}
 
