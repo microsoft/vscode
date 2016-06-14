@@ -73,18 +73,15 @@ let languageServices : { [id:string]: LanguageService} = {
 
 function getLanguageService(document: TextDocument) {
 	let service = languageServices[document.languageId];
-	// todo handle unknown servce
+	if (!service) {
+		connection.console.log('Document type is ' + document.languageId + ', using css instead.');
+		service = languageServices['css'];
+	}
 	return service;
 }
 
-// The content of a text document has changed. This event is emitted
-// when the text document first opened or when its content has changed.
-documents.onDidChangeContent((change) => {
-	validateTextDocument(change.document);
-});
-
 // The settings have changed. Is send on server activation as well.
-connection.onDidChangeConfiguration((change) => {
+connection.onDidChangeConfiguration(change => {
 	updateConfiguration(<Settings>change.settings);
 });
 
@@ -93,7 +90,34 @@ function updateConfiguration(settings: Settings) {
 		languageServices[languageId].configure(settings[languageId]);
 	}
 	// Revalidate any open text documents
-	documents.all().forEach(validateTextDocument);
+	documents.all().forEach(triggerValidation);
+}
+
+// The content of a text document has changed. This event is emitted
+// when the text document first opened or when its content has changed.
+documents.onDidChangeContent(change => {
+	triggerValidation(change.document);
+});
+
+let pendingValidationRequests : {[uri:string]:number} = {};
+const validationDelayMs = 200;
+documents.onDidClose(e => {
+	let request = pendingValidationRequests[e.document.uri];
+	if (request) {
+		clearTimeout(request);
+		delete pendingValidationRequests[e.document.uri];
+	}
+});
+
+function triggerValidation(textDocument: TextDocument): void {
+	let request = pendingValidationRequests[textDocument.uri];
+	if (request) {
+		clearTimeout(request);
+	}
+	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
+		delete pendingValidationRequests[textDocument.uri];
+		validateTextDocument(textDocument);
+	}, validationDelayMs);
 }
 
 function validateTextDocument(textDocument: TextDocument): void {
