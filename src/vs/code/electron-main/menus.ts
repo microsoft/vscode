@@ -6,6 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import * as env from 'vs/code/electron-main/env';
@@ -15,7 +16,24 @@ import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
 import { Keybinding } from 'vs/base/common/keyCodes';
-import { generateNewIssueUrl } from 'vs/code/electron-main/utils';
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
+
+export function generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string): string {
+	const osVersion = `${ os.type() } ${ os.arch() }`;
+	const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
+	const body = encodeURIComponent(
+`- VSCode Version: ${name} ${version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
+- OS Version: ${osVersion}
+
+Steps to Reproduce:
+
+1.
+2.`
+	);
+
+	return `${ baseUrl }${queryStringPrefix}body=${body}`;
+}
 
 interface IResolvedKeybinding {
 	id: string;
@@ -651,13 +669,15 @@ export class VSCodeMenu {
 			enabled: (this.windowsService.getWindowCount() > 0)
 		});
 
+		const issueUrl = generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date);
+
 		arrays.coalesce([
 			this.envService.product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.openUrl(this.envService.product.documentationUrl, 'openDocumentationUrl') }) : null,
 			this.envService.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.openUrl(this.envService.product.releaseNotesUrl, 'openReleaseNotesUrl') }) : null,
 			(this.envService.product.documentationUrl || this.envService.product.releaseNotesUrl) ? __separator__() : null,
 			this.envService.product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(this.envService.product.twitterUrl, 'openTwitterUrl') }) : null,
 			this.envService.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Request Features")), click: () => this.openUrl(this.envService.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
-			this.envService.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues")), click: () => this.openUrl(generateNewIssueUrl(app.getVersion(), this.envService.product), 'openReportIssues') }) : null,
+			this.envService.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues")), click: () => this.openUrl(issueUrl, 'openReportIssues') }) : null,
 			(this.envService.product.twitterUrl || this.envService.product.requestFeatureUrl || this.envService.product.reportIssueUrl) ? __separator__() : null,
 			this.envService.product.licenseUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "&&View License")), click: () => {
