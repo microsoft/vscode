@@ -5,6 +5,8 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -19,9 +21,8 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
-
-import product from 'vs/platform/product';
-import { ITelemetryService, combinedAppender } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
@@ -77,20 +78,24 @@ function main(server: Server): void {
 		const appender = combinedAppender(...appenders);
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
 
-		const { appRoot, extensionsPath } = accessor.get(IEnvironmentService);
-		const config: ITelemetryServiceConfig = {
-			appender,
-			commonProperties: TPromise.as({}),
-			piiPaths: [appRoot, extensionsPath]
-		};
-
 		const services = new ServiceCollection();
-		services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = accessor.get(IEnvironmentService);
+
+		if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+			const config: ITelemetryServiceConfig = {
+				appender,
+				commonProperties: resolveCommonProperties(product.commit, pkg.version),
+				piiPaths: [appRoot, extensionsPath]
+			};
+
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+		} else {
+			services.set(ITelemetryService, NullTelemetryService);
+		}
+
 		const instantiationService2 = instantiationService.createChild(services);
 
 		instantiationService2.invokeFunction(accessor => {
-			// const telemetryService = accessor.get(ITelemetryService);
-
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);

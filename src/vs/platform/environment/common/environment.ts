@@ -13,4 +13,6 @@ export interface IEnvironmentService {
 	appRoot: string;
 	userDataPath: string;
 	extensionsPath: string;
+	extensionDevelopmentPath: string;
+	isBuilt: boolean;
 }

@@ -25,6 +25,11 @@ export class EnvironmentService implements IEnvironmentService {
 	private _extensionsPath: string;
 	get extensionsPath(): string { return this._extensionsPath; }
 
+	private _extensionDevelopmentPath: string;
+	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
+
+	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
+
 	constructor() {
 		const argv = parseArgs(process.argv);
 
@@ -34,5 +39,7 @@ export class EnvironmentService implements IEnvironmentService {
 		const userHome = path.join(os.homedir(), product.dataFolderName);
 		this._extensionsPath = argv.extensionHomePath || path.join(userHome, 'extensions');
 		this._extensionsPath = path.normalize(this._extensionsPath);
+
+		this._extensionDevelopmentPath = argv.extensionDevelopmentPath;
 	}
 }

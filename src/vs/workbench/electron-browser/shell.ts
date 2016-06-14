@@ -24,7 +24,7 @@ import {ITelemetryAppenderChannel,TelemetryAppenderClient} from 'vs/platform/tel
 import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
 import {IdleMonitor, UserStatus} from  'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
+import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
 import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
@@ -225,9 +225,12 @@ export class WorkbenchShell {
 		// Telemetry
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+			const commit = this.contextService.getConfiguration().env.commitHash;
+			const version = this.contextService.getConfiguration().env.version;
+
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
-				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
 			};
 

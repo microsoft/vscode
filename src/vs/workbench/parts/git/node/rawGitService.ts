@@ -54,7 +54,7 @@ export class RawGitService implements IRawGitService {
 		if (!this.repo) {
 			return TPromise.as(0);
 		}
-		
+
 		return this.status().then(r => r ? r.status.length : 0);
 	}
 
