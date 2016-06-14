@@ -27,6 +27,8 @@ export class TerminalPanel extends Panel {
 
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
+	private tabListElement: HTMLElement;
+	private terminalContainerElement: HTMLElement;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 	private activeTerminalIndex: number;
@@ -69,13 +71,19 @@ export class TerminalPanel extends Panel {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
 		this.themeStyleElement = document.createElement('style');
+		this.tabListElement = document.createElement('ul');
+		this.terminalContainerElement = document.createElement('div');
 		this.parentDomElement.appendChild(this.themeStyleElement);
+		this.parentDomElement.appendChild(this.tabListElement);
+		this.parentDomElement.appendChild(this.terminalContainerElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
 			this.terminalInstances[this.activeTerminalIndex].dispatchEvent(new WheelEvent(event.type, event));
 		}));
 
-		return this.createTerminal();
+		return this.createTerminal().then(() => {
+			return Promise.resolve(void 0);
+		});
 	}
 
 	public createNewTerminalInstance(): TPromise<void> {
@@ -98,23 +106,22 @@ export class TerminalPanel extends Panel {
 				this.updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					this.createTerminal();
-					this.updateFont();
-					this.updateTheme();
-					return Promise.resolve(void 0);
+					this.createNewTerminalInstance();
 				});
 			}
 		}
 		return super.setVisible(visible);
 	}
 
-	private createTerminal(): TPromise<void> {
-		return new TPromise<void>(resolve => {
-			this.terminalInstances.push(new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this)));
+	private createTerminal(): TPromise<TerminalInstance> {
+		return new TPromise<TerminalInstance>(resolve => {
+			var terminalInstance = new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this));
+			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
-			resolve(void 0);
+			this.tabListElement.appendChild(terminalInstance.getTabElement());
+			resolve(terminalInstance);
 		});
 	}
 

@@ -13,9 +13,13 @@ var ptyProcess = ptyJs.fork(process.env.PTYSHELL, getArgs(), {
 	name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
 	cwd: process.env.PTYCWD
 });
+var currentTitle = '';
 
 ptyProcess.on('data', function (data) {
-	process.send(data);
+	process.send({
+		type: 'data',
+		content: data
+	});
 });
 
 ptyProcess.on('exit', function (exitCode) {
@@ -31,6 +35,7 @@ process.on('message', function (message) {
 });
 
 setupPlanB(process.env.PTYPID);
+setupTitlePolling();
 
 function getArgs() {
 	var args = [];
@@ -50,4 +55,21 @@ function setupPlanB(parentPid) {
 			process.exit();
 		}
 	}, 5000);
+}
+
+function setupTitlePolling() {
+	sendProcessTitle();
+	setInterval(function () {
+		if (currentTitle !== ptyProcess.process) {
+			sendProcessTitle();
+		}
+	}, 200);
+}
+
+function sendProcessTitle() {
+	process.send({
+		type: 'title',
+		content: ptyProcess.process
+	});
+	currentTitle = ptyProcess.process;
 }

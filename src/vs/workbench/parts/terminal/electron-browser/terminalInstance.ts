@@ -27,6 +27,7 @@ export class TerminalInstance {
 	private terminalDomElement: HTMLDivElement;
 	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
+	private tabElement: HTMLLIElement;
 
 	public constructor(
 		private shell: IShell,
@@ -49,8 +50,12 @@ export class TerminalInstance {
 		this.toDispose.push(terminalScrollbar);
 		this.terminal = xterm();
 
-		this.ptyProcess.on('message', (data) => {
-			this.terminal.write(data);
+		this.ptyProcess.on('message', (message) => {
+			if (message.type === 'data') {
+				this.terminal.write(message.content);
+			} else if (message.type === 'title') {
+				this.getTabElement().textContent = message.content;
+			}
 		});
 		this.terminal.on('data', (data) => {
 			this.ptyProcess.send({
@@ -156,6 +161,13 @@ export class TerminalInstance {
 
 	public dispatchEvent(event: Event) {
 		this.terminal.element.dispatchEvent(event);
+	}
+
+	public getTabElement(): HTMLLIElement {
+		if (!this.tabElement) {
+			this.tabElement = document.createElement('li');
+		}
+		return this.tabElement;
 	}
 
 	public dispose(): void {
