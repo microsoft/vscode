@@ -10,21 +10,19 @@ import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActionsService} from '../common/actions';
 import {commands} from '../common/commandsExtensionPoint';
+import 'vs/platform/actions/workbench/actionBarContributions';
 
 export default class ActionsService implements IActionsService {
 
-	private _extensionService: IExtensionService;
-	private _keybindingsService: IKeybindingService;
-	private _extensionsActions: IAction[];
-
 	serviceId: any;
 
+	private _extensionsActions: IAction[];
+
 	constructor(
-		@IExtensionService extensionService: IExtensionService,
-		@IKeybindingService keybindingsService: IKeybindingService
+		@IExtensionService private _extensionService: IExtensionService,
+		@IKeybindingService private _keybindingsService: IKeybindingService
 	) {
-		this._extensionService = extensionService;
-		this._keybindingsService = keybindingsService;
+		this._extensionService.onReady().then(() => this._extensionsActions = null);
 	}
 
 	getActions(): IAction[] {

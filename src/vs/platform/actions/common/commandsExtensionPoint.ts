@@ -42,7 +42,7 @@ function isValidContext(context: Context, rejects: string[]): boolean {
 		rejects.push(localize('requireenumtype', "property `path` is mandatory and must be one of `editor/primary`, `editor/secondary`"));
 		return false;
 	}
-	if (typeof context.when !== 'object') {
+	if (typeof context.when !== 'object' && typeof context.when !== 'string' && !Array.isArray(context.when)) {
 		rejects.push(localize('requirefilter', "property `when` is mandatory and must be like `{language, scheme, pattern}`"));
 		return false;
 	}
@@ -79,7 +79,46 @@ function isValidCommand(candidate: Command, rejects: string[]): boolean {
 	return true;
 }
 
-let commandType: IJSONSchema = {
+const filterType: IJSONSchema = {
+	type: 'object',
+	properties: {
+		language: {
+			description: localize('vscode.extension.contributes.filterType.language', ""),
+			type: 'string'
+		},
+		scheme: {
+			description: localize('vscode.extension.contributes.filterType.scheme', ""),
+			type: 'string'
+		},
+		pattern: {
+			description: localize('vscode.extension.contributes.filterType.pattern', ""),
+			type: 'string'
+		}
+	}
+};
+
+const contextType: IJSONSchema = {
+	type: 'object',
+	properties: {
+		path: {
+			description: localize('vscode.extension.contributes.commandType.context.path', ""),
+			enum: [
+				'editor/primary',
+				'editor/secondary'
+			]
+		},
+		when: {
+			anyOf: [
+				'string',
+				filterType,
+				{ type: 'array', items: 'string' },
+				{ type: 'array', items: filterType },
+			]
+		}
+	}
+};
+
+const commandType: IJSONSchema = {
 	type: 'object',
 	properties: {
 		command: {
@@ -93,6 +132,13 @@ let commandType: IJSONSchema = {
 		category: {
 			description: localize('vscode.extension.contributes.commandType.category', '(Optional) category string by the command is grouped in the UI'),
 			type: 'string'
+		},
+		context: {
+			description: localize('vscode.extension.contributes.commandType.context', '(Optional) '),
+			oneOf: [
+				contextType,
+				{ type: 'array', items: contextType }
+			]
 		}
 	}
 };
