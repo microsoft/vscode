@@ -18,12 +18,13 @@ import {isMacintosh} from 'vs/base/common/platform';
 import {Builder, $} from 'vs/base/browser/builder';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings as Kb} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -51,9 +52,12 @@ export class TabsTitleControl extends TitleControl {
 	private currentPrimaryGroupActionIds: string[];
 	private currentSecondaryGroupActionIds: string[];
 
+	private previewEditors: boolean;
+
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -66,6 +70,18 @@ export class TabsTitleControl extends TitleControl {
 		this.currentSecondaryGroupActionIds = [];
 
 		this.tabDisposeables = [];
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
+		this.previewEditors = config.workbench.previewEditors;
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -548,10 +564,12 @@ export class TabsTitleControl extends TitleControl {
 		const actions: IAction[] = [
 			this.closeEditorAction,
 			this.closeOtherEditorsAction,
-			this.closeRightEditorsAction,
-			new Separator(),
-			this.pinEditorAction,
+			this.closeRightEditorsAction
 		];
+
+		if (this.previewEditors) {
+			actions.push(new Separator(), this.pinEditorAction);
+		}
 
 		// Actions: For active editor
 		if (group.isActive(editor)) {
