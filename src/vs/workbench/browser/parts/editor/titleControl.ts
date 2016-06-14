@@ -29,7 +29,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction,
-	MoveGroupRightAction, SplitEditorAction, CloseEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction}
+	MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction}
 from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
@@ -54,7 +54,7 @@ export abstract class TitleControl {
 	protected toDispose: IDisposable[];
 
 	protected closeEditorAction: CloseEditorAction;
-	protected pinEditorAction: PinEditorAction;
+	protected pinEditorAction: KeepEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
 	protected showEditorsOfLeftGroup: QuickOpenAction;
@@ -172,7 +172,7 @@ export abstract class TitleControl {
 		this.closeOtherEditorsAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = this.instantiationService.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
-		this.pinEditorAction = this.instantiationService.createInstance(PinEditorAction, PinEditorAction.ID, nls.localize('pin', "Pin Editor"));
+		this.pinEditorAction = this.instantiationService.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepEditor', "Keep Editor"));
 		this.showAllEditorsAction = this.instantiationService.createInstance(ShowAllEditorsAction, ShowAllEditorsAction.ID, nls.localize('showEditors', "Show Editors"));
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 		this.moveGroupLeftAction = this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, nls.localize('moveLeft', "Move Left"));

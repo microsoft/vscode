@@ -750,10 +750,10 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
-export class PinEditorAction extends Action {
+export class KeepEditorAction extends Action {
 
-	public static ID = 'workbench.action.pinEditor';
-	public static LABEL = nls.localize('pinEditor', "Pin Editor");
+	public static ID = 'workbench.action.keepEditor';
+	public static LABEL = nls.localize('keepEditor', "Keep Editor");
 
 	constructor(
 		id: string,
