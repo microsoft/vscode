@@ -330,9 +330,11 @@ export class TabsTitleControl extends TitleControl {
 		const containerScrollPosX = this.tabsContainer.scrollLeft;
 		const activeTabPosX = this.activeTab.offsetLeft;
 		const activeTabWidth = this.activeTab.offsetWidth;
+		const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
-		if (containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
+		// Note: only try to do this if we actually have enough width to give to show the tab fully!
+		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
 			this.scrollbar.updateState({
 				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
 			});
