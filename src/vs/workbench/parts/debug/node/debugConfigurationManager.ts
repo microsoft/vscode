@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
+import types = require('vs/base/common/types');
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
@@ -287,12 +288,13 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
-			if (typeof nameOrConfig === 'string' && (!config || !config.configurations)) {
-				this.configuration = null;
-				return;
-			}
-
-			if (typeof nameOrConfig === 'string') {
+			if (types.isObject(nameOrConfig)) {
+				this.configuration = objects.deepClone(nameOrConfig) as debug.IConfig;
+			} else {
+				if (!config || !config.configurations) {
+					this.configuration = null;
+					return;
+				}
 				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
 				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
 
@@ -300,8 +302,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				if (config && this.configuration) {
 					this.configuration.debugServer = config.debugServer;
 				}
-			} else {
-				this.configuration = objects.deepClone(nameOrConfig);
 			}
 
 			if (this.configuration) {
