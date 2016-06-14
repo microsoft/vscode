@@ -756,7 +756,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
 		this.titleAreaControl[position].create($(this.titleContainer[position]));
 		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
-		this.titleAreaControl[position].refresh(true);
+		this.titleAreaControl[position].refresh();
 	}
 
 	private hookTitleDragListener(position: Position): void {

@@ -190,9 +190,10 @@ export class NoTabsTitleControl extends TitleControl {
 		if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primaryEditorActions.push(this.splitEditorAction);
 		}
-
 		const secondaryEditorActions = prepareActions(editorActions.secondary);
+
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
+		primaryEditorActionIds.push(this.closeEditorAction.id);
 		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
 
 		if (!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) || !arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds)) {
