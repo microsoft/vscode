@@ -168,14 +168,15 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
+			'!extensions/*/{client,server}/src/**',
+			'!extensions/*/{client,server}/test/**',
+			'!extensions/*/{client,server}/out/**/test/**',
+			'!extensions/*/{client,server}/out/**/typings/**',
+			'!extensions/**/.vscode/**',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**',
-			'!extensions/json/server/.vscode/**',
-			'!extensions/json/server/src/**',
-			'!extensions/json/server/out/**/test/**',
-			'!extensions/json/server/test/**',
-			'!extensions/json/server/typings/**'
+			'!extensions/css/server/out/data/**'
 		], { base: '.' });
 
 		var sources = es.merge(src, extensions)
