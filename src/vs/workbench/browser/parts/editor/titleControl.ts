@@ -89,7 +89,37 @@ export abstract class TitleControl {
 		this.initActions();
 	}
 
+	private updateActionEnablement(): void {
+		if (!this.context) {
+			return;
+		}
+
+		const group = this.context;
+		const groupCount = this.stacks.groups.length;
+
+		// Move group
+		switch (this.stacks.positionOfGroup(group)) {
+			case Position.LEFT:
+				this.moveGroupLeftAction.enabled = false;
+				this.moveGroupRightAction.enabled = this.stacks.groups.length > 1;
+				break;
+
+			case Position.CENTER:
+				this.moveGroupRightAction.enabled = this.stacks.groups.length > 2;
+				break;
+
+			case Position.RIGHT:
+				this.moveGroupRightAction.enabled = false;
+				break;
+		}
+
+		// Split editor
+		this.splitEditorAction.enabled = groupCount < 3;
+	}
+
 	private onSchedule(): void {
+		this.updateActionEnablement();
+
 		if (this.refreshScheduled) {
 			this.doRefresh();
 		} else {
@@ -292,22 +322,6 @@ export abstract class TitleControl {
 		// Splitting
 		if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primary.push(this.splitEditorAction);
-		}
-
-		// Make sure enablement is good
-		switch (this.stacks.positionOfGroup(group)) {
-			case Position.LEFT:
-				this.moveGroupLeftAction.enabled = false;
-				this.moveGroupRightAction.enabled = this.stacks.groups.length > 1;
-				break;
-
-			case Position.CENTER:
-				this.moveGroupRightAction.enabled = this.stacks.groups.length > 2;
-				break;
-
-			case Position.RIGHT:
-				this.moveGroupRightAction.enabled = false;
-				break;
 		}
 
 		// Return actions
