@@ -523,7 +523,10 @@ export class TabsTitleControl extends TitleControl {
 					input: { resource, options: { pinned: true, index: targetIndex } },
 					position: targetPosition
 				};
-			})).done(() => this.editorGroupService.focusGroup(targetPosition), errors.onUnexpectedError);
+			})).done(() => {
+				this.editorGroupService.focusGroup(targetPosition);
+				window.focus();
+			}, errors.onUnexpectedError);
 		}
 	}
 

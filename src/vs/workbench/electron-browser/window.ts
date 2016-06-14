@@ -6,7 +6,6 @@
 'use strict';
 
 import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import {Identifiers} from 'vs/workbench/common/constants';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
@@ -76,7 +75,6 @@ export class ElectronWindow {
 
 			let editorArea = window.document.getElementById(Identifiers.EDITOR_PART);
 			if (dom.isAncestor(e.toElement, editorArea)) {
-				let pathsOpened = false;
 
 				// Check for native file transfer
 				if (e.dataTransfer && e.dataTransfer.files) {
@@ -88,36 +86,8 @@ export class ElectronWindow {
 					}
 
 					if (thepaths.length) {
-						pathsOpened = true;
 						this.focus(); // make sure this window has focus so that the open call reaches the right window!
 						this.open(thepaths);
-					}
-				}
-
-				// Otherwise check for special webkit transfer
-				if (!pathsOpened && e.dataTransfer && e.dataTransfer.items) {
-					let items = e.dataTransfer.items;
-					if (items.length && typeof items[0].getAsString === 'function') {
-						items[0].getAsString((str) => {
-							try {
-								let resource = uri.parse(str);
-								if (resource.scheme === 'file') {
-
-									// Do not allow to drop a child of the currently active workspace. This prevents an issue
-									// where one would drop a folder from the explorer by accident into the editor area and
-									// loose all the context.
-									let workspace = this.contextService.getWorkspace();
-									if (workspace && paths.isEqualOrParent(resource.fsPath, workspace.resource.fsPath)) {
-										return;
-									}
-
-									this.focus(); // make sure this window has focus so that the open call reaches the right window!
-									this.open([decodeURIComponent(resource.fsPath)]);
-								}
-							} catch (error) {
-								// not a resource
-							}
-						});
 					}
 				}
 			}
@@ -128,6 +98,14 @@ export class ElectronWindow {
 			shell.openExternal(url);
 
 			return null;
+		};
+
+		// Patch focus to also focus the entire window
+		const originalFocus = window.focus;
+		const $this = this;
+		window.focus = function() {
+			originalFocus.call(this, arguments);
+			$this.focus();
 		};
 	}
 
