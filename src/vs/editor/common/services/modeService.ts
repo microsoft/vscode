@@ -58,7 +58,8 @@ export interface IModeService {
 	getExtensions(alias: string): string[];
 	getMimeForMode(modeId: string): string;
 	getLanguageName(modeId:string): string;
-	getModeIdForLanguageName(alias:string): string;
+	getModeIdForLanguageName(alias: string): string;
+	getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
 	getConfigurationFiles(modeId: string): string[];
 

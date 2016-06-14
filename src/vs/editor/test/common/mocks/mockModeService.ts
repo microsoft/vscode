@@ -55,6 +55,9 @@ export class MockModeService implements IModeService {
 	getModeIdForLanguageName(alias:string): string {
 		throw new Error('Not implemented');
 	}
+	getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
+		throw new Error('Not implemented');
+	}
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
 		throw new Error('Not implemented');
 	}
