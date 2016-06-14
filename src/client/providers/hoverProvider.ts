@@ -2,6 +2,7 @@
 
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
+import * as telemetryContracts from "../common/telemetryContracts";
 
 
 export class PythonHoverProvider implements vscode.HoverProvider {
@@ -36,6 +37,7 @@ export class PythonHoverProvider implements vscode.HoverProvider {
             }
             var columnIndex = range.end.character;
             var cmd: proxy.ICommand<proxy.ICompletionResult> = {
+                telemetryEvent: telemetryContracts.IDE.HoverDefinition,
                 command: proxy.CommandType.Completions,
                 fileName: filename,
                 columnIndex: columnIndex,

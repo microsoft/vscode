@@ -9,6 +9,8 @@ import * as pep8 from './../linters/pep8Linter';
 import * as flake8 from './../linters/flake8';
 import * as pydocstyle from './../linters/pydocstyle';
 import * as settings from '../common/configSettings';
+import * as telemetryHelper from "../common/telemetry";
+import * as telemetryContracts from "../common/telemetryContracts";
 
 const FILE_PROTOCOL = "file:///"
 
@@ -114,7 +116,17 @@ export class LintProvider extends vscode.Disposable {
         });
 
         this.pendingLintings.set(documentUri.fsPath, cancelToken);
-        var promises = this.linters.map(linter => linter.runLinter(documentUri.fsPath, documentLines));
+        var promises = this.linters.map(linter => {
+            if (!linter.isEnabled()) {
+                return Promise.resolve([]);
+            }
+            let delays = new telemetryHelper.Delays();
+            return linter.runLinter(documentUri.fsPath, documentLines).then(results => {
+                delays.stop();
+                telemetryHelper.sendTelemetryEvent(telemetryContracts.IDE.Lint, { Lint_Provider: linter.Id }, delays.toMeasures());
+                return results;
+            });
+        });
 
         Promise.all<linter.ILintMessage[]>(promises).then(msgs => {
             if (cancelToken.token.isCancellationRequested) {

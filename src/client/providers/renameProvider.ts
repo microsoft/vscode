@@ -2,6 +2,7 @@
 
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
+import * as telemetryContracts from "../common/telemetryContracts";
 
 var _oldName = "";
 var _newName = "";
@@ -58,6 +59,7 @@ export class PythonRenameProvider implements vscode.RenameProvider {
 
             var columnIndex = range.isEmpty ? position.character : range.end.character;
             var cmd: proxy.ICommand<proxy.IReferenceResult> = {
+                telemetryEvent: telemetryContracts.IDE.Rename,
                 command: proxy.CommandType.Usages,
                 fileName: filename,
                 columnIndex: columnIndex,

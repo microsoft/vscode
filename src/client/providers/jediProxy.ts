@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as settings from './../common/configSettings';
 import * as logger from './../common/logger';
+import * as telemetryHelper from "../common/telemetry";
 
 var proc: child_process.ChildProcess;
 var pythonSettings = settings.PythonSettings.getInstance();
@@ -45,7 +46,7 @@ var mappings = {
     "statement": vscode.CompletionItemKind.Keyword
 };
 
-Object.keys(mappings).forEach(key=> {
+Object.keys(mappings).forEach(key => {
     pythonVSCodeTypeMappings.set(key, mappings[key]);
 });
 
@@ -91,7 +92,7 @@ var symbolMappings = {
     "list": vscode.SymbolKind.Array
 };
 
-Object.keys(symbolMappings).forEach(key=> {
+Object.keys(symbolMappings).forEach(key => {
     pythonVSCodeSymbolMappings.set(key, symbolMappings[key]);
 });
 
@@ -193,7 +194,7 @@ function spawnProcess(dir: string) {
         var dataStr = previousData = previousData + data + ""
         var responses: any[];
         try {
-            responses = dataStr.split("\n").filter(line=> line.length > 0).map(resp=> JSON.parse(resp));
+            responses = dataStr.split("\n").filter(line => line.length > 0).map(resp => JSON.parse(resp));
             previousData = "";
         }
         catch (ex) {
@@ -211,13 +212,17 @@ function spawnProcess(dir: string) {
             var responseId = <number>response["id"];
 
             var cmd = <IExecutionCommand<ICommandResult>>commands.get(responseId);
-
             if (typeof cmd === "object" && cmd !== null) {
                 commands.delete(responseId);
                 var index = commandQueue.indexOf(cmd.id);
                 commandQueue.splice(index, 1);
 
-                //Check if this command has expired
+                if (cmd.delays) {
+                    cmd.delays.stop();
+                    telemetryHelper.sendTelemetryEvent(cmd.telemetryEvent, null, cmd.delays.toMeasures());
+                }
+
+                // Check if this command has expired
                 if (cmd.token.isCancellationRequested) {
                     return;
                 }
@@ -226,7 +231,7 @@ function spawnProcess(dir: string) {
                     case CommandType.Completions: {
                         var results = <IAutoCompleteItem[]>response['results'];
                         if (results.length > 0) {
-                            results.forEach(item=> {
+                            results.forEach(item => {
                                 item.type = getMappedVSCodeType(<string><any>item.type);
                                 item.kind = getMappedVSCodeSymbol(<string><any>item.type);
                             });
@@ -266,7 +271,7 @@ function spawnProcess(dir: string) {
                                 requestId: cmd.id,
                                 definitions: []
                             }
-                            defResults.definitions = defs.map(def=> {
+                            defResults.definitions = defs.map(def => {
                                 return <IDefinition>{
                                     columnIndex: <number>def.column,
                                     fileName: <string>def.fileName,
@@ -286,7 +291,7 @@ function spawnProcess(dir: string) {
                         if (defs.length > 0) {
                             var refResult: IReferenceResult = {
                                 requestId: cmd.id,
-                                references: defs.map(item=> {
+                                references: defs.map(item => {
                                     return {
                                         columnIndex: item.column,
                                         fileName: item.fileName,
@@ -304,11 +309,11 @@ function spawnProcess(dir: string) {
                     }
                 }
             }
-            
+
             //Ok, check if too many pending requets
             if (commandQueue.length > 10) {
                 var items = commandQueue.splice(0, commandQueue.length - 10);
-                items.forEach(id=> {
+                items.forEach(id => {
                     if (commands.has(id)) {
                         commands.delete(id);
                     }
@@ -327,6 +332,7 @@ function sendCommand<T extends ICommandResult>(cmd: ICommand<T>): Promise<T> {
         var payload = createPayload(exexcutionCmd);
         exexcutionCmd.resolve = resolve;
         exexcutionCmd.reject = reject;
+        exexcutionCmd.delays = new telemetryHelper.Delays();
         try {
             proc.stdin.write(JSON.stringify(payload) + "\n");
             commands.set(exexcutionCmd.id, exexcutionCmd);
@@ -367,7 +373,7 @@ function createPayload<T extends ICommandResult>(cmd: IExecutionCommand<T>): any
 
 function getConfig() {
     //Add support for paths relative to workspace
-    var extraPaths = pythonSettings.autoComplete.extraPaths.map(extraPath=> {
+    var extraPaths = pythonSettings.autoComplete.extraPaths.map(extraPath => {
         if (path.isAbsolute(extraPath)) {
             return extraPath;
         }
@@ -384,6 +390,7 @@ function getConfig() {
 }
 
 export interface ICommand<T extends ICommandResult> {
+    telemetryEvent: string;
     command: CommandType;
     source: string;
     fileName: string;
@@ -396,6 +403,7 @@ interface IExecutionCommand<T extends ICommandResult> extends ICommand<T> {
     resolve: (value?: T) => void
     reject: (ICommandError) => void;
     token: vscode.CancellationToken;
+    delays: telemetryHelper.Delays;
 }
 
 export interface ICommandError {
@@ -473,7 +481,7 @@ export class JediProxyHandler<R extends ICommandResult, T> {
         this.cancellationTokenSource = new vscode.CancellationTokenSource();
         executionCmd.token = this.cancellationTokenSource.token;
 
-        this.jediProxy.sendCommand<R>(executionCmd).then(data=> this.onResolved(data), () => { });
+        this.jediProxy.sendCommand<R>(executionCmd).then(data => this.onResolved(data), () => { });
         this.lastCommandId = executionCmd.id;
         this.lastToken = token;
         this.promiseResolve = resolve;

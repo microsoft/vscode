@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
 import * as fs from 'fs';
+import * as telemetryContracts from "../common/telemetryContracts";
 
 export class PythonDefinitionProvider implements vscode.DefinitionProvider {
     private jediProxyHandler: proxy.JediProxyHandler<proxy.IDefinitionResult, vscode.Definition>;
@@ -33,6 +34,7 @@ export class PythonDefinitionProvider implements vscode.DefinitionProvider {
             var range = document.getWordRangeAtPosition(position);
             var columnIndex = range.isEmpty ? position.character : range.end.character;
             var cmd: proxy.ICommand<proxy.IDefinitionResult> = {
+                telemetryEvent: telemetryContracts.IDE.Definition,
                 command: proxy.CommandType.Definitions,
                 fileName: filename,
                 columnIndex: columnIndex,

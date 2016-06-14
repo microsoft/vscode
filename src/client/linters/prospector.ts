@@ -14,6 +14,9 @@ export class Linter extends baseLinter.BaseLinter {
         super("prospector", outputChannel);
     }
 
+    public isEnabled(): Boolean {
+        return this.pythonSettings.linting.prospectorEnabled;
+    }
     public runLinter(filePath: string, txtDocumentLines: string[]): Promise<baseLinter.ILintMessage[]> {
         if (!this.pythonSettings.linting.prospectorEnabled) {
             return Promise.resolve([]);

@@ -11,6 +11,9 @@ export class Linter extends baseLinter.BaseLinter {
         super("pep8", outputChannel);
     }
 
+    public isEnabled(): Boolean {
+        return this.pythonSettings.linting.pep8Enabled;
+    }
     public runLinter(filePath: string, txtDocumentLines: string[]): Promise<baseLinter.ILintMessage[]> {
         if (!this.pythonSettings.linting.pep8Enabled) {
             return Promise.resolve([]);

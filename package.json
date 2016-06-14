@@ -480,6 +480,7 @@
     "uint64be": "^1.0.1",
     "vscode-debugadapter": "^1.0.1",
     "vscode-debugprotocol": "^1.0.1",
+    "vscode-extension-telemetry": "0.0.5",
     "vscode-languageclient": "^1.1.0",
     "vscode-languageserver": "^1.1.0"
   },

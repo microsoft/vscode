@@ -1,13 +1,11 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-
-'use strict';
-import * as vscode from 'vscode';
-import * as baseTest from './../unittest/baseTestRunner';
-import * as unittest from './../unittest/unittest';
-import * as nosetest from './../unittest/nosetests';
-import * as settings from './../common/configSettings';
+"use strict";
+import * as vscode from "vscode";
+import * as baseTest from "./../unittest/baseTestRunner";
+import * as unittest from "./../unittest/unittest";
+import * as nosetest from "./../unittest/nosetests";
+import * as settings from "./../common/configSettings";
+import * as telemetryHelper from "../common/telemetry";
+import * as telemetryContracts from "../common/telemetryContracts";
 
 let pythonOutputChannel: vscode.OutputChannel;
 let testProviders: baseTest.BaseTestRunner[] = [];
@@ -23,8 +21,17 @@ export function activateUnitTestProvider(context: vscode.ExtensionContext, setti
 function runUnitTests(filePath: string = "") {
     pythonOutputChannel.clear();
 
-    var promises = testProviders.map(t=> t.runTests(filePath));
+    let promises = testProviders.map(t => {
+        if (!t.isEnabled()) {
+            return Promise.resolve();
+        }
+        let delays = new telemetryHelper.Delays();
+        t.runTests(filePath).then(() => {
+            delays.stop();
+            telemetryHelper.sendTelemetryEvent(telemetryContracts.Commands.UnitTests, { UnitTest_Provider: t.Id }, delays.toMeasures());
+        });
+    });
     Promise.all(promises).then(() => {
         pythonOutputChannel.show();
-    })
+    });
 }

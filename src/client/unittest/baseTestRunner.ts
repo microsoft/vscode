@@ -1,10 +1,10 @@
-'use strict';
-import * as child_process from 'child_process';
-import * as path from 'path';
-import { exec } from 'child_process';
-import {sendCommand} from './../common/childProc';
-import * as settings from './../common/configSettings';
-import {OutputChannel, window, workspace} from 'vscode';
+"use strict";
+import * as child_process from "child_process";
+import * as path from "path";
+import { exec } from "child_process";
+import {sendCommand} from "./../common/childProc";
+import * as settings from "./../common/configSettings";
+import {OutputChannel, window, workspace} from "vscode";
 
 export abstract class BaseTestRunner {
     public Id: string;
@@ -21,16 +21,16 @@ export abstract class BaseTestRunner {
     public runTests(filePath: string): Promise<any> {
         return Promise.resolve();
     }
-
+    public abstract isEnabled(): boolean;
     protected run(commandLine: string): Promise<any> {
-        var outputChannel = this.outputChannel;
-        var linterId = this.Id;
+        let outputChannel = this.outputChannel;
+        let linterId = this.Id;
 
         return new Promise<any>((resolve, reject) => {
             sendCommand(commandLine, workspace.rootPath, this.includeErrorAsResponse).then(data => {
                 outputChannel.append(data);
                 outputChannel.show();
-            }, error=> {
+            }, error => {
                 outputChannel.append(error);
                 outputChannel.show();
             });

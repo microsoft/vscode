@@ -11,6 +11,9 @@ export class Linter extends baseLinter.BaseLinter {
         super("flake8", outputChannel);
     }
 
+    public isEnabled(): Boolean {
+        return this.pythonSettings.linting.flake8Enabled;
+    }
     public runLinter(filePath: string, txtDocumentLines: string[]): Promise<baseLinter.ILintMessage[]> {
         if (!this.pythonSettings.linting.flake8Enabled) {
             return Promise.resolve([]);
@@ -19,9 +22,9 @@ export class Linter extends baseLinter.BaseLinter {
         var flake8Path = this.pythonSettings.linting.flake8Path;
         var cmdLine = `${flake8Path} ${FLAKE8_COMMANDLINE} "${filePath}"`;
         return new Promise<baseLinter.ILintMessage[]>((resolve, reject) => {
-            this.run(cmdLine, filePath, txtDocumentLines, workspace.rootPath).then(messages=> {
+            this.run(cmdLine, filePath, txtDocumentLines, workspace.rootPath).then(messages => {
                 //All messages in pep8 are treated as warnings for now
-                messages.forEach(msg=> {
+                messages.forEach(msg => {
                     msg.severity = baseLinter.LintMessageSeverity.Information;
                 });
 

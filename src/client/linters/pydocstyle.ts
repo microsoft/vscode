@@ -12,6 +12,9 @@ export class Linter extends baseLinter.BaseLinter {
         super("pydocstyle", outputChannel);
     }
 
+    public isEnabled(): Boolean {
+        return this.pythonSettings.linting.pydocstyleEnabled;
+    }
     public runLinter(filePath: string, txtDocumentLines: string[]): Promise<baseLinter.ILintMessage[]> {
         if (!this.pythonSettings.linting.pydocstyleEnabled) {
             return Promise.resolve([]);

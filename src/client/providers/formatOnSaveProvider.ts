@@ -7,6 +7,8 @@ import {BaseFormatter} from "./../formatters/baseFormatter";
 import {YapfFormatter} from "./../formatters/yapfFormatter";
 import {AutoPep8Formatter} from "./../formatters/autoPep8Formatter";
 import * as settings from "./../common/configSettings";
+import * as telemetryHelper from "../common/telemetry";
+import * as telemetryContracts from "../common/telemetryContracts";
 
 export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilter, context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
     let rootDir = context.asAbsolutePath(".");
@@ -31,11 +33,15 @@ export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilt
         let textEditor = vscode.window.activeTextEditor;
         if (pythonSettings.formatting.formatOnSave && textEditor.document === document) {
             let formatter = formatters.get(pythonSettings.formatting.provider);
+            let delays = new telemetryHelper.Delays();
+
             formatter.formatDocument(document, null, null).then(edits => {
                 return textEditor.edit(editBuilder => {
                     edits.forEach(edit => editBuilder.replace(edit.range, edit.newText));
                 });
             }).then(applied => {
+                delays.stop();
+                telemetryHelper.sendTelemetryEvent(telemetryContracts.IDE.Format, { Format_Provider: formatter.Id, Format_OnSave: "true" }, delays.toMeasures());
                 ignoreNextSave.add(document);
                 return document.save();
             }).then(() => {

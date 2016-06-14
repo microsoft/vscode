@@ -2,6 +2,7 @@
 
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
+import * as telemetryContracts from "../common/telemetryContracts";
 
 export class PythonCompletionItemProvider implements vscode.CompletionItemProvider {
     private jediProxyHandler: proxy.JediProxyHandler<proxy.ICompletionResult, vscode.CompletionItem[]>;
@@ -35,6 +36,7 @@ export class PythonCompletionItemProvider implements vscode.CompletionItemProvid
 
             var source = document.getText();
             var cmd: proxy.ICommand<proxy.ICommandResult> = {
+                telemetryEvent: telemetryContracts.IDE.Completion,
                 command: type,
                 fileName: filename,
                 columnIndex: columnIndex,

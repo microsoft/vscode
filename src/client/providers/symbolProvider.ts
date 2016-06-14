@@ -1,11 +1,8 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-
 'use strict';
 
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
+import * as telemetryContracts from "../common/telemetryContracts";
 
 export class PythonSymbolProvider implements vscode.DocumentSymbolProvider {
     private jediProxyHandler: proxy.JediProxyHandler<proxy.ISymbolResult, vscode.SymbolInformation[]>;
@@ -31,6 +28,7 @@ export class PythonSymbolProvider implements vscode.DocumentSymbolProvider {
 
             var source = document.getText();
             var cmd: proxy.ICommand<proxy.ISymbolResult> = {
+                telemetryEvent: telemetryContracts.IDE.Symbol,
                 command: proxy.CommandType.Symbols,
                 fileName: filename,
                 columnIndex: 0,

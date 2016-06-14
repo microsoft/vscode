@@ -2,6 +2,7 @@
 
 import * as vscode from 'vscode';
 import * as proxy from './jediProxy';
+import * as telemetryContracts from "../common/telemetryContracts";
 
 
 export class PythonReferenceProvider implements vscode.ReferenceProvider {
@@ -38,6 +39,7 @@ export class PythonReferenceProvider implements vscode.ReferenceProvider {
             var range = document.getWordRangeAtPosition(position);
             var columnIndex = range.isEmpty ? position.character : range.end.character;
             var cmd: proxy.ICommand<proxy.IReferenceResult> = {
+                telemetryEvent: telemetryContracts.IDE.Reference,
                 command: proxy.CommandType.Usages,
                 fileName: filename,
                 columnIndex: columnIndex,

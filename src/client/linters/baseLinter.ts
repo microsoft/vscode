@@ -57,7 +57,7 @@ export abstract class BaseLinter {
         this.pythonSettings = settings.PythonSettings.getInstance();
         this.outputChannel = outputChannel;
     }
-
+    public abstract isEnabled(): Boolean;
     public abstract runLinter(filePath: string, txtDocumentLines: string[]): Promise<ILintMessage[]>;
 
     protected run(commandLine: string, filePath: string, txtDocumentLines: string[], cwd: string, regEx: string = REGEX): Promise<ILintMessage[]> {
