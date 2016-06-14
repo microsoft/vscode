@@ -667,5 +667,6 @@ export interface IWorkbenchEditorConfiguration {
 	workbench: {
 		showEditorTabs: boolean;
 		previewEditors: boolean;
+		quickOpenPreviews: boolean;
 	};
 }

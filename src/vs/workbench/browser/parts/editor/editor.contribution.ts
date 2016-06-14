@@ -411,7 +411,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.previewEditors': {
 			'type': 'boolean',
-			'description': nls.localize('previewEditors', "Controls if opened editors show as preview until getting pinned."),
+			'description': nls.localize('previewEditors', "Controls if opened editors show as preview until getting pinned. Set to false to always open editors pinned."),
+			'default': true
+		},
+		'workbench.quickOpenPreviews': {
+			'type': 'boolean',
+			'description': nls.localize('quickOpenPreviews', "Controls if editors opened from quick open show as preview. Set to false to always open editors from quick open pinned."),
 			'default': true
 		}
 	}
