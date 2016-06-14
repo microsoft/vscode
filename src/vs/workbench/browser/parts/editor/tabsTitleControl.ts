@@ -516,7 +516,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Open resources if found
 		if (resources.length) {
-			e.preventDefault();
+			DOM.EventHelper.stop(e, true);
 
 			this.editorService.openEditors(resources.map(resource => {
 				return {
