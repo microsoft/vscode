@@ -260,21 +260,23 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
-			const editor = event.editor;
+			const editor = this.restoreInput(event.editor); // closed editors are always disposed so we need to restore
+			if (editor) {
 
-			// Remove all inputs matching and add as last recently closed
-			this.removeFromRecentlyClosed(editor);
-			this.recentlyClosed.push(editor);
+				// Remove all inputs matching and add as last recently closed
+				this.removeFromRecentlyClosed(editor);
+				this.recentlyClosed.push(editor);
 
-			// Bounding
-			if (this.recentlyClosed.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
-				this.recentlyClosed = this.recentlyClosed.slice(this.recentlyClosed.length - HistoryService.MAX_RECENTLY_CLOSED_EDITORS); // upper bound of recently closed
+				// Bounding
+				if (this.recentlyClosed.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
+					this.recentlyClosed = this.recentlyClosed.slice(this.recentlyClosed.length - HistoryService.MAX_RECENTLY_CLOSED_EDITORS); // upper bound of recently closed
+				}
+
+				// Restore on dispose
+				editor.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+					this.restoreInRecentlyClosed(editor);
+				});
 			}
-
-			// Restore on dispose
-			editor.addOneTimeDisposableListener(EventType.DISPOSE, () => {
-				this.restoreInRecentlyClosed(editor);
-			});
 		}
 	}
 
