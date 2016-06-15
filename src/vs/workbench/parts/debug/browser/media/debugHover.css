@@ -15,6 +15,12 @@
 	word-break: break-all;
 }
 
+.monaco-editor .debug-hover-widget .complex-value .title {
+	padding-left: 10px;
+	margin: 0 5px;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+}
+
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 18px;
 	width: 324px;

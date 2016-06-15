@@ -42,14 +42,18 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private tree: ITree;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
+	private complexValueContainer: HTMLElement;
 	private treeContainer: HTMLElement;
+	private complexValueTitle: HTMLElement;
 	private valueContainer: HTMLElement;
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
 		this.domNode = $('.debug-hover-widget monaco-editor-background');
-		this.treeContainer = dom.append(this.domNode, $('.debug-hover-tree'));
+		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
+		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
+		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
@@ -183,7 +187,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.stoleFocus = focus;
 
 		if (expression.reference === 0 || forceValueHover) {
-			this.treeContainer.hidden = true;
+			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
 			viewer.renderExpressionValue(expression, this.valueContainer, false, MAX_VALUE_RENDER_LENGTH_IN_HOVER);
 			this.valueContainer.title = '';
@@ -192,13 +196,15 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				this.editor.render();
 				this.valueContainer.focus();
 			}
+
 			return TPromise.as(null);
 		}
 
 		this.valueContainer.hidden = true;
-		this.treeContainer.hidden = false;
+		this.complexValueContainer.hidden = false;
 
 		return this.tree.setInput(expression).then(() => {
+			this.complexValueTitle.textContent = expression.value;
 			this.layoutTree();
 			this.editor.layoutContentWidget(this);
 			if (focus) {
@@ -229,9 +235,9 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 	public hide(): void {
 		if (!this.isVisible) {
-			// already not visible
 			return;
 		}
+
 		this.isVisible = false;
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
