@@ -5,7 +5,7 @@ import * as path from "path";
 import * as fs from "fs";
 import {sendCommand} from "./../common/childProc";
 import * as settings from "./../common/configSettings";
-import {getTextEdits} from "./../common/editor";
+import {getTextEditsFromPatch, getTempFileWithDocumentContents} from "./../common/editor";
 
 export abstract class BaseFormatter {
     public Id: string;
@@ -23,22 +23,31 @@ export abstract class BaseFormatter {
     protected provideDocumentFormattingEdits(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken, cmdLine: string): Thenable<vscode.TextEdit[]> {
         // Todo: Save the contents of the file to a temporary file and format that instead saving the actual file
         // This could unnecessarily trigger other behaviours
-        return document.save().then(saved => {
-            let filePath = document.uri.fsPath;
-            if (!fs.existsSync(filePath)) {
-                vscode.window.showErrorMessage(`File ${filePath} does not exist`);
+        this.outputChannel.clear();
+
+        // autopep8 and yapf have the ability to read from the process input stream and return the formatted code out of the output stream
+        // However they don't support returning the diff of the formatted text when reading data from the input stream
+        // Yes getting text formatted that way avoids having to create a temporary file, however the diffing will have
+        // to be done here in node (extension), i.e. extension cpu, i.e. les responsive solution
+        let tmpFileCreated = document.isDirty;
+        let filePromise = tmpFileCreated ? getTempFileWithDocumentContents(document) : Promise.resolve(document.fileName);
+        return filePromise.then(filePath => {
+            if (token.isCancellationRequested) {
+                return [filePath, ""];
+            }
+            return Promise.all<string>([Promise.resolve(filePath), sendCommand(cmdLine + ` "${filePath}"`, vscode.workspace.rootPath)]);
+        }).then(data => {
+            // Delete the temporary file created
+            if (tmpFileCreated) {
+                fs.unlink(data[0]);
+            }
+            if (token.isCancellationRequested) {
                 return [];
             }
-
-            this.outputChannel.clear();
-            let fileDir = path.dirname(document.uri.fsPath);
-
-            return sendCommand(cmdLine, fileDir).then(data => {
-                return getTextEdits(document.getText(), data);
-            }).catch(errorMsg => {
-                this.outputChannel.appendLine(errorMsg);
-                throw new Error(`There was an error in formatting the document. View the Python output window for details.`);
-            });
+            return getTextEditsFromPatch(document.getText(), data[1]);
+        }).catch(error => {
+            this.outputChannel.appendLine(error);
+            throw new Error(`There was an error in formatting the document. View the Python output window for details.`);
         });
     }
 }
