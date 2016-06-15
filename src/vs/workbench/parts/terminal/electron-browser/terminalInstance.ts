@@ -41,7 +41,6 @@ export class TerminalInstance {
 		this.wrapperElement.classList.add('terminal-wrapper');
 		this.ptyProcess = this.createTerminalProcess();
 		this.terminalDomElement = document.createElement('div');
-		this.parentDomElement.classList.add('integrated-terminal');
 		let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
 			canUseTranslate3d: false,
 			horizontal: ScrollbarVisibility.Hidden,
@@ -105,6 +104,9 @@ export class TerminalInstance {
 		let cols = Math.floor(dimension.width / this.font.charWidth);
 		let rows = Math.floor(dimension.height / this.font.charHeight);
 		if (this.terminal) {
+			console.log('this.font', this.font);
+			console.log('cols: ' + cols);
+			console.log('rows: ' + rows);
 			this.terminal.resize(cols, rows);
 		}
 		if (this.ptyProcess.connected) {

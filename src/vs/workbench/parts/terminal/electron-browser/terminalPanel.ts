@@ -29,9 +29,10 @@ export class TerminalPanel extends Panel {
 
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
+	private tabsOuterContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private tabScrollbar: ScrollableElement;
-	private terminalContainerElement: HTMLElement;
+	private terminalContainer: HTMLElement;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 	private activeTerminalIndex: number;
@@ -53,10 +54,7 @@ export class TerminalPanel extends Panel {
 		}
 		if (this.terminalInstances.length > 0) {
 			let computedStyle = window.getComputedStyle(this.tabsContainer);
-			console.log(computedStyle.height);
 			let height = dimension.height - parseInt(computedStyle.height.replace(/px/, ''), 10);
-			console.log('dimension.height: ' + dimension.height);
-			console.log('height: ' + height);
 			let terminalContainerDimension = new Dimension(dimension.width, height);
 			this.terminalInstances[this.activeTerminalIndex].layout(terminalContainerDimension);
 		}
@@ -82,7 +80,10 @@ export class TerminalPanel extends Panel {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
+		DOM.addClass(this.parentDomElement, 'integrated-terminal');
 		this.themeStyleElement = document.createElement('style');
+		this.tabsOuterContainer = document.createElement('div');
+		DOM.addClass(this.tabsOuterContainer, 'tabs-outer-container');
 		this.tabsContainer = document.createElement('ul');
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 
@@ -95,20 +96,21 @@ export class TerminalPanel extends Panel {
 			canUseTranslate3d: true,
 			horizontalScrollbarSize: 3
 		});
-		this.tabsContainer.style.overflow = 'scroll'; // custom scrollbar is eager on removing this style but we want it for DND scroll feedback
 
 		this.tabScrollbar.onScroll(e => {
 			this.tabsContainer.scrollLeft = e.scrollLeft;
 		});
 
-		this.parentDomElement.appendChild(this.tabScrollbar.getDomNode());
+		this.tabsOuterContainer.appendChild(this.tabScrollbar.getDomNode());
 
-		this.terminalContainerElement = document.createElement('div');
+		// TODO: Move tabs to bottom
+		this.terminalContainer = document.createElement('div');
+		this.parentDomElement.appendChild(this.tabsOuterContainer);
 		this.parentDomElement.appendChild(this.themeStyleElement);
-		this.parentDomElement.appendChild(this.tabsContainer);
-		this.parentDomElement.appendChild(this.terminalContainerElement);
+		this.parentDomElement.appendChild(this.terminalContainer);
+
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
+		this.toDispose.push(DOM.addDisposableListener(this.terminalContainer, 'wheel', (event: WheelEvent) => {
 			this.terminalInstances[this.activeTerminalIndex].dispatchEvent(new WheelEvent(event.type, event));
 		}));
 
@@ -146,7 +148,7 @@ export class TerminalPanel extends Panel {
 
 	private createTerminal(): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
-			var terminalInstance = new TerminalInstance(this.configurationHelper.getShell(), this.parentDomElement, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this));
+			var terminalInstance = new TerminalInstance(this.configurationHelper.getShell(), this.terminalContainer, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this));
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
@@ -191,10 +193,10 @@ export class TerminalPanel extends Panel {
 		theme.forEach((color: string, index: number) => {
 			// TODO: The classes could probably be reduced, it's so long to beat the specificity of the general rule.
 			let rgba = this.convertHexCssColorToRgba(color, 0.996);
-			css += `.monaco-workbench .integrated-terminal .terminal .xterm-color-${index} { color: ${color}; }` +
-				`.monaco-workbench .integrated-terminal .terminal .xterm-color-${index}::selection { background-color: ${rgba}; }` +
-				`.monaco-workbench .integrated-terminal .terminal .xterm-bg-color-${index} { background-color: ${color}; }` +
-				`.monaco-workbench .integrated-terminal .terminal .xterm-bg-color-${index}::selection { color: ${color}; }`;
+			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
+				`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`;
 		});
 
 		this.themeStyleElement.innerHTML = css;

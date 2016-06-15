@@ -3,35 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .integrated-terminal {
+.monaco-workbench .panel.integrated-terminal {
 	align-items: flex-start;
 	display: flex;
 	flex-direction: column;
-}
-
-.monaco-workbench .integrated-terminal {
 	background-color: transparent!important;
 	color: #333;
 	-webkit-user-select: initial;
 	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
 	padding: 0 20px;
 }
+.vs-dark .monaco-workbench .panel.integrated-terminal { color: #CCC; }
+.hc-black .monaco-workbench .panel.integrated-terminal { color: #FFF; }
 
-.vs-dark .monaco-workbench .integrated-terminal {
-	color: #CCC;
-}
-
-.hc-black .monaco-workbench .integrated-terminal {
-	color: #FFF;
-}
-
-.monaco-workbench .integrated-terminal .terminal-wrapper {
+.monaco-workbench .panel.integrated-terminal .terminal-wrapper {
 	display: none;
 }
-
-.monaco-workbench .integrated-terminal .terminal-wrapper.active {
-	align-items: flex-end;
-	display: flex;
+.monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
+	display: block;
 }
 
 /* Terminal actions */
