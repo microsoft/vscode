@@ -13,6 +13,7 @@
 	display: flex;
 	overflow: scroll;
 	background-color: rgba(128, 128, 128, 0.2);
+	height: 35px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container::-webkit-scrollbar {
