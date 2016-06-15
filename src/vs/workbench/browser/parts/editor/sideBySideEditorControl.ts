@@ -34,6 +34,7 @@ import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleContr
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
+import {extractResources} from 'vs/base/browser/dnd';
 
 export enum Rochade {
 	NONE,
@@ -762,28 +763,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		node.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.EventHelper.stop(e);
 
-			const droppedResources: URI[] = [];
-			if (e.dataTransfer.types.length > 0) {
-
-				// Check for in-app DND
-				const rawData = e.dataTransfer.getData(e.dataTransfer.types[0]);
-				if (rawData) {
-					const resource = URI.parse(rawData);
-					if (resource.scheme === 'file' || resource.scheme === 'untitled') {
-						droppedResources.push(resource);
-					}
-				}
-
-				// Check for native file transfer
-				if (e.dataTransfer && e.dataTransfer.files) {
-					for (let i = 0; i < e.dataTransfer.files.length; i++) {
-						if (e.dataTransfer.files[i] && e.dataTransfer.files[i].path) {
-							droppedResources.push(URI.file(e.dataTransfer.files[i].path));
-						}
-					}
-				}
-			}
-
+			const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
 			if (droppedResources.length) {
 				window.focus(); // make sure this window has focus so that the open call reaches the right window!
 				this.openFromDrop(droppedResources, <HTMLElement>e.toElement).done(null, errors.onUnexpectedError);

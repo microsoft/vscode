@@ -11,7 +11,6 @@ import {IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
-import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
@@ -33,6 +32,7 @@ import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {extractResources} from 'vs/base/browser/dnd';
 
 export class TabsTitleControl extends TitleControl {
 
@@ -472,31 +472,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		let resources: URI[] = [];
-
-		if (e.dataTransfer.types.length > 0) {
-
-			// Check for in-app DND
-			const rawData = e.dataTransfer.getData(e.dataTransfer.types[0]);
-			if (rawData) {
-				const resource = URI.parse(rawData);
-				if (resource.scheme === 'file' || resource.scheme === 'untitled') {
-					resources.push(resource);
-				}
-			}
-
-			// Check for external app DND
-			else if (e.dataTransfer && e.dataTransfer.files) {
-				let thepaths: string[] = [];
-				for (let i = 0; i < e.dataTransfer.files.length; i++) {
-					if (e.dataTransfer.files[i] && (e.dataTransfer.files[i]).path) {
-						thepaths.push(e.dataTransfer.files[i].path);
-					}
-				}
-
-				resources = thepaths.map(p => URI.file(p));
-			}
-		}
+		const resources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
 
 		// Open resources if found
 		if (resources.length) {
