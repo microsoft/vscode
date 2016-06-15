@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import {BaseFormatter} from "./baseFormatter";
 
 export class AutoPep8Formatter extends BaseFormatter {
-    constructor(outputChannel:vscode.OutputChannel) {
+    constructor(outputChannel: vscode.OutputChannel) {
         super("autopep8", outputChannel);
     }
 
