@@ -153,9 +153,21 @@ export class TerminalPanel extends Panel {
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
+			this.toDispose.push(DOM.addDisposableListener(terminalInstance.getTabElement(), 'click', (event) => {
+				this.setActiveTerminal(this.getTerminalInstanceIndex(terminalInstance));
+			}));
 			this.tabsContainer.appendChild(terminalInstance.getTabElement());
 			resolve(terminalInstance);
 		});
+	}
+
+	private getTerminalInstanceIndex(terminalInstance: TerminalInstance): number {
+		for (let i = 0; i < this.terminalInstances.length; i++) {
+			if (terminalInstance === this.terminalInstances[i]) {
+				return i;
+			}
+		};
+		return -1;
 	}
 
 	private setActiveTerminal(index: number) {
