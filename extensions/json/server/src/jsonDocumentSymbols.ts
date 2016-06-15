@@ -14,7 +14,7 @@ export class JSONDocumentSymbols {
 	constructor() {
 	}
 
-	public compute(document: TextDocument, doc: Parser.JSONDocument): Promise<SymbolInformation[]> {
+	public findDocumentSymbols(document: TextDocument, doc: Parser.JSONDocument): Promise<SymbolInformation[]> {
 
 		let root = doc.root;
 		if (!root) {

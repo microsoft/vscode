@@ -6,11 +6,11 @@
 
 import Json = require('jsonc-parser');
 import {IJSONSchema, IJSONSchemaMap} from './jsonSchema';
-import {XHROptions, XHRResponse, getErrorStatusDescription} from 'request-light';
+import {XHRResponse, getErrorStatusDescription} from 'request-light';
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
 import Parser = require('./jsonParser');
-import {RemoteConsole} from 'vscode-languageserver';
+import {TelemetryService, RequestService, WorkspaceContextService} from './jsonLanguageService';
 
 
 import * as nls from 'vscode-nls';
@@ -201,18 +201,6 @@ export class ResolvedSchema {
 	}
 }
 
-export interface ITelemetryService {
-	log(key: string, data: any): void;
-}
-
-export interface IWorkspaceContextService {
-	resolveRelativePath(relativePath: string, resource: string): string;
-}
-
-export interface IRequestService {
-	(options: XHROptions): Thenable<XHRResponse>;
-}
-
 export class JSONSchemaService implements IJSONSchemaService {
 
 	private contributionSchemas: { [id: string]: SchemaHandle };
@@ -222,12 +210,12 @@ export class JSONSchemaService implements IJSONSchemaService {
 	private filePatternAssociations: FilePatternAssociation[];
 	private filePatternAssociationById: { [id: string]: FilePatternAssociation };
 
-	private contextService: IWorkspaceContextService;
+	private contextService: WorkspaceContextService;
 	private callOnDispose: Function[];
-	private telemetryService: ITelemetryService;
-	private requestService: IRequestService;
+	private telemetryService: TelemetryService;
+	private requestService: RequestService;
 
-	constructor(requestService: IRequestService, contextService?: IWorkspaceContextService, telemetryService?: ITelemetryService, private console?: RemoteConsole) {
+	constructor(requestService: RequestService, contextService?: WorkspaceContextService, telemetryService?: TelemetryService) {
 		this.contextService = contextService;
 		this.requestService = requestService;
 		this.telemetryService = telemetryService;

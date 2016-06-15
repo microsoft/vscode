@@ -10,7 +10,7 @@ import SchemaService = require('./jsonSchemaService');
 import JsonSchema = require('./jsonSchema');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {CompletionItem, CompletionItemKind, CompletionList, TextDocument, Position, Range, TextEdit, RemoteConsole} from 'vscode-languageserver';
+import {CompletionItem, CompletionItemKind, CompletionList, TextDocument, Position, Range, TextEdit} from 'vscode-languageserver';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -26,12 +26,10 @@ export class JSONCompletion {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private contributions: IJSONWorkerContribution[];
-	private console: RemoteConsole;
 
-	constructor(schemaService: SchemaService.IJSONSchemaService, console: RemoteConsole, contributions: IJSONWorkerContribution[] = []) {
+	constructor(schemaService: SchemaService.IJSONSchemaService, contributions: IJSONWorkerContribution[] = []) {
 		this.schemaService = schemaService;
 		this.contributions = contributions;
-		this.console = console;
 	}
 
 	public doResolve(item: CompletionItem) : Thenable<CompletionItem> {
@@ -80,10 +78,10 @@ export class JSONCompletion {
 				result.isIncomplete = true;
 			},
 			error: (message: string) => {
-				this.console.error(message);
+				console.error(message);
 			},
 			log: (message: string) => {
-				this.console.log(message);
+				console.log(message);
 			}
 		};
 

@@ -8,7 +8,7 @@ import {MarkedString, CompletionItemKind, CompletionItem} from 'vscode-languages
 import Strings = require('../utils/strings');
 import {XHRResponse, getErrorStatusDescription} from 'request-light';
 import {IJSONWorkerContribution, ISuggestionsCollector} from '../jsonContributions';
-import {IRequestService} from '../jsonSchemaService';
+import {RequestService} from '../jsonLanguageService';
 import {JSONLocation} from '../jsonLocation';
 
 import * as nls from 'vscode-nls';
@@ -30,12 +30,12 @@ interface NugetServices {
 
 export class ProjectJSONContribution implements IJSONWorkerContribution {
 
-	private requestService : IRequestService;
+	private requestService : RequestService;
 	private cachedProjects: { [id: string]: { version: string, description: string, time: number }} = {};
 	private cacheSize: number = 0;
 	private nugetIndexPromise: Thenable<NugetServices>;
 
-	public constructor(requestService: IRequestService) {
+	public constructor(requestService: RequestService) {
 		this.requestService = requestService;
 	}
 

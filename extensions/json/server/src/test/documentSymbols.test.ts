@@ -22,7 +22,7 @@ suite('JSON Document Symbols', () => {
 
 		var document = TextDocument.create(uri, 'json', 0, value);
 		var jsonDoc = Parser.parse(value);
-		return symbolProvider.compute(document, jsonDoc);
+		return symbolProvider.findDocumentSymbols(document, jsonDoc);
 	}
 
 	var assertOutline: any = function(actual: SymbolInformation[], expected: any[], message: string) {
