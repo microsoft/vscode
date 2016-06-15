@@ -135,10 +135,6 @@ class MockRawSession implements debug.IRawDebugSession {
 		};
 	}
 
-	public get onDidStop(): Event<DebugProtocol.StoppedEvent> {
-		return null;
-	}
-
 	public get onDidEvent(): Event<DebugProtocol.Event> {
 		return null;
 	}

@@ -257,11 +257,6 @@ export interface IRawDebugSession {
 
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 
-	/**
-	 * Allows to register on each debug session stop event.
-	 */
-	onDidStop: Event<DebugProtocol.StoppedEvent>;
-
 	onDidEvent: Event<DebugProtocol.Event>;
 }
 

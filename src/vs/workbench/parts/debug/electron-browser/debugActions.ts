@@ -557,11 +557,13 @@ export class RunToCursorAction extends EditorAction {
 		const lineNumber = this.editor.getPosition().lineNumber;
 		const uri = this.editor.getModel().uri;
 
-		const oneTimeListener = this.debugService.getActiveSession().onDidStop(() => {
-			const toRemove = this.debugService.getModel().getBreakpoints()
-				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
-			this.debugService.removeBreakpoints(toRemove.getId());
-			oneTimeListener.dispose();
+		const oneTimeListener = this.debugService.getActiveSession().onDidEvent(event => {
+			if (event.event === 'stopped' || event.event === 'exit') {
+				const toRemove = this.debugService.getModel().getBreakpoints()
+					.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+				this.debugService.removeBreakpoints(toRemove.getId());
+				oneTimeListener.dispose();
+			}
 		});
 
 		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {
