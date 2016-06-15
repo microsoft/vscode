@@ -10,6 +10,3 @@ import 'vs/languages/handlebars/common/handlebars.contribution';
 import 'vs/languages/html/common/html.contribution';
 import 'vs/languages/markdown/common/markdown.contribution';
 import 'vs/languages/razor/common/razor.contribution';
-//import 'vs/languages/less/common/less.contribution';
-//import 'vs/languages/sass/common/sass.contribution';
-//import 'vs/languages/css/common/css.contribution';
