@@ -67,7 +67,6 @@ export class MarkersPanel extends Panel {
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
-		this.markersModel = new MarkersModel();
 		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(1000);
 		this.autoExpanded = new Set.ArraySet<string>();
@@ -75,6 +74,8 @@ export class MarkersPanel extends Panel {
 
 	public create(parent: builder.Builder): TPromise<void> {
 		super.create(parent);
+		this.markersModel = new MarkersModel();
+
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
 
 		const conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
@@ -307,6 +308,8 @@ export class MarkersPanel extends Panel {
 	public dispose(): void {
 		this.delayedRefresh.cancel();
 		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.tree.dispose();
+		this.markersModel.dispose();
 		super.dispose();
 	}
 }
