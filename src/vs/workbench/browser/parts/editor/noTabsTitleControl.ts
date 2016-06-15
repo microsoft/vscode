@@ -16,6 +16,7 @@ import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -36,13 +37,14 @@ export class NoTabsTitleControl extends TitleControl {
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService
 	) {
-		super(contextMenuService, instantiationService, editorService, editorGroupService, keybindingService, telemetryService, messageService);
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService);
 
 		this.currentPrimaryEditorActionIds = [];
 		this.currentSecondaryEditorActionIds = [];
@@ -98,6 +100,9 @@ export class NoTabsTitleControl extends TitleControl {
 			// Editor actions
 			this.editorActionsToolbar = this.doCreateToolbar(div);
 		});
+
+		// Context Menu
+		this.titleContainer.on(DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer.getHTMLElement()));
 	}
 
 	private onTitleDoubleClick(): void {

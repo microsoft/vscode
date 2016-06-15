@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/tabstitle';
-import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
@@ -18,12 +17,11 @@ import {isMacintosh} from 'vs/base/common/platform';
 import {Builder, $} from 'vs/base/browser/builder';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings as Kb} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -52,36 +50,22 @@ export class TabsTitleControl extends TitleControl {
 	private currentPrimaryGroupActionIds: string[];
 	private currentSecondaryGroupActionIds: string[];
 
-	private previewEditors: boolean;
-
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService
 	) {
-		super(contextMenuService, instantiationService, editorService, editorGroupService, keybindingService, telemetryService, messageService);
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService);
 
 		this.currentPrimaryGroupActionIds = [];
 		this.currentSecondaryGroupActionIds = [];
 
 		this.tabDisposeables = [];
-
-		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
-	}
-
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.previewEditors = config.workbench.previewEditors;
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -425,29 +409,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
-			DOM.EventHelper.stop(e);
-
-			let anchor: HTMLElement | { x: number, y: number } = tab;
-			if (e instanceof MouseEvent) {
-				const event = new StandardMouseEvent(e);
-				anchor = { x: event.posx, y: event.posy };
-			}
-
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => TPromise.as(this.getTabActions(identifier)),
-				getActionsContext: () => identifier,
-				getKeyBinding: (action) => {
-					var opts = this.keybindingService.lookupKeybindings(action.id);
-					if (opts.length > 0) {
-						return opts[0]; // only take the first one
-					}
-
-					return null;
-				}
-			});
-		}));
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(identifier, e, tab)));
 
 		// Drag start
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
@@ -557,25 +519,9 @@ export class TabsTitleControl extends TitleControl {
 		return !isCopy || source.id === target.id;
 	}
 
-	private getTabActions(identifier: IEditorIdentifier): IAction[] {
+	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
+		const actions = super.getContextMenuActions(identifier);
 		const {editor, group} = identifier;
-
-		// Enablement
-		this.closeOtherEditorsAction.enabled = group.count > 1;
-		this.pinEditorAction.enabled = !group.isPinned(editor);
-		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
-
-		// Actions: For all editors
-		const actions: IAction[] = [
-			this.closeEditorAction,
-			this.closeOtherEditorsAction,
-			this.closeRightEditorsAction,
-			this.closeEditorsInGroupAction
-		];
-
-		if (this.previewEditors) {
-			actions.push(new Separator(), this.pinEditorAction);
-		}
 
 		// Actions: For active editor
 		if (group.isActive(editor)) {
