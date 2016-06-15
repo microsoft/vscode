@@ -103,9 +103,11 @@ function getViewColumn(sideBySide): ViewColumn {
 class MDDocumentContentProvider implements TextDocumentContentProvider {
 	private _context: ExtensionContext;
 	private _onDidChange = new EventEmitter<Uri>();
+	private _waiting : boolean;
 
 	constructor(context: ExtensionContext) {
 		this._context = context;
+		this._waiting = false;
 	}
 
 	private getMediaPath(mediaFile) {
@@ -165,6 +167,12 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 	}
 
 	public update(uri: Uri) {
-		this._onDidChange.fire(uri);
+		if (!this._waiting) {
+			this._waiting = true;
+			setTimeout(() => {
+				this._waiting = false;
+				this._onDidChange.fire(uri);
+			}, 300);
+		}
 	}
 }
