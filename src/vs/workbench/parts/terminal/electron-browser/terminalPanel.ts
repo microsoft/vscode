@@ -18,7 +18,7 @@ import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/e
 import {Panel} from 'vs/workbench/browser/panel';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import {CloseTerminalAction, CreateNewTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {CreateNewTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
@@ -53,6 +53,10 @@ export class TerminalPanel extends Panel {
 			return;
 		}
 		if (this.terminalInstances.length > 0) {
+			this.tabScrollbar.updateState({
+				width: this.tabsOuterContainer.offsetWidth,
+				scrollWidth: this.tabsContainer.offsetWidth
+			});
 			let computedStyle = window.getComputedStyle(this.tabsContainer);
 			let height = dimension.height - parseInt(computedStyle.height.replace(/px/, ''), 10);
 			let terminalContainerDimension = new Dimension(dimension.width, height);
@@ -63,8 +67,7 @@ export class TerminalPanel extends Panel {
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL),
-				this.instantiationService.createInstance(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL)
+				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
@@ -98,7 +101,7 @@ export class TerminalPanel extends Panel {
 		this.tabScrollbar.onScroll(e => {
 			this.tabsContainer.scrollLeft = e.scrollLeft;
 		});
-
+		this.tabsContainer.style.overflow = 'scroll';
 		this.tabsOuterContainer.appendChild(this.tabScrollbar.getDomNode());
 
 		this.terminalContainer = document.createElement('div');
@@ -125,8 +128,12 @@ export class TerminalPanel extends Panel {
 	}
 
 	public closeActiveTerminal(): TPromise<void> {
+		return this.closeTerminal(this.activeTerminalIndex);
+	}
+
+	public closeTerminal(index: number): TPromise<void> {
 		return new TPromise<void>(resolve => {
-			this.onTerminalInstanceExit(this.terminalInstances[this.activeTerminalIndex]);
+			this.onTerminalInstanceExit(this.terminalInstances[index]);
 		});
 	}
 
@@ -151,9 +158,20 @@ export class TerminalPanel extends Panel {
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
-			this.toDispose.push(DOM.addDisposableListener(terminalInstance.getTabElement(), 'click', (event) => {
-				this.setActiveTerminal(this.getTerminalInstanceIndex(terminalInstance));
+
+			// TODO: Dispose these when the tab gets destroyed, not when the panel does
+			this.toDispose.push(DOM.addDisposableListener(terminalInstance.getTabElement(), DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+				if (e.button === 0 /* Left Button */) {
+					this.setActiveTerminal(this.getTerminalInstanceIndex(terminalInstance));
+				}
 			}));
+			this.toDispose.push(DOM.addDisposableListener(terminalInstance.getTabElement(), DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
+				DOM.EventHelper.stop(e);
+				if (e.button === 1 /* Middle Button */) {
+					this.closeTerminal(this.getTerminalInstanceIndex(terminalInstance));
+				}
+			}));
+
 			this.tabsContainer.appendChild(terminalInstance.getTabElement());
 			resolve(terminalInstance);
 		});

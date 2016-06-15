@@ -16,6 +16,10 @@
 	background-color: hsla(0, 0%, 50%, .2);
 }
 
+.monaco-workbench .panel.integrated-terminal .tabs-container::-webkit-scrollbar {
+	display: none;
+}
+
 .monaco-workbench .panel.integrated-terminal .tab {
 	display: flex;
 	width: 120px;
