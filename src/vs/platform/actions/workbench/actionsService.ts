@@ -9,7 +9,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActionsService} from '../common/actions';
-import {commands} from '../common/commandsExtensionPoint';
+import {commands, createCommandRunner} from '../common/commandsExtensionPoint';
 import 'vs/platform/actions/workbench/actionBarContributions';
 
 export default class ActionsService implements IActionsService {
@@ -30,16 +30,13 @@ export default class ActionsService implements IActionsService {
 		if (!this._extensionsActions) {
 			this._extensionsActions = [];
 			for (let command of commands) {
-				// make sure this extension is activated by this command
-				const activationEvent = `onCommand:${command.command}`;
 
-				// action that (1) activates the extension and dispatches the command
-				const action = new Action(command.command, undefined, undefined, true, () => this._extensionService.activateByEvent(activationEvent)
-					.then(() => this._keybindingsService.executeCommand(command.command)));
-
-				action.label = command.category
+				const runner = createCommandRunner(command, this._extensionService, this._keybindingsService);
+				const label = command.category
 					? localize('category.label', "{0}: {1}", command.category, command.title)
 					: command.title;
+
+				const action = new Action(command.command, label, undefined, true, runner);
 				action.order = Number.MAX_VALUE;
 
 				this._extensionsActions.push(action);

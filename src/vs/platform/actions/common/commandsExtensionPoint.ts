@@ -6,6 +6,8 @@
 
 import {localize} from 'vs/nls';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
 export interface ResourceFilter {
@@ -185,3 +187,20 @@ ExtensionsRegistry.registerExtensionPoint<Command | Command[]>('commands', {
 
 	Object.freeze(commands);
 });
+
+
+export function run(command: Command, extensionService: IExtensionService, keybindingService: IKeybindingService) {
+	return createCommandRunner(command, extensionService, keybindingService)();
+}
+
+export function createCommandRunner(command: Command, extensionService: IExtensionService, keybindingService: IKeybindingService) {
+
+	const activationEvent = `onCommand:${command.command}`;
+
+	return (...args: any[]) => {
+		// action that (1) activates the extension and (2) dispatches the command
+		return extensionService.activateByEvent(activationEvent).then(() => {
+			return keybindingService.executeCommand(command.command);
+		});
+	};
+}
