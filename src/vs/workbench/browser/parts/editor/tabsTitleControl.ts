@@ -360,6 +360,9 @@ export class TabsTitleControl extends TitleControl {
 
 		// Open on Click
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e);
+			tab.blur();
+
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
@@ -368,6 +371,7 @@ export class TabsTitleControl extends TitleControl {
 		// Close on mouse middle click
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
+			tab.blur();
 
 			if (e.button === 1 /* Middle Button */) {
 				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
