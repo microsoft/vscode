@@ -446,6 +446,16 @@
           "default": "nosetests",
           "description": "Path to nosetests, you can use a custom version of nosetests by modifying this setting to include the full path."
         },
+        "python.unitTest.pyTestEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to enable or disable unit testing using pytest."
+        },
+        "python.unitTest.pyTestPath": {
+          "type": "string",
+          "default": "pytest",
+          "description": "Path to pytest, you can use a custom version of pytest by modifying this setting to include the full path."
+        },
         "python.unitTest.unittestEnabled": {
           "type": "boolean",
           "default": true,
