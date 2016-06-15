@@ -11,7 +11,6 @@ import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
-import {Builder} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -44,7 +43,7 @@ export interface IToolbarActions {
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	allowDragging(element: HTMLElement): boolean;
-	create(parent: Builder): void;
+	create(parent: HTMLElement): void;
 	refresh(instant?: boolean): void;
 	update(instant?: boolean): void;
 	layout(): void;
@@ -203,8 +202,8 @@ export abstract class TitleControl {
 		[this.showEditorsOfLeftGroup, this.showEditorsOfCenterGroup, this.showEditorsOfRightGroup, this.showAllEditorsAction].forEach(a => a.class = 'show-group-editors-action');
 	}
 
-	protected doCreateToolbar(container: Builder): ToolBar {
-		const toolbar = new ToolBar(container.getHTMLElement(), this.contextMenuService, {
+	protected doCreateToolbar(container: HTMLElement): ToolBar {
+		const toolbar = new ToolBar(container, this.contextMenuService, {
 			actionItemProvider: (action: Action) => this.actionItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),

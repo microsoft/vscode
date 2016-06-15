@@ -14,7 +14,6 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
-import {Builder, $} from 'vs/base/browser/builder';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
@@ -74,8 +73,8 @@ export class TabsTitleControl extends TitleControl {
 		this.groupActionsToolbar.context = { group };
 	}
 
-	public create(parent: Builder): void {
-		this.titleContainer = parent.getHTMLElement();
+	public create(parent: HTMLElement): void {
+		this.titleContainer = parent;
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
@@ -156,7 +155,7 @@ export class TabsTitleControl extends TitleControl {
 		const groupActionsContainer = document.createElement('div');
 		DOM.addClass(groupActionsContainer, 'group-actions');
 		this.titleContainer.appendChild(groupActionsContainer);
-		this.groupActionsToolbar = this.doCreateToolbar($(groupActionsContainer));
+		this.groupActionsToolbar = this.doCreateToolbar(groupActionsContainer);
 	}
 
 	public allowDragging(element: HTMLElement): boolean {

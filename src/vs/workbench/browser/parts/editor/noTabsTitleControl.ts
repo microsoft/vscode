@@ -9,7 +9,6 @@ import 'vs/css!./media/notabstitle';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
-import {Builder, $} from 'vs/base/browser/builder';
 import {IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
@@ -24,10 +23,10 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 
 export class NoTabsTitleControl extends TitleControl {
-	private titleContainer: Builder;
-	private titleLabel: Builder;
-	private titleDecoration: Builder;
-	private titleDescription: Builder;
+	private titleContainer: HTMLElement;
+	private titleLabel: HTMLElement;
+	private titleDecoration: HTMLElement;
+	private titleDescription: HTMLElement;
 
 	private editorActionsToolbar: ToolBar;
 
@@ -56,53 +55,51 @@ export class NoTabsTitleControl extends TitleControl {
 		this.editorActionsToolbar.context = { group };
 	}
 
-	public create(parent: Builder): void {
-		this.titleContainer = $(parent);
+	public create(parent: HTMLElement): void {
+		this.titleContainer = parent;
 
 		// Pin on double click
-		parent.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => {
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			this.onTitleDoubleClick();
-		});
+		}));
+
 
 		// Detect mouse click
-		parent.on(DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, false);
 
 			this.onTitleClick(e);
-		});
+		}));
 
 		// Left Title Decoration
-		parent.div({
-			'class': 'title-decoration'
-		}, (div) => {
-			this.titleDecoration = div;
-		});
+		this.titleDecoration = document.createElement('div');
+		DOM.addClass(this.titleDecoration, 'title-decoration');
+		this.titleContainer.appendChild(this.titleDecoration);
 
 		// Left Title Label & Description
-		parent.div({
-			'class': 'title-label'
-		}, (div) => {
+		const labelContainer = document.createElement('div');
+		DOM.addClass(labelContainer, 'title-label');
 
-			// Label
-			this.titleLabel = $(div).a();
+		this.titleLabel = document.createElement('a');
+		labelContainer.appendChild(this.titleLabel);
 
-			// Description
-			this.titleDescription = $(div).span();
-		});
+		this.titleDescription = document.createElement('span');
+		labelContainer.appendChild(this.titleDescription);
+
+		this.titleContainer.appendChild(labelContainer);
 
 		// Right Actions Container
-		parent.div({
-			'class': 'title-actions'
-		}, (div) => {
+		const actionsContainer = document.createElement('div');
+		DOM.addClass(actionsContainer, 'title-actions');
 
-			// Editor actions
-			this.editorActionsToolbar = this.doCreateToolbar(div);
-		});
+		this.editorActionsToolbar = this.doCreateToolbar(actionsContainer);
+
+		this.titleContainer.appendChild(actionsContainer);
 
 		// Context Menu
-		this.titleContainer.on(DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer.getHTMLElement()));
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
 	}
 
 	private onTitleDoubleClick(): void {
@@ -156,16 +153,16 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Pinned state
 		if (isPinned) {
-			this.titleContainer.addClass('pinned');
+			DOM.addClass(this.titleContainer, 'pinned');
 		} else {
-			this.titleContainer.removeClass('pinned');
+			DOM.removeClass(this.titleContainer, 'pinned');
 		}
 
 		// Activity state
 		if (isActive) {
-			this.titleContainer.addClass('active');
+			DOM.addClass(this.titleContainer, 'active');
 		} else {
-			this.titleContainer.removeClass('active');
+			DOM.removeClass(this.titleContainer, 'active');
 		}
 
 		// Editor Title
@@ -176,17 +173,17 @@ export class NoTabsTitleControl extends TitleControl {
 			verboseDescription = ''; // dont repeat what is already shown
 		}
 
-		this.titleLabel.safeInnerHtml(name);
-		this.titleLabel.title(verboseDescription);
+		this.titleLabel.innerText = name;
+		this.titleLabel.title = verboseDescription;
 
-		this.titleDescription.safeInnerHtml(description);
-		this.titleDescription.title(verboseDescription);
+		this.titleDescription.innerText = description;
+		this.titleDescription.title = verboseDescription;
 
 		// Editor Decoration
 		if (editor.isDirty()) {
-			this.titleDecoration.addClass('dirty');
+			DOM.addClass(this.titleDecoration, 'dirty');
 		} else {
-			this.titleDecoration.removeClass('dirty');
+			DOM.removeClass(this.titleDecoration, 'dirty');
 		}
 
 		// Update Editor Actions Toolbar

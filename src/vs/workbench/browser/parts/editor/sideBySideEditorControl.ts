@@ -754,7 +754,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showEditorTabs;
 
 		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
-		this.titleAreaControl[position].create($(this.titleContainer[position]));
+		this.titleAreaControl[position].create(this.titleContainer[position].getHTMLElement());
 		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
 		this.titleAreaControl[position].refresh();
 	}
