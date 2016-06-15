@@ -17,6 +17,6 @@
 		"watch": "gulp watch-extension:configuration-editing"
 	},
 	"dependencies": {
-		"jsonc-parser": "^0.2.1"
+		"jsonc-parser": "^0.2.2"
 	}
 }
