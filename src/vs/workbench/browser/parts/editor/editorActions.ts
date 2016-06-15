@@ -1179,3 +1179,32 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 interface IEditorPickOpenEntry extends IPickOpenEntry {
 	identifier: IEditorIdentifier;
 }
+
+export class FocusLastEditorInStackAction extends Action {
+
+	public static ID = 'workbench.action.openLastEditorInGroup';
+	public static LABEL = nls.localize('focusLastEditorInStack', "Open Last Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const active = this.editorService.getActiveEditor();
+		if (active) {
+			const group = this.editorGroupService.getStacksModel().groupAt(active.position);
+			const editor = group.getEditor(group.count - 1);
+
+			if (editor) {
+				return this.editorService.openEditor(editor);
+			}
+		}
+
+		return TPromise.as(true);
+	}
+}
