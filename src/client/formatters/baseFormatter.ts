@@ -26,7 +26,7 @@ export abstract class BaseFormatter {
         return document.save().then(saved => {
             let filePath = document.uri.fsPath;
             if (!fs.existsSync(filePath)) {
-                vscode.window.showErrorMessage(`File ${filePath} does not exist`)
+                vscode.window.showErrorMessage(`File ${filePath} does not exist`);
                 return [];
             }
 

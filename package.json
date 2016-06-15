@@ -372,11 +372,6 @@
           "default": "prospector",
           "description": "Path to Prospector, you can use a custom version of prospector by modifying this setting to include the full path."
         },
-        "python.linting.prospectorSourcePath": {
-          "type": "string",
-          "default": "",
-          "description": "Path to python source (relative to workspace)."
-        },
         "python.linting.prospectorExtraCommands": {
           "type": "string",
           "default": "",

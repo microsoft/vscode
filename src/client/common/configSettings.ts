@@ -36,7 +36,6 @@ export interface ILintingSettings {
     maxNumberOfProblems: number;
     pylintCategorySeverity: IPylintCategorySeverity;
     prospectorPath: string;
-    prospectorSourcePath: string;
     prospectorExtraCommands: string;
     pylintPath: string;
     pep8Path: string;
