@@ -21,7 +21,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -129,4 +129,4 @@ export class FocusSideBarAction extends Action {
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
-}), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));
+}, KbExpr.has('!config.workbench.showEditorTabs')), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));
