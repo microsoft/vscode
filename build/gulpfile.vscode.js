@@ -173,10 +173,11 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/{client,server}/out/**/test/**',
 			'!extensions/*/{client,server}/out/**/typings/**',
 			'!extensions/**/.vscode/**',
+			'!extensions/**/tsconfig.json',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**',
-			'!extensions/css/server/out/data/**'
+			'!extensions/css/server/out/data/buildscripts/**'
 		], { base: '.' });
 
 		var sources = es.merge(src, extensions)
