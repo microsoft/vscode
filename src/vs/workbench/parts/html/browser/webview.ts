@@ -43,6 +43,10 @@ KeybindingsRegistry.registerCommandDesc({
 	}
 });
 
+const LIGHT = 'vscode-light';
+const DARK = 'vscode-dark';
+const HIGH_CONTRAST = 'vscode-high-contrast';
+
 export default class Webview {
 
 	private _webview: WebviewElement;
@@ -156,7 +160,7 @@ export default class Webview {
 		}`;
 
 		let bodyClasses = {
-			remove: ['monaco-editor', 'vs', 'vs-dark', 'hc-black']
+			remove: [LIGHT, DARK, HIGH_CONTRAST]
 		};
 
 		if (isLightTheme(themeId)) {
@@ -171,7 +175,7 @@ export default class Webview {
 				background-color: rgba(0, 0, 0, 0.6);
 			}`;
 
-			bodyClasses['add'] = 'monaco-editor vs';
+			bodyClasses['add'] = LIGHT;
 
 		} else if (isDarkTheme(themeId)){
 			value += `
@@ -185,7 +189,7 @@ export default class Webview {
 				background-color: rgba(85, 85, 85, 0.8);
 			}`;
 
-			bodyClasses['add'] = 'monaco-editor vs-dark';
+			bodyClasses['add'] = DARK;
 
 		} else {
 			value += `
@@ -199,7 +203,7 @@ export default class Webview {
 				background-color: rgba(111, 195, 223, 0.8);
 			}`;
 
-			bodyClasses['add'] = 'monaco-editor hc-black';
+			bodyClasses['add'] = HIGH_CONTRAST;
 		}
 
 		this._send('styles', value, bodyClasses);

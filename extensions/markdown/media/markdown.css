@@ -95,69 +95,69 @@ code > div {
 
 /** Theming */
 
-.vs {
+.vscode-light {
 	color: rgb(30, 30, 30);
 }
 
-.vs-dark {
+.vscode-dark {
 	color: #DDD;
 }
 
-.hc-black {
+.vscode-high-contrast {
 	color: white;
 }
 
-.vs code {
+.vscode-light code {
 	color: #A31515;
 }
 
-.vs-dark code {
+.vscode-dark code {
 	color: #D7BA7D;
 }
 
-.vs code > div {
+.vscode-light code > div {
 	background-color: rgba(220, 220, 220, 0.4);
 }
 
-.vs-dark code > div {
+.vscode-dark code > div {
 	background-color: rgba(10, 10, 10, 0.4);
 }
 
-.hc-black code > div {
+.vscode-high-contrast code > div {
 	background-color: rgb(0, 0, 0);
 }
 
-.hc-black h1 {
+.vscode-high-contrast h1 {
 	border-color: rgb(0, 0, 0);
 }
 
-.vs table > thead > tr > th {
+.vscode-light table > thead > tr > th {
 	border-color: rgba(0, 0, 0, 0.69);
 }
 
-.vs-dark table > thead > tr > th {
+.vscode-dark table > thead > tr > th {
 	border-color: rgba(255, 255, 255, 0.69);
 }
 
-.vs h1,
-.vs hr,
-.vs table > tbody > tr + tr > td {
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
-.vs-dark h1,
-.vs-dark hr,
-.vs-dark table > tbody > tr + tr > td {
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
 
-.vs blockquote,
-.vs-dark blockquote {
+.vscode-light blockquote,
+.vscode-dark blockquote {
 	background: rgba(127, 127, 127, 0.1);
 	border-color: rgba(0, 122, 204, 0.5);
 }
 
-.hc-black blockquote {
+.vscode-high-contrast blockquote {
 	background: transparent;
 	border-color: #fff;
 }
