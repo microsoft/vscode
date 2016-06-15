@@ -105,9 +105,10 @@ export class TerminalPanel extends Panel {
 
 		// TODO: Move tabs to bottom
 		this.terminalContainer = document.createElement('div');
-		this.parentDomElement.appendChild(this.tabsOuterContainer);
+		DOM.addClass(this.terminalContainer, 'terminal-outer-container');
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.parentDomElement.appendChild(this.terminalContainer);
+		this.parentDomElement.appendChild(this.tabsOuterContainer);
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.terminalContainer, 'wheel', (event: WheelEvent) => {

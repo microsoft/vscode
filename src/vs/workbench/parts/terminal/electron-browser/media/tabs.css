@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .panel.integrated-terminal .tabs-outer-container {
-	flex-grow: 1;
-}
-
 .monaco-workbench .panel.integrated-terminal .tabs-container {
 	list-style: none;
 	margin: 0;

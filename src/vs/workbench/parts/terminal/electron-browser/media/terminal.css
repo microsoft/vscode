@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .panel.integrated-terminal {
-	align-items: flex-start;
+	align-content: flex-start;
+	align-items: baseline;
 	display: flex;
 	flex-direction: column;
 	background-color: transparent!important;
 	color: #333;
 	-webkit-user-select: initial;
 	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
-	padding: 0 20px;
 }
 .vs-dark .monaco-workbench .panel.integrated-terminal { color: #CCC; }
 .hc-black .monaco-workbench .panel.integrated-terminal { color: #FFF; }
+
+.monaco-workbench .panel.integrated-terminal .terminal-outer-container {
+	align-content: flex-start;
+	align-items: flex-end;
+	display: flex;
+	padding: 0 20px;
+	flex-grow: 1;
+}
 
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper {
 	display: none;
