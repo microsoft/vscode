@@ -364,7 +364,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
 		this.delegate = new Delegate(() => this.list);
-		this.list = new List(this.listElement, this.delegate, [renderer]);
+		this.list = new List(this.listElement, this.delegate, [renderer], {
+			useShadows: false
+		});
 
 		this.toDispose = [
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),

@@ -9,7 +9,7 @@ import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
 import Event, { Emitter, mapEvent, EventBufferer } from 'vs/base/common/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
-import { ListView } from './listView';
+import { ListView, IListViewOptions } from './listView';
 
 interface ITraitTemplateData<D> {
 	container: HTMLElement;
@@ -146,6 +146,11 @@ class Controller<T> implements IDisposable {
 	}
 }
 
+export interface IListOptions extends IListViewOptions {
+}
+
+const DefaultOptions: IListOptions = {};
+
 export class List<T> implements IDisposable {
 
 	private static InstanceCount = 0;
@@ -168,7 +173,8 @@ export class List<T> implements IDisposable {
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<T>,
-		renderers: IRenderer<T, any>[]
+		renderers: IRenderer<T, any>[],
+		options: IListOptions = DefaultOptions
 	) {
 		this.focus = new FocusTrait(i => this.getElementId(i));
 		this.selection = new Trait('selected');
@@ -180,7 +186,7 @@ export class List<T> implements IDisposable {
 			return r;
 		});
 
-		this.view = new ListView(container, delegate, renderers);
+		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'listbox');
 		this.controller = new Controller(this, this.view);
 	}
