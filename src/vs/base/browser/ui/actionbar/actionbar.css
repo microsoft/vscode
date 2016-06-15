@@ -129,49 +129,6 @@
 	background-color: #C33;
 }
 
-/* Actions widget */
-
-.monaco-actions-widget {
-	position: relative;
-}
-
-.monaco-actions-widget .more {
-	position: absolute;
-	top: 0;
-	right: 1em;
-	font-weight: bold;
-	cursor: pointer;
-	display: none;
-}
-
-.monaco-actions-widget .more.active {
-	-ms-transform: translate(0, -3px);
-	-webkit-transform: translate(0, -3px);
-	-moz-transform: translate(0, -3px);
-	-o-transform: translate(0, -3px);
-	transform: translate(0, -3px);
-}
-
-.monaco-actions-widget .primary {
-	display: none;
-}
-
-.monaco-actions-widget.hasPrimary .primary {
-	display: inherit;
-}
-
-.monaco-actions-widget.hasSecondary .more {
-	display: inherit;
-}
-
-.monaco-actions-widget .secondary.monaco-action-bar {
-	display: none;
-}
-
-.monaco-actions-widget.more .secondary.monaco-action-bar {
-	display: inherit;
-}
-
 /* Action Items */
 .monaco-action-bar .action-item.select-container {
 	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */
