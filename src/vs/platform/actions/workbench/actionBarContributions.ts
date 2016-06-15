@@ -10,9 +10,10 @@ import URI from 'vs/base/common/uri';
 import {IAction, Action} from 'vs/base/common/actions';
 import {BaseActionItem, ActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import {IActionsService} from 'vs/platform/actions/common/actions';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {commands, Context} from '../common/commandsExtensionPoint';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {commands, Context, createAction} from '../common/commandsExtensionPoint';
 import matches from 'vs/editor/common/modes/languageSelector';
 import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
 
@@ -20,7 +21,8 @@ class Contributor extends ActionBarContributor {
 
 	constructor(
 		@IModeService private _modeService: IModeService,
-		@IActionsService private _actionsService: IActionsService
+		@IExtensionService private _extensionService: IExtensionService,
+		@IKeybindingService private _keybindingsService: IKeybindingService
 	) {
 		super();
 	}
@@ -43,21 +45,10 @@ class Contributor extends ActionBarContributor {
 
 	private _getActions(context: any, path: string): IAction[]{
 		const uri = this._getResource(context);
-		if (!uri) {
-			return [];
+		if (uri) {
+			return this._getCommandActions(uri, path);
 		}
-		const ids = this._getCommandIds(uri, path);
-		const actions: { [id: string]: IAction } = Object.create(null);
-		const result: IAction[] = [];
-		for (let action of this._actionsService.getActions()) {
-			actions[action.id] = action;
-		}
-		for (let id of ids) {
-			if (actions[id]) {
-				result.push(actions[id]);
-			}
-		}
-		return result;
+		return [];
 	}
 
 	private _getResource(context: any): URI {
@@ -66,16 +57,16 @@ class Contributor extends ActionBarContributor {
 		}
 	}
 
-	private _getCommandIds(resource: URI, path: string): string[] {
-		const result: string[] = [];
+	private _getCommandActions(resource: URI, path: string): IAction[] {
+		const result: IAction[] = [];
 		for (let command of commands) {
 			const {context} = command;
 			if (Array.isArray(context)) {
 				if (context.some(context => this._matches(context, resource, path))) {
-					result.push(command.command);
+					result.push(createAction(command, this._extensionService, this._keybindingsService));
 				}
 			} else if (context && this._matches(context, resource, path)) {
-				result.push(command.command);
+				result.push(createAction(command, this._extensionService, this._keybindingsService));
 			}
 		}
 		return result;

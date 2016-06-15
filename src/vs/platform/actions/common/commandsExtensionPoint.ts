@@ -5,6 +5,7 @@
 'use strict';
 
 import {localize} from 'vs/nls';
+import {Action} from 'vs/base/common/actions';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -189,18 +190,17 @@ ExtensionsRegistry.registerExtensionPoint<Command | Command[]>('commands', {
 });
 
 
-export function run(command: Command, extensionService: IExtensionService, keybindingService: IKeybindingService) {
-	return createCommandRunner(command, extensionService, keybindingService)();
-}
-
-export function createCommandRunner(command: Command, extensionService: IExtensionService, keybindingService: IKeybindingService) {
+export function createAction(command: Command, extensionService: IExtensionService, keybindingService: IKeybindingService): Action {
 
 	const activationEvent = `onCommand:${command.command}`;
 
-	return (...args: any[]) => {
-		// action that (1) activates the extension and (2) dispatches the command
-		return extensionService.activateByEvent(activationEvent).then(() => {
-			return keybindingService.executeCommand(command.command);
-		});
-	};
+	return new Action(command.command, command.title,
+		void 0, true,
+		(...args: any[]) => {
+			// action that (1) activates the extension and (2) dispatches the command
+			return extensionService.activateByEvent(activationEvent).then(() => {
+				return keybindingService.executeCommand(command.command);
+			});
+		}
+	);
 }
