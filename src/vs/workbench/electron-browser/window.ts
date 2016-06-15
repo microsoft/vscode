@@ -6,12 +6,11 @@
 'use strict';
 
 import platform = require('vs/base/common/platform');
-import uri from 'vs/base/common/uri';
-import {Identifiers} from 'vs/workbench/common/constants';
+import URI from 'vs/base/common/uri';
+import DOM = require('vs/base/browser/dom');
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import dom = require('vs/base/browser/dom');
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -65,32 +64,8 @@ export class ElectronWindow {
 		}
 
 		// Prevent a dropped file from opening as application
-		window.document.body.addEventListener('dragover', (e: DragEvent) => {
-			e.preventDefault();
-		});
-
-		// Let a dropped file open inside Code (only if dropped over editor area)
-		window.document.body.addEventListener('drop', (e: DragEvent) => {
-			e.preventDefault();
-
-			let editorArea = window.document.getElementById(Identifiers.EDITOR_PART);
-			if (dom.isAncestor(e.toElement, editorArea)) {
-
-				// Check for native file transfer
-				if (e.dataTransfer && e.dataTransfer.files) {
-					let thepaths: string[] = [];
-					for (let i = 0; i < e.dataTransfer.files.length; i++) {
-						if (e.dataTransfer.files[i] && e.dataTransfer.files[i].path) {
-							thepaths.push(e.dataTransfer.files[i].path);
-						}
-					}
-
-					if (thepaths.length) {
-						this.focus(); // make sure this window has focus so that the open call reaches the right window!
-						this.open(thepaths);
-					}
-				}
-			}
+		window.document.body.addEventListener(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.EventHelper.stop(e);
 		});
 
 		// Handle window.open() calls
@@ -103,14 +78,14 @@ export class ElectronWindow {
 		// Patch focus to also focus the entire window
 		const originalFocus = window.focus;
 		const $this = this;
-		window.focus = function() {
+		window.focus = function () {
 			originalFocus.call(this, arguments);
 			$this.focus();
 		};
 	}
 
 	public open(pathsToOpen: string[]): void;
-	public open(fileResource: uri): void;
+	public open(fileResource: URI): void;
 	public open(pathToOpen: string): void;
 	public open(arg1: any): void {
 		let pathsToOpen: string[];
@@ -119,7 +94,7 @@ export class ElectronWindow {
 		} else if (typeof arg1 === 'string') {
 			pathsToOpen = [arg1];
 		} else {
-			pathsToOpen = [(<uri>arg1).fsPath];
+			pathsToOpen = [(<URI>arg1).fsPath];
 		}
 
 		ipc.send('vscode:windowOpen', pathsToOpen); // handled from browser process

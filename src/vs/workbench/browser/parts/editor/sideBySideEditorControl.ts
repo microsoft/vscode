@@ -7,6 +7,7 @@
 
 import 'vs/css!./media/sidebyside';
 import arrays = require('vs/base/common/arrays');
+import {TPromise} from 'vs/base/common/winjs.base';
 import Event, {Emitter} from 'vs/base/common/event';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {isWindows} from 'vs/base/common/platform';
@@ -16,6 +17,8 @@ import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
+import errors = require('vs/base/common/errors');
+import URI from 'vs/base/common/uri';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
@@ -704,6 +707,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private create(parent: Builder): void {
 
+		// Allow to drop into container to open
+		this.enableDropTarget(parent.getHTMLElement());
+
 		// Left Container
 		this.containers[Position.LEFT] = $(parent).div({ class: 'one-editor-container editor-left monaco-editor-background' });
 
@@ -748,6 +754,54 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (isWindows) {
 			parent.addClass('custom-drag-cursor');
 		}
+	}
+
+	private enableDropTarget(node: HTMLElement): void {
+
+		// Let a dropped file open inside Code (only if dropped over editor area)
+		node.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.EventHelper.stop(e);
+
+			// Check for native file transfer
+			if (e.dataTransfer && e.dataTransfer.files) {
+				let thepaths: string[] = [];
+				for (let i = 0; i < e.dataTransfer.files.length; i++) {
+					if (e.dataTransfer.files[i] && e.dataTransfer.files[i].path) {
+						thepaths.push(e.dataTransfer.files[i].path);
+					}
+				}
+
+				if (thepaths.length) {
+					window.focus(); // make sure this window has focus so that the open call reaches the right window!
+					this.openFromDrop(thepaths.map(p => URI.file(p)), <HTMLElement>e.toElement).done(null, errors.onUnexpectedError);
+				}
+			}
+		});
+	}
+
+	private openFromDrop(resources: URI[], target: HTMLElement): TPromise<any> {
+
+		// Find target position by looking at target DOM node
+		let position = Position.LEFT;
+		this.containers.forEach((container, index) => {
+			if (DOM.isAncestor(target, container.getHTMLElement())) {
+				position = index;
+			}
+		});
+
+		// One resource to open: always pick position of the drop
+		if (resources.length === 1) {
+			return this.editorService.openEditor({ resource: resources[0], options: { pinned: true } }, position);
+		}
+
+		// Multiple resources to open with tabs: open them all in target position
+		const showsTabs = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showEditorTabs;
+		if (showsTabs) {
+			return this.editorService.openEditors(resources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; })).then(() => this.editorGroupService.focusGroup(position));
+		}
+
+		// Multiple resources without tabs: open them side by side
+		return this.editorService.openEditors(resources.map((resource, index) => { return { input: { resource, options: { pinned: true } }, position: Math.min(index, Position.RIGHT) }; }));
 	}
 
 	private createTitleControl(position: Position): void {
