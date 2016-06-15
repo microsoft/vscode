@@ -34,9 +34,13 @@ export default class ActionsService implements IActionsService {
 				const activationEvent = `onCommand:${command.command}`;
 
 				// action that (1) activates the extension and dispatches the command
-				const label = command.category ? localize('category.label', "{0}: {1}", command.category, command.title) : command.title;
-				const action = new Action(command.command, label, undefined, true, () => this._extensionService.activateByEvent(activationEvent)
+				const action = new Action(command.command, undefined, undefined, true, () => this._extensionService.activateByEvent(activationEvent)
 					.then(() => this._keybindingsService.executeCommand(command.command)));
+
+				action.label = command.category
+					? localize('category.label', "{0}: {1}", command.category, command.title)
+					: command.title;
+				action.order = Number.MAX_VALUE;
 
 				this._extensionsActions.push(action);
 			}

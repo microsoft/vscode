@@ -7,7 +7,8 @@
 
 import {Registry} from 'vs/platform/platform';
 import URI from 'vs/base/common/uri';
-import {IAction} from 'vs/base/common/actions';
+import {IAction, Action} from 'vs/base/common/actions';
+import {BaseActionItem, ActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IActionsService} from 'vs/platform/actions/common/actions';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -60,7 +61,9 @@ class Contributor extends ActionBarContributor {
 	}
 
 	private _getResource(context: any): URI {
-		return getUntitledOrFileResource(context.input, true);
+		if (context.input  !== void 0 && context.editor  !== void 0 && context.position !== void 0 ) {
+			return getUntitledOrFileResource(context.input, true);
+		}
 	}
 
 	private _getCommandIds(resource: URI, path: string): string[] {
@@ -83,6 +86,18 @@ class Contributor extends ActionBarContributor {
 			const language = this._modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
 			return matches(context.when, resource, language);
 		}
+	}
+
+	public getActionItem(context: any, action: Action): BaseActionItem {
+		const uri = this._getResource(context);
+		return new CommandItem(uri, action);
+	}
+}
+
+class CommandItem extends ActionItem {
+
+	constructor(context: any, action: IAction) {
+		super(context, action, { icon: !!action.class, label: !action.class });
 	}
 }
 
