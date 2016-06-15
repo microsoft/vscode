@@ -31,6 +31,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	private actions: actions.IAction[];
 	private pauseAction: dbgactions.PauseAction;
 	private continueAction: dbgactions.ContinueAction;
+	private stepBackAction: dbgactions.StepBackDebugAction;
 	private isVisible: boolean;
 	private isBuilt: boolean;
 
@@ -112,7 +113,6 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 				instantiationService.createInstance(dbgactions.StepOverDebugAction, dbgactions.StepOverDebugAction.ID, dbgactions.StepOverDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.StepIntoDebugAction, dbgactions.StepIntoDebugAction.ID, dbgactions.StepIntoDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.StepOutDebugAction, dbgactions.StepOutDebugAction.ID, dbgactions.StepOutDebugAction.LABEL),
-				instantiationService.createInstance(dbgactions.StepBackDebugAction, dbgactions.StepBackDebugAction.ID, dbgactions.StepBackDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.RestartDebugAction, dbgactions.RestartDebugAction.ID, dbgactions.RestartDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.StopDebugAction, dbgactions.StopDebugAction.ID, dbgactions.StopDebugAction.LABEL)
 			];
@@ -121,10 +121,22 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 				this.toDispose.push(a);
 			});
 			this.toDispose.push(this.pauseAction);
+			this.toDispose.push(this.continueAction);
 		}
 		this.actions[0] = state === debug.State.Running ? this.pauseAction : this.continueAction;
 
-		return this.actions;
+		const activeSession = this.debugService.getActiveSession();
+		if (activeSession && activeSession.configuration.capabilities.supportsStepBack) {
+			if (!this.stepBackAction) {
+				this.stepBackAction = instantiationService.createInstance(dbgactions.StepBackDebugAction, dbgactions.StepBackDebugAction.ID, dbgactions.StepBackDebugAction.LABEL);
+				this.toDispose.push(this.stepBackAction);
+			}
+
+			// Return a copy of this.actions containing stepBackAction
+			return [...this.actions.slice(0, 4), this.stepBackAction, ...this.actions.slice(4)];
+		} else {
+			return this.actions;
+		}
 	}
 
 	public dispose(): void {
