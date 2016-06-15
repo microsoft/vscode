@@ -80,8 +80,10 @@ class Contributor extends ActionBarContributor {
 	}
 
 	public getActionItem(context: any, action: Action): BaseActionItem {
-		const uri = this._getResource(context);
-		return new CommandItem(uri, action);
+		if (this.hasActions(context)) {
+			const uri = this._getResource(context);
+			return new CommandItem(uri, action);
+		}
 	}
 }
 
