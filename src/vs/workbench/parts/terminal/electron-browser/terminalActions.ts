@@ -88,7 +88,6 @@ export class FocusNextTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
-		this.class = 'terminal-action focus-next';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -106,7 +105,6 @@ export class FocusPreviousTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
-		this.class = 'terminal-action focus-previous';
 	}
 
 	public run(event?: any): TPromise<any> {

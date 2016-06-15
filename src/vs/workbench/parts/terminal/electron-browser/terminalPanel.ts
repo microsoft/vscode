@@ -18,7 +18,7 @@ import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/e
 import {Panel} from 'vs/workbench/browser/panel';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import {CloseTerminalAction, CreateNewTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {CloseTerminalAction, CreateNewTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
@@ -64,9 +64,7 @@ export class TerminalPanel extends Panel {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL),
-				this.instantiationService.createInstance(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL),
-				this.instantiationService.createInstance(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL),
-				this.instantiationService.createInstance(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL)
+				this.instantiationService.createInstance(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
