@@ -123,13 +123,13 @@ class EditorInputCache
 
 			switch (status.getStatus()) {
 				case git.Status.INDEX_MODIFIED:
-					return winjs.TPromise.as(new giteditorinputs.GitIndexDiffEditorInput(fileSegment, nls.localize('gitIndexChanges', "{0} - Changes on index", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitIndexDiffEditorInput(nls.localize('gitIndexChanges', "{0} (index) ↔ {1}", fileSegment, fileSegment), nls.localize('gitIndexChangesDesc', "{0} - Changes on index", folderSegment), leftInput, rightInput, status));
 				case git.Status.INDEX_RENAMED:
-					return winjs.TPromise.as(new giteditorinputs.GitIndexDiffEditorInput(fileSegment, nls.localize('gitIndexChangesRenamed', "{0} - Renamed - Changes on index", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitIndexDiffEditorInput(nls.localize('gitIndexChangesRenamed', "{0} ← {1}", status.getRename(), status.getPath()), nls.localize('gitIndexChangesRenamedDesc', "{0} - Renamed - Changes on index", folderSegment), leftInput, rightInput, status));
 				case git.Status.MODIFIED:
-					return winjs.TPromise.as(new giteditorinputs.GitWorkingTreeDiffEditorInput(fileSegment, nls.localize('workingTreeChanges', "{0} - Changes on working tree", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitWorkingTreeDiffEditorInput(nls.localize('workingTreeChanges', "{0} (HEAD) ↔ {1}", fileSegment, fileSegment), nls.localize('workingTreeChangesDesc', "{0} - Changes on working tree", folderSegment), leftInput, rightInput, status));
 				default:
-					return winjs.TPromise.as(new giteditorinputs.GitDiffEditorInput(fileSegment, nls.localize('gitMergeChanges', "{0} - Merge changes", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitDiffEditorInput(nls.localize('gitMergeChanges', "{0} (merge) ↔ {1}", fileSegment, fileSegment), nls.localize('gitMergeChangesDesc', "{0} - Merge changes", folderSegment), leftInput, rightInput, status));
 			}
 		}).then((editorInput:WorkbenchEditorCommon.EditorInput) => {
 			editorInput.addOneTimeDisposableListener('dispose', () => {
@@ -778,12 +778,15 @@ export class GitService extends ee.EventEmitter
 			var fileSegment = pathComponents[pathComponents.length - 1];
 			var folderSegment = toReadablePath(pathComponents.slice(0, pathComponents.length - 1).join('/'));
 
+			var label:string;
 			var description:string;
 
 			if (treeish === '~') {
-				description = nls.localize('changesFromIndex', "{0} - Changes on index", folderSegment);
+				label = nls.localize('changesFromIndex', "{0} (index)", fileSegment);
+				description = nls.localize('changesFromIndexDesc', "{0} - Changes on index", folderSegment);
 			} else {
-				description = nls.localize('changesFromTree', "{0} - Changes on {1}", folderSegment, treeish);
+				label = nls.localize('changesFromTree', "{0} ({1})", fileSegment, treeish);
+				description = nls.localize('changesFromTreeDesc', "{0} - Changes on {1}", folderSegment, treeish);
 			}
 
 			if (mime.isUnspecific(mimetypes)) {
@@ -800,7 +803,7 @@ export class GitService extends ee.EventEmitter
 			}
 
 			// Text
-			return winjs.TPromise.as(this.instantiationService.createInstance(giteditorinputs.NativeGitIndexStringEditorInput, fileSegment, description, mimetypes.join(', '), status, path, treeish));
+			return winjs.TPromise.as(this.instantiationService.createInstance(giteditorinputs.NativeGitIndexStringEditorInput, label, description, mimetypes.join(', '), status, path, treeish));
 		});
 	}
 
