@@ -29,6 +29,10 @@
 	padding-left: 10px;
 }
 
+.monaco-workbench .panel.integrated-terminal .tab:first-child {
+	border-left: none;
+}
+
 .monaco-workbench .panel.integrated-terminal .tab.active {
 	border-top: none;
 	opacity: 1 !important;
