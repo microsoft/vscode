@@ -13,7 +13,7 @@ export namespace IDE {
     export const HoverDefinition = "CODE_HOVER_DEFINITION";
     export const Reference = "CODE_REFERENCE";
     export const Rename = "CODE_RENAME";
-    export const Symbol = "CODE_SYMNOL";
+    export const Symbol = "CODE_SYMBOL";
     export const Lint = "LINTING";
 }
 export const EVENT_LOAD = "IDE_LOAD";
