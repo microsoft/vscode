@@ -49,6 +49,20 @@ export class PythonDebugger extends DebugSession {
     }
     protected initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
         response.body.supportsEvaluateForHovers = true;
+        response.body.supportsConditionalBreakpoints = true;
+        response.body.supportsEvaluateForHovers = false;
+        response.body.supportsFunctionBreakpoints = false;
+        response.body.exceptionBreakpointFilters = [
+            {
+                label: "All Exceptions",
+                filter: "all"
+            },
+            {
+                label: "Uncaught Exceptions",
+                filter: "uncaught"
+            }
+        ];
+
         this.sendResponse(response);
         // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
         this.sendEvent(new InitializedEvent());
