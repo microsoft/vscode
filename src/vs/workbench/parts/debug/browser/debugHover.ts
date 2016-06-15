@@ -205,6 +205,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 		return this.tree.setInput(expression).then(() => {
 			this.complexValueTitle.textContent = expression.value;
+			this.complexValueTitle.title = expression.value;
 			this.layoutTree();
 			this.editor.layoutContentWidget(this);
 			if (focus) {

@@ -15,15 +15,22 @@
 	word-break: break-all;
 }
 
+.monaco-editor .debug-hover-widget .complex-value {
+	width: 324px;
+}
+
 .monaco-editor .debug-hover-widget .complex-value .title {
-	padding-left: 10px;
-	margin: 0 5px;
+	padding-left: 15px;
+	padding-right: 2px;
+	font-size: 11px;
+	word-break: normal;
+	text-overflow: ellipsis;
+	overflow: hidden;
 	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 18px;
-	width: 324px;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-row > .content {
