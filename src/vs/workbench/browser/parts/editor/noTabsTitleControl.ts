@@ -133,13 +133,12 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	protected doRefresh(): void {
-		if (!this.context) {
-			return;
-		}
-
 		const group = this.context;
-		const editor = group.activeEditor;
+		const editor = group && group.activeEditor;
 		if (!editor) {
+			this.titleLabel.innerText = '';
+			this.titleDescription.innerText = '';
+
 			this.editorActionsToolbar.setActions([], [])();
 
 			this.currentPrimaryEditorActionIds = [];

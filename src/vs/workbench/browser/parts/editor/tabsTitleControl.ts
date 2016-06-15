@@ -214,13 +214,11 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	protected doRefresh(): void {
-		if (!this.context) {
-			return;
-		}
-
 		const group = this.context;
-		const editor = group.activeEditor;
+		const editor = group && group.activeEditor;
 		if (!editor) {
+			this.clearTabs();
+
 			this.groupActionsToolbar.setActions([], [])();
 
 			this.currentPrimaryGroupActionIds = [];
@@ -249,12 +247,16 @@ export class TabsTitleControl extends TitleControl {
 		this.doUpdate();
 	}
 
-	private refreshTabs(group: IEditorGroup): void {
-
-		// Empty container first
+	private clearTabs(): void {
 		DOM.clearNode(this.tabsContainer);
 		dispose(this.tabDisposeables);
 		this.tabDisposeables = [];
+	}
+
+	private refreshTabs(group: IEditorGroup): void {
+
+		// Empty container first
+		this.clearTabs();
 
 		const tabContainers: HTMLElement[] = [];
 
