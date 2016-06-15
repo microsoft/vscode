@@ -103,7 +103,6 @@ export class TerminalPanel extends Panel {
 
 		this.tabsOuterContainer.appendChild(this.tabScrollbar.getDomNode());
 
-		// TODO: Move tabs to bottom
 		this.terminalContainer = document.createElement('div');
 		DOM.addClass(this.terminalContainer, 'terminal-outer-container');
 		this.parentDomElement.appendChild(this.themeStyleElement);

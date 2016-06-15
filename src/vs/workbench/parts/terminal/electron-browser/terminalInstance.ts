@@ -38,7 +38,7 @@ export class TerminalInstance {
 	) {
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
-		this.wrapperElement.classList.add('terminal-wrapper');
+		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.ptyProcess = this.createTerminalProcess();
 		this.terminalDomElement = document.createElement('div');
 		let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
@@ -141,7 +141,11 @@ export class TerminalInstance {
 	}
 
 	public toggleVisibility(visible: boolean) {
-		this.wrapperElement.classList.toggle('active', visible);
+		if (visible) {
+			DOM.addClass(this.wrapperElement, 'active');
+		} else {
+			DOM.removeClass(this.wrapperElement, 'active');
+		}
 	}
 
 	public setFont(font: ITerminalFont): void {
@@ -168,8 +172,8 @@ export class TerminalInstance {
 	public getTabElement(): HTMLLIElement {
 		if (!this.tabElement) {
 			this.tabElement = document.createElement('li');
-			this.tabElement.classList.add('tab');
-			this.tabElement.classList.add('monaco-editor-background');
+			DOM.addClass(this.tabElement, 'tab');
+			DOM.addClass(this.tabElement, 'monaco-editor-background');
 		}
 		return this.tabElement;
 	}
