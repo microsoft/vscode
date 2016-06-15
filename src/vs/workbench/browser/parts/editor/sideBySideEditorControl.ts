@@ -760,15 +760,31 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private enableDropTarget(node: HTMLElement): void {
 
 		// Let a dropped file open inside Code (only if dropped over editor area)
-		node.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.EventHelper.stop(e);
+			DOM.removeClass(node, 'dropfeedback');
 
 			const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
 			if (droppedResources.length) {
 				window.focus(); // make sure this window has focus so that the open call reaches the right window!
 				this.openFromDrop(droppedResources, <HTMLElement>e.toElement).done(null, errors.onUnexpectedError);
 			}
-		});
+		}));
+
+		// Drag over
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.addClass(node, 'dropfeedback');
+		}));
+
+		// Drag leave
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			DOM.removeClass(node, 'dropfeedback');
+		}));
+
+		// Drag end
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			DOM.removeClass(node, 'dropfeedback');
+		}));
 	}
 
 	private openFromDrop(resources: URI[], target: HTMLElement): TPromise<any> {

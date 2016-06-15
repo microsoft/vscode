@@ -11,6 +11,19 @@
 	background-color: #252526;
 }
 
+.vs .monaco-workbench .editor > .content.dropfeedback {
+	background-color: #DDECFF;
+}
+
+.vs-dark .monaco-workbench .editor > .content.dropfeedback {
+	background-color: #383B3D;
+}
+
+.hc-black .monaco-workbench .editor > .content.dropfeedback {
+	background: none !important;
+	border: 2px dashed #f38518;
+}
+
 .vs .monaco-workbench .editor > .content.dragged {
 	border-left: 1px solid #E7E7E7;
 	border-right: 1px solid #E7E7E7;

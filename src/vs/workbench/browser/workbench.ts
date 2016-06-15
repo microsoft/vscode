@@ -676,10 +676,11 @@ export class Workbench implements IPartService {
 		// We update the editorpart class to indicate if an editor is opened or not
 		// through a delay to accomodate for fast editor switching
 
+		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
-			this.editorBackgroundDelayer.trigger(() => this.editorPart.getContainer().addClass('empty'));
+			this.editorBackgroundDelayer.trigger(() => editorContainer.addClass('empty'));
 		} else {
-			this.editorBackgroundDelayer.trigger(() => this.editorPart.getContainer().removeClass('empty'));
+			this.editorBackgroundDelayer.trigger(() => editorContainer.removeClass('empty'));
 		}
 	}
 
