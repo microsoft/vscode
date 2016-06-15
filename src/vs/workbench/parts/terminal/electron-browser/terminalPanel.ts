@@ -161,7 +161,9 @@ export class TerminalPanel extends Panel {
 	private setActiveTerminal(index: number) {
 		this.activeTerminalIndex = index;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			terminalInstance.toggleVisibility(i === this.activeTerminalIndex);
+			let isActive = i === this.activeTerminalIndex;
+			terminalInstance.toggleVisibility(isActive);
+			DOM.toggleClass(terminalInstance.getTabElement(), 'active', isActive);
 		});
 	}
 
@@ -175,6 +177,7 @@ export class TerminalPanel extends Panel {
 				killedTerminal.dispose();
 			}
 		}
+		this.tabsContainer.removeChild(terminalInstance.getTabElement());
 		if (this.terminalInstances.length === 0) {
 			this.activeTerminalIndex = -1;
 			this.terminalService.toggle();

@@ -53,7 +53,9 @@ export class TerminalInstance {
 			if (message.type === 'data') {
 				this.terminal.write(message.content);
 			} else if (message.type === 'title') {
-				this.getTabElement().textContent = message.content;
+				let tabLabel = this.getTabElement().querySelector('.tab-label');
+				tabLabel.textContent = message.content;
+				tabLabel.setAttribute('title', message.content);
 			}
 		});
 		this.terminal.on('data', (data) => {
@@ -141,11 +143,7 @@ export class TerminalInstance {
 	}
 
 	public toggleVisibility(visible: boolean) {
-		if (visible) {
-			DOM.addClass(this.wrapperElement, 'active');
-		} else {
-			DOM.removeClass(this.wrapperElement, 'active');
-		}
+		DOM.toggleClass(this.wrapperElement, 'active', visible);
 	}
 
 	public setFont(font: ITerminalFont): void {
@@ -171,9 +169,15 @@ export class TerminalInstance {
 
 	public getTabElement(): HTMLLIElement {
 		if (!this.tabElement) {
+			let tabLabel = document.createElement('div');
+			DOM.addClass(tabLabel, 'tab-label');
+			let tabClose = document.createElement('div');
+			DOM.addClass(tabClose, 'tab-close');
 			this.tabElement = document.createElement('li');
 			DOM.addClass(this.tabElement, 'tab');
 			DOM.addClass(this.tabElement, 'monaco-editor-background');
+			this.tabElement.appendChild(tabLabel);
+			this.tabElement.appendChild(tabClose);
 		}
 		return this.tabElement;
 	}
