@@ -104,7 +104,7 @@ class EditorContributor extends BaseActionBarContributor {
 class ContextMenuContributor extends BaseActionBarContributor {
 
 	protected _wheres(): { primary: Where; secondary: Where } {
-		return { secondary: 'context', primary: undefined };
+		return { secondary: 'explorer/context', primary: undefined };
 	}
 
 	protected _getResource(context: any): URI {

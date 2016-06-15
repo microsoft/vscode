@@ -18,7 +18,7 @@ export interface ResourceFilter {
 	pattern?: string;
 }
 
-export type Where = 'editor/primary' | 'editor/secondary' | 'context';
+export type Where = 'editor/primary' | 'editor/secondary' | 'explorer/context';
 
 export interface Context {
 	where: Where;
