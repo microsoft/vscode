@@ -71,8 +71,8 @@ namespace validation {
 		if (!context) {
 			return true;
 		}
-		if (context.where !== 'editor/primary' && context.where !== 'editor/secondary' && context.where !== 'context/explorer') {
-			rejects.push(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`, or `context/explorer`"));
+		if (context.where !== 'editor/primary' && context.where !== 'editor/secondary' && context.where !== 'explorer/context') {
+			rejects.push(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`, or `explorer/context`"));
 			return false;
 		}
 		if (typeof context.when !== 'object' && typeof context.when !== 'string' && !Array.isArray(context.when)) {
