@@ -337,6 +337,7 @@ export class TabsTitleControl extends TitleControl {
 		this.showEditorsOfLeftGroup.enabled = isOverflowing;
 		this.showEditorsOfCenterGroup.enabled = isOverflowing;
 		this.showEditorsOfRightGroup.enabled = isOverflowing;
+		this.showAllEditorsAction.enabled = isOverflowing;
 	}
 
 	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): void {
