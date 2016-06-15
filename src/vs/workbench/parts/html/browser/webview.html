@@ -13,11 +13,8 @@
 
 		function styleBody(body) {
 			if (body) {
-				let currentClasses = body.className.split(' ');
-				let strippedClasses = currentClasses.filter((cl) => {
-					return !initData.bodyClasses.remove.includes(cl);
-				});
-				body.className= `${strippedClasses.join(' ')} ${initData.bodyClasses.add}`;
+				body.classList.remove.apply(body.classList, initData.bodyClasses.remove);
+				body.classList.add(initData.bodyClasses.add);
 			}
 		}
 
