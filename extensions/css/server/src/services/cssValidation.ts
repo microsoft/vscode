@@ -42,6 +42,7 @@ export class CSSValidation {
 			let range = Range.create(document.positionAt(marker.getOffset()), document.positionAt(marker.getOffset() + marker.getLength()));
 			return <Diagnostic>{
 				code: marker.getRule().id,
+				source: document.languageId,
 				message: marker.getMessage(),
 				severity: marker.getLevel() === nodes.Level.Warning ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
 				range: range
