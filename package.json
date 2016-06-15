@@ -24,7 +24,7 @@
     "iconv-lite": "0.4.13",
     "minimist": "^1.2.0",
     "native-keymap": "0.1.2",
-    "pty.js": "https://github.com/Tyriar/pty.js/tarball/prebuilt",
+    "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
     "sax": "1.1.2",
     "semver": "4.3.6",
     "vscode-debugprotocol": "1.9.0",
