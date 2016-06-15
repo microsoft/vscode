@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .integrated-terminal .tabs-container {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+}
+
+.monaco-workbench .integrated-terminal .tab {
+	display: flex;
+	width: 120px;
+	min-width: fit-content;
+	overflow: hidden;
+	white-space: nowrap;
+	cursor: pointer;
+	border-left: 1px solid hsla(0,0%,50%,.2);
+	border-bottom: 1px solid hsla(0,0%,50%,.2);
+	box-sizing: border-box;
+	opacity: .7;
+	padding-left: 10px;
+}

@@ -19,6 +19,8 @@ import {Panel} from 'vs/workbench/browser/panel';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import {CloseTerminalAction, CreateNewTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export class TerminalPanel extends Panel {
 
@@ -27,7 +29,8 @@ export class TerminalPanel extends Panel {
 
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
-	private tabListElement: HTMLElement;
+	private tabsContainer: HTMLElement;
+	private tabScrollbar: ScrollableElement;
 	private terminalContainerElement: HTMLElement;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
@@ -45,8 +48,17 @@ export class TerminalPanel extends Panel {
 	}
 
 	public layout(dimension?: Dimension): void {
+		if (!dimension) {
+			return;
+		}
 		if (this.terminalInstances.length > 0) {
-			this.terminalInstances[this.activeTerminalIndex].layout(dimension);
+			let computedStyle = window.getComputedStyle(this.tabsContainer);
+			console.log(computedStyle.height);
+			let height = dimension.height - parseInt(computedStyle.height.replace(/px/, ''), 10);
+			console.log('dimension.height: ' + dimension.height);
+			console.log('height: ' + height);
+			let terminalContainerDimension = new Dimension(dimension.width, height);
+			this.terminalInstances[this.activeTerminalIndex].layout(terminalContainerDimension);
 		}
 	}
 
@@ -71,10 +83,29 @@ export class TerminalPanel extends Panel {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
 		this.themeStyleElement = document.createElement('style');
-		this.tabListElement = document.createElement('ul');
+		this.tabsContainer = document.createElement('ul');
+		DOM.addClass(this.tabsContainer, 'tabs-container');
+
+		// Custom Scrollbar
+		this.tabScrollbar = new ScrollableElement(this.tabsContainer, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			scrollYToX: true,
+			useShadows: false,
+			canUseTranslate3d: true,
+			horizontalScrollbarSize: 3
+		});
+		this.tabsContainer.style.overflow = 'scroll'; // custom scrollbar is eager on removing this style but we want it for DND scroll feedback
+
+		this.tabScrollbar.onScroll(e => {
+			this.tabsContainer.scrollLeft = e.scrollLeft;
+		});
+
+		this.parentDomElement.appendChild(this.tabScrollbar.getDomNode());
+
 		this.terminalContainerElement = document.createElement('div');
 		this.parentDomElement.appendChild(this.themeStyleElement);
-		this.parentDomElement.appendChild(this.tabListElement);
+		this.parentDomElement.appendChild(this.tabsContainer);
 		this.parentDomElement.appendChild(this.terminalContainerElement);
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'wheel', (event: WheelEvent) => {
@@ -120,7 +151,7 @@ export class TerminalPanel extends Panel {
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
-			this.tabListElement.appendChild(terminalInstance.getTabElement());
+			this.tabsContainer.appendChild(terminalInstance.getTabElement());
 			resolve(terminalInstance);
 		});
 	}

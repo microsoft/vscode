@@ -166,6 +166,8 @@ export class TerminalInstance {
 	public getTabElement(): HTMLLIElement {
 		if (!this.tabElement) {
 			this.tabElement = document.createElement('li');
+			this.tabElement.classList.add('tab');
+			this.tabElement.classList.add('monaco-editor-background');
 		}
 		return this.tabElement;
 	}

@@ -3,31 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .integrated-terminal {
-	align-items: flex-end;
-	display: flex;
-}
-
-.monaco-workbench .integrated-terminal {
-	background-color: transparent!important;
-	color: #333;
-	-webkit-user-select: initial;
-	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
-	padding: 0 20px;
-}
-
-.monaco-workbench .integrated-terminal .terminal {
-	background-color: transparent!important;
-}
-
-.monaco-workbench .integrated-terminal .terminal-wrapper {
-	display: none;
-}
-
-.monaco-workbench .integrated-terminal .terminal-wrapper.active {
-	display: block;
-}
-
 .monaco-workbench .integrated-terminal .terminal:focus .terminal-cursor {
 	background-color: #333;
 }
@@ -38,13 +13,15 @@
 	outline-offset: -1px;
 }
 
+
+.monaco-workbench .integrated-terminal .terminal {
+	background-color: transparent!important;
+}
+
 .monaco-workbench .integrated-terminal .reverse-video {
 	color: #1e1e1e;
 }
 
-.vs-dark .monaco-workbench .integrated-terminal {
-	color: #CCC;
-}
 
 .vs-dark .monaco-workbench .integrated-terminal .terminal:focus .terminal-cursor {
 	background-color: #CCC;
@@ -58,12 +35,6 @@
 
 .vs-dark .monaco-workbench .integrated-terminal .reverse-video {
 	color: #CCC;
-}
-
-/* High Contrast Theming */
-
-.hc-black .monaco-workbench .integrated-terminal {
-	color: #FFF;
 }
 
 .hc-black .monaco-workbench .integrated-terminal .terminal:focus .terminal-cursor {
@@ -80,122 +51,54 @@
 	color: #FFF;
 }
 
-/* Terminal actions */
-
-/* Light theme */
-.monaco-workbench .terminal-action.close { background: url('close.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.focus-next { background: url('focus-next.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.focus-previous { background: url('focus-previous.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.new { background: url('new.svg') center center no-repeat; }
-/* Dark theme */
-.vs-dark .monaco-workbench .terminal-action.close { background: url('close-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.focus-next { background: url('focus-next-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.focus-previous { background: url('focus-previous-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.new { background: url('new-inverse.svg') center center no-repeat; }
-/* High contrast black theme */
-.hc-black .monaco-workbench .terminal-action { background: none; }
-.hc-black .monaco-workbench .terminal-action:before {
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-.hc-black .monaco-workbench .terminal-action.close:before { content: url('close-inverse.svg'); }
-.hc-black .monaco-workbench .terminal-action.focus-next:before { content: url('focus-next-inverse.svg'); }
-.hc-black .monaco-workbench .terminal-action.focus-previous:before { content: url('focus-previous-inverse.svg'); }
-.hc-black .monaco-workbench .terminal-action.new:before { content: url('new-inverse.svg'); }
-
-/**
- * xterm.js: xterm, in the browser
- * Copyright (c) 2014, sourceLair Limited (www.sourcelair.com (MIT License)
- * Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
- * https://github.com/chjj/term.js
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- *
- * Originally forked from (with the author's permission):
- *   Fabrice Bellard's javascript vt100 for jslinux:
- *   http://bellard.org/jslinux/
- *   Copyright (c) 2011 Fabrice Bellard
- *   The original design remains. The terminal itself
- *   has been extended to include xterm CSI codes, among
- *   other features.
- */
-
-/*
- *  Default style for xterm.js
- */
-
-.terminal {
+.monaco-workbench .integrated-terminal .terminal {
 	position: relative;
 }
 
-.terminal:focus {
+.monaco-workbench .integrated-terminal .terminal:focus {
 	outline: none !important;
 }
 
-.terminal .xterm-helpers {
-	position: absolute;
-	top: 0;
-	left: -9999em;
-}
-
-/*
- *  Determine default colors for xterm.js
- */
-.terminal .xterm-bold {
+.monaco-workbench .integrated-terminal .terminal .xterm-bold {
 	font-weight: bold;
 }
 
-.terminal .xterm-underline {
+.monaco-workbench .integrated-terminal .terminal .xterm-underline {
 	text-decoration: underline;
 }
 
-.terminal .xterm-blink {
+.monaco-workbench .integrated-terminal .terminal .xterm-blink {
 	text-decoration: blink;
 }
 
-.terminal .xterm-hidden {
+.monaco-workbench .integrated-terminal .terminal .xterm-hidden {
 	visibility: hidden;
 }
 
-.monaco-workbench .terminal *::selection {
+/* Base selection colors */
+
+.monaco-workbench .integrated-terminal .terminal *::selection {
 	color: #FFF;
 	background-color: rgba(51, 51, 51, 0.996);
 }
 
-.vs-dark .monaco-workbench .terminal *::selection {
+.vs-dark .monaco-workbench .integrated-terminal .terminal *::selection {
 	color: #1e1e1e;
 	background-color: rgba(204, 204, 204, 0.996);
 }
 
-.hc-black .monaco-workbench .terminal *::selection {
+.hc-black .monaco-workbench .integrated-terminal .terminal *::selection {
 	color: #000;
 	background-color: rgba(255, 255, 255, 0.996);
 }
 
-.monaco-workbench .terminal .xterm-color-16 {
+/* Terminal colors 16-255 */
+
+.monaco-workbench .integrated-terminal .terminal .xterm-color-16 {
 	color: #000000;
 }
 
-.monaco-workbench .terminal .xterm-bg-color-16 {
+.monaco-workbench .integrated-terminal .terminal .xterm-bg-color-16 {
 	background-color: #000000;
 }
 
