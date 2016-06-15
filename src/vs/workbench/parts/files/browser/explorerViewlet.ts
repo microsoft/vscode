@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
@@ -47,7 +47,6 @@ export class ExplorerViewlet extends Viewlet {
 	private viewletSettings: any;
 	private viewletState: FileViewletState;
 	private dimension: Dimension;
-	private toDispose: IDisposable[];
 
 	private viewletVisibleContextKey: IKeybindingContextKey<boolean>;
 
@@ -68,7 +67,6 @@ export class ExplorerViewlet extends Viewlet {
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
-		this.toDispose = [];
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -177,18 +175,6 @@ export class ExplorerViewlet extends Viewlet {
 
 			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise let it be computed by super class.
 			this.explorerView = explorerView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
-
-			// Listen on explorer view collapse / expand to grow / shrink the fixed open editors view #6666
-			this.toDispose.push(this.explorerView.addListener2('collapse', () => {
-				if (this.openEditorsView) {
-					this.openEditorsView.updateBodySize(Number.MAX_VALUE);
-				}
-			}));
-			this.toDispose.push(this.explorerView.addListener2('expand', () => {
-				if (this.openEditorsView) {
-					this.openEditorsView.updateBodySize();
-				}
-			}));
 		}
 
 		// No workspace
@@ -302,7 +288,6 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 		if (this.splitView) {
 			this.splitView.dispose();
 			this.splitView = null;

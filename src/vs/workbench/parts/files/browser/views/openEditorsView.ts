@@ -166,7 +166,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	private structuralTreeUpdate(): void {
 		// View size
-		this.updateBodySize();
+		this.expandedBodySize = this.getExpandedBodySize(this.model);
 		// Show groups only if there is more than 1 group
 		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
 		// TODO@Isidor temporary workaround due to a partial tree refresh issue
@@ -212,7 +212,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}
 
 		// Adjust expanded body size
-		this.updateBodySize();
+		this.expandedBodySize = this.getExpandedBodySize(this.model);
 	}
 
 	private updateDirtyIndicator(): void {
@@ -226,8 +226,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}
 	}
 
-	public updateBodySize(newSize?: number): void {
-		this.expandedBodySize = newSize ? newSize : OpenEditorsView.computeExpandedBodySize(this.model, this.visibleOpenEditors, this.dynamicHeight);
+	private getExpandedBodySize(model: IEditorStacksModel): number {
+		return OpenEditorsView.computeExpandedBodySize(model, this.visibleOpenEditors, this.dynamicHeight);
 	}
 
 	private static computeExpandedBodySize(model: IEditorStacksModel, visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
