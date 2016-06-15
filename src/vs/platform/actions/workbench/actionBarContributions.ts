@@ -15,7 +15,7 @@ import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {isLightTheme} from 'vs/platform/theme/common/themes';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {commands, Context, Where, CommandAction} from '../common/commandsExtensionPoint';
+import {commands, Command, Context, Where, CommandAction} from '../common/commandsExtensionPoint';
 import matches from 'vs/editor/common/modes/languageSelector';
 import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
 
@@ -64,10 +64,10 @@ abstract class BaseActionBarContributor extends ActionBarContributor {
 			const {context} = command;
 			if (Array.isArray(context)) {
 				if (context.some(context => this._matches(context, resource, where))) {
-					result.push(new CommandAction(command, this._extensionService, this._keybindingsService));
+					result.push(this._createAction(command, resource));
 				}
 			} else if (context && this._matches(context, resource, where)) {
-				result.push(new CommandAction(command, this._extensionService, this._keybindingsService));
+				result.push(this._createAction(command, resource));
 			}
 		}
 		return result;
@@ -86,6 +86,17 @@ abstract class BaseActionBarContributor extends ActionBarContributor {
 			const uri = this._getResource(context);
 			return new CommandItem(uri, action, this._themeService);
 		}
+	}
+
+	private _createAction(command: Command, context: URI): CommandAction {
+		return new class extends CommandAction {
+			run() {
+				// TODO@joh,ben This is a workaround for the actionbar
+				// overwriting the context of the action item
+				return super.run(context);
+			}
+
+		}(command, this._extensionService, this._keybindingsService);
 	}
 }
 

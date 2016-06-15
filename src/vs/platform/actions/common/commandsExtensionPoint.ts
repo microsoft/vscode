@@ -273,7 +273,7 @@ export class CommandAction extends Action {
 		const activationEvent = `onCommand:${command.command}`;
 		this._actionCallback = (...args: any[]) => {
 			return extensionService.activateByEvent(activationEvent).then(() => {
-				return keybindingService.executeCommand(command.command);
+				return keybindingService.executeCommand(command.command, ...args);
 			});
 		};
 	}
