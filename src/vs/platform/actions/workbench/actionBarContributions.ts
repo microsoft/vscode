@@ -15,11 +15,11 @@ import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {isLightTheme} from 'vs/platform/theme/common/themes';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {commands, Context, CommandAction} from '../common/commandsExtensionPoint';
+import {commands, Context, Where, CommandAction} from '../common/commandsExtensionPoint';
 import matches from 'vs/editor/common/modes/languageSelector';
 import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
 
-class Contributor extends ActionBarContributor {
+abstract class BaseActionBarContributor extends ActionBarContributor {
 
 	constructor(
 		@IModeService private _modeService: IModeService,
@@ -30,20 +30,22 @@ class Contributor extends ActionBarContributor {
 		super();
 	}
 
+	protected abstract _wheres(): { primary: Where; secondary: Where };
+
 	public hasActions(context: any): boolean {
-		return this.getActions(context).length > 0;
+		return this._wheres().primary && this.getActions(context).length > 0;
 	}
 
 	public getActions(context: any): IAction[] {
-		return this._getActions(context, 'editor/primary');
+		return this._getActions(context, this._wheres().primary);
 	}
 
 	public hasSecondaryActions(context: any): boolean {
-		return this.getSecondaryActions(context).length > 0;
+		return this._wheres().secondary && this.getSecondaryActions(context).length > 0;
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
-		return this._getActions(context, 'editor/secondary');
+		return this._getActions(context, this._wheres().secondary);
 	}
 
 	private _getActions(context: any, where: string): IAction[]{
@@ -54,11 +56,7 @@ class Contributor extends ActionBarContributor {
 		return [];
 	}
 
-	private _getResource(context: any): URI {
-		if (context.input  !== void 0 && context.editor  !== void 0 && context.position !== void 0 ) {
-			return getUntitledOrFileResource(context.input, true);
-		}
-	}
+	protected abstract _getResource(context: any): URI;
 
 	private _getCommandActions(resource: URI, where: string): IAction[] {
 		const result: IAction[] = [];
@@ -87,6 +85,33 @@ class Contributor extends ActionBarContributor {
 		if (action instanceof CommandAction) {
 			const uri = this._getResource(context);
 			return new CommandItem(uri, action, this._themeService);
+		}
+	}
+}
+
+class EditorContributor extends BaseActionBarContributor {
+
+	protected _wheres(): { primary: Where; secondary: Where } {
+		return { primary: 'editor/primary', secondary: 'editor/secondary' };
+	}
+	protected _getResource(context: any): URI {
+		if (context.input  !== void 0 && context.editor  !== void 0 && context.position !== void 0 ) {
+			return getUntitledOrFileResource(context.input, true);
+		}
+	}
+}
+
+class ContextMenuContributor extends BaseActionBarContributor {
+
+	protected _wheres(): { primary: Where; secondary: Where } {
+		return { secondary: 'context', primary: undefined };
+	}
+
+	protected _getResource(context: any): URI {
+		if (context.element) {
+			if (context.element.resource instanceof URI) {
+				return <URI> context.element.resource;
+			}
 		}
 	}
 }
@@ -131,4 +156,5 @@ class CommandItem extends ActionItem {
 	}
 }
 
-Registry.as<IActionBarRegistry>(Extensions.Actionbar).registerActionBarContributor(Scope.EDITOR, Contributor);
+Registry.as<IActionBarRegistry>(Extensions.Actionbar).registerActionBarContributor(Scope.EDITOR, EditorContributor);
+Registry.as<IActionBarRegistry>(Extensions.Actionbar).registerActionBarContributor(Scope.VIEWER, ContextMenuContributor);

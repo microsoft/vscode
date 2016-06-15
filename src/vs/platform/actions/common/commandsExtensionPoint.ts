@@ -18,8 +18,10 @@ export interface ResourceFilter {
 	pattern?: string;
 }
 
+export type Where = 'editor/primary' | 'editor/secondary' | 'context';
+
 export interface Context {
-	where: 'editor/primary' | 'editor/secondary';
+	where: Where;
 	when: string | string[] | ResourceFilter | ResourceFilter[];
 }
 
@@ -69,8 +71,8 @@ namespace validation {
 		if (!context) {
 			return true;
 		}
-		if (context.where !== 'editor/primary' && context.where !== 'editor/secondary') {
-			rejects.push(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`"));
+		if (context.where !== 'editor/primary' && context.where !== 'editor/secondary' && context.where !== 'context/explorer') {
+			rejects.push(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`, or `context/explorer`"));
 			return false;
 		}
 		if (typeof context.when !== 'object' && typeof context.when !== 'string' && !Array.isArray(context.when)) {
