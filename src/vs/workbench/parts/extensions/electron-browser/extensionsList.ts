@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
@@ -14,7 +13,6 @@ import { IExtension } from 'vs/platform/extensionManagement/common/extensionMana
 
 export interface ITemplateData {
 	extension: IExtension;
-	container: HTMLElement;
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
@@ -34,20 +32,8 @@ export interface IExtensionEntry {
 	state: ExtensionState;
 }
 
-// function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
-// 	const oneInstallCount = one.extension.galleryInformation ? one.extension.galleryInformation.installCount : 0;
-// 	const otherInstallCount = other.extension.galleryInformation ? other.extension.galleryInformation.installCount : 0;
-// 	const diff = otherInstallCount - oneInstallCount;
-
-// 	if (diff !== 0) {
-// 		return diff;
-// 	}
-
-// 	return one.extension.displayName.localeCompare(other.extension.displayName);
-// }
-
 export class Delegate implements IDelegate<IExtension> {
-	getHeight() { return 90; }
+	getHeight() { return 62; }
 	getTemplateId() { return 'extension'; }
 }
 
@@ -65,18 +51,15 @@ export class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> 
 	get templateId() { return 'extension'; }
 
 	renderTemplate(root: HTMLElement): ITemplateData {
-		const container = append(root, $('.extension-container'));
-		const element = append(container, $('.extension'));
-		const header = append(element, $('.header'));
-		const icon = append(header, $<HTMLImageElement>('img.icon'));
-		const details = append(header, $('.details'));
-		const title = append(details, $('.title'));
-		const subtitle = append(details, $('.subtitle'));
-		const name = append(title, $('span.name'));
-		const version = append(subtitle, $('span.version'));
-		const author = append(subtitle, $('span.author'));
-		const description = append(details, $('.description'));
-		const result = { extension: null, container, element, icon, name, version, author, description };
+		const element = append(root, $('.extension'));
+		const icon = append(element, $<HTMLImageElement>('img.icon'));
+		const details = append(element, $('.details'));
+		const header = append(details, $('.header'));
+		const name = append(header, $('span.name.ellipsis'));
+		const version = append(header, $('span.version.ellipsis'));
+		const author = append(header, $('span.author.ellipsis'));
+		const description = append(details, $('.description.ellipsis'));
+		const result = { extension: null, element, icon, name, version, author, description };
 
 		this._templates.push(result);
 		return result;
@@ -102,7 +85,7 @@ export class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> 
 		data.icon.src = version.iconUrl;
 		data.name.textContent = extension.displayName;
 		data.version.textContent = ` ${ extension.version }`;
-		data.author.textContent = ` ${ localize('author', "by {0}", publisher)}`;
+		data.author.textContent = ` ${ publisher }`;
 		data.description.textContent = extension.description;
 	}
 
