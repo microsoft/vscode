@@ -104,6 +104,16 @@ export class ExplorerView extends CollapsibleViewletView {
 		super.renderHeader(container);
 	}
 
+	public collapse(): void {
+		super.collapse();
+		this.emit('collapse');
+	}
+
+	public expand(): void {
+		super.expand();
+		this.emit('expand');
+	}
+
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'explorer-folders-view');
