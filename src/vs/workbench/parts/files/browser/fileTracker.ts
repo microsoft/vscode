@@ -85,6 +85,11 @@ export class FileTracker implements IWorkbenchContribution {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
+
+		// If a file becomes dirty but is not opened, we open it in the background
+		if (!this.stacks.isOpen(e.resource)) {
+			this.editorService.openEditor({ resource: e.resource, options: { inactive: true } }).done(null, errors.onUnexpectedError);
+		}
 	}
 
 	private onTextFileSaveError(e: TextFileChangeEvent): void {

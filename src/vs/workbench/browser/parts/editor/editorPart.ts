@@ -235,7 +235,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// stacks model gets updated if any of the UI updating fails with an error.
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
 		const pinned = !this.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
-		group.openEditor(input, { active: true, pinned, index: options && options.index });
+		const active = (group.count === 0) || !options || !options.inactive;
+		group.openEditor(input, { active, pinned, index: options && options.index });
+
+		// Return early if the editor is to be open inactive and there are other editors in this group to show
+		if (!active) {
+			return TPromise.as<BaseEditor>(null);
+		}
 
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
