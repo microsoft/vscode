@@ -104,22 +104,20 @@ export class Client implements IClient, IDisposable {
 	private get client(): IPCClient {
 		if (!this._client) {
 			const args = this.options && this.options.args ? this.options.args : [];
-			let forkOpts:any = undefined;
+			const forkOpts = Object.create(null);
 
-			if (this.options) {
-				forkOpts = Object.create(null);
+			forkOpts.env = assign(clone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
 
-				if (this.options.env) {
-					forkOpts.env = assign(clone(process.env), this.options.env);
-				}
+			if (this.options && this.options.env) {
+				forkOpts.env = assign(forkOpts.env, this.options.env);
+			}
 
-				if (typeof this.options.debug === 'number') {
-					forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
-				}
+			if (this.options && typeof this.options.debug === 'number') {
+				forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
+			}
 
-				if (typeof this.options.debugBrk === 'number') {
-					forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
-				}
+			if (this.options && typeof this.options.debugBrk === 'number') {
+				forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);

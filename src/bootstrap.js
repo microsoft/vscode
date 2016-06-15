@@ -109,4 +109,19 @@ process.on('uncaughtException', function (err) {
 	}
 });
 
+// Kill oneself if one's parent dies. Much drama.
+if (process.env['VSCODE_PARENT_PID']) {
+	const parentPid = Number(process.env['VSCODE_PARENT_PID']);
+
+	if (typeof parentPid === 'number' && !isNaN(parentPid)) {
+		setInterval(function () {
+			try {
+				process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+			} catch (e) {
+				process.exit();
+			}
+		}, 5000);
+	}
+}
+
 require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);
