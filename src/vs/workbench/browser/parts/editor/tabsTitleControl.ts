@@ -569,7 +569,8 @@ export class TabsTitleControl extends TitleControl {
 		const actions: IAction[] = [
 			this.closeEditorAction,
 			this.closeOtherEditorsAction,
-			this.closeRightEditorsAction
+			this.closeRightEditorsAction,
+			this.closeEditorsInGroupAction
 		];
 
 		if (this.previewEditors) {
