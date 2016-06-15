@@ -9,7 +9,7 @@ import {IAction} from 'vs/base/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActionsService} from '../common/actions';
-import {commands, createAction} from '../common/commandsExtensionPoint';
+import {commands, CommandAction} from '../common/commandsExtensionPoint';
 import 'vs/platform/actions/workbench/actionBarContributions';
 
 export default class ActionsService implements IActionsService {
@@ -31,7 +31,7 @@ export default class ActionsService implements IActionsService {
 			this._extensionsActions = [];
 			for (let command of commands) {
 
-				const action = createAction(command, this._extensionService, this._keybindingsService);
+				const action = new CommandAction(command, this._extensionService, this._keybindingsService);
 				action.order = Number.MAX_VALUE;
 				action.label = command.category
 					? localize('category.label', "{0}: {1}", command.category, command.title)
