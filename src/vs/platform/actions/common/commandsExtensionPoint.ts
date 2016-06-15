@@ -18,7 +18,7 @@ export interface ResourceFilter {
 }
 
 export interface Context {
-	path: 'editor/primary' | 'editor/secondary';
+	where: 'editor/primary' | 'editor/secondary';
 	when: string | string[] | ResourceFilter | ResourceFilter[];
 }
 
@@ -41,8 +41,8 @@ function isValidContext(context: Context, rejects: string[]): boolean {
 	if (!context) {
 		return true;
 	}
-	if (context.path !== 'editor/primary' && context.path !== 'editor/secondary') {
-		rejects.push(localize('requireenumtype', "property `path` is mandatory and must be one of `editor/primary`, `editor/secondary`"));
+	if (context.where !== 'editor/primary' && context.where !== 'editor/secondary') {
+		rejects.push(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`"));
 		return false;
 	}
 	if (typeof context.when !== 'object' && typeof context.when !== 'string' && !Array.isArray(context.when)) {
@@ -103,7 +103,7 @@ const filterType: IJSONSchema = {
 const contextType: IJSONSchema = {
 	type: 'object',
 	properties: {
-		path: {
+		where: {
 			description: localize('vscode.extension.contributes.commandType.context.path', ""),
 			enum: [
 				'editor/primary',

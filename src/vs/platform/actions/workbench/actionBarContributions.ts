@@ -43,10 +43,10 @@ class Contributor extends ActionBarContributor {
 		return this._getActions(context, 'editor/secondary');
 	}
 
-	private _getActions(context: any, path: string): IAction[]{
+	private _getActions(context: any, where: string): IAction[]{
 		const uri = this._getResource(context);
 		if (uri) {
-			return this._getCommandActions(uri, path);
+			return this._getCommandActions(uri, where);
 		}
 		return [];
 	}
@@ -57,26 +57,27 @@ class Contributor extends ActionBarContributor {
 		}
 	}
 
-	private _getCommandActions(resource: URI, path: string): IAction[] {
+	private _getCommandActions(resource: URI, where: string): IAction[] {
 		const result: IAction[] = [];
 		for (let command of commands) {
 			const {context} = command;
 			if (Array.isArray(context)) {
-				if (context.some(context => this._matches(context, resource, path))) {
+				if (context.some(context => this._matches(context, resource, where))) {
 					result.push(createAction(command, this._extensionService, this._keybindingsService));
 				}
-			} else if (context && this._matches(context, resource, path)) {
+			} else if (context && this._matches(context, resource, where)) {
 				result.push(createAction(command, this._extensionService, this._keybindingsService));
 			}
 		}
 		return result;
 	}
 
-	private _matches(context: Context, resource: URI, path: string): boolean {
-		if (context.path === path) {
-			const language = this._modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
-			return matches(context.when, resource, language);
+	private _matches(context: Context, resource: URI, where: string): boolean {
+		if (context.where !== where) {
+			return false;
 		}
+		const language = this._modeService.getModeIdByFilenameOrFirstLine(resource.fsPath);
+		return matches(context.when, resource, language);
 	}
 
 	public getActionItem(context: any, action: Action): BaseActionItem {
