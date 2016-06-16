@@ -144,6 +144,13 @@ export class StringEditorInput extends EditorInput {
 				return true;
 			}
 
+			// If we have resource URIs, use those to compare
+			const resource = this.getResource();
+			const otherResource = otherStringEditorInput.getResource();
+			if (resource && otherResource) {
+				return resource.toString() === otherResource.toString();
+			}
+
 			// Otherwise compare by properties
 			return otherStringEditorInput.value === this.value &&
 				otherStringEditorInput.mime === this.mime &&
