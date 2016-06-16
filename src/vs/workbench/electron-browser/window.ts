@@ -63,9 +63,11 @@ export class ElectronWindow {
 			});
 		}
 
-		// Prevent a dropped file from opening as application
-		window.document.body.addEventListener(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
+		// Prevent a dropped link from opening within
+		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+			window.document.body.addEventListener(event, (e: DragEvent) => {
+				DOM.EventHelper.stop(e);
+			});
 		});
 
 		// Handle window.open() calls
