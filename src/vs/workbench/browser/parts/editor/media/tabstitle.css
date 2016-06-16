@@ -41,7 +41,7 @@
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active  {
-	border: 1px solid #6FC3DF;
+	border: 1px solid #f38518;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child {
@@ -135,6 +135,7 @@
 	content: url('close-dirty-inverse.svg');
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .close-editor-action,
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
 	content: url('close-inverse.svg');
 }

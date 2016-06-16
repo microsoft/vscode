@@ -58,6 +58,11 @@
 	background-repeat: no-repeat;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label {
+	line-height: initial;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions .action-label .label,
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
 	display: none;
@@ -122,8 +127,13 @@
 	width: 16px;
 }
 
-.hc-black .monaco-workbench .close-editor-action {
+.hc-black .monaco-workbench .close-editor-action:before {
 	content: url('close-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
 }
 
 .hc-black .monaco-workbench .split-editor-action:before {
