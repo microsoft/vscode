@@ -128,7 +128,7 @@ class SchemaHandle implements ISchemaHandle {
 	public getResolvedSchema(): Thenable<ResolvedSchema> {
 		if (!this.resolvedSchema) {
 			this.resolvedSchema = this.getUnresolvedSchema().then(unresolved => {
-				return this.service.resolveSchemaContent(unresolved);
+				return this.service.resolveSchemaContent(unresolved, this.url);
 			});
 		}
 		return this.resolvedSchema;
@@ -357,17 +357,21 @@ export class JSONSchemaService implements IJSONSchemaService {
 		);
 	}
 
-	public resolveSchemaContent(schemaToResolve: UnresolvedSchema): Thenable<ResolvedSchema> {
+	public resolveSchemaContent(schemaToResolve: UnresolvedSchema, schemaURL: string): Thenable<ResolvedSchema> {
 
 		let resolveErrors: string[] = schemaToResolve.errors.slice(0);
 		let schema = schemaToResolve.schema;
+		let contextService = this.contextService;
 
 		let findSection = (schema: IJSONSchema, path: string): any => {
 			if (!path) {
 				return schema;
 			}
 			let current: any = schema;
-			path.substr(1).split('/').some((part) => {
+			if (path[0] === '/') {
+				path = path.substr(1);
+			}
+			path.split('/').some((part) => {
 				current = current[part];
 				return !current;
 			});
@@ -388,18 +392,21 @@ export class JSONSchemaService implements IJSONSchemaService {
 			delete node.$ref;
 		};
 
-		let resolveExternalLink = (node: any, uri: string, linkPath: string): Thenable<any> => {
+		let resolveExternalLink = (node: any, uri: string, linkPath: string, parentSchemaURL: string): Thenable<any> => {
+			if (contextService && !/^\w+:\/\/.*/.test(uri)) {
+				uri = contextService.resolveRelativePath(uri, parentSchemaURL);
+			}
 			return this.getOrAddSchemaHandle(uri).getUnresolvedSchema().then(unresolvedSchema => {
 				if (unresolvedSchema.errors.length) {
 					let loc = linkPath ? uri + '#' + linkPath : uri;
 					resolveErrors.push(localize('json.schema.problemloadingref', 'Problems loading reference \'{0}\': {1}', loc, unresolvedSchema.errors[0]));
 				}
 				resolveLink(node, unresolvedSchema.schema, linkPath);
-				return resolveRefs(node, unresolvedSchema.schema);
+				return resolveRefs(node, unresolvedSchema.schema, uri);
 			});
 		};
 
-		let resolveRefs = (node: IJSONSchema, parentSchema: IJSONSchema): Thenable<any> => {
+		let resolveRefs = (node: IJSONSchema, parentSchema: IJSONSchema, parentSchemaURL: string): Thenable<any> => {
 			let toWalk : IJSONSchema[] = [node];
 			let seen: IJSONSchema[] = [];
 
@@ -438,7 +445,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				if (next.$ref) {
 					let segments = next.$ref.split('#', 2);
 					if (segments[0].length > 0) {
-						openPromises.push(resolveExternalLink(next, segments[0], segments[1]));
+						openPromises.push(resolveExternalLink(next, segments[0], segments[1], parentSchemaURL));
 						continue;
 					} else {
 						resolveLink(next, parentSchema, segments[1]);
@@ -451,7 +458,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 			return Promise.all(openPromises);
 		};
 
-		return resolveRefs(schema, schema).then(_ => new ResolvedSchema(schema, resolveErrors));
+		return resolveRefs(schema, schema, schemaURL).then(_ => new ResolvedSchema(schema, resolveErrors));
 	}
 
 	public getSchemaForResource(resource: string, document: Parser.JSONDocument): Thenable<ResolvedSchema> {

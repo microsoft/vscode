@@ -13,6 +13,7 @@ import {xhr, XHROptions, XHRResponse, configure as configureHttpRequests} from '
 import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
+import * as URL from 'url';
 import Strings = require('./utils/strings');
 import {ISchemaAssociations} from './jsonSchemaService';
 import {JSONDocument} from './jsonParser';
@@ -71,11 +72,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 let workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
-		if (typeof relativePath === 'string' && resource) {
-			let resourceURI = URI.parse(resource);
-			return URI.file(path.normalize(path.join(path.dirname(resourceURI.fsPath), relativePath))).toString();
-		}
-		return void 0;
+		return URL.resolve(resource, relativePath);
 	}
 };
 
