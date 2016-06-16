@@ -217,12 +217,6 @@ export interface IMode {
 	inplaceReplaceSupport?:IInplaceReplaceSupport;
 
 	/**
-	 * Optional adapter to support output for a model (e.g. markdown -> html)
-	 * @internal
-	 */
-	emitOutputSupport?:IEmitOutputSupport;
-
-	/**
 	 * Optional adapter to support configuring this mode.
 	 * @internal
 	 */
@@ -826,22 +820,6 @@ export interface IInplaceReplaceSupportResult {
 export interface IInplaceReplaceSupport {
 	navigateValueSet(resource:URI, range:editorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
 }
-
-/**
- * Interface used to get output for a language that supports transformation (e.g. markdown -> html)
- * @internal
- */
-export interface IEmitOutputSupport {
-	getEmitOutput(resource:URI):TPromise<IEmitOutput>;
-}
-/**
- * @internal
- */
-export interface IEmitOutput {
-	filename?:string;
-	content:string;
-}
-
 
 /**
  * A link inside the editor.
