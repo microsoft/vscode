@@ -1,4 +1,5 @@
 {
-	"markdown.previewMarkdown.title" : "Markdown: Toggle Preview",
-	"markdown.previewMarkdownSide.title" : "Markdown: Open Preview to the Side"
+	"markdown.category" : "Markdown",
+	"markdown.previewMarkdown.title" : "Toggle Preview",
+	"markdown.previewMarkdownSide.title" : "Open Preview to the Side"
 }

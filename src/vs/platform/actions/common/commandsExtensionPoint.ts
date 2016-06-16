@@ -18,40 +18,52 @@ export interface ResourceFilter {
 	pattern?: string;
 }
 
-export type Where = 'editor/primary' | 'editor/secondary' | 'explorer/context';
-
-export interface Context {
-	where: Where;
-	when: string | string[] | ResourceFilter | ResourceFilter[];
-	icon?: string | ThemableIcon;
-}
+export type Locations = 'editor/primary' | 'editor/secondary' | 'explorer/context';
 
 export interface ThemableIcon {
 	dark: string;
 	light: string;
 }
 
-
 export interface Command {
 	command: string;
 	title: string;
 	category?: string;
-	context?: Context | Context[];
+	where?: Locations | Locations[];
+	when?: string | string[] | ResourceFilter | ResourceFilter[];
+	icon?: string | ThemableIcon;
 }
 
-function isThemableIcon(thing: any): thing is ThemableIcon {
+export function isThemableIcon(thing: any): thing is ThemableIcon {
 	return typeof thing === 'object' && thing && typeof (<ThemableIcon>thing).dark === 'string' && typeof (<ThemableIcon>thing).light === 'string';
 }
 
-function isCommands(thing: Command | Command[]): thing is Command[] {
-	return Array.isArray(thing);
-}
-function isContexts(thing: Context | Context[]): thing is Context[] {
-	return Array.isArray(thing);
-}
 
 namespace validation {
 
+	function isValidWhere(where: Locations | Locations[], user: IExtensionPointUser<any>): boolean {
+		if (Array.isArray<Locations>(where)) {
+			return where.every(where => isValidWhere(where, user));
+		} else if (['editor/primary', 'editor/secondary', 'explorer/context'].indexOf(where) < 0) {
+			user.collector.error(localize('optwhere', "property `where` can be omitted or must be a valid enum value"));
+			return false;
+		}
+		return true;
+	}
+
+	function isValidWhen(when: string | string[] | ResourceFilter | ResourceFilter[], user: IExtensionPointUser<any>): boolean {
+		if (Array.isArray<string | ResourceFilter>(when)) {
+			for (let w of when) {
+				if (!isValidWhen(w, user)) {
+					return false;
+				}
+			}
+		} else if (typeof when === 'string' || typeof when === 'object') {
+			return true;
+		}
+		user.collector.error(localize('requirefilter', "property `when` is mandatory and must be a string or like `{language, scheme, pattern}`"));
+		return false;
+	}
 
 	function isValidIcon(icon: string | ThemableIcon, user: IExtensionPointUser<any>): boolean {
 		if (typeof icon === 'undefined') {
@@ -65,34 +77,6 @@ namespace validation {
 		}
 		user.collector.error(localize('opticon', "property `icon` can be omitted or must be either a string or a literal like `{dark, light}`"));
 		return false;
-	}
-
-	function isValidContext(context: Context, user: IExtensionPointUser<any>): boolean {
-		if (!context) {
-			return true;
-		}
-		if (context.where !== 'editor/primary' && context.where !== 'editor/secondary' && context.where !== 'explorer/context') {
-			user.collector.error(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`, or `explorer/context`"));
-			return false;
-		}
-		if (typeof context.when !== 'object' && typeof context.when !== 'string' && !Array.isArray(context.when)) {
-			user.collector.error(localize('requirefilter', "property `when` is mandatory and must be like `{language, scheme, pattern}`"));
-			return false;
-		}
-		if (!isValidIcon(context.icon, user)) {
-			return false;
-		}
-
-		// make icon paths absolute
-		let {icon} = context;
-		if (typeof icon === 'string') {
-			context.icon = join(user.description.extensionFolderPath, icon);
-		} else if(isThemableIcon(icon)) {
-			icon.dark = join(user.description.extensionFolderPath, icon.dark);
-			icon.light = join(user.description.extensionFolderPath, icon.light);
-		}
-
-		return true;
 	}
 
 	export function isValidCommand(candidate: Command, user: IExtensionPointUser<any>): boolean {
@@ -112,16 +96,19 @@ namespace validation {
 			user.collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'));
 			return false;
 		}
-		if (candidate.context) {
-			let {context} = candidate;
-			if (isContexts(context)) {
-				if (!context.every(context => isValidContext(context, user))) {
-					return false;
-				}
-			} else if (!isValidContext(context, user)) {
-				return false;
-			}
+		if (!isValidIcon(candidate.icon, user)) {
+			return false;
 		}
+
+		// make icon paths absolute
+		let {icon} = candidate;
+		if (typeof icon === 'string') {
+			candidate.icon = join(user.description.extensionFolderPath, icon);
+		} else if(isThemableIcon(icon)) {
+			icon.dark = join(user.description.extensionFolderPath, icon.dark);
+			icon.light = join(user.description.extensionFolderPath, icon.light);
+		}
+
 		return true;
 	}
 
@@ -238,7 +225,7 @@ function handleCommand(command: Command, user: IExtensionPointUser<any>): void {
 ExtensionsRegistry.registerExtensionPoint<Command | Command[]>('commands', schema.commandContribution).setHandler(extensions => {
 	for (let extension of extensions) {
 		const {value} = extension;
-		if (isCommands(value)) {
+		if (Array.isArray<Command>(value)) {
 			for (let command of value) {
 				handleCommand(command, extension);
 			}
@@ -258,8 +245,8 @@ export class CommandAction extends Action {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(command.command, command.title);
+		this.order = Number.MAX_VALUE;
 
-		// callback that (1) activates the extension and (2) dispatches the command
 		const activationEvent = `onCommand:${command.command}`;
 		this._actionCallback = (...args: any[]) => {
 			return extensionService.activateByEvent(activationEvent).then(() => {

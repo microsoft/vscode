@@ -43,29 +43,30 @@
 			{
 				"command": "extension.previewMarkdown",
 				"title": "%markdown.previewMarkdown.title%",
-				"context": [{
-					"where": "editor/primary",
-					"when": "markdown",
-					"icon": {
-						"light": "./media/Preview.svg",
-						"dark": "./media/Preview_inverse.svg"
-					}
-				},{
-					"where": "editor/primary",
-					"when": { "scheme": "markdown" },
-					"icon": {
-						"light": "./media/ViewSource.svg",
-						"dark": "./media/ViewSource_inverse.svg"
-					}
-				}]
+				"category": "%markdown.category%",
+				"icon": {
+					"light": "./media/Preview.svg",
+					"dark": "./media/Preview_inverse.svg"
+				},
+				"where": ["editor/primary", "explorer/context"],
+				"when": "markdown"
+			},
+			{
+				"title": "%markdown.previewMarkdown.title%",
+				"category": "%markdown.category%",
+				"icon": {
+					"light": "./media/ViewSource.svg",
+					"dark": "./media/ViewSource_inverse.svg"
+				},
+				"where": ["editor/primary"],
+				"when": { "scheme": "markdown" },
+				"command": "extension.previewMarkdown"
 			},
 			{
 				"command": "extension.previewMarkdownSide",
 				"title": "%markdown.previewMarkdownSide.title%",
-				"context": {
-					"where": "editor/secondary",
-					"when": "markdown"
-				}
+				"where": "editor/secondary",
+				"when": "markdown"
 			}
 		],
 		"keybindings": [
