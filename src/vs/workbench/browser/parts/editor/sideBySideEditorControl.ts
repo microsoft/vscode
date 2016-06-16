@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/sidebyside';
 import arrays = require('vs/base/common/arrays');
-import {TPromise} from 'vs/base/common/winjs.base';
 import Event, {Emitter} from 'vs/base/common/event';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import types = require('vs/base/common/types');
@@ -17,7 +16,6 @@ import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import URI from 'vs/base/common/uri';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
@@ -765,7 +763,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
 			if (droppedResources.length) {
 				window.focus(); // make sure this window has focus so that the open call reaches the right window!
-				$this.openFromDrop(droppedResources, position).done(null, errors.onUnexpectedError);
+
+				// Open all
+				$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; }))
+					.then(() => $this.editorGroupService.focusGroup(position))
+					.done(null, errors.onUnexpectedError);
 			}
 		}
 
@@ -827,23 +829,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				destroyOverlays();
 			}));
 		});
-	}
-
-	private openFromDrop(resources: URI[], position: Position): TPromise<any> {
-
-		// One resource to open: always pick position of the drop
-		if (resources.length === 1) {
-			return this.editorService.openEditor({ resource: resources[0], options: { pinned: true } }, position);
-		}
-
-		// Multiple resources to open with tabs: open them all in target position
-		const showsTabs = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
-		if (showsTabs) {
-			return this.editorService.openEditors(resources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; })).then(() => this.editorGroupService.focusGroup(position));
-		}
-
-		// Multiple resources without tabs: open them side by side
-		return this.editorService.openEditors(resources.map((resource, index) => { return { input: { resource, options: { pinned: true } }, position: Math.min(index, Position.RIGHT) }; }));
 	}
 
 	private createTitleControl(position: Position): void {
