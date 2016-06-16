@@ -60,7 +60,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
 		return TPromise.any<any>([TPromise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
-			let model = this.modelService.getModel(resource);
+			let model = resource && this.modelService.getModel(resource);
 			let mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
 			if (!model) {
 				model = this.modelService.createModel(value, mode, resource);
