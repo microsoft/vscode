@@ -19,7 +19,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {commands, CommandAction, Command, Locations} from '../common/commandsExtensionPoint';
 import matches from 'vs/editor/common/modes/languageSelector';
-import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import {EditorInput} from 'vs/workbench/common/editor';
 
 class ResolvedCommand {
 
@@ -158,18 +158,19 @@ class EditorContributor extends BaseActionBarContributor {
 		return { primary: 'editor/primary', secondary: 'editor/secondary' };
 	}
 	protected _getResource(context: any): URI {
-		if (!context.input || !context.editor) {
+		const {input, position, editor} = context;
+		if (typeof position !== 'number' || !editor) {
+			//todo@ben I get called two times with different
+			//but very similar looking context-objects in case
+			//an editor is created the first time
 			return;
 		}
-		let candidate: URI;
-		candidate = getUntitledOrFileResource(context.input, true);
-		if(candidate) {
-			return candidate;
-		}
-		if (typeof context.input.getResource === 'function') {
-			candidate = context.input.getResource();
-			if (candidate instanceof URI) {
-				return candidate;
+		if (input instanceof EditorInput) {
+			if (typeof input.getResource === 'function') {
+				const candidate = context.input.getResource();
+				if (candidate instanceof URI) {
+					return candidate;
+				}
 			}
 		}
 	}

@@ -144,16 +144,17 @@ export class HtmlPreviewPart extends BaseEditor {
 			return TPromise.wrapError<void>('Invalid input');
 		}
 
-		return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
-			if (model instanceof BaseTextEditorModel) {
-				this._model = model.textEditorModel;
-			}
-			if (!this._model) {
-				return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
-			}
-			this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
-			this.webview.contents = this._model.getLinesContent();
-			return super.setInput(input, options);
+		return super.setInput(input, options).then(() => {
+			return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
+				if (model instanceof BaseTextEditorModel) {
+					this._model = model.textEditorModel;
+				}
+				if (!this._model) {
+					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
+				}
+				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
+				this.webview.contents = this._model.getLinesContent();
+			});
 		});
 	}
 }
