@@ -15,10 +15,5 @@
 		"extensions/**/out/**": true
 	},
 	"tslint.enable": true,
-	"tslint.rulesDirectory": "build/lib/tslint",
-	"markdown.plugins": [
-		{
-			"name": "markdown-it-katex",
-		}
-	]
+	"tslint.rulesDirectory": "build/lib/tslint"
 }

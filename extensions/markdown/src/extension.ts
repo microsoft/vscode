@@ -10,11 +10,13 @@ import * as path from 'path';
 import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from "vscode";
 
 let md;
+let userStyles = [];
 
 export function activate(context: ExtensionContext) {
 	// Upon activation, load markdown module with default
 	// plugins, and then load any user-defined plugins.
 	// Note: user-defined plugins may override default plugins.
+	vscode.window.showInformationMessage("Markdown Loaded! :D")
 
 	const hljs = require('highlight.js');
 	const mdnh = require('markdown-it-named-headers');
@@ -38,9 +40,12 @@ export function activate(context: ExtensionContext) {
 			try {
 				let plugin = require(value.name);
 				md.use(plugin, value.options ? value.options : {});
-				vscode.window.showInformationMessage("Loaded Markdown plugin '${value.name}'");
+
+				if (value.styles && Array.isArray(value.styles)) {
+					Array.prototype.push.apply(userStyles, value.styles);
+				}
 			} catch (e) {
-				vscode.window.showErrorMessage("Unable to find Markdown plugin '${value.name}'. Is it installed?");
+				vscode.window.showErrorMessage(`Unable to find Markdown plugin "${value.name}". Is it installed?`);
 				return;
 			}
 		});
@@ -178,6 +183,19 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		return [];
 	}
 
+	private computePluginStyleSheetIncludes() {
+		if (userStyles && Array.isArray(userStyles)) {
+			return userStyles.map((style) => {
+				if (Uri.parse(style).scheme) {
+					return `<link rel="stylesheet" type="text/css" href="${style}" type="text/css" media="screen">`;
+
+				} else {
+					return `<link rel="stylehseet" type="text/css" href="${this.getMediaPath(style)}">`;
+				}
+			});
+		}
+	}
+
 	public provideTextDocumentContent(uri: Uri): Thenable<string> {
 
 		return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
@@ -189,6 +207,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
 				this.computeCustomStyleSheetIncludes(uri),
+				this.computePluginStyleSheetIncludes(),
 				'</head>',
 				'<body>'
 			).join('\n');
@@ -210,10 +229,10 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 
 	public update(uri: Uri) {
 		if (!this._waiting) {
-			this._onDidChange.fire(uri);
 			this._waiting = true;
 			setTimeout(() => {
 				this._waiting = false;
+				this._onDidChange.fire(uri);
 			}, 300);
 		}
 	}
