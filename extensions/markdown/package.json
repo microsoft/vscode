@@ -42,11 +42,30 @@
 		"commands": [
 			{
 				"command": "extension.previewMarkdown",
-				"title": "%markdown.previewMarkdown.title%"
+				"title": "%markdown.previewMarkdown.title%",
+				"context": [{
+					"where": "editor/primary",
+					"when": "markdown",
+					"icon": {
+						"light": "./media/Preview.svg",
+						"dark": "./media/Preview_inverse.svg"
+					}
+				},{
+					"where": "editor/primary",
+					"when": { "scheme": "markdown" },
+					"icon": {
+						"light": "./media/ViewSource.svg",
+						"dark": "./media/ViewSource_inverse.svg"
+					}
+				}]
 			},
 			{
 				"command": "extension.previewMarkdownSide",
-				"title": "%markdown.previewMarkdownSide.title%"
+				"title": "%markdown.previewMarkdownSide.title%",
+				"context": {
+					"where": "editor/secondary",
+					"when": "markdown"
+				}
 			}
 		],
 		"keybindings": [
