@@ -14,6 +14,8 @@ export interface IPythonSettings {
 export interface IUnitTestSettings {
     nosetestsEnabled: boolean;
     nosetestPath: string;
+    pyTestEnabled: boolean;
+    pyTestPath: string;
     unittestEnabled: boolean;
     outputWindow: string;
 }

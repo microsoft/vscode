@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import * as baseTest from "./../unittest/baseTestRunner";
 import * as unittest from "./../unittest/unittest";
 import * as nosetest from "./../unittest/nosetests";
+import * as pytest from "./../unittest/pytest";
 import * as settings from "./../common/configSettings";
 import * as telemetryHelper from "../common/telemetry";
 import * as telemetryContracts from "../common/telemetryContracts";
@@ -16,6 +17,7 @@ export function activateUnitTestProvider(context: vscode.ExtensionContext, setti
 
     testProviders.push(new unittest.PythonUnitTest(settings, outputChannel));
     testProviders.push(new nosetest.NoseTests(settings, outputChannel));
+    testProviders.push(new pytest.PyTestTests(settings, outputChannel));
 }
 
 function runUnitTests(filePath: string = "") {
