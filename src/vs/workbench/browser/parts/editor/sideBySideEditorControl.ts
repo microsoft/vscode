@@ -800,9 +800,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (!overlay) {
 				$this.visibleEditorContainers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
+						const useTabs = !!$this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
+
 						overlay = $('div').style({
 							position: 'absolute',
-							top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px',
+							top: useTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
 							left: 0,
 							width: '100%',
 							height: '100%',
