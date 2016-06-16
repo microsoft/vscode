@@ -29,7 +29,7 @@ function create(): EditorStacksModel {
 	services.set(IWorkspaceContextService, new TestContextService());
 
 	const config = new TestConfigurationService();
-	config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 	services.set(IConfigurationService, config);
 
 	let inst = new InstantiationService(services);
@@ -599,7 +599,7 @@ suite('Editor Stacks Model', () => {
 
 		const config = new TestConfigurationService();
 		services.set(IConfigurationService, config);
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'left' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' }});
 
 		let inst = new InstantiationService(services);
 
@@ -1132,7 +1132,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1176,7 +1176,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1258,7 +1258,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1308,7 +1308,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1350,7 +1350,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
