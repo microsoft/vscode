@@ -27,13 +27,9 @@ var root = path.dirname(__dirname);
 var build = path.join(root, '.build');
 var commit = util.getVersion(root);
 
-var baseModules = [
-	'ansi-regex', 'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
-	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
-	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
-	'os', 'path', 'pty.js', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url', 'term.js',
-	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib', 'minimist', 'xterm'
-];
+var dependencies = Object.keys(shrinkwrap.dependencies);
+var baseModules = Object.keys(process.binding('natives')).filter(function (n) { return !/^_|\//.test(n); });
+var nodeModules = ['electron'].concat(dependencies).concat(baseModules);
 
 // Build
 
@@ -84,7 +80,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	entryPoints: vscodeEntryPoints,
 	otherSources: [],
 	resources: vscodeResources,
-	loaderConfig: common.loaderConfig(baseModules),
+	loaderConfig: common.loaderConfig(nodeModules),
 	header: BUNDLED_FILE_HEADER,
 	out: 'out-vscode'
 }));
@@ -200,7 +196,7 @@ function packageTask(platform, arch, opts) {
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		var depsSrc = _.flatten(Object.keys(shrinkwrap.dependencies)
+		var depsSrc = _.flatten(dependencies
 			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })
