@@ -17,8 +17,7 @@ import {IPythonBreakpoint, PythonBreakpointConditionKind, PythonBreakpointPassCo
 import {BaseDebugServer} from "./DebugServers/BaseDebugServer";
 import {DebugClient, DebugType} from "./DebugClients/DebugClient";
 import {CreateAttachDebugClient, CreateLaunchDebugClient} from "./DebugClients/DebugFactory";
-import {DjangoApp, LaunchRequestArguments, AttachRequestArguments, DebugFlags, DebugOptions} from "./Common/Contracts";
-import {ExtensionMessageSender} from "../utils/extensionMessaging";
+import {DjangoApp, LaunchRequestArguments, AttachRequestArguments, DebugFlags, DebugOptions, TelemetryEvent} from "./Common/Contracts";
 import * as telemetryContracts from "../common/telemetryContracts";
 
 const CHILD_ENUMEARATION_TIMEOUT = 5000;
@@ -36,12 +35,10 @@ export class PythonDebugger extends DebugSession {
     private registeredBreakpointsByFileName: Map<string, IPythonBreakpoint[]>;
     private debuggerLoaded: Promise<any>;
     private debuggerLoadedPromiseResolve: () => void;
-    private extensionMessageSender: ExtensionMessageSender;
     private debugClient: DebugClient;
 
     public constructor(debuggerLinesStartAt1: boolean, isServer: boolean) {
         super(debuggerLinesStartAt1, isServer === true);
-        this.extensionMessageSender = new ExtensionMessageSender();
         this._variableHandles = new Handles<IDebugVariable>();
         this._pythonStackFrames = new Handles<IPythonStackFrame>();
         this.registeredBreakpoints = new Map<number, IPythonBreakpoint>();
@@ -158,12 +155,12 @@ export class PythonDebugger extends DebugSession {
         if (!fs.existsSync(args.program)) {
             return this.sendErrorResponse(response, 2001, `File does not exist. "${args.program}"`);
         }
-        this.extensionMessageSender.sendTelemetryEvent(telemetryContracts.Debugger.Load, {
+        this.sendEvent(new TelemetryEvent(telemetryContracts.Debugger.Load, {
             Debug_ExternalConsole: args.externalConsole === true ? "true" : "false",
             Debug_DebugOptions: args.debugOptions.join(","),
             Debug_DJango: args.debugOptions.indexOf("DjangoDebugging") >= 0 ? "true" : "false",
             Debug_HasEnvVaraibles: args.env && typeof args.env === "object" ? "true" : "false"
-        });
+        }));
 
         this.launchArgs = args;
         this.debugClient = CreateLaunchDebugClient(args, this);
@@ -183,7 +180,7 @@ export class PythonDebugger extends DebugSession {
         });
     }
     protected attachRequest(response: DebugProtocol.AttachResponse, args: AttachRequestArguments) {
-        this.extensionMessageSender.sendTelemetryEvent(telemetryContracts.Debugger.Attach);
+        this.sendEvent(new TelemetryEvent(telemetryContracts.Debugger.Attach));
         this.attachArgs = args;
         this.debugClient = CreateAttachDebugClient(args, this);
 

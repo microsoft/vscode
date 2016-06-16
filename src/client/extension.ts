@@ -16,13 +16,11 @@ import * as settings from "./common/configSettings";
 import {activateUnitTestProvider} from "./providers/testProvider";
 import * as telemetryHelper from "./common/telemetry";
 import * as telemetryContracts from "./common/telemetryContracts";
-import {ExtensionServer} from "./utils/extensionServer";
 
-const PYTHON: vscode.DocumentFilter = { language: "python", scheme: "file" }
+const PYTHON: vscode.DocumentFilter = { language: "python", scheme: "file" };
 let unitTestOutChannel: vscode.OutputChannel;
 let formatOutChannel: vscode.OutputChannel;
 let lintingOutChannel: vscode.OutputChannel;
-let extensionServer: ExtensionServer;
 
 export function activate(context: vscode.ExtensionContext) {
     let rootDir = context.asAbsolutePath(".");
@@ -31,9 +29,6 @@ export function activate(context: vscode.ExtensionContext) {
         CodeComplete_Has_ExtraPaths: pythonSettings.autoComplete.extraPaths.length > 0 ? "true" : "false",
         Format_Has_Custom_Python_Path: pythonSettings.pythonPath.length !== "python".length ? "true" : "false"
     });
-    extensionServer = new ExtensionServer();
-    extensionServer.setup().catch(() => { });
-
     unitTestOutChannel = vscode.window.createOutputChannel(pythonSettings.unitTest.outputWindow);
     unitTestOutChannel.clear();
     formatOutChannel = unitTestOutChannel;
@@ -65,12 +60,11 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.languages.registerHoverProvider(PYTHON, new PythonHoverProvider(context)));
     context.subscriptions.push(vscode.languages.registerDefinitionProvider(PYTHON, new PythonDefinitionProvider(context)));
     context.subscriptions.push(vscode.languages.registerReferenceProvider(PYTHON, new PythonReferenceProvider(context)));
-    context.subscriptions.push(vscode.languages.registerCompletionItemProvider(PYTHON, new PythonCompletionItemProvider(context), '.'));
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider(PYTHON, new PythonCompletionItemProvider(context), "."));
     context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(PYTHON, new PythonSymbolProvider(context)));
 
     context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonFormattingEditProvider(context, formatOutChannel)));
     context.subscriptions.push(new LintProvider(context, lintingOutChannel));
-    context.subscriptions.push(extensionServer);
 }
 
 // this method is called when your extension is deactivated

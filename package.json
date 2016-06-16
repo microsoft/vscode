@@ -60,6 +60,7 @@
             "python"
           ]
         },
+        "aiKey": "fce7a3d5-4665-4404-b786-31a6306749a6",
         "program": "./out/client/debugger/Main.js",
         "runtime": "node",
         "configurationAttributes": {

@@ -1,7 +1,24 @@
 "use strict";
 import * as net from "net";
 import {DebugProtocol} from "vscode-debugprotocol";
+import {OutputEvent} from "vscode-debugadapter";
 
+export class TelemetryEvent extends OutputEvent {
+    body: {
+        /** The category of output (such as: 'console', 'stdout', 'stderr', 'telemetry'). If not specified, 'console' is assumed. */
+        category: string;
+        /** The output to report. */
+        output: string;
+        /** Optional data to report. For the 'telemetry' category the data will be sent to telemetry, for the other categories the data is shown in JSON format. */
+        data?: any;
+    };
+    constructor(output: string, data?: any) {
+        super(output, "telemetry");
+        if (data) {
+            this.body.data = data;
+        }
+    }
+}
 export const DjangoApp = "DJANGO";
 export enum DebugFlags {
     None = 0,
