@@ -128,7 +128,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.stacks = this.instantiationService.createInstance(EditorStacksModel);
 
-		this.previewEditors = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.previewEditors;
+		this.previewEditors = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreview;
 
 		this.registerListeners();
 	}
@@ -140,7 +140,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		const newPreviewEditors = configuration.workbench.previewEditors;
+		const newPreviewEditors = configuration.workbench.editor.enablePreview;
 
 		// Pin all preview editors of the user chose to disable preview
 		if (this.previewEditors !== newPreviewEditors && !newPreviewEditors) {

@@ -103,8 +103,8 @@ export abstract class TitleControl {
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.previewEditors = config.workbench.previewEditors;
-		this.showTabs = config.workbench.showEditorTabs;
+		this.previewEditors = config.workbench.editor.enablePreview;
+		this.showTabs = config.workbench.editor.showTabs;
 	}
 
 	private updateActionEnablement(): void {

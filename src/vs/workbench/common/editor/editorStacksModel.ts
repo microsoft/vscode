@@ -117,7 +117,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.editorOpenPositioning = config.workbench.editorOpenPositioning;
+		this.editorOpenPositioning = config.workbench.editor.openPositioning;
 	}
 
 	public get id(): GroupIdentifier {
@@ -217,12 +217,12 @@ export class EditorGroup implements IEditorGroup {
 			}
 
 			// Insert to the BEGINNING
-			else if (this.editorOpenPositioning === EditorOpenPositioning.BEGINNING) {
+			else if (this.editorOpenPositioning === EditorOpenPositioning.FIRST) {
 				targetIndex = 0;
 			}
 
 			// Insert to the END
-			else if (this.editorOpenPositioning === EditorOpenPositioning.END) {
+			else if (this.editorOpenPositioning === EditorOpenPositioning.LAST) {
 				targetIndex = this.editors.length;
 			}
 

@@ -167,7 +167,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const titleControl = this.titleAreaControl[position];
 			if (titleControl) {
 				const usingTabs = (titleControl instanceof TabsTitleControl);
-				const useTabs = configuration.workbench.showEditorTabs;
+				const useTabs = configuration.workbench.editor.showTabs;
 				if (usingTabs !== useTabs) {
 
 					// Dispose old
@@ -837,7 +837,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Multiple resources to open with tabs: open them all in target position
-		const showsTabs = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showEditorTabs;
+		const showsTabs = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		if (showsTabs) {
 			return this.editorService.openEditors(resources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; })).then(() => this.editorGroupService.focusGroup(position));
 		}
@@ -847,7 +847,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private createTitleControl(position: Position): void {
-		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showEditorTabs;
+		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
 		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
 		this.titleAreaControl[position].create(this.titleContainer[position].getHTMLElement());

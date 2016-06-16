@@ -681,15 +681,17 @@ export type GroupIdentifier = number;
 export const EditorOpenPositioning = {
 	LEFT: 'left',
 	RIGHT: 'right',
-	BEGINNING: 'beginning',
-	END: 'end'
+	FIRST: 'first',
+	LAST: 'last'
 };
 
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
-		showEditorTabs: boolean;
-		previewEditors: boolean;
-		quickOpenPreviews: boolean;
-		editorOpenPositioning: string;
+		editor: {
+			showTabs: boolean;
+			enablePreview: boolean;
+			enablePreviewFromQuickOpen: boolean;
+			openPositioning: string;
+		}
 	};
 }

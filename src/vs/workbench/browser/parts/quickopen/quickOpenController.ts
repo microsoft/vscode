@@ -1023,7 +1023,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.quickOpenPreviews;
+			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
 
 			this.editorService.openEditor(this.input, EditorOptions.create({ pinned }), sideBySide).done(null, errors.onUnexpectedError);
 
