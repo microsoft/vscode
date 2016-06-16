@@ -110,14 +110,14 @@
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.untracked .status	{ background-color: #6C6C6C; }
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.ignored .status	{ background-color: #969696; }
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.conflict .status	{ background-color: #9B4F96; }
-.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row.selected .file-status .status	{ background-color: #ffffff; color: #666; }
+.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row.selected .file-status .status	{ background-color: white; color: #666; }
 
 .vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.modified .status		{ background-color: #1B80B2; }
 .vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.added .status		{ background-color: #3c8746; }
 .vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.deleted .status		{ background-color: #9E121D; }
 .vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.copied .status		{ background-color: #692C77; }
 .vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.conflict .status		{ background-color: #7F4E7E; }
-.vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row.selected .file-status .status		{ background-color: #ffffff; color: #666; }
+.vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row.selected .file-status .status		{ background-color: white; color: #666; }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.deleted .name,
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.both-deleted .name,
@@ -160,7 +160,7 @@
 .hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.ignored .status,
 .hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status.conflict .status,
 .hc-black .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row.selected .file-status .status {
-	background-color: #000;
-	color: #fff;
+	background-color: black;
+	color: white;
 	border: 1px solid #6FC3DF;
 }

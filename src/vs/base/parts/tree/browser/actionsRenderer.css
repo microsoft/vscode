@@ -74,5 +74,5 @@
 .hc-black .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
 .hc-black .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
 .hc-black .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
-	background-color: #000;
+	background-color: black;
 }

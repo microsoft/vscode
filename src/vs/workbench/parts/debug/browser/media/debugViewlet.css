@@ -67,7 +67,7 @@
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label {
-	background-color: #ffffff;
+	background-color: white;
 	color: #666;
 }
 

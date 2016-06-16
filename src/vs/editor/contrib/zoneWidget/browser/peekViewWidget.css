@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .peekview-widget .head {
-	background-color: #fff;
+	background-color: white;
 	border-top: 1px solid;
 	-webkit-box-sizing:	border-box;
 	-o-box-sizing: border-box;
@@ -78,11 +78,11 @@
 }
 
 .monaco-editor.hc-black .peekview-widget .head .peekview-title .filename {
-	color: #fff;
+	color: white;
 }
 
 .monaco-editor.hc-black .peekview-widget .head .peekview-title .dirname {
-	color: #fff;
+	color: white;
 	opacity: 0.6;
 }
 

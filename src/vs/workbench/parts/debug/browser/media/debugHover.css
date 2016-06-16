@@ -83,7 +83,7 @@
 }
 
 .monaco-editor .debug-hover-widget .value.boolean {
-	color: #0000FF;
+	color: blue;
 }
 
 .monaco-editor .debug-hover-widget .value.string {

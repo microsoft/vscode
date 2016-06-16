@@ -259,7 +259,7 @@
 }
 
 .vs .search-viewlet .monaco-tree.focused .monaco-tree-row.selected .filematch .name {
-	color: #FFF;
+	color: white;
 }
 
 .vs-dark .search-viewlet .query-box,
@@ -268,7 +268,7 @@
 }
 
 .vs-dark .search-viewlet .monaco-tree .filematch .name {
-	color: #FFF;
+	color: white;
 }
 
 .vs-dark .search-viewlet .query-clear {
@@ -280,7 +280,7 @@
 }
 
 .vs-dark .search-viewlet .message {
-	color: #FFF;
+	color: white;
 }
 
 .vs-dark .search-viewlet .filematch {
@@ -290,7 +290,7 @@
 /* High Contrast Theming */
 .hc-black .monaco-workbench .search-viewlet .query-box,
 .hc-black .monaco-workbench .search-viewlet .file-types .monaco-inputbox {
-	background-color: #000;
+	background-color: black;
 }
 
 .hc-black .monaco-workbench .search-action {
