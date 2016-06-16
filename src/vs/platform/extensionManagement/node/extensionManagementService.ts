@@ -38,7 +38,7 @@ function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	});
 }
 
-function validate(zipPath: string, extension?: IExtension, version = extension && extension.version): TPromise<IExtension> {
+function validate(zipPath: string, extension?: IExtensionManifest, version = extension && extension.version): TPromise<IExtensionManifest> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
 		.then(manifest => {
@@ -61,14 +61,7 @@ function validate(zipPath: string, extension?: IExtension, version = extension &
 }
 
 function createExtension(manifest: IExtensionManifest, path?: string): IExtension {
-	const extension: IExtension = {
-		name: manifest.name,
-		displayName: manifest.displayName || manifest.name,
-		publisher: manifest.publisher,
-		version: manifest.version,
-		engines: { vscode: manifest.engines.vscode },
-		description: manifest.description || ''
-	};
+	const extension: IExtension = { manifest };
 
 	// if (galleryInformation) {
 	// 	extension.galleryInformation = galleryInformation;
@@ -133,10 +126,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			return this.installFromZip(arg);
 		}
 
-		const extension = arg as IExtension;
+		const extension = arg as IGalleryExtension;
+		const { manifest } = extension;
+
 		return this.isObsolete(extension).then(obsolete => {
 			if (obsolete) {
-				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.name)));
+				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.name)));
 			}
 
 			return this.installFromGallery(arg);
@@ -206,8 +201,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: IExtension): TPromise<void> {
-		const extensionPath = extension.path || path.join(this.extensionsPath, getExtensionId(extension));
-		const id = getExtensionId(extension);
+		const { manifest } = extension;
+		const id = getExtensionId(manifest);
+		const extensionPath = extension.path || path.join(this.extensionsPath, id);
 
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : Promise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
@@ -226,8 +222,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		}
 
 		return all.then(extensions => {
-			const byId = values(groupBy(extensions, p => `${ p.publisher }.${ p.name }`));
-			return byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+			const byId = values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`));
+			return byId.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 		});
 	}
 
@@ -254,7 +250,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	removeDeprecatedExtensions(): TPromise<void> {
 		const outdated = this.getOutdatedExtensions()
-			.then(extensions => extensions.map(e => getExtensionId(e)));
+			.then(extensions => extensions.map(({ manifest }) => getExtensionId(manifest)));
 
 		const obsolete = this.getObsoleteExtensions()
 			.then(obsolete => Object.keys(obsolete));
@@ -271,26 +267,26 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private getOutdatedExtensions(): TPromise<IExtension[]> {
 		return this.getAllInstalled().then(plugins => {
-			const byId = values(groupBy(plugins, p => `${ p.publisher }.${ p.name }`));
-			const extensions = flatten(byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version)).slice(1)));
+			const byId = values(groupBy(plugins, p => `${ p.manifest.publisher }.${ p.manifest.name }`));
+			const extensions = flatten(byId.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1)));
 
 			return extensions
 				.filter(e => !!e.path);
 		});
 	}
 
-	private isObsolete(extension: IExtension): TPromise<boolean> {
-		const id = getExtensionId(extension);
+	private isObsolete({ manifest }: IExtension): TPromise<boolean> {
+		const id = getExtensionId(manifest);
 		return this.withObsoleteExtensions(obsolete => !!obsolete[id]);
 	}
 
-	private setObsolete(extension: IExtension): TPromise<void> {
-		const id = getExtensionId(extension);
+	private setObsolete({ manifest }: IExtension): TPromise<void> {
+		const id = getExtensionId(manifest);
 		return this.withObsoleteExtensions(obsolete => assign(obsolete, { [id]: true }));
 	}
 
-	private unsetObsolete(extension: IExtension): TPromise<void> {
-		const id = getExtensionId(extension);
+	private unsetObsolete({ manifest }: IExtension): TPromise<void> {
+		const id = getExtensionId(manifest);
 		return this.withObsoleteExtensions<void>(obsolete => delete obsolete[id]);
 	}
 

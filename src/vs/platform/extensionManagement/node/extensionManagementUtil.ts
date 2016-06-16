@@ -9,10 +9,6 @@ import { IExtension, IExtensionManifest, IExtensionManagementService, IExtension
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
 
-export function getExtensionId(extension: IExtension): string {
-	return `${ extension.publisher }.${ extension.name }`;
-}
-
 export function extensionEquals(one: IExtensionManifest, other: IExtensionManifest): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
@@ -36,14 +32,14 @@ export function getOutdatedExtensions(extensionsService: IExtensionManagementSer
 	}
 
 	return extensionsService.getInstalled().then(installed => {
-		const ids = installed.map(getExtensionId);
+		const ids = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
 
 		return galleryService.query({ ids, pageSize: 1000 }).then(result => {
 			const available = result.firstPage;
 
 			return available.map(extension => {
-				const local = installed.filter(local => extensionEquals(local, extension.manifest))[0];
-				if (local && semver.lt(local.version, extension.manifest.version)) {
+				const local = installed.filter(local => extensionEquals(local.manifest, extension.manifest))[0];
+				if (local && semver.lt(local.manifest.version, extension.manifest.version)) {
 					return local;
 				} else {
 					return null;

@@ -32,7 +32,7 @@ export class ListExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	public run(): Promise {
+	run(): Promise {
 		return this.quickOpenService.show('ext ');
 	}
 
@@ -55,7 +55,7 @@ export class InstallExtensionAction extends Action {
 		super(id, label, null, true);
 	}
 
-	public run(): Promise {
+	run(): Promise {
 		return this.quickOpenService.show('ext install ');
 	}
 
@@ -78,7 +78,7 @@ export class ListOutdatedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	public run(): Promise {
+	run(): Promise {
 		return this.quickOpenService.show('ext update ');
 	}
 
@@ -101,7 +101,7 @@ export class ListSuggestedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	public run(): Promise {
+	run(): Promise {
 		return this.quickOpenService.show('ext recommend ');
 	}
 
@@ -123,11 +123,11 @@ export class InstallAction extends Action {
 		super('extensions.install', label, 'octicon octicon-cloud-download', true);
 	}
 
-	public run(extension: IGalleryExtension): TPromise<any> {
+	run(extension: IGalleryExtension): TPromise<any> {
 		this.enabled = false;
 
 		return this.extensionManagementService.getInstalled()
-			.then(installed => installed.some(e => extensionEquals(e, extension.manifest)))
+			.then(installed => installed.some(({ manifest }) => extensionEquals(manifest, extension.manifest)))
 			.then(isUpdate => {
 				return this.extensionManagementService
 					.install(extension)
@@ -173,18 +173,20 @@ export class UninstallAction extends Action {
 		super('extensions.uninstall', nls.localize('uninstall', "Uninstall Extension"), 'octicon octicon-x', true);
 	}
 
-	public run(extension: IExtension): TPromise<any> {
-		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", extension.displayName))) {
+	run(extension: IExtension): TPromise<any> {
+		const name = extension.manifest.displayName || extension.manifest.name;
+
+		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", name))) {
 			return TPromise.as(null);
 		}
 
 		this.enabled = false;
 
 		return this.extensionManagementService.getInstalled().then(localExtensions => {
-			const [local] = localExtensions.filter(local => extensionEquals(local, extension));
+			const [local] = localExtensions.filter(local => extensionEquals(local.manifest, extension.manifest));
 
 			if (!local) {
-				return TPromise.wrapError(nls.localize('notFound', "Extension '{0}' not installed.", extension.displayName));
+				return TPromise.wrapError(nls.localize('notFound', "Extension '{0}' not installed.", name));
 			}
 
 			return this.extensionManagementService.uninstall(local)
@@ -195,9 +197,11 @@ export class UninstallAction extends Action {
 	}
 
 	private onSuccess(extension: IExtension) {
+		const name = extension.manifest.displayName || extension.manifest.name;
 		this.reportTelemetry(extension, true);
+
 		this.messageService.show(Severity.Info, {
-			message: nls.localize('success-uninstalled', "'{0}' was successfully uninstalled. Restart to deactivate it.", extension.displayName),
+			message: nls.localize('success-uninstalled', "'{0}' was successfully uninstalled. Restart to deactivate it.", name),
 			actions: [
 				CloseAction,
 				this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))

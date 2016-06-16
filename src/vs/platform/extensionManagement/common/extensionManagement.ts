@@ -39,7 +39,8 @@ export interface IGalleryMetadata {
 	versions: IGalleryVersion[];
 }
 
-export interface IExtension extends IExtensionManifest {
+export interface IExtension {
+	manifest: IExtensionManifest;
 	path?: string;
 }
 
