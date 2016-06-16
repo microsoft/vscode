@@ -30,6 +30,21 @@ export function activate(context: ExtensionContext) {
 		}
 	}).use(mdnh, {});
 
+	// Load user-defined packages
+	const userPlugins = <Array<Object>>vscode.workspace.getConfiguration("markdown")['plugins'];
+	if (userPlugins && Array.isArray(userPlugins)) {
+		userPlugins.forEach(value => {
+			if (!value.name) { return; }
+			try {
+				let plugin = require(value.name);
+				md.use(plugin, value.options ? value.options : {});
+				vscode.window.showInformationMessage("Loaded Markdown plugin '${value.name}'");
+			} catch (e) {
+				vscode.window.showErrorMessage("Unable to find Markdown plugin '${value.name}'. Is it installed?");
+				return;
+			}
+		});
+	}
 
 	let provider = new MDDocumentContentProvider(context);
 	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
