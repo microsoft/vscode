@@ -797,7 +797,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						overlay.appendTo(container);
 
 						overlay.on(DOM.EventType.DROP, (e: DragEvent) => {
-							DOM.EventHelper.stop(e);
+							DOM.EventHelper.stop(e, true);
 							onDrop(e, index);
 						});
 
@@ -811,7 +811,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Let a dropped file open inside Code (only if dropped over editor area)
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
+			DOM.EventHelper.stop(e, true);
 			onDrop(e, Position.LEFT);
 		}));
 

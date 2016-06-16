@@ -128,7 +128,7 @@ export class TabsTitleControl extends TitleControl {
 
 					// Local DND
 					if (TabsTitleControl.draggedEditor) {
-						e.preventDefault();
+						DOM.EventHelper.stop(e, true);
 
 						const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
 
@@ -450,7 +450,7 @@ export class TabsTitleControl extends TitleControl {
 
 			// Local DND
 			if (TabsTitleControl.draggedEditor) {
-				e.preventDefault();
+				DOM.EventHelper.stop(e, true);
 
 				const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
 
