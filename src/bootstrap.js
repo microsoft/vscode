@@ -90,16 +90,18 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
 }
 
-// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
-// error when we are inside a forked process and this process tries to access those channels.
-var stream = require('stream');
-var writable = new stream.Writable({
-	write: function () { /* No OP */ }
-});
+if (!process.env['VSCODE_ALLOW_IO']) {
+	// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
+	// error when we are inside a forked process and this process tries to access those channels.
+	var stream = require('stream');
+	var writable = new stream.Writable({
+		write: function () { /* No OP */ }
+	});
 
-process.__defineGetter__('stdout', function() { return writable; });
-process.__defineGetter__('stderr', function() { return writable; });
-process.__defineGetter__('stdin', function() { return writable; });
+	process.__defineGetter__('stdout', function() { return writable; });
+	process.__defineGetter__('stderr', function() { return writable; });
+	process.__defineGetter__('stdin', function() { return writable; });
+}
 
 // Handle uncaught exceptions
 process.on('uncaughtException', function (err) {
