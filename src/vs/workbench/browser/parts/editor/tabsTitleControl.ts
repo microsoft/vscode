@@ -87,7 +87,7 @@ export class TabsTitleControl extends TitleControl {
 			canUseTranslate3d: true,
 			horizontalScrollbarSize: 3
 		});
-		this.tabsContainer.style.overflow = 'scroll'; // custom scrollbar is eager on removing this style but we want it for DND scroll feedback
+		// this.tabsContainer.style.overflow = 'scroll'; // custom scrollbar is eager on removing this style but we want it for DND scroll feedback
 
 		this.scrollbar.onScroll(e => {
 			this.tabsContainer.scrollLeft = e.scrollLeft;
