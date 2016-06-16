@@ -8,9 +8,9 @@ import {localize} from 'vs/nls';
 import {Action} from 'vs/base/common/actions';
 import {join} from 'vs/base/common/paths';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import {IExtensionPointUser, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
 export interface ResourceFilter {
 	language?: string;
@@ -23,6 +23,7 @@ export type Where = 'editor/primary' | 'editor/secondary' | 'explorer/context';
 export interface Context {
 	where: Where;
 	when: string | string[] | ResourceFilter | ResourceFilter[];
+	icon?: string | ThemableIcon;
 }
 
 export interface ThemableIcon {
@@ -35,7 +36,6 @@ export interface Command {
 	command: string;
 	title: string;
 	category?: string;
-	icon?: string | ThemableIcon;
 	context?: Context | Context[];
 }
 
@@ -53,7 +53,7 @@ function isContexts(thing: Context | Context[]): thing is Context[] {
 namespace validation {
 
 
-	function isValidIcon(icon: string | ThemableIcon, reject: string[]): boolean {
+	function isValidIcon(icon: string | ThemableIcon, user: IExtensionPointUser<any>): boolean {
 		if (typeof icon === 'undefined') {
 			return true;
 		}
@@ -63,52 +63,62 @@ namespace validation {
 		if (typeof icon === 'object' && typeof (<ThemableIcon>icon).dark === 'string' && typeof (<ThemableIcon>icon).light === 'string') {
 			return true;
 		}
-		reject.push(localize('opticon', "property `icon` can be omitted or must be either a string or a literal like `{dark, light}`"));
+		user.collector.error(localize('opticon', "property `icon` can be omitted or must be either a string or a literal like `{dark, light}`"));
 		return false;
 	}
 
-	function isValidContext(context: Context, rejects: string[]): boolean {
+	function isValidContext(context: Context, user: IExtensionPointUser<any>): boolean {
 		if (!context) {
 			return true;
 		}
 		if (context.where !== 'editor/primary' && context.where !== 'editor/secondary' && context.where !== 'explorer/context') {
-			rejects.push(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`, or `explorer/context`"));
+			user.collector.error(localize('requireenumtype', "property `where` is mandatory and must be one of `editor/primary`, `editor/secondary`, or `explorer/context`"));
 			return false;
 		}
 		if (typeof context.when !== 'object' && typeof context.when !== 'string' && !Array.isArray(context.when)) {
-			rejects.push(localize('requirefilter', "property `when` is mandatory and must be like `{language, scheme, pattern}`"));
+			user.collector.error(localize('requirefilter', "property `when` is mandatory and must be like `{language, scheme, pattern}`"));
 			return false;
 		}
+		if (!isValidIcon(context.icon, user)) {
+			return false;
+		}
+
+		// make icon paths absolute
+		let {icon} = context;
+		if (typeof icon === 'string') {
+			context.icon = join(user.description.extensionFolderPath, icon);
+		} else if(isThemableIcon(icon)) {
+			icon.dark = join(user.description.extensionFolderPath, icon.dark);
+			icon.light = join(user.description.extensionFolderPath, icon.light);
+		}
+
 		return true;
 	}
 
-	export function isValidCommand(candidate: Command, rejects: string[]): boolean {
+	export function isValidCommand(candidate: Command, user: IExtensionPointUser<any>): boolean {
 		if (!candidate) {
-			rejects.push(localize('nonempty', "expected non-empty value."));
+			user.collector.error(localize('nonempty', "expected non-empty value."));
 			return false;
 		}
 		if (typeof candidate.command !== 'string') {
-			rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
+			user.collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 			return false;
 		}
 		if (typeof candidate.title !== 'string') {
-			rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
+			user.collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
 			return false;
 		}
 		if (candidate.category && typeof candidate.category !== 'string') {
-			rejects.push(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'));
-			return false;
-		}
-		if (!isValidIcon(candidate.icon, rejects)) {
+			user.collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'));
 			return false;
 		}
 		if (candidate.context) {
 			let {context} = candidate;
 			if (isContexts(context)) {
-				if (!context.every(context => isValidContext(context, rejects))) {
+				if (!context.every(context => isValidContext(context, user))) {
 					return false;
 				}
-			} else if (!isValidContext(context, rejects)) {
+			} else if (!isValidContext(context, user)) {
 				return false;
 			}
 		}
@@ -156,24 +166,6 @@ namespace schema {
 					{ type: 'array', items: 'string' },
 					{ type: 'array', items: filterType },
 				]
-			}
-		}
-	};
-
-	const commandType: IJSONSchema = {
-		type: 'object',
-		properties: {
-			command: {
-				description: localize('vscode.extension.contributes.commandType.command', 'Identifier of the command to execute'),
-				type: 'string'
-			},
-			title: {
-				description: localize('vscode.extension.contributes.commandType.title', 'Title by which the command is represented in the UI'),
-				type: 'string'
-			},
-			category: {
-				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
-				type: 'string'
 			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
@@ -193,6 +185,24 @@ namespace schema {
 						}
 					}
 				]
+			}
+		}
+	};
+
+	const commandType: IJSONSchema = {
+		type: 'object',
+		properties: {
+			command: {
+				description: localize('vscode.extension.contributes.commandType.command', 'Identifier of the command to execute'),
+				type: 'string'
+			},
+			title: {
+				description: localize('vscode.extension.contributes.commandType.title', 'Title by which the command is represented in the UI'),
+				type: 'string'
+			},
+			category: {
+				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
+				type: 'string'
 			},
 			context: {
 				description: localize('vscode.extension.contributes.commandType.context', '(Optional) Define places where the command should show in addition to the Command palette'),
@@ -218,42 +228,22 @@ namespace schema {
 
 export const commands: Command[] = [];
 
-function handleCommand(command: Command, collector: IExtensionMessageCollector, description: IExtensionDescription): void {
-
-	let rejects: string[] = [];
-
-	if (validation.isValidCommand(command, rejects)) {
-
-		// make icon paths absolute
-		let {icon} = command;
-		if (typeof icon === 'string') {
-			command.icon = join(description.extensionFolderPath, icon);
-		} else if(isThemableIcon(icon)) {
-			icon.dark = join(description.extensionFolderPath, icon.dark);
-			icon.light = join(description.extensionFolderPath, icon.light);
-		}
-
+function handleCommand(command: Command, user: IExtensionPointUser<any>): void {
+	if (validation.isValidCommand(command, user)) {
 		// store command globally
 		commands.push(command);
-
-	} else if (rejects.length > 0) {
-		collector.error(localize(
-			'error',
-			"Invalid `contributes.commands`: {0}",
-			rejects.join('\n')
-		));
 	}
 }
 
 ExtensionsRegistry.registerExtensionPoint<Command | Command[]>('commands', schema.commandContribution).setHandler(extensions => {
 	for (let extension of extensions) {
-		const {value, collector, description} = extension;
+		const {value} = extension;
 		if (isCommands(value)) {
 			for (let command of value) {
-				handleCommand(command, collector, description);
+				handleCommand(command, extension);
 			}
 		} else {
-			handleCommand(value, collector, description);
+			handleCommand(value, extension);
 		}
 	}
 

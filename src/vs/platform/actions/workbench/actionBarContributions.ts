@@ -19,6 +19,23 @@ import {commands, Command, Context, Where, CommandAction} from '../common/comman
 import matches from 'vs/editor/common/modes/languageSelector';
 import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
 
+class ContextAction extends CommandAction {
+
+	constructor(
+		public context: Context,
+		public resource: URI,
+		command: Command,
+		@IExtensionService extensionService: IExtensionService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(command, extensionService, keybindingService);
+	}
+
+	run() {
+		return super.run(this.resource);
+	}
+}
+
 abstract class BaseActionBarContributor extends ActionBarContributor {
 
 	constructor(
@@ -63,11 +80,14 @@ abstract class BaseActionBarContributor extends ActionBarContributor {
 		for (let command of commands) {
 			const {context} = command;
 			if (Array.isArray(context)) {
-				if (context.some(context => this._matches(context, resource, where))) {
-					result.push(this._createAction(command, resource));
+				for (let ctx of context) {
+					if (this._matches(ctx, resource, where)) {
+						result.push(new ContextAction(ctx, resource, command, this._extensionService, this._keybindingsService));
+						break;
+					}
 				}
 			} else if (context && this._matches(context, resource, where)) {
-				result.push(this._createAction(command, resource));
+				result.push(new ContextAction(context, resource, command, this._extensionService, this._keybindingsService));
 			}
 		}
 		return result;
@@ -82,21 +102,10 @@ abstract class BaseActionBarContributor extends ActionBarContributor {
 	}
 
 	public getActionItem(context: any, action: Action): BaseActionItem {
-		if (action instanceof CommandAction) {
+		if (action instanceof ContextAction) {
 			const uri = this._getResource(context);
 			return new CommandItem(uri, action, this._themeService);
 		}
-	}
-
-	private _createAction(command: Command, context: URI): CommandAction {
-		return new class extends CommandAction {
-			run() {
-				// TODO@joh,ben This is a workaround for the actionbar
-				// overwriting the context of the action item
-				return super.run(context);
-			}
-
-		}(command, this._extensionService, this._keybindingsService);
 	}
 }
 
@@ -142,12 +151,12 @@ class CommandItem extends ActionItem {
 
 	constructor(
 		context: any,
-		action: CommandAction,
+		action: ContextAction,
 		@IThemeService private _themeService: IThemeService
 	) {
-		super(context, action, { icon: Boolean(action.command.icon), label: !Boolean(action.command.icon) });
+		super(context, action, { icon: Boolean(action.context.icon), label: !Boolean(action.context.icon) });
 
-		if (typeof action.command.icon === 'object') {
+		if (typeof action.context.icon === 'object') {
 			this._themeService.onDidThemeChange(this._updateIcon, this, this.callOnDispose);
 		}
 	}
@@ -160,7 +169,7 @@ class CommandItem extends ActionItem {
 	private _updateIcon(): void {
 		const element = this.$e.getHTMLElement();
 
-		const {command: {icon}} = <CommandAction>this._action;
+		const {context: {icon}} = <ContextAction>this._action;
 		let iconUri: string;
 
 		if (element.classList.contains('icon')) {
