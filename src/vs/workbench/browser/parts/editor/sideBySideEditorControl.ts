@@ -754,11 +754,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private enableDropTarget(node: HTMLElement): void {
 		const $this = this;
+		const overlayId = 'monaco-workbench-editor-drop-overlay';
 		let overlay: Builder;
 
 		function onDrop(e: DragEvent, position: Position): void {
 			DOM.removeClass(node, 'dropfeedback');
-			destroyOverlays();
+			destroyOverlay();
 
 			const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
 			if (droppedResources.length) {
@@ -771,7 +772,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 		}
 
-		function destroyOverlays(): void {
+		function destroyOverlay(): void {
 			if (overlay) {
 				overlay.destroy();
 				overlay = void 0;
@@ -789,7 +790,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 							width: '100%',
 							height: '100%',
 							zIndex: 3000000
-						}).id('monaco-workbench-editor-drop-overlay');
+						}).id(overlayId);
 						overlay.appendTo(container);
 
 						overlay.on(DOM.EventType.DROP, (e: DragEvent) => {
@@ -798,7 +799,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						});
 
 						overlay.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
-							destroyOverlays();
+							destroyOverlay();
 						});
 					}
 				});
@@ -814,7 +815,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
 			DOM.addClass(node, 'dropfeedback');
-			createOverlay(<HTMLElement>e.target);
+
+			const target = <HTMLElement>e.target;
+			if (target) {
+				if (overlay && target.id !== overlayId) {
+					destroyOverlay(); // somehow we managed to move the mouse quickly out of the current overlay, so destroy it
+				}
+
+				createOverlay(target);
+			}
 		}));
 
 		// Drag leave
@@ -826,7 +835,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		[node, window].forEach(container => {
 			this.toDispose.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
 				DOM.removeClass(node, 'dropfeedback');
-				destroyOverlays();
+				destroyOverlay();
 			}));
 		});
 	}
