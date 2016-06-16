@@ -106,8 +106,19 @@ class EditorContributor extends BaseActionBarContributor {
 		return { primary: 'editor/primary', secondary: 'editor/secondary' };
 	}
 	protected _getResource(context: any): URI {
-		if (context.input  !== void 0 && context.editor  !== void 0 && context.position !== void 0 ) {
-			return getUntitledOrFileResource(context.input, true);
+		if (context.input  === void 0 || context.editor  === void 0 || context.position === void 0 ) {
+			return;
+		}
+		let candidate: URI;
+		candidate = getUntitledOrFileResource(context.input, true);
+		if(candidate) {
+			return candidate;
+		}
+		if (typeof context.input.getResource === 'function') {
+			candidate = context.input.getResource();
+			if (candidate instanceof URI) {
+				return candidate;
+			}
 		}
 	}
 }
