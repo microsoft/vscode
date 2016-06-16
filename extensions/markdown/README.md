@@ -26,4 +26,5 @@ extension we would include this in your settings configuration:
     ]
 ```
 
-And that's all there is to it.  Enjoy!
+The `styles` field can contain a filename or a URL.  If the field is a file, file must be placed in the `/media` folder of
+the vscode markdown extension. And that's all there is to it.  Enjoy!
