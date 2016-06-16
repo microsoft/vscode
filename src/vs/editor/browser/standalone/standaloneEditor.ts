@@ -9,7 +9,7 @@ import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {ShallowCancelThenPromise} from 'vs/base/common/async';
-import {StandaloneEditor, StandaloneDiffEditor, startup, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
+import {StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, startup, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IEditorOverrideServices, ensureDynamicPlatformServices, ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -20,12 +20,12 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
 import {SimpleEditorService} from 'vs/editor/browser/standalone/simpleServices';
 import * as modes from 'vs/editor/common/modes';
 import {EditorWorkerClient} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
+import {DiffNavigator} from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 
 function shallowClone<T>(obj:T): T {
 	let r:T = <any>{};
@@ -51,7 +51,7 @@ export function setupServices(services: IEditorOverrideServices): IEditorOverrid
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function create(domElement:HTMLElement, options?:IEditorConstructionOptions, services?:IEditorOverrideServices):ICodeEditor {
+export function create(domElement:HTMLElement, options?:IEditorConstructionOptions, services?:IEditorOverrideServices):IStandaloneCodeEditor {
 	startup.initStaticServicesIfNecessary();
 
 	services = shallowClone(services);
@@ -76,7 +76,7 @@ export function create(domElement:HTMLElement, options?:IEditorConstructionOptio
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorConstructionOptions, services?: IEditorOverrideServices):IDiffEditor {
+export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorConstructionOptions, services?: IEditorOverrideServices):IStandaloneDiffEditor {
 	startup.initStaticServicesIfNecessary();
 
 	services = shallowClone(services);
@@ -94,6 +94,23 @@ export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorCon
 	}
 
 	return result;
+}
+
+export interface IDiffNavigator {
+	canNavigate():boolean;
+	next():void;
+	previous():void;
+	dispose():void;
+}
+
+export interface IDiffNavigatorOptions {
+	followsCaret?:boolean;
+	ignoreCharChanges?:boolean;
+	alwaysRevealFirst?:boolean;
+}
+
+export function createDiffNavigator(diffEditor:IStandaloneDiffEditor, opts?:IDiffNavigatorOptions): IDiffNavigator {
+	return new DiffNavigator(diffEditor, opts);
 }
 
 function prepareServices(domElement: HTMLElement, services: IEditorOverrideServices): { ctx: IEditorOverrideServices; toDispose: IDisposable[]; } {
@@ -371,6 +388,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		// methods
 		create: create,
 		createDiffEditor: createDiffEditor,
+		createDiffNavigator: createDiffNavigator,
 
 		createModel: createModel,
 		setModelLanguage: setModelLanguage,

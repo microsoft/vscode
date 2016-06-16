@@ -7,11 +7,9 @@
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
@@ -21,6 +19,7 @@ import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleSe
 import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
+import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 
 /**
  * The options to create an editor.
@@ -44,12 +43,22 @@ export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOpt
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
-export class StandaloneEditor extends CodeEditorWidget {
+export interface IStandaloneCodeEditor extends ICodeEditor {
+	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
+	createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	addAction(descriptor:IActionDescriptor): void;
+}
 
-	private _editorService:IEditorService;
+export interface IStandaloneDiffEditor extends IDiffEditor {
+	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
+	createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	addAction(descriptor:IActionDescriptor): void;
+}
+
+export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
+
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _contextViewService:IEditorContextViewService;
-	private _markerService: IMarkerService;
 	private _ownsModel:boolean;
 	private _toDispose2: IDisposable[];
 
@@ -61,9 +70,7 @@ export class StandaloneEditor extends CodeEditorWidget {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IEditorService editorService: IEditorService,
-		@IMarkerService markerService: IMarkerService
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		if (keybindingService instanceof AbstractKeybindingService) {
 			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
@@ -77,8 +84,6 @@ export class StandaloneEditor extends CodeEditorWidget {
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._editorService = editorService;
-		this._markerService = markerService;
 		this._toDispose2 = toDispose;
 
 		let model: IModel = null;
@@ -108,10 +113,6 @@ export class StandaloneEditor extends CodeEditorWidget {
 
 	public destroy(): void {
 		this.dispose();
-	}
-
-	public getMarkerService():IMarkerService {
-		return this._markerService;
 	}
 
 	public addCommand(keybinding:number, handler:ICommandHandler, context:string): string {
@@ -146,14 +147,6 @@ export class StandaloneEditor extends CodeEditorWidget {
 		}
 	}
 
-	public getTelemetryService():ITelemetryService {
-		return this._telemetryService;
-	}
-
-	public getEditorService():IEditorService {
-		return this._editorService;
-	}
-
 	_attachModel(model:IModel):void {
 		super._attachModel(model);
 		if (this._view) {
@@ -170,13 +163,11 @@ export class StandaloneEditor extends CodeEditorWidget {
 	}
 }
 
-export class StandaloneDiffEditor extends DiffEditorWidget {
+export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService:IEditorContextViewService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _toDispose2: IDisposable[];
-	private _markerService: IMarkerService;
-	private _telemetryService: ITelemetryService;
 
 	constructor(
 		domElement:HTMLElement,
@@ -185,9 +176,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IEditorService editorService: IEditorService,
-		@IMarkerService markerService: IMarkerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		if (keybindingService instanceof AbstractKeybindingService) {
@@ -202,9 +190,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget {
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 
-		this._markerService = markerService;
-		this._telemetryService = telemetryService;
-
 		this._toDispose2 = toDispose;
 
 		this._contextViewService.setContainer(this._containerDomElement);
@@ -217,10 +202,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget {
 
 	public destroy(): void {
 		this.dispose();
-	}
-
-	public getMarkerService():IMarkerService {
-		return this._markerService;
 	}
 
 	public addCommand(keybinding:number, handler:ICommandHandler, context:string): string {
@@ -253,10 +234,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget {
 				this._standaloneKeybindingService.addDynamicKeybinding(kb, handler, descriptor.keybindingContext, descriptor.id);
 			});
 		}
-	}
-
-	public getTelemetryService():ITelemetryService {
-		return this._telemetryService;
 	}
 }
 

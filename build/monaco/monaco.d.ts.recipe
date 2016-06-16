@@ -53,7 +53,11 @@ declare module monaco {
 declare module monaco.editor {
 
 #includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.):
-#include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions
+#include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
+export interface ICommandHandler {
+    (...args:any[]): void;
+}
+#include(vs/platform/keybinding/common/keybindingService): IKeybindingContextKey
 #include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices
 #include(vs/platform/markers/common/markers): IMarkerData
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
