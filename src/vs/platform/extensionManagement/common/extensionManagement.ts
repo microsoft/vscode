@@ -66,15 +66,18 @@ export interface IExtensionGalleryService {
 	query(options?: IQueryOptions): TPromise<IQueryResult>;
 }
 
+export type DidInstallExtensionEvent = { id: string; error?: Error; };
+
 export interface IExtensionManagementService {
 	serviceId: ServiceIdentifier<any>;
-	onInstallExtension: Event<IExtensionManifest>;
-	onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }>;
-	onUninstallExtension: Event<IExtension>;
-	onDidUninstallExtension: Event<IExtension>;
 
-	install(extension: IExtension): TPromise<IExtension>;
-	install(zipPath: string): TPromise<IExtension>;
+	onInstallExtension: Event<string>;
+	onDidInstallExtension: Event<DidInstallExtensionEvent>;
+	onUninstallExtension: Event<string>;
+	onDidUninstallExtension: Event<string>;
+
+	install(extension: IExtension): TPromise<void>;
+	install(zipPath: string): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
 }

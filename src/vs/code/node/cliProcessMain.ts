@@ -94,7 +94,7 @@ class Main {
 						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
 						console.log(localize('installing', "Installing..."));
 
-						return this.extensionManagementService.install(extension).then(extension => {
+						return this.extensionManagementService.install(extension).then(() => {
 							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
 						});
 					});

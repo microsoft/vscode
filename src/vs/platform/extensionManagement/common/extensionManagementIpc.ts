@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, IExtension, IExtensionManifest } from './extensionManagement';
+import { IExtensionManagementService, IExtension, DidInstallExtensionEvent } from './extensionManagement';
 import Event from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
@@ -44,21 +44,21 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	constructor(private channel: IExtensionManagementChannel) { }
 
-	private _onInstallExtension = eventFromCall(this.channel, 'event:onInstallExtension');
-	get onInstallExtension(): Event<IExtensionManifest> { return this._onInstallExtension; }
+	private _onInstallExtension = eventFromCall<string>(this.channel, 'event:onInstallExtension');
+	get onInstallExtension(): Event<string> { return this._onInstallExtension; }
 
-	private _onDidInstallExtension = eventFromCall(this.channel, 'event:onDidInstallExtension');
-	get onDidInstallExtension(): Event<{ extension: IExtension; error?: Error; }> { return this._onDidInstallExtension; }
+	private _onDidInstallExtension = eventFromCall<DidInstallExtensionEvent>(this.channel, 'event:onDidInstallExtension');
+	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return this._onDidInstallExtension; }
 
-	private _onUninstallExtension = eventFromCall(this.channel, 'event:onUninstallExtension');
-	get onUninstallExtension(): Event<IExtension> { return this._onUninstallExtension; }
+	private _onUninstallExtension = eventFromCall<string>(this.channel, 'event:onUninstallExtension');
+	get onUninstallExtension(): Event<string> { return this._onUninstallExtension; }
 
-	private _onDidUninstallExtension = eventFromCall(this.channel, 'event:onDidUninstallExtension');
-	get onDidUninstallExtension(): Event<IExtension> { return this._onDidUninstallExtension; }
+	private _onDidUninstallExtension = eventFromCall<string>(this.channel, 'event:onDidUninstallExtension');
+	get onDidUninstallExtension(): Event<string> { return this._onDidUninstallExtension; }
 
-	install(extension: IExtension): TPromise<IExtension>;
-	install(zipPath: string): TPromise<IExtension>;
-	install(arg: any): TPromise<IExtension> {
+	install(extension: IExtension): TPromise<void>;
+	install(zipPath: string): TPromise<void>;
+	install(arg: any): TPromise<void> {
 		return this.channel.call('install', arg);
 	}
 
