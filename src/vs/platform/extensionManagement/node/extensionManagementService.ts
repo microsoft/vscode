@@ -60,20 +60,6 @@ function validate(zipPath: string, extension?: IExtensionManifest, version = ext
 		});
 }
 
-function createExtension(manifest: IExtensionManifest, path?: string): IExtension {
-	const extension: IExtension = { manifest };
-
-	// if (galleryInformation) {
-	// 	extension.galleryInformation = galleryInformation;
-	// }
-
-	if (path) {
-		extension.path = path;
-	}
-
-	return extension;
-}
-
 function getExtensionId(extension: IExtensionManifest, version = extension.version): string {
 	return `${ extension.publisher }.${ extension.name }-${ version }`;
 }
@@ -128,8 +114,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 		const extension = arg as IGalleryExtension;
 		const { manifest } = extension;
+		const id = getExtensionId(manifest);
 
-		return this.isObsolete(extension).then(obsolete => {
+		return this.isObsolete(id).then(obsolete => {
 			if (obsolete) {
 				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.name)));
 			}
@@ -194,7 +181,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			this._onInstallExtension.fire(id);
 
 			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-				.then(() => createExtension(manifest, extensionPath))
+				.then<IExtension>(() => ({ manifest, path: extensionPath }))
 				.then(extension => this._onDidInstallExtension.fire({ id }))
 				.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
 		});
@@ -208,9 +195,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : Promise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => this._onUninstallExtension.fire(id))
-			.then(() => this.setObsolete(extension))
+			.then(() => this.setObsolete(id))
 			.then(() => pfs.rimraf(extensionPath))
-			.then(() => this.unsetObsolete(extension))
+			.then(() => this.unsetObsolete(id))
 			.then(() => this._onDidUninstallExtension.fire(id));
 	}
 
@@ -240,7 +227,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return limiter.queue(
 							() => pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 								.then(raw => parseManifest(raw))
-								.then(manifest => createExtension(manifest, extensionPath))
+								.then<IExtension>(manifest => ({ manifest, path: extensionPath }))
 								.then(null, () => null)
 						);
 					})))
@@ -275,18 +262,15 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	private isObsolete({ manifest }: IExtension): TPromise<boolean> {
-		const id = getExtensionId(manifest);
+	private isObsolete(id: string): TPromise<boolean> {
 		return this.withObsoleteExtensions(obsolete => !!obsolete[id]);
 	}
 
-	private setObsolete({ manifest }: IExtension): TPromise<void> {
-		const id = getExtensionId(manifest);
+	private setObsolete(id: string): TPromise<void> {
 		return this.withObsoleteExtensions(obsolete => assign(obsolete, { [id]: true }));
 	}
 
-	private unsetObsolete({ manifest }: IExtension): TPromise<void> {
-		const id = getExtensionId(manifest);
+	private unsetObsolete(id: string): TPromise<void> {
 		return this.withObsoleteExtensions<void>(obsolete => delete obsolete[id]);
 	}
 

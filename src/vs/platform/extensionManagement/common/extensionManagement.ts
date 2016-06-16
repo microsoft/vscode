@@ -41,7 +41,7 @@ export interface IGalleryMetadata {
 
 export interface IExtension {
 	manifest: IExtensionManifest;
-	path?: string;
+	path: string;
 }
 
 export interface IGalleryExtension extends IGalleryMetadata {
