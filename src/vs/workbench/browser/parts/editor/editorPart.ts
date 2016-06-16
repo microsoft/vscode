@@ -322,6 +322,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Build Container off-DOM
 			editorContainer = $().div({
 				'class': 'editor-container',
+				'role': 'tabpanel',
 				id: descriptor.getId()
 			}, (div) => {
 				newlyCreatedEditorContainerBuilder = div;

@@ -75,6 +75,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
+		this.tabsContainer.setAttribute('role', 'tablist');
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 
 		// Custom Scrollbar
@@ -195,9 +196,11 @@ export class TabsTitleControl extends TitleControl {
 				// Active state
 				if (isActive) {
 					DOM.addClass(tabContainer, 'active');
+					tabContainer.setAttribute('aria-selected', 'true');
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
+					tabContainer.setAttribute('aria-selected', 'false');
 				}
 
 				// Dirty State
@@ -265,6 +268,8 @@ export class TabsTitleControl extends TitleControl {
 			const tabContainer = document.createElement('div');
 			tabContainer.draggable = true;
 			tabContainer.tabIndex = 0;
+			tabContainer.setAttribute('role', 'tab');
+			tabContainer.setAttribute('aria-label', editor.getName());
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
