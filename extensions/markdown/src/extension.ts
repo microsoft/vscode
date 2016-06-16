@@ -31,7 +31,7 @@ export function activate(context: ExtensionContext) {
 	}).use(mdnh, {});
 
 	// Load user-defined packages
-	const userPlugins = <Array<Object>>vscode.workspace.getConfiguration("markdown")['plugins'];
+	const userPlugins = <Array<Object>>vscode.workspace.getConfiguration('markdown')['plugins'];
 	if (userPlugins && Array.isArray(userPlugins)) {
 		userPlugins.forEach(value => {
 			if (!value.name) { return; }
