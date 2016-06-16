@@ -62,7 +62,7 @@ function isMarkdownFile(document: vscode.TextDocument) {
 }
 
 function getMarkdownUri(document: vscode.TextDocument) {
-	return document.uri.with({ scheme: 'markdown', path: String(document.version), query: document.uri.toString() });
+	return document.uri.with({ scheme: 'markdown', path: document.uri.path + '.rendered', query: document.uri.toString() });
 }
 
 function openPreview(sideBySide?: boolean): void {
