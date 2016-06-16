@@ -359,6 +359,11 @@ export interface IDebugService {
 	appendReplOutput(value: string, severity?: severity): void;
 
 	/**
+	 * Sets the value for the variable against the debug adapter.
+	 */
+	setVariable(variable: IExpression, value: string): TPromise<void>;
+
+	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
 	addWatchExpression(name?: string): TPromise<void>;

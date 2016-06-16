@@ -543,6 +543,28 @@ export class EditorConditionalBreakpointAction extends EditorAction {
 	}
 }
 
+export class SetValueAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.setValue';
+	static LABEL = nls.localize('setValue', "Set Value");
+
+	constructor(id: string, label: string, private variable: model.Variable, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(): TPromise<any> {
+		if (this.variable instanceof model.Variable) {
+			this.debugService.getViewModel().setSelectedExpression(this.variable);
+		}
+
+		return TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const session = this.debugService.getActiveSession();
+		return super.isEnabled(state) && state === debug.State.Stopped && session && session.configuration.capabilities.supportsSetVariable;
+	}
+}
+
 export class CopyValueAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.copyValue';
 	static LABEL = nls.localize('copyValue', "Copy Value");

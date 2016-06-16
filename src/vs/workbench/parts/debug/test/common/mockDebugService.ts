@@ -126,6 +126,10 @@ export class MockDebugService implements debug.IDebugService {
 	public pause(threadId: number): TPromise<any> {
 		return TPromise.as(null);
 	}
+
+	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
+		return TPromise.as(null);
+	}
 }
 
 

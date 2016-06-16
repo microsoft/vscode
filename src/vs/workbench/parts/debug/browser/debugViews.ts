@@ -98,6 +98,21 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 				this.telemetryService.publicLog('debug/variables/selected');
 			}
 		}));
+
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
+			if (!expression || !(expression instanceof Variable)) {
+				return;
+			}
+
+			this.tree.refresh(expression, false).then(() => {
+				this.tree.setHighlight(expression);
+				this.tree.addOneTimeDisposableListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+					if (!e.highlight) {
+						this.debugService.getViewModel().setSelectedExpression(null);
+					}
+				});
+			}).done(null, errors.onUnexpectedError);
+		}));
 	}
 
 	private onFocusStackFrame(stackFrame: debug.IStackFrame): void {

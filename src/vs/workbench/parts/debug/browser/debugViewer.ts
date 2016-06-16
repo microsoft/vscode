@@ -82,7 +82,8 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 }
 
-function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any, container: HTMLElement, placeholder: string, ariaLabel: string): void {
+function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any,
+	container: HTMLElement, initialValue: string, placeholder: string, ariaLabel: string): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 	let inputBox = new inputbox.InputBox(inputBoxContainer, contextViewService, {
 		validationOptions: {
@@ -93,7 +94,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		ariaLabel: ariaLabel
 	});
 
-	inputBox.value = element.name ? element.name : '';
+	inputBox.value = initialValue ? initialValue : '';
 	inputBox.focus();
 
 	let disposed = false;
@@ -110,6 +111,10 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				debugService.renameFunctionBreakpoint(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.FunctionBreakpoint && !element.name) {
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
+			} else if (element instanceof model.Variable && renamed) {
+				debugService.setVariable(element, inputBox.value)
+					// if everything went fine we need to refresh that tree element since his value updated
+					.done(() => tree.refresh(element, false), errors.onUnexpectedError);
 			}
 
 			tree.clearHighlight();
@@ -525,11 +530,13 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		let actions: actions.Action[] = [];
 		const variable = <model.Variable>element;
-		actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, variable));
 		if (variable.reference === 0) {
+			actions.push(this.instantiationService.createInstance(debugactions.SetValueAction, debugactions.SetValueAction.ID, debugactions.SetValueAction.LABEL, variable));
 			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable));
+			actions.push(new actionbar.Separator());
 		}
 
+		actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, variable));
 		return TPromise.as(actions);
 	}
 
@@ -587,6 +594,13 @@ export class VariablesRenderer implements tree.IRenderer {
 	private static SCOPE_TEMPLATE_ID = 'scope';
 	private static VARIABLE_TEMPLATE_ID = 'variable';
 
+	constructor(
+		@debug.IDebugService private debugService: debug.IDebugService,
+		@IContextViewService private contextViewService: IContextViewService
+	) {
+		// noop
+	}
+
 	public getHeight(tree: tree.ITree, element: any): number {
 		return 22;
 	}
@@ -622,7 +636,12 @@ export class VariablesRenderer implements tree.IRenderer {
 		if (templateId === VariablesRenderer.SCOPE_TEMPLATE_ID) {
 			this.renderScope(element, templateData);
 		} else {
-			renderVariable(tree, element, templateData, true);
+			if (element === this.debugService.getViewModel().getSelectedExpression()) {
+				renderRenameBox(this.debugService, this.contextViewService, tree, element, (<IVariableTemplateData>templateData).expression,
+					(<model.Variable>element).value, null, nls.localize('variableValueAriaLabel', "Type new variable value"));
+			} else {
+				renderVariable(tree, element, templateData, true);
+			}
 		}
 	}
 
@@ -798,7 +817,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private renderWatchExpression(tree: tree.ITree, watchExpression: debug.IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if ((selectedExpression instanceof model.Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof model.Expression && !watchExpression.name)) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, nls.localize('watchExpressionPlaceholder', "Expression to watch"), nls.localize('watchExpressionInputAriaLabel', "Type watch expression"));
+			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, watchExpression.name, nls.localize('watchExpressionPlaceholder', "Expression to watch"), nls.localize('watchExpressionInputAriaLabel', "Type watch expression"));
 		}
 		data.actionBar.context = watchExpression;
 
@@ -1071,7 +1090,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, nls.localize('functionBreakpointPlaceholder', "Function to break on"), nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint"));
+			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, functionBreakpoint.name, nls.localize('functionBreakpointPlaceholder', "Function to break on"), nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint"));
 		} else {
 			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
 			data.name.textContent = functionBreakpoint.name;
