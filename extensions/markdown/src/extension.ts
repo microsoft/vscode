@@ -9,21 +9,28 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from "vscode";
 
-const hljs = require('highlight.js');
-const mdnh = require('markdown-it-named-headers');
-const md = require('markdown-it')({
-	html: true,
-	highlight: function (str, lang) {
-		if (lang && hljs.getLanguage(lang)) {
-			try {
-				return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-			} catch (error) { }
-		}
-		return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-	}
-}).use(mdnh, {});
+let md;
 
 export function activate(context: ExtensionContext) {
+	// Upon activation, load markdown module with default
+	// plugins, and then load any user-defined plugins.
+	// Note: user-defined plugins may override default plugins.
+
+	const hljs = require('highlight.js');
+	const mdnh = require('markdown-it-named-headers');
+	md = require('markdown-it')({
+		html: true,
+		highlight: function (str, lang) {
+			if (lang && hljs.getLanguage(lang)) {
+				try {
+					return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+				} catch (error) { }
+			}
+			return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
+		}
+	}).use(mdnh, {});
+
+
 	let provider = new MDDocumentContentProvider(context);
 	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
 
