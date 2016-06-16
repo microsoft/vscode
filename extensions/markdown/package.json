@@ -48,7 +48,7 @@
 					"light": "./media/Preview.svg",
 					"dark": "./media/Preview_inverse.svg"
 				},
-				"where": ["editor/primary", "explorer/context"],
+				"where": ["editor/primary"],
 				"when": "markdown"
 			},
 			{
