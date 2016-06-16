@@ -758,22 +758,64 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private enableDropTarget(node: HTMLElement): void {
+		const $this = this;
+		let overlay: Builder;
 
-		// Let a dropped file open inside Code (only if dropped over editor area)
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
+		function onDrop(e: DragEvent, position: Position): void {
 			DOM.removeClass(node, 'dropfeedback');
+			destroyOverlays();
 
 			const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
 			if (droppedResources.length) {
 				window.focus(); // make sure this window has focus so that the open call reaches the right window!
-				this.openFromDrop(droppedResources, <HTMLElement>e.toElement).done(null, errors.onUnexpectedError);
+				$this.openFromDrop(droppedResources, position).done(null, errors.onUnexpectedError);
 			}
+		}
+
+		function destroyOverlays(): void {
+			if (overlay) {
+				overlay.destroy();
+				overlay = void 0;
+			}
+		}
+
+		function createOverlay(target: HTMLElement): void {
+			if (!overlay) {
+				$this.visibleEditorContainers.forEach((container, index) => {
+					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
+						overlay = $('div').style({
+							position: 'absolute',
+							top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px',
+							left: 0,
+							width: '100%',
+							height: '100%',
+							zIndex: 3000000
+						}).id('monaco-workbench-editor-drop-overlay');
+						overlay.appendTo(container);
+
+						overlay.on(DOM.EventType.DROP, (e: DragEvent) => {
+							DOM.EventHelper.stop(e);
+							onDrop(e, index);
+						});
+
+						overlay.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
+							destroyOverlays();
+						});
+					}
+				});
+			}
+		}
+
+		// Let a dropped file open inside Code (only if dropped over editor area)
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.EventHelper.stop(e);
+			onDrop(e, Position.LEFT);
 		}));
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
 			DOM.addClass(node, 'dropfeedback');
+			createOverlay(<HTMLElement>e.target);
 		}));
 
 		// Drag leave
@@ -781,21 +823,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			DOM.removeClass(node, 'dropfeedback');
 		}));
 
-		// Drag end
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_END, (e: DragEvent) => {
-			DOM.removeClass(node, 'dropfeedback');
-		}));
+		// Drag end (also install globally to be safe)
+		[node, window].forEach(container => {
+			this.toDispose.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
+				DOM.removeClass(node, 'dropfeedback');
+				destroyOverlays();
+			}));
+		});
 	}
 
-	private openFromDrop(resources: URI[], target: HTMLElement): TPromise<any> {
-
-		// Find target position by looking at target DOM node
-		let position = Position.LEFT;
-		this.containers.forEach((container, index) => {
-			if (DOM.isAncestor(target, container.getHTMLElement())) {
-				position = index;
-			}
-		});
+	private openFromDrop(resources: URI[], position: Position): TPromise<any> {
 
 		// One resource to open: always pick position of the drop
 		if (resources.length === 1) {

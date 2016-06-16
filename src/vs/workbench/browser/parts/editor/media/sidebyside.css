@@ -11,17 +11,22 @@
 	background-color: #252526;
 }
 
-.vs .monaco-workbench .editor > .content.dropfeedback {
-	background-color: #DDECFF;
+
+.vs #monaco-workbench-editor-drop-overlay,
+.vs .monaco-workbench .editor.empty > .content.dropfeedback {
+	background-color: rgba(51,153,255, 0.18);
 }
 
-.vs-dark .monaco-workbench .editor > .content.dropfeedback {
-	background-color: #383B3D;
+.vs-dark #monaco-workbench-editor-drop-overlay,
+.vs-dark .monaco-workbench .editor.empty > .content.dropfeedback {
+	background-color: rgba(83, 89, 93, 0.5);
 }
 
-.hc-black .monaco-workbench .editor > .content.dropfeedback {
+.hc-black  #monaco-workbench-editor-drop-overlay,
+.hc-black .monaco-workbench .editor.empty > .content.dropfeedback {
 	background: none !important;
-	border: 2px dashed #f38518;
+	outline: 2px dashed #f38518;
+	outline-offset: -2px;
 }
 
 .vs .monaco-workbench .editor > .content.dragged {
