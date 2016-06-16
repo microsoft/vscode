@@ -8,7 +8,6 @@ import * as assert from 'assert';
 
 import {SCSSParser} from '../../parser/scssParser';
 import {SCSSCompletion} from '../../services/scssCompletion';
-import * as nodes from '../../parser/cssNodes';
 import {TextDocument, Position} from 'vscode-languageserver';
 import {assertCompletion, ItemDescription} from '../css/completion.test';
 
