@@ -85,8 +85,8 @@ export function activate(context: ExtensionContext) {
 }
 
 function isMarkdownFile(document: vscode.TextDocument) {
-	return document.languageId === 'markdown'
-		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
+    return document.languageId === 'markdown'
+        && document.uri.scheme !== 'markdown'; // prevent processing of own documents
 }
 
 function getMarkdownUri(uri: Uri) {
@@ -114,23 +114,23 @@ function showPreview(resource?: Uri, sideBySide: boolean = false) {
 }
 
 function getViewColumn(sideBySide): ViewColumn {
-	const active = vscode.window.activeTextEditor;
-	if (!active) {
-		return ViewColumn.One;
-	}
+    const active = vscode.window.activeTextEditor;
+    if (!active) {
+        return ViewColumn.One;
+    }
 
-	if (!sideBySide) {
-		return active.viewColumn;
-	}
+    if (!sideBySide) {
+        return active.viewColumn;
+    }
 
-	switch (active.viewColumn) {
-		case ViewColumn.One:
-			return ViewColumn.Two;
-		case ViewColumn.Two:
-			return ViewColumn.Three;
-	}
+    switch (active.viewColumn) {
+        case ViewColumn.One:
+            return ViewColumn.Two;
+        case ViewColumn.Two:
+            return ViewColumn.Three;
+    }
 
-	return active.viewColumn;
+    return active.viewColumn;
 }
 
 function showSource(mdUri: Uri) {
@@ -148,92 +148,92 @@ function showSource(mdUri: Uri) {
 }
 
 class MDDocumentContentProvider implements TextDocumentContentProvider {
-	private _context: ExtensionContext;
-	private _onDidChange = new EventEmitter<Uri>();
-	private _waiting : boolean;
+    private _context: ExtensionContext;
+    private _onDidChange = new EventEmitter<Uri>();
+    private _waiting : boolean;
 
-	constructor(context: ExtensionContext) {
-		this._context = context;
-		this._waiting = false;
-	}
+    constructor(context: ExtensionContext) {
+        this._context = context;
+        this._waiting = false;
+    }
 
-	private getMediaPath(mediaFile) {
-		return this._context.asAbsolutePath(path.join('media', mediaFile));
-	}
+    private getMediaPath(mediaFile) {
+        return this._context.asAbsolutePath(path.join('media', mediaFile));
+    }
 
-	private fixHref(resource: Uri, href: string) {
-		if (href) {
-			// Return early if href is already a URL
-			if (Uri.parse(href).scheme) {
-				return href;
-			}
-			// Otherwise convert to a file URI by joining the href with the resource location
-			return Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
-		}
-		return href;
-	}
+    private fixHref(resource: Uri, href: string) {
+        if (href) {
+            // Return early if href is already a URL
+            if (Uri.parse(href).scheme) {
+                return href;
+            }
+            // Otherwise convert to a file URI by joining the href with the resource location
+            return Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
+        }
+        return href;
+    }
 
-	private computeCustomStyleSheetIncludes(uri: Uri): string[] {
-		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
-		if (styles && Array.isArray(styles)) {
-			return styles.map((style) => {
-				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
-			});
-		}
-		return [];
-	}
+    private computeCustomStyleSheetIncludes(uri: Uri): string[] {
+        const styles = vscode.workspace.getConfiguration('markdown')['styles'];
+        if (styles && Array.isArray(styles)) {
+            return styles.map((style) => {
+                return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
+            });
+        }
+        return [];
+    }
 
-	private computePluginStyleSheetIncludes() {
-		if (userStyles && Array.isArray(userStyles)) {
-			return userStyles.map((style) => {
-				if (Uri.parse(style).scheme) {
-					return `<link rel="stylesheet" type="text/css" href="${style}" type="text/css" media="screen">`;
+    private computePluginStyleSheetIncludes() {
+        if (userStyles && Array.isArray(userStyles)) {
+            return userStyles.map((style) => {
+                if (Uri.parse(style).scheme) {
+                    return `<link rel="stylesheet" type="text/css" href="${style}" type="text/css" media="screen">`;
 
-				} else {
-					return `<link rel="stylehseet" type="text/css" href="${this.getMediaPath(style)}">`;
-				}
-			});
-		}
-	}
+                } else {
+                    return `<link rel="stylehseet" type="text/css" href="${this.getMediaPath(style)}">`;
+                }
+            });
+        }
+    }
 
-	public provideTextDocumentContent(uri: Uri): Thenable<string> {
+    public provideTextDocumentContent(uri: Uri): Thenable<string> {
 
-		return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
-			const head = [].concat(
-				'<!DOCTYPE html>',
-				'<html>',
-				'<head>',
-				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
-				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
-				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
-				this.computeCustomStyleSheetIncludes(uri),
-				this.computePluginStyleSheetIncludes(),
-				'</head>',
-				'<body>'
-			).join('\n');
+        return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
+            const head = [].concat(
+                '<!DOCTYPE html>',
+                '<html>',
+                '<head>',
+                '<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
+                `<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
+                `<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
+                this.computeCustomStyleSheetIncludes(uri),
+                this.computePluginStyleSheetIncludes(),
+                '</head>',
+                '<body>'
+            ).join('\n');
 
-			const body = md.render(document.getText());
+            const body = md.render(document.getText());
 
-			const tail = [
-				'</body>',
-				'</html>'
-			].join('\n');
+            const tail = [
+                '</body>',
+                '</html>'
+            ].join('\n');
 
-			return head + body + tail;
-		});
-	}
+            return head + body + tail;
+        });
+    }
 
-	get onDidChange(): Event<Uri> {
-		return this._onDidChange.event;
-	}
+    get onDidChange(): Event<Uri> {
+        return this._onDidChange.event;
+    }
 
-	public update(uri: Uri) {
-		if (!this._waiting) {
-			this._waiting = true;
-			setTimeout(() => {
-				this._waiting = false;
-				this._onDidChange.fire(uri);
-			}, 300);
-		}
-	}
+    public update(uri: Uri) {
+        if (!this._waiting) {
+            this._waiting = true;
+            setTimeout(() => {
+                this._waiting = false;
+                this._onDidChange.fire(uri);
+            }, 300);
+        }
+    }
 }
