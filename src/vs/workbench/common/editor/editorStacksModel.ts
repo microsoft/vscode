@@ -603,13 +603,18 @@ export class EditorGroup implements IEditorGroup {
 
 		this._label = data.label;
 		this.editors = data.editors.map(e => {
-			const editor = registry.getEditorInputFactory(e.id).deserialize(this.instantiationService, e.value);
+			const factory = registry.getEditorInputFactory(e.id);
+			if (factory) {
+				const editor = factory.deserialize(this.instantiationService, e.value);
 
-			this.hookEditorListeners(editor);
-			this.updateResourceMap(editor, false /* add */);
+				this.hookEditorListeners(editor);
+				this.updateResourceMap(editor, false /* add */);
 
-			return editor;
-		});
+				return editor;
+			}
+
+			return null;
+		}).filter(e => !!e);
 		this.mru = data.mru.map(i => this.editors[i]);
 		this.active = this.mru[0];
 		this.preview = this.editors[data.preview];
@@ -1008,7 +1013,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 				const editorsRaw: { inputId: string; inputValue: string }[] = state.editors;
 
 				const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-				const editors = editorsRaw.map(editorRaw => registry.getEditorInputFactory(editorRaw.inputId).deserialize(this.instantiationService, editorRaw.inputValue));
+				const editors = editorsRaw.map(editorRaw => {
+					const factory = registry.getEditorInputFactory(editorRaw.inputId);
+					if (factory) {
+						return factory.deserialize(this.instantiationService, editorRaw.inputValue);
+					}
+
+					return null;
+				}).filter(editor => !!editor);
 
 				if (editors.length > 0) {
 					const leftGroup = this.openGroup('', true);
