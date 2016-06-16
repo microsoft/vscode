@@ -79,21 +79,6 @@
 	cursor: -webkit-grabbing;
 }
 
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container .title,
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container .title .title-label span {
-	cursor: url(data:;base64,AAACAAEAICACAAcABQAwAQAAFgAAACgAAAAgAAAAQAAAAAEAAQAAAAAAAAEAAAAAAAAAAAAAAgAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8AAAA/AAAAfwAAAP+AAAH/gAAB/8AAA//AAAd/wAAGf+AAAH9gAADbYAAA2yAAAZsAAAGbAAAAGAAAAAAAAA//////////////////////////////////////////////////////////////////////////////////////gH///4B///8Af//+AD///AA///wAH//4AB//8AAf//AAD//5AA///gAP//4AD//8AF///AB///5A////5///8=), auto;
-}
-
-#monaco-workbench-editor-move-overlay-custom-drag-cursor,
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged,
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .title,
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .title .title-label span,
-.monaco-workbench > .part.editor > .content.multiple-editors.custom-drag-cursor .one-editor-container.dragged .monaco-editor .view-lines {
-	cursor: url(data:;base64,AAACAAEAICACAAcABQAwAQAAFgAAACgAAAAgAAAAQAAAAAEAAQAAAAAAAAEAAAAAAAAAAAAAAgAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8AAAA/AAAAfwAAAP+AAAH/gAAB/8AAAH/AAAB/wAAA/0AAANsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////////////////////////////////////////////////////////////////////////////////gH///4B///8Af//+AD///AA///wAH//+AB///wAf//4AH//+AD///yT/////////////////////////////8=), auto;
-}
-
 /* Actions */
 
 .monaco-workbench .close-editor-action {
