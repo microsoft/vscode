@@ -1,10 +1,15 @@
 # Python
 Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
 
-##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
-Once installed, do remember to [configure the path](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version) to the python executable.
+##[Documentation](https://github.com/DonJayamanne/pythonVSCode/wiki)
+###Getting Started
+* Install the extension
+* If not using [Virtual Environments](https://virtualenv.readthedocs.org/) and the Python executable isn't located in the current path, then [configure the path](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version) to the python executable.  
+* If using [Virtual Environments](https://virtualenv.readthedocs.org/), you could either:     
+  + Activate the virtual environment from within your terminal/command window and then launch VS Code (see [wiki](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version#virtual-environments)).
+  + Or manually [configure the paths](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version).  
 
-If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you can reference the `python` interpreter from your virtualenv (ie `~/.virtualenvs/XXX/bin/python`).
+###[Troubleshooting guide](https://github.com/DonJayamanne/pythonVSCode/wiki/Troubleshooting)
 
 ##Features
 * Linting (Prospector, PyLint, Pep8, Flake8, pydocstyle with config files and plugins)
@@ -23,6 +28,11 @@ If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you ca
 * Snippets
 
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
+
+## Contributing
+* Clone the repository and open in VS Code.
+* Ensure you have NodeJS installed and all of the dependendant node modules are installed (use 'npm install' command).
+* You can debug the extension by using the 'Launch Extension' debug configuration.
 
 ## Feature Details (with configuration)
 * IDE Features
@@ -221,11 +231,6 @@ If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you ca
 
 ### Version 0.0.3
 * Added support for debugging using PDB
-
-
-## Debugging Instructions
-* Use the Python debugger, set the name of the startup program
-
 
 ## Source
 
