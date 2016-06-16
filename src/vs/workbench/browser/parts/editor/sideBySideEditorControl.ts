@@ -879,7 +879,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			DOM.EventHelper.stop(e);
 
-			// Overlay the editor area with a div to be able to capture all mouse events (helps when iframes are used in any editor)
+			// Overlay the editor area with a div to be able to capture all mouse events
 			let overlayDiv = $('div').style({
 				position: 'absolute',
 				top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px',

@@ -24,7 +24,7 @@ import {IOpenerService} from 'vs/platform/opener/common/opener';
 import Webview from './webview';
 
 /**
- * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
+ * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
  */
 export class HtmlPreviewPart extends BaseEditor {
 

@@ -6,12 +6,10 @@
 
 import {Registry} from 'vs/platform/platform';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Action, IAction} from 'vs/base/common/actions';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor} from 'vs/workbench/browser/quickopen';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor, EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -24,8 +22,6 @@ import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
-import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -82,19 +78,6 @@ import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEdit
 	]
 );
 
-// Register IFrame Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
-	new EditorDescriptor(
-		IFrameEditor.ID,
-		nls.localize('iframeEditor', "IFrame Editor"),
-		'vs/workbench/browser/parts/editor/iframeEditor',
-		'IFrameEditor'
-	),
-	[
-		new SyncDescriptor(IFrameEditorInput)
-	]
-);
-
 // Register Editor Status
 let statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
@@ -104,64 +87,6 @@ let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchA
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
-
-export class ViewSourceEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super('workbench.files.action.viewSourceFromEditor', nls.localize('viewSource', "View Source"), 'iframe-editor-action view-source');
-	}
-
-	public run(event?: any): TPromise<any> {
-		let iFrameEditorInput = <IFrameEditorInput>this.input;
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-
-		return this.editorService.openEditor({
-			resource: iFrameEditorInput.getResource()
-		}, sideBySide);
-	}
-}
-
-export class RefreshIFrameEditorInputAction extends EditorInputAction {
-
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super('workbench.files.action.refreshIFrameEditor', nls.localize('reload', "Reload"), 'iframe-editor-action refresh');
-	}
-
-	public run(event?: any): TPromise<any> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof IFrameEditor) {
-			(<IFrameEditor>editor).reload(true);
-			(<IFrameEditor>editor).focus();
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-class IFrameEditorActionContributor extends EditorInputActionContributor {
-
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
-		return context.input instanceof IFrameEditorInput;
-	}
-
-	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
-		return [
-			this.instantiationService.createInstance(RefreshIFrameEditorInputAction),
-			this.instantiationService.createInstance(ViewSourceEditorInputAction)
-		];
-	}
-}
-
-// Contribute to IFrame Editor Inputs
-actionBarRegistry.registerActionBarContributor(Scope.EDITOR, IFrameEditorActionContributor);
 
 // Register keybinding for "Next Change" & "Previous Change" in visible diff editor
 KeybindingsRegistry.registerCommandDesc({
@@ -246,6 +171,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 	}
 }
 
+const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(

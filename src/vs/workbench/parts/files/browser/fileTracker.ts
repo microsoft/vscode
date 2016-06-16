@@ -17,9 +17,7 @@ import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -228,14 +226,6 @@ export class FileTracker implements IWorkbenchContribution {
 					}
 				}
 			}
-
-			// IFrame Editor Input
-			else if (input instanceof IFrameEditorInput) {
-				let iFrameInput = <IFrameEditorInput>input;
-				if (e.contains(iFrameInput.getResource(), FileChangeType.UPDATED)) {
-					(<IFrameEditor>editor).reload();
-				}
-			}
 		});
 	}
 
@@ -273,8 +263,6 @@ export class FileTracker implements IWorkbenchContribution {
 			let inputResource: URI;
 			if (input instanceof FileEditorInput) {
 				inputResource = (<FileEditorInput>input).getResource();
-			} else if (input instanceof IFrameEditorInput) {
-				inputResource = (<IFrameEditorInput>input).getResource();
 			}
 
 			// Editor Input with associated Resource
@@ -306,16 +294,6 @@ export class FileTracker implements IWorkbenchContribution {
 					// Reopen File Input
 					if (input instanceof FileEditorInput) {
 						editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-					}
-
-					// Reopen IFrame Input
-					else if (input instanceof IFrameEditorInput) {
-						let iFrameInput = <IFrameEditorInput>input;
-
-						editorInput = iFrameInput.createNew(reopenFileResource);
-					}
-
-					if (editorInput) {
 						this.editorService.openEditor(editorInput, editorOptions, editor.position).done(null, errors.onUnexpectedError);
 					}
 				}
@@ -381,11 +359,6 @@ export class FileTracker implements IWorkbenchContribution {
 			else if (input instanceof FileEditorInput && this.containsResource(<FileEditorInput>input, resource)) {
 				inputsContainingPath.push(<FileEditorInput>input);
 			}
-
-			// IFrame Input
-			else if (input instanceof IFrameEditorInput && this.containsResource(<IFrameEditorInput>input, resource)) {
-				inputsContainingPath.push(<IFrameEditorInput>input);
-			}
 		});
 
 		inputsContainingPath.forEach((input) => {
@@ -404,13 +377,10 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private containsResource(input: FileEditorInput, resource: URI): boolean;
-	private containsResource(input: IFrameEditorInput, resource: URI): boolean;
 	private containsResource(input: EditorInput, resource: URI): boolean {
 		let fileResource: URI;
 		if (input instanceof FileEditorInput) {
 			fileResource = (<FileEditorInput>input).getResource();
-		} else {
-			fileResource = (<IFrameEditorInput>input).getResource();
 		}
 
 		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {
@@ -450,18 +420,6 @@ export class FileTracker implements IWorkbenchContribution {
 
 		if (textModel.getState() !== ModelState.SAVED) {
 			return false; // never dispose unsaved models
-		}
-
-		if (this.editorService.getVisibleEditors().some(e => {
-			if (e.input instanceof IFrameEditorInput) {
-				let iFrameInputResource = (<IFrameEditorInput>e.input).getResource();
-
-				return iFrameInputResource && iFrameInputResource.toString() === textModel.getResource().toString();
-			}
-
-			return false;
-		})) {
-			return false; // never dispose models that are used in iframe inputs
 		}
 
 		return true;
