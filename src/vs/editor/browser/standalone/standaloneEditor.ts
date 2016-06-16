@@ -51,7 +51,7 @@ export function setupServices(services: IEditorOverrideServices): IEditorOverrid
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function create(domElement:HTMLElement, options:IEditorConstructionOptions, services:IEditorOverrideServices):ICodeEditor {
+export function create(domElement:HTMLElement, options?:IEditorConstructionOptions, services?:IEditorOverrideServices):ICodeEditor {
 	startup.initStaticServicesIfNecessary();
 
 	services = shallowClone(services);
@@ -76,7 +76,7 @@ export function create(domElement:HTMLElement, options:IEditorConstructionOption
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function createDiffEditor(domElement:HTMLElement, options:IDiffEditorConstructionOptions, services: IEditorOverrideServices):IDiffEditor {
+export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorConstructionOptions, services?: IEditorOverrideServices):IDiffEditor {
 	startup.initStaticServicesIfNecessary();
 
 	services = shallowClone(services);
