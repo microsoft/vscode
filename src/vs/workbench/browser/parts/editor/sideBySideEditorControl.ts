@@ -16,6 +16,7 @@ import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
+import {isMacintosh} from 'vs/base/common/platform';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
@@ -29,8 +30,9 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
+import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {extractResources} from 'vs/base/browser/dnd';
 
@@ -761,14 +763,29 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			DOM.removeClass(node, 'dropfeedback');
 			destroyOverlay();
 
-			const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
-			if (droppedResources.length) {
-				window.focus(); // make sure this window has focus so that the open call reaches the right window!
+			// Check for transfer from title control
+			const draggedEditor = TitleControl.getDraggedEditor();
+			if (draggedEditor) {
+				const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+				if (isCopy) {
+					$this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true }), position).done(null, errors.onUnexpectedError);
+				} else {
+					const sourcePosition = $this.stacks.positionOfGroup(draggedEditor.group);
+					$this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, position);
+				}
+			}
 
-				// Open all
-				$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; }))
-					.then(() => $this.editorGroupService.focusGroup(position))
-					.done(null, errors.onUnexpectedError);
+			// Check for URI transfer
+			else {
+				const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
+				if (droppedResources.length) {
+					window.focus(); // make sure this window has focus so that the open call reaches the right window!
+
+					// Open all
+					$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; }))
+						.then(() => $this.editorGroupService.focusGroup(position))
+						.done(null, errors.onUnexpectedError);
+				}
 			}
 		}
 

@@ -35,9 +35,6 @@ import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import {extractResources} from 'vs/base/browser/dnd';
 
 export class TabsTitleControl extends TitleControl {
-
-	private static draggedEditor: IEditorIdentifier;
-
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private activeTab: HTMLElement;
@@ -127,20 +124,23 @@ export class TabsTitleControl extends TitleControl {
 					const targetIndex = group.count;
 
 					// Local DND
-					if (TabsTitleControl.draggedEditor) {
+					const draggedEditor = TitleControl.getDraggedEditor();
+					if (draggedEditor) {
 						DOM.EventHelper.stop(e, true);
 
-						const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
+						const sourcePosition = this.stacks.positionOfGroup(draggedEditor.group);
 
 						// Move editor to target position and index
-						if (this.isMoveOperation(e, TabsTitleControl.draggedEditor.group, group)) {
-							this.editorGroupService.moveEditor(TabsTitleControl.draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
+						if (this.isMoveOperation(e, draggedEditor.group, group)) {
+							this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
 						}
 
 						// Copy: just open editor at target index
 						else {
-							this.editorService.openEditor(TabsTitleControl.draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
+							this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
 						}
+
+						this.onEditorDragEnd();
 					}
 
 					// External DND
@@ -416,7 +416,7 @@ export class TabsTitleControl extends TitleControl {
 		// Drag start
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
 			DOM.addClass(tab, 'dragged');
-			TabsTitleControl.draggedEditor = { editor, group };
+			this.onEditorDragStart({ editor, group });
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Enable support to drag a file to desktop
@@ -440,7 +440,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			DOM.removeClass(tab, 'dragged');
 			DOM.removeClass(tab, 'dropfeedback');
-			TabsTitleControl.draggedEditor = void 0;
+			this.onEditorDragEnd();
 		}));
 
 		// Drop
@@ -449,20 +449,23 @@ export class TabsTitleControl extends TitleControl {
 			const targetIndex = group.indexOf(editor);
 
 			// Local DND
-			if (TabsTitleControl.draggedEditor) {
+			const draggedEditor = TabsTitleControl.getDraggedEditor();
+			if (draggedEditor) {
 				DOM.EventHelper.stop(e, true);
 
-				const sourcePosition = this.stacks.positionOfGroup(TabsTitleControl.draggedEditor.group);
+				const sourcePosition = this.stacks.positionOfGroup(draggedEditor.group);
 
 				// Move editor to target position and index
-				if (this.isMoveOperation(e, TabsTitleControl.draggedEditor.group, group)) {
-					this.editorGroupService.moveEditor(TabsTitleControl.draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
+				if (this.isMoveOperation(e, draggedEditor.group, group)) {
+					this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
 				}
 
 				// Copy: just open editor at target index
 				else {
-					this.editorService.openEditor(TabsTitleControl.draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
 				}
+
+				this.onEditorDragEnd();
 			}
 
 			// External DND

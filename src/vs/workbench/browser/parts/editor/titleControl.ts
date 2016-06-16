@@ -51,6 +51,9 @@ export interface ITitleAreaControl {
 }
 
 export abstract class TitleControl {
+
+	private static draggedEditor: IEditorIdentifier;
+
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
 	protected toDispose: IDisposable[];
@@ -96,6 +99,18 @@ export abstract class TitleControl {
 
 		this.initActions();
 		this.registerListeners();
+	}
+
+	public static getDraggedEditor(): IEditorIdentifier {
+		return TitleControl.draggedEditor;
+	}
+
+	protected onEditorDragStart(editor: IEditorIdentifier): void {
+		TitleControl.draggedEditor = editor;
+	}
+
+	protected onEditorDragEnd(): void {
+		TitleControl.draggedEditor = void 0;
 	}
 
 	private registerListeners(): void {
