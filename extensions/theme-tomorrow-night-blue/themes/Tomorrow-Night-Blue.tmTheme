@@ -238,6 +238,54 @@
 				<string>#3e999f</string>
 			</dict>
 		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Markup Quote</string>
+			<key>scope</key>
+			<string>markup.quote</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#FFC58F</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Markup Lists</string>
+			<key>scope</key>
+			<string>markup.list</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#BBDAFF</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Markup Styling</string>
+			<key>scope</key>
+			<string>markup.bold, markup.italic</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#FFC58F</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Markup Inline</string>
+			<key>scope</key>
+			<string>markup.inline.raw</string>
+			<key>settings</key>
+			<dict>
+				<key>fontStyle</key>
+				<string></string>
+				<key>foreground</key>
+				<string>#FF9DA4</string>
+			</dict>
+		</dict>
+
 	</array>
 	<key>uuid</key>
 	<string>3F4BB232-3C3A-4396-99C0-06A9573715E9</string>

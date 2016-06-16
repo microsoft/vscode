@@ -1,12 +1,77 @@
 {
-	"name": "markdown",
-	"version": "0.1.0",
-	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"name": "vscode-markdown",
+	"displayName": "VS Code Markdown",
+	"description": "Markdown for VS Code",
+	"version": "0.2.0",
+	"publisher": "Microsoft",
+	"engines": {
+		"vscode": "^1.0.0"
+	},
+	"main": "./out/extension",
+	"categories": [
+		"Languages"
+	],
+	"activationEvents": [
+		"onCommand:extension.previewMarkdown",
+		"onCommand:extension.previewMarkdownSide"
+	],
 	"contributes": {
+		"languages": [
+			{
+				"id": "markdown",
+				"aliases": [
+					"Markdown",
+					"markdown"
+				],
+				"extensions": [
+					".md",
+					".mdown",
+					".markdown",
+					".markdn"
+				],
+				"configuration": "./markdown.configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "markdown",
+				"scopeName": "text.html.markdown",
+				"path": "./syntaxes/markdown.tmLanguage"
+			}
+		],
+		"commands": [
+			{
+				"command": "extension.previewMarkdown",
+				"title": "%markdown.previewMarkdown.title%"
+			},
+			{
+				"command": "extension.previewMarkdownSide",
+				"title": "%markdown.previewMarkdownSide.title%"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "extension.previewMarkdown",
+				"key": "shift+ctrl+v",
+				"mac": "shift+cmd+v"
+			},
+			{
+				"command": "extension.previewMarkdownSide",
+				"key": "ctrl+k v",
+				"mac": "cmd+k v"
+			}
+		],
 		"snippets": [{
 			"language": "markdown",
 			"path": "./snippets/markdown.json"
 		}]
+	},
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json"
+	},
+	"dependencies": {
+		"highlight.js": "^9.3.0",
+		"markdown-it": "^6.0.1",
+		"markdown-it-named-headers": "0.0.4"
 	}
 }
