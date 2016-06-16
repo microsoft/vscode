@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtensionManagementService, IExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
@@ -123,11 +123,11 @@ export class InstallAction extends Action {
 		super('extensions.install', label, 'octicon octicon-cloud-download', true);
 	}
 
-	public run(extension: IExtension): TPromise<any> {
+	public run(extension: IGalleryExtension): TPromise<any> {
 		this.enabled = false;
 
 		return this.extensionManagementService.getInstalled()
-			.then(installed => installed.some(e => extensionEquals(e, extension)))
+			.then(installed => installed.some(e => extensionEquals(e, extension.manifest)))
 			.then(isUpdate => {
 				return this.extensionManagementService
 					.install(extension)
@@ -137,10 +137,10 @@ export class InstallAction extends Action {
 			});
 	}
 
-	private onSuccess(extension: IExtension, isUpdate: boolean) {
+	private onSuccess(extension: IGalleryExtension, isUpdate: boolean) {
 		this.reportTelemetry(extension, isUpdate, true);
 		this.messageService.show(Severity.Info, {
-			message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName),
+			message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.manifest.displayName),
 			actions: [
 				CloseAction,
 				this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))
@@ -148,12 +148,12 @@ export class InstallAction extends Action {
 		});
 	}
 
-	private onError(err: Error, extension: IExtension, isUpdate: boolean) {
+	private onError(err: Error, extension: IGalleryExtension, isUpdate: boolean) {
 		this.reportTelemetry(extension, isUpdate, false);
 		this.messageService.show(Severity.Error, err);
 	}
 
-	private reportTelemetry(extension: IExtension, isUpdate: boolean, success: boolean) {
+	private reportTelemetry(extension: IGalleryExtension, isUpdate: boolean, success: boolean) {
 		const event = isUpdate ? 'extensionGallery:update' : 'extensionGallery:install';
 		const data = assign(getTelemetryData(extension), { success });
 

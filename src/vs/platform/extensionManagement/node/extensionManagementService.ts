@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, IExtension, IExtensionManifest, IGalleryMetadata, IGalleryVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtension, IGalleryExtension, IExtensionManifest, IGalleryVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -60,7 +60,7 @@ function validate(zipPath: string, extension?: IExtension, version = extension &
 		});
 }
 
-function createExtension(manifest: IExtensionManifest, galleryInformation?: IGalleryMetadata, path?: string): IExtension {
+function createExtension(manifest: IExtensionManifest, path?: string): IExtension {
 	const extension: IExtension = {
 		name: manifest.name,
 		displayName: manifest.displayName || manifest.name,
@@ -70,9 +70,9 @@ function createExtension(manifest: IExtensionManifest, galleryInformation?: IGal
 		description: manifest.description || ''
 	};
 
-	if (galleryInformation) {
-		extension.galleryInformation = galleryInformation;
-	}
+	// if (galleryInformation) {
+	// 	extension.galleryInformation = galleryInformation;
+	// }
 
 	if (path) {
 		extension.path = path;
@@ -126,7 +126,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		// ];
 	}
 
-	install(extension: IExtensionManifest): TPromise<void>;
+	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
 	install(arg: any): TPromise<void> {
 		if (types.isString(arg)) {
@@ -143,39 +143,35 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	private installFromGallery(extension: IExtension): TPromise<void> {
-		const id = getExtensionId(extension);
-		const galleryInformation = extension.galleryInformation;
-
-		if (!galleryInformation) {
-			return TPromise.wrapError<void>(new Error(nls.localize('missingGalleryInformation', "Gallery information is missing")));
-		}
+	private installFromGallery(extension: IGalleryExtension): TPromise<void> {
+		const id = getExtensionId(extension.manifest);
 
 		this._onInstallExtension.fire(id);
 
-		return this.getLastValidExtensionVersion(extension, extension.galleryInformation.versions).then(versionInfo => {
+		return this.getLastValidExtensionVersion(extension).then(versionInfo => {
 				const version = versionInfo.version;
 				const url = versionInfo.downloadUrl;
 				const headers = versionInfo.downloadHeaders;
-				const zipPath = path.join(tmpdir(), galleryInformation.id);
-				const extensionPath = path.join(this.extensionsPath, getExtensionId(extension, version));
-				const manifestPath = path.join(extensionPath, 'package.json');
+				const zipPath = path.join(tmpdir(), extension.id);
+				const extensionPath = path.join(this.extensionsPath, getExtensionId(extension.manifest, version));
 
 				return this.request(url)
 					.then(opts => assign(opts, { headers }))
 					.then(opts => download(zipPath, opts))
-					.then(() => validate(zipPath, extension, version))
-					.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
-					.then(manifest => assign({ __metadata: galleryInformation }, manifest))
-					.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+					.then(() => validate(zipPath, extension.manifest, version))
+					.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }))
 					.then(() => this._onDidInstallExtension.fire({ id }))
 					.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
 		});
 	}
 
-	private getLastValidExtensionVersion(extension: IExtension, versions: IGalleryVersion[]): TPromise<IGalleryVersion> {
+	private getLastValidExtensionVersion(extension: IGalleryExtension): TPromise<IGalleryVersion> {
+		return this._getLastValidExtensionVersion(extension, extension.versions);
+	}
+
+	private _getLastValidExtensionVersion(extension: IGalleryExtension, versions: IGalleryVersion[]): TPromise<IGalleryVersion> {
 		if (!versions.length) {
-			return TPromise.wrapError(new Error(nls.localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName)));
+			return TPromise.wrapError(new Error(nls.localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.manifest.displayName)));
 		}
 
 		const version = versions[0];
@@ -189,7 +185,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				};
 
 				if (!isValidExtensionVersion(pkg.version, desc, [])) {
-					return this.getLastValidExtensionVersion(extension, versions.slice(1));
+					return this._getLastValidExtensionVersion(extension, versions.slice(1));
 				}
 
 				return version;
@@ -203,7 +199,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			this._onInstallExtension.fire(id);
 
 			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-				.then(() => createExtension(manifest, (<any> manifest).__metadata, extensionPath))
+				.then(() => createExtension(manifest, extensionPath))
 				.then(extension => this._onDidInstallExtension.fire({ id }))
 				.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
 		});
@@ -248,7 +244,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return limiter.queue(
 							() => pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 								.then(raw => parseManifest(raw))
-								.then(manifest => createExtension(manifest, (<any> manifest).__metadata, extensionPath))
+								.then(manifest => createExtension(manifest, extensionPath))
 								.then(null, () => null)
 						);
 					})))

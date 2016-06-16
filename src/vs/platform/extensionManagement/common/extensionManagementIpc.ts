@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, IExtension, DidInstallExtensionEvent } from './extensionManagement';
+import { IExtensionManagementService, IExtension, IGalleryExtension, DidInstallExtensionEvent } from './extensionManagement';
 import Event from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
@@ -56,7 +56,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	private _onDidUninstallExtension = eventFromCall<string>(this.channel, 'event:onDidUninstallExtension');
 	get onDidUninstallExtension(): Event<string> { return this._onDidUninstallExtension; }
 
-	install(extension: IExtension): TPromise<void>;
+	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
 	install(arg: any): TPromise<void> {
 		return this.channel.call('install', arg);

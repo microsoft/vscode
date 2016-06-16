@@ -40,7 +40,6 @@ export interface IGalleryMetadata {
 }
 
 export interface IExtension extends IExtensionManifest {
-	galleryInformation?: IGalleryMetadata;
 	path?: string;
 }
 
@@ -86,7 +85,7 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<string>;
 	onDidUninstallExtension: Event<string>;
 
-	install(extension: IExtensionManifest): TPromise<void>;
+	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
