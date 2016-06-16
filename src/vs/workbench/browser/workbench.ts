@@ -48,9 +48,7 @@ import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/elect
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -62,7 +60,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
@@ -129,15 +126,12 @@ export class Workbench implements IPartService {
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchWorkspaceContextService private contextService: IWorkbenchWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IThreadService private threadService: IThreadService,
-		@IExtensionService private extensionService: IExtensionService
+		@IThreadService private threadService: IThreadService
 	) {
 
 		// Validate params

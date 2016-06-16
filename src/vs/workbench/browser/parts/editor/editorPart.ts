@@ -128,7 +128,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.stacks = this.instantiationService.createInstance(EditorStacksModel);
 
-		this.previewEditors = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreview;
+		const editorConfig = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor;
+		this.previewEditors = editorConfig.enablePreview;
+
+		this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 
 		this.registerListeners();
 	}
