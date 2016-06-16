@@ -262,6 +262,7 @@ export interface MonacoWebWorker<T> {
 export class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
 
 	private _foreignModuleId: string;
+	private _foreignModuleCreateData: any;
 	private _foreignProxy: TPromise<T>;
 
 	/**
@@ -270,13 +271,16 @@ export class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements Monaco
 	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
 		super(modelService);
 		this._foreignModuleId = opts.moduleId;
+		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignProxy = null;
 	}
 
 	private _getForeignProxy(): TPromise<T> {
 		if (!this._foreignProxy) {
 			this._foreignProxy = new ShallowCancelThenPromise(this._getProxy().then((proxy) => {
-				return proxy.loadForeignModule(this._foreignModuleId).then((foreignMethods) => {
+				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData).then((foreignMethods) => {
+					this._foreignModuleId = null;
+					this._foreignModuleCreateData = null;
 
 					let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
 						return proxy.fmr(method, args);
@@ -316,6 +320,10 @@ export interface IWebWorkerOptions {
 	 * It should export a function `create` that should return the exported proxy.
 	 */
 	moduleId: string;
+	/**
+	 * The data to send over when calling create on the module.
+	 */
+	createData?: any;
 }
 
 /**

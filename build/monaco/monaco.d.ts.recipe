@@ -77,12 +77,6 @@ declare module monaco.languages {
 
 declare module monaco.worker {
 
-    export interface IMirrorModel {
-        uri: Uri;
-        version: number;
-        getText(): string;
-    }
-
-    export var mirrorModels: IMirrorModel[];
+#includeAll(vs/editor/common/services/editorSimpleWorker;):
 
 }

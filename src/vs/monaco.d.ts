@@ -830,6 +830,10 @@ declare module monaco.editor {
          * It should export a function `create` that should return the exported proxy.
          */
         moduleId: string;
+        /**
+         * The data to send over when calling create on the module.
+         */
+        createData?: any;
     }
 
     /**
@@ -4669,12 +4673,16 @@ declare module monaco.languages {
 
 declare module monaco.worker {
 
+
     export interface IMirrorModel {
         uri: Uri;
         version: number;
         getText(): string;
     }
 
-    export var mirrorModels: IMirrorModel[];
+    /**
+     * Get all available mirror models in this worker.
+     */
+    export function getMirrorModels(): IMirrorModel[];
 
 }
