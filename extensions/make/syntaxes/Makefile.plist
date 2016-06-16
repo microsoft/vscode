@@ -8,6 +8,7 @@
 		<string>makefile</string>
 		<string>GNUmakefile</string>
 		<string>OCamlMakefile</string>
+		<string>mk</string>
 	</array>
 	<key>name</key>
 	<string>Makefile</string>
