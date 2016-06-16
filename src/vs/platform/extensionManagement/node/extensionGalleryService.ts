@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -12,29 +12,29 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 
-export interface IGalleryExtensionFile {
+interface IRawGalleryExtensionFile {
 	assetType: string;
 }
 
-export interface IGalleryExtensionVersion {
+interface IRawGalleryExtensionVersion {
 	version: string;
 	lastUpdated: string;
 	assetUri: string;
-	files: IGalleryExtensionFile[];
+	files: IRawGalleryExtensionFile[];
 }
 
-export interface IGalleryExtension {
+interface IRawGalleryExtension {
 	extensionId: string;
 	extensionName: string;
 	displayName: string;
 	shortDescription: string;
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
-	versions: IGalleryExtensionVersion[];
+	versions: IRawGalleryExtensionVersion[];
 	galleryApiUrl: string;
-	statistics: IGalleryExtensionStatistics[];
+	statistics: IRawGalleryExtensionStatistics[];
 }
 
-export interface IGalleryExtensionStatistics {
+interface IRawGalleryExtensionStatistics {
 	statisticName: string;
 	value: number;
 }
@@ -152,7 +152,7 @@ class Query {
 	}
 }
 
-function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
+function getInstallCount(statistics: IRawGalleryExtensionStatistics[]): number {
 	if (!statistics) {
 		return 0;
 	}
@@ -161,7 +161,7 @@ function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
 	return result ? result.value : 0;
 }
 
-function toExtension(galleryExtension: IGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IGalleryExtension {
 	const versions = galleryExtension.versions.map<IGalleryVersion>(v => ({
 		version: v.version,
 		date: v.lastUpdated,
@@ -172,21 +172,23 @@ function toExtension(galleryExtension: IGalleryExtension, extensionsGalleryUrl: 
 		iconUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Icons.Default`
 	}));
 
-	return {
+	const manifest = {
 		name: galleryExtension.extensionName,
 		displayName: galleryExtension.displayName || galleryExtension.extensionName,
 		publisher: galleryExtension.publisher.publisherName,
 		version: versions[0].version,
 		engines: { vscode: void 0 }, // TODO: ugly
 		description: galleryExtension.shortDescription || '',
-		galleryInformation: {
-			galleryApiUrl: extensionsGalleryUrl,
-			id: galleryExtension.extensionId,
-			publisherId: galleryExtension.publisher.publisherId,
-			publisherDisplayName: galleryExtension.publisher.displayName,
-			installCount: getInstallCount(galleryExtension.statistics),
-			versions
-		}
+	};
+
+	return {
+		galleryApiUrl: extensionsGalleryUrl,
+		id: galleryExtension.extensionId,
+		publisherId: galleryExtension.publisher.publisherId,
+		publisherDisplayName: galleryExtension.publisher.displayName,
+		installCount: getInstallCount(galleryExtension.statistics),
+		versions,
+		manifest
 	};
 }
 
@@ -253,7 +255,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private queryGallery(query: Query): TPromise<{ galleryExtensions: IGalleryExtension[], total: number; }> {
+	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
 		const data = JSON.stringify(query.raw);
 
 		return this.getRequestHeaders()

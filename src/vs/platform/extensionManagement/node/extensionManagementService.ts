@@ -126,7 +126,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		// ];
 	}
 
-	install(extension: IExtension): TPromise<void>;
+	install(extension: IExtensionManifest): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
 	install(arg: any): TPromise<void> {
 		if (types.isString(arg)) {

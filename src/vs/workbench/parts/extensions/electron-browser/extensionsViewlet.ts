@@ -13,12 +13,12 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, emmet as $ } from 'vs/base/browser/dom';
-import { PagedModel, mapPager } from 'vs/base/common/paging';
+import { PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionEntry, Delegate, Renderer, ExtensionState } from './extensionsList';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Delegate, Renderer } from './extensionsList';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -39,7 +39,7 @@ export class ExtensionsViewlet extends Viewlet {
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
-	private list: PagedList<IExtensionEntry>;
+	private list: PagedList<IGalleryExtension>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -70,13 +70,13 @@ export class ExtensionsViewlet extends Viewlet {
 		this.searchBox.oninput = () => this.triggerSearch(this.searchBox.value);
 
 		this.list.onSelectionChange(e => {
-			const [entry] = e.elements;
+			const [extension] = e.elements;
 
-			if (!entry) {
+			if (!extension) {
 				return;
 			}
 
-			return this.editorService.openEditor(new ExtensionsInput(entry.extension));
+			return this.editorService.openEditor(new ExtensionsInput(extension));
 		}, null, this.disposables);
 
 		return TPromise.as(null);
@@ -110,7 +110,7 @@ export class ExtensionsViewlet extends Viewlet {
 
 	private doSearch(text: string = ''): TPromise<any> {
 		return this.galleryService.query({ text })
-			.then(result => new PagedModel(mapPager(result, extension => ({ extension, state: ExtensionState.Installed }))))
+			.then(result => new PagedModel(result))
 			.then(model => this.list.model = model);
 	}
 

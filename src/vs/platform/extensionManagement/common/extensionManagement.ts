@@ -44,6 +44,16 @@ export interface IExtension extends IExtensionManifest {
 	path?: string;
 }
 
+export interface IGalleryExtension extends IGalleryMetadata {
+	manifest: IExtensionManifest;
+		// name: galleryExtension.extensionName,
+		// displayName: galleryExtension.displayName || galleryExtension.extensionName,
+		// publisher: galleryExtension.publisher.publisherName,
+		// version: versions[0].version,
+		// engines: { vscode: void 0 }, // TODO: ugly
+		// description: galleryExtension.shortDescription || '',
+}
+
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
@@ -54,10 +64,10 @@ export interface IQueryOptions {
 }
 
 export interface IQueryResult {
-	firstPage: IExtension[];
+	firstPage: IGalleryExtension[];
 	total: number;
 	pageSize: number;
-	getPage(pageNumber: number): TPromise<IExtension[]>;
+	getPage(pageNumber: number): TPromise<IGalleryExtension[]>;
 }
 
 export interface IExtensionGalleryService {
@@ -76,7 +86,7 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<string>;
 	onDidUninstallExtension: Event<string>;
 
-	install(extension: IExtension): TPromise<void>;
+	install(extension: IExtensionManifest): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;

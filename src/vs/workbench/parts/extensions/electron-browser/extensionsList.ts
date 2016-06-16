@@ -9,10 +9,10 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export interface ITemplateData {
-	extension: IExtension;
+	extension: IGalleryExtension;
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
@@ -21,23 +21,12 @@ export interface ITemplateData {
 	description: HTMLElement;
 }
 
-export enum ExtensionState {
-	Uninstalled,
-	Installed,
-	Outdated
-}
-
-export interface IExtensionEntry {
-	extension: IExtension;
-	state: ExtensionState;
-}
-
-export class Delegate implements IDelegate<IExtension> {
+export class Delegate implements IDelegate<IGalleryExtension> {
 	getHeight() { return 62; }
 	getTemplateId() { return 'extension'; }
 }
 
-export class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> {
+export class Renderer implements IPagedRenderer<IGalleryExtension, ITemplateData> {
 
 	private _templates: ITemplateData[];
 	get templates(): ITemplateData[] { return this._templates; }
@@ -75,18 +64,17 @@ export class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> 
 		data.description.textContent = '';
 	}
 
-	renderElement(entry: IExtensionEntry, index: number, data: ITemplateData): void {
-		const extension = entry.extension;
-		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
-		const version = extension.galleryInformation.versions[0];
+	renderElement(extension: IGalleryExtension, index: number, data: ITemplateData): void {
+		const publisher = extension ? extension.publisherDisplayName : extension.manifest.publisher;
+		const version = extension.versions[0];
 
 		data.extension = extension;
 		removeClass(data.element, 'loading');
 		data.icon.src = version.iconUrl;
-		data.name.textContent = extension.displayName;
-		data.version.textContent = ` ${ extension.version }`;
+		data.name.textContent = extension.manifest.displayName;
+		data.version.textContent = ` ${ extension.manifest.version }`;
 		data.author.textContent = ` ${ publisher }`;
-		data.description.textContent = extension.description;
+		data.description.textContent = extension.manifest.description;
 	}
 
 	disposeTemplate(data: ITemplateData): void {
