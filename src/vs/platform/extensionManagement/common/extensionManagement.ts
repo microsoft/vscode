@@ -46,12 +46,6 @@ export interface IExtension {
 
 export interface IGalleryExtension extends IGalleryMetadata {
 	manifest: IExtensionManifest;
-		// name: galleryExtension.extensionName,
-		// displayName: galleryExtension.displayName || galleryExtension.extensionName,
-		// publisher: galleryExtension.publisher.publisherName,
-		// version: versions[0].version,
-		// engines: { vscode: void 0 }, // TODO: ugly
-		// description: galleryExtension.shortDescription || '',
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
