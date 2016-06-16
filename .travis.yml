@@ -37,6 +37,6 @@ install:
 script:
   - gulp hygiene
   - gulp electron
-  - gulp compile
+  - gulp compile optimize-vscode
   - ./scripts/test.sh
   - ./scripts/test-integration.sh
