@@ -188,10 +188,10 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 
 	public update(uri: Uri) {
 		if (!this._waiting) {
+			this._onDidChange.fire(uri);
 			this._waiting = true;
 			setTimeout(() => {
 				this._waiting = false;
-				this._onDidChange.fire(uri);
 			}, 300);
 		}
 	}
