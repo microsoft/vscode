@@ -109,11 +109,15 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._themeChangeSubscription = this._themeService.onDidThemeChange(themeId => this.webview.style(themeId));
 			this.webview.style(this._themeService.getTheme());
 
-			if (this._model) {
+			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
 				this.webview.contents = this._model.getLinesContent();
 			}
 		}
+	}
+
+	private _hasValidModel(): boolean {
+		return this._model && !this._model.isDisposed();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -129,7 +133,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
 
-		if (this.input === input) {
+		if (this.input === input && this._hasValidModel()) {
 			return TPromise.as(undefined);
 		}
 
