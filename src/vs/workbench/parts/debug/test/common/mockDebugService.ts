@@ -115,6 +115,10 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
+	public stepBack(threadId: number): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public continue(threadId: number): TPromise<void> {
 		return TPromise.as(null);
 	}

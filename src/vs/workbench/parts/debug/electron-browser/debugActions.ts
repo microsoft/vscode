@@ -218,6 +218,28 @@ export class StepOutDebugAction extends AbstractDebugAction {
 	}
 }
 
+export class StepBackDebugAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.stepBack';
+	static LABEL = nls.localize('stepBackDebug', "Step Back");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action step-back', debugService, keybindingService);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.stepBack(threadId);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const activeSession = this.debugService.getActiveSession();
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			activeSession && activeSession.configuration.capabilities.supportsStepBack;
+	}
+}
+
 export class StopDebugAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stop';
 	static LABEL = nls.localize('stopDebug', "Stop");

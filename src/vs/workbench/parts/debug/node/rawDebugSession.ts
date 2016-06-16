@@ -234,6 +234,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('stepOut', args);
 	}
 
+	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
+		return this.send('stepBack', args);
+	}
+
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
 		return this.send('continue', args);
 	}
