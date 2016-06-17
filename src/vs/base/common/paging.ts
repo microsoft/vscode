@@ -105,6 +105,17 @@ export class PagedModel<T> implements IPagedModel<T> {
 	}
 }
 
+export class SinglePagePagedModel<T> extends PagedModel<T> {
+	constructor(elements: T[]) {
+		super({
+			firstPage: elements,
+			total: elements.length,
+			pageSize: elements.length,
+			getPage: null
+		});
+	}
+}
+
 /**
  * Similar to array.map, `mapPager` lets you map the elements of an
  * abstract paged collection to another type.

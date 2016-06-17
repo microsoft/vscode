@@ -7,15 +7,15 @@
 	height: 100%;
 }
 
-.extensions-viewlet > .search {
+.extensions-viewlet > .header {
 	height: 38px;
 	box-sizing: border-box;
 	padding: 5px 9px 5px 16px;
 }
 
-.extensions-viewlet > .search > .search-box {
+.extensions-viewlet > .header > .search-box {
 	width: 100%;
-	height: 100%;
+	height: 26px;
 	box-sizing: border-box;
 	padding: 0 3px;
 }

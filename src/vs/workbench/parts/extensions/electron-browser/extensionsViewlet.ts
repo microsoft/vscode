@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, emmet as $ } from 'vs/base/browser/dom';
-import { PagedModel } from 'vs/base/common/paging';
+import { PagedModel, SinglePagePagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,15 +22,6 @@ import { IExtensionManagementService, IExtensionGalleryService, IExtension, IGal
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-
-function singlePageModel<T>(firstPage: T[]) {
-	return new PagedModel({
-		firstPage,
-		total: firstPage.length,
-		pageSize: firstPage.length,
-		getPage: null
-	});
-}
 
 export class ExtensionsViewlet extends Viewlet {
 
@@ -61,9 +52,10 @@ export class ExtensionsViewlet extends Viewlet {
 		parent.addClass('extensions-viewlet');
 		this.root = parent.getHTMLElement();
 
-		const search = append(this.root, $('.search'));
-		this.searchBox = append(search, $<HTMLInputElement>('input.search-box'));
-		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions");
+		const header = append(this.root, $('.header'));
+
+		this.searchBox = append(header, $<HTMLInputElement>('input.search-box'));
+		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 		this.extensionsBox = append(this.root, $('.extensions'));
 
 		const delegate = new Delegate();
@@ -103,19 +95,22 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	private triggerSearch(text: string = '', delay = 500): void {
-		this.list.model = singlePageModel([]);
-
-		const promise = this.searchDelayer.trigger(() => this.doSearch(text), delay);
-
-		const progressRunner = this.progressService.show(true);
-		always(promise, () => progressRunner.done());
+		this.searchDelayer.trigger(() => this.doSearch(text), text ? delay : 0);
 	}
 
 	private doSearch(text: string = ''): TPromise<any> {
-		return this.extensionService.getInstalled()
-			.then(result => singlePageModel(result))
-		// return this.galleryService.query({ text })
-		// 	.then(result => new PagedModel(result))
+		const progressRunner = this.progressService.show(true);
+		let promise: TPromise<PagedModel<IExtension | IGalleryExtension>>;
+
+		if (text) {
+			promise = this.galleryService.query({ text })
+				.then(result => new PagedModel(result));
+		} else {
+			promise = this.extensionService.getInstalled()
+				.then(result => new SinglePagePagedModel(result));
+		}
+
+		return always(promise, () => progressRunner.done())
 			.then(model => this.list.model = model);
 	}
 
