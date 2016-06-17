@@ -655,7 +655,7 @@ export function getRelativeTop(element: HTMLElement, parent: HTMLElement): numbe
 
 	let elementPosition = getTopLeftOffset(element);
 	let parentPosition = getTopLeftOffset(parent);
-	return parentPosition.top - elementPosition.top;
+	return elementPosition.top - parentPosition.top;
 }
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
