@@ -44,9 +44,9 @@ export class RemoteDebugServer extends BaseDebugServer {
             let languageVersionRead = false;
             let portNumber = this.args.port;
             let debugCommandsAccepted = false;
-            let options = <any>{ port: portNumber};
+            let options = { port: portNumber};
             if (typeof this.args.host === "string" && this.args.host.length > 0) {
-                options.host = this.args.host;
+                (<any>options).host = this.args.host;
             }
             this.socket = net.connect(options, () => {
                 resolve(options);
