@@ -23,12 +23,14 @@ import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-const EmptyModel = new PagedModel({
-	firstPage: [],
-	total: 0,
-	pageSize: 0,
-	getPage: null
-});
+function singlePageModel<T>(firstPage: T[]) {
+	return new PagedModel({
+		firstPage,
+		total: firstPage.length,
+		pageSize: firstPage.length,
+		getPage: null
+	});
+}
 
 export class ExtensionsViewlet extends Viewlet {
 
@@ -101,7 +103,7 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	private triggerSearch(text: string = '', delay = 500): void {
-		this.list.model = EmptyModel;
+		this.list.model = singlePageModel([]);
 
 		const promise = this.searchDelayer.trigger(() => this.doSearch(text), delay);
 
@@ -110,10 +112,8 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	private doSearch(text: string = ''): TPromise<any> {
-		this.extensionService.getInstalled().then(r => {
-			console.log(r);
-		});
-
+		// return this.extensionService.getInstalled()
+		// 	.then(result => singlePageModel(result))
 		return this.galleryService.query({ text })
 			.then(result => new PagedModel(result))
 			.then(model => this.list.model = model);

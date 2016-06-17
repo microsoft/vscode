@@ -18,6 +18,7 @@ export interface IExtensionManifest {
 	displayName?: string;
 	description?: string;
 	main?: string;
+	icon?: string;
 }
 
 export interface IGalleryVersion {
@@ -41,6 +42,7 @@ export interface IGalleryExtension {
 	id: string;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
+	path?: string;
 }
 
 export interface IExtension {

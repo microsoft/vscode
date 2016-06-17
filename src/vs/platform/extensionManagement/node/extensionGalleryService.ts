@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionManifest, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -171,7 +171,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		iconUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Icons.Default`
 	}));
 
-	const manifest = {
+	const manifest: IExtensionManifest = {
 		name: galleryExtension.extensionName,
 		displayName: galleryExtension.displayName || galleryExtension.extensionName,
 		publisher: galleryExtension.publisher.publisherName,
