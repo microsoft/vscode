@@ -48,6 +48,9 @@ export function getTextEditsFromPatch(before: string, patch: string): TextEdit[]
         // Strip the first two lines
         patch = patch.substring(patch.indexOf("@@"));
     }
+    if (patch.length === 0) {
+        return [];
+    }
 
     let d = new dmp.diff_match_patch();
     let patches = <Patch[]>(<any>d).patch_fromText(patch);

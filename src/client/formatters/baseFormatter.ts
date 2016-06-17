@@ -32,7 +32,7 @@ export abstract class BaseFormatter {
         let tmpFileCreated = document.isDirty;
         let filePromise = tmpFileCreated ? getTempFileWithDocumentContents(document) : Promise.resolve(document.fileName);
         return filePromise.then(filePath => {
-            if (token.isCancellationRequested) {
+            if (token && token.isCancellationRequested) {
                 return [filePath, ""];
             }
             return Promise.all<string>([Promise.resolve(filePath), sendCommand(cmdLine + ` "${filePath}"`, vscode.workspace.rootPath)]);
@@ -41,7 +41,7 @@ export abstract class BaseFormatter {
             if (tmpFileCreated) {
                 fs.unlink(data[0]);
             }
-            if (token.isCancellationRequested) {
+            if (token && token.isCancellationRequested) {
                 return [];
             }
             return getTextEditsFromPatch(document.getText(), data[1]);

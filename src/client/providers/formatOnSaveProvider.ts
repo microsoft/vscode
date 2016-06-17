@@ -36,6 +36,7 @@ export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilt
             let delays = new telemetryHelper.Delays();
 
             formatter.formatDocument(document, null, null).then(edits => {
+                if (edits.length === 0) return false;
                 return textEditor.edit(editBuilder => {
                     edits.forEach(edit => editBuilder.replace(edit.range, edit.newText));
                 });
@@ -43,7 +44,7 @@ export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilt
                 delays.stop();
                 telemetryHelper.sendTelemetryEvent(telemetryContracts.IDE.Format, { Format_Provider: formatter.Id, Format_OnSave: "true" }, delays.toMeasures());
                 ignoreNextSave.add(document);
-                return document.save();
+                return applied ? document.save() : true;
             }).then(() => {
                 ignoreNextSave.delete(document);
             }, () => {
