@@ -91,7 +91,18 @@
 		"snippets": [{
 			"language": "markdown",
 			"path": "./snippets/markdown.json"
-		}]
+		}],
+		"configuration": {
+			"type": "object",
+			"title": "Markdown preview configuration",
+			"properties": {
+				"markdown.styles": {
+					"type": "array",
+					"default" : null,
+					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
+				}
+			}
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json"
