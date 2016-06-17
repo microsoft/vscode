@@ -1,0 +1,25 @@
+sudo: false
+language: python
+python:
+  - "2.7"
+  - "3.5"
+
+os:
+  - osx
+  - linux
+
+before_install:
+  - if [ $TRAVIS_OS_NAME == "linux" ]; then
+      export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
+      sh -e /etc/init.d/xvfb start;
+      sleep 3;
+    fi
+
+install:
+  - npm install
+  - npm run vscode:prepublish
+  - pip install .
+  - pip install -r requirements.txt
+  
+script:
+  - npm test --silent
