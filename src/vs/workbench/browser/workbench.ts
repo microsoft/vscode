@@ -241,7 +241,7 @@ export class Workbench implements IPartService {
 						return {
 							input: inputWithOptions.input,
 							options: inputWithOptions.options,
-							position: Math.min(index, Position.RIGHT) // put any resource > RIGHT to right position
+							position: Position.LEFT
 						};
 					});
 
