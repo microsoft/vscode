@@ -12,7 +12,7 @@ import * as vscode from "vscode";
 import * as myExtension from "../client/extension";
 
 // Defines a Mocha test suite to group tests of similar kind together
-suite("Blah blah", () => {
+suite("Tests", () => {
 
     // Defines a Mocha unit test
     test("Something Formatting 1", () => {
