@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, IExtension, IGalleryExtension, IExtensionManifest, IGalleryVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtension, IGalleryExtension, IExtensionManifest, IGalleryVersion, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -28,10 +28,13 @@ import { groupBy, values } from 'vs/base/common/collections';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
 import pkg from 'vs/platform/package';
 
-function parseManifest(raw: string): TPromise<IExtensionManifest> {
+function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
 	return new Promise((c, e) => {
 		try {
-			c(JSON.parse(raw));
+			const manifest = JSON.parse(raw);
+			const metadata = manifest.__metadata || null;
+			delete manifest.__metadata;
+			c({ manifest, metadata });
 		} catch (err) {
 			e(new Error(nls.localize('invalidManifest', "Extension invalid: package.json is not a JSON file.")));
 		}
@@ -41,7 +44,7 @@ function parseManifest(raw: string): TPromise<IExtensionManifest> {
 function validate(zipPath: string, extension?: IExtensionManifest, version = extension && extension.version): TPromise<IExtensionManifest> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
-		.then(manifest => {
+		.then(({ manifest }) => {
 			if (extension) {
 				if (extension.name !== manifest.name) {
 					return Promise.wrapError(Error(nls.localize('invalidName', "Extension invalid: manifest name mismatch.")));
@@ -126,24 +129,18 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private installFromGallery(extension: IGalleryExtension): TPromise<void> {
-		const id = getExtensionId(extension.manifest);
-
-		this._onInstallExtension.fire(id);
-
 		return this.getLastValidExtensionVersion(extension).then(versionInfo => {
 				const version = versionInfo.version;
 				const url = versionInfo.downloadUrl;
 				const headers = versionInfo.downloadHeaders;
 				const zipPath = path.join(tmpdir(), extension.id);
-				const extensionPath = path.join(this.extensionsPath, getExtensionId(extension.manifest, version));
+				const id = getExtensionId(extension.manifest, version);
 
 				return this.request(url)
 					.then(opts => assign(opts, { headers }))
 					.then(opts => download(zipPath, opts))
 					.then(() => validate(zipPath, extension.manifest, version))
-					.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }))
-					.then(() => this._onDidInstallExtension.fire({ id }))
-					.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
+					.then(() => this.installValidExtension(zipPath, id, extension.metadata));
 		});
 	}
 
@@ -175,15 +172,21 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private installFromZip(zipPath: string): TPromise<void> {
-		return validate(zipPath).then(manifest => {
-			const id = getExtensionId(manifest);
-			const extensionPath = path.join(this.extensionsPath, id);
-			this._onInstallExtension.fire(id);
+		return validate(zipPath).then(manifest => this.installValidExtension(zipPath, getExtensionId(manifest)));
+	}
 
-			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-				.then(() => this._onDidInstallExtension.fire({ id }))
-				.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
-		});
+	private installValidExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<void> {
+		const extensionPath = path.join(this.extensionsPath, id);
+		const manifestPath = path.join(extensionPath, 'package.json');
+		this._onInstallExtension.fire(id);
+
+		return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
+			.then(() => pfs.readFile(manifestPath, 'utf8'))
+			.then(raw => parseManifest(raw))
+			.then(({ manifest }) => assign(manifest, { __metadata: metadata }))
+			.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+			.then(() => this._onDidInstallExtension.fire({ id }))
+			.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
 	}
 
 	uninstall(extension: IExtension): TPromise<void> {
@@ -225,7 +228,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return limiter.queue(
 							() => pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 								.then(raw => parseManifest(raw))
-								.then<IExtension>(manifest => ({ id, manifest }))
+								.then(({ manifest, metadata }) => ({ id, manifest, metadata }))
 								.then(null, () => null)
 						);
 					})))
