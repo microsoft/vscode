@@ -473,7 +473,8 @@
   "scripts": {
     "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
     "compile": "node ./node_modules/vscode/bin/compile  -watch -p ./ && installServerIntoExtension ./out ./src/server/package.json ./src/server/tsconfig.json",
-    "postinstall": "node ./node_modules/vscode/bin/install"
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "node ./node_modules/vscode/bin/test"
   },
   "dependencies": {
     "diff-match-patch": "^1.0.0",
