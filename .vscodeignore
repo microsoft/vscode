@@ -5,5 +5,7 @@ test/**
 src/**
 **/*.map
 .gitignore
+images/**
 tsconfig.json
+*.pyc
 vsc-extension-quickstart.md
