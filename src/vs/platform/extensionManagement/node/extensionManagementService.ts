@@ -228,7 +228,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return limiter.queue(
 							() => pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 								.then(raw => parseManifest(raw))
-								.then(({ manifest, metadata }) => ({ id, manifest, metadata }))
+								.then(({ manifest, metadata }) => ({ id, manifest, metadata, path: extensionPath }))
 								.then(null, () => null)
 						);
 					})))

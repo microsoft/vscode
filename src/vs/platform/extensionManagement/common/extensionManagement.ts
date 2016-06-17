@@ -47,6 +47,7 @@ export interface IExtension {
 	id: string;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
+	path: string;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
