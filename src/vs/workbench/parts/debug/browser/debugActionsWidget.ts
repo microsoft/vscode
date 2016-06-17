@@ -7,6 +7,8 @@ import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import builder = require('vs/base/browser/builder');
+import dom = require('vs/base/browser/dom');
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import actions = require('vs/base/common/actions');
 import events = require('vs/base/common/events');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
@@ -15,17 +17,20 @@ import wbext = require('vs/workbench/common/contributions');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import IDebugService = debug.IDebugService;
 
 const $ = builder.$;
+const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
 export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	private static ID = 'debug.actionsWidget';
 
 	private $el: builder.Builder;
+	private dragArea: builder.Builder;
 	private toDispose: lifecycle.IDisposable[];
 	private actionBar: actionbar.ActionBar;
 	private actions: actions.IAction[];
@@ -39,12 +44,18 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IStorageService private storageService: IStorageService
 	) {
 		this.$el = $().div().addClass('debug-actions-widget');
+		this.dragArea = $().div().addClass('drag-area');
+		this.$el.append(this.dragArea);
+
+		const actionBarContainter = $().div().addClass('.action-bar-container');
+		this.$el.append(actionBarContainter);
 
 		this.toDispose = [];
-		this.actionBar = new actionbar.ActionBar(this.$el, {
+		this.actionBar = new actionbar.ActionBar(actionBarContainter, {
 			orientation: actionbar.ActionsOrientation.HORIZONTAL
 		});
 
@@ -53,6 +64,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 
 		this.hide();
 		this.isBuilt = false;
+		this.onResize();
 	}
 
 	private registerListeners(): void {
@@ -70,6 +82,33 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
+		$(window).on(dom.EventType.RESIZE, () => this.onResize(), this.toDispose);
+
+		this.dragArea.on(dom.EventType.MOUSE_DOWN, event => {
+			const $window = $(window);
+
+			$window.on('mousemove', (e: MouseEvent) => {
+				const mouseMoveEvent = new StandardMouseEvent(e);
+				this.setXCoordinate(mouseMoveEvent.posx);
+			}).once('mouseup', (e: MouseEvent) => {
+				const mouseMoveEvent = new StandardMouseEvent(e);
+				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
+				$window.off('mousemove');
+			});
+		});
+	}
+
+	private onResize(): void {
+		const x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '0.5')) * window.innerWidth;
+		this.setXCoordinate(x);
+	}
+
+	private setXCoordinate(x: number): void {
+		const halfWidgetWidth = this.$el.getHTMLElement().clientWidth / 2;
+		x = x + halfWidgetWidth - 12; // take into account half the size of the widget
+		x = Math.max(148, x); // do not allow the widget to overflow on the left
+		x = Math.min(x, window.innerWidth - halfWidgetWidth); // do not allow the widget to overflow on the right
+		this.$el.style('left', `${x}px`);
 	}
 
 	public getId(): string {
