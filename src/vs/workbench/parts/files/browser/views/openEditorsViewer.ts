@@ -50,7 +50,7 @@ export class OpenEditor {
 	}
 
 	public getId(): string {
-		return `openeditor:${this.group.id}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
 	public isPreview(): boolean {
