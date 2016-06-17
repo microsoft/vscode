@@ -9,3 +9,5 @@ images/**
 tsconfig.json
 *.pyc
 vsc-extension-quickstart.md
+.travis.yml
+requirements.txt
