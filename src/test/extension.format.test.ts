@@ -28,20 +28,22 @@ suite("Formatting", () => {
     test("AutoPep8", done => {
         let fileToFormat = path.join(pythoFilesPath, "beforeAutoPep8.py");
         vscode.workspace.openTextDocument(fileToFormat).then(textDocument => {
-            vscode.window.showTextDocument(textDocument);
-            let formatter = new AutoPep8Formatter(ch, pythonSettings, pythoFilesPath);
-            return formatter.formatDocument(textDocument, null, null).then(edits => {
-                let activeEditor = vscode.window.activeTextEditor;
-                activeEditor.edit(editBuilder => {
-                    edits.forEach(edit => editBuilder.replace(edit.range, edit.newText));
-                }).then(edited => {
-                    let formattedFile = path.join(pythoFilesPath, "afterAutoPep8.py");
-                    let formattedContents = fs.readFile(formattedFile, "utf-8", (error, data) => {
-                        if (error) {
-                            return assert.fail(error, "", "Failed to read formatted file");
-                        }
-                        assert.equal(activeEditor.document.getText(), data, "Formatted text is not the same");
+            vscode.window.showTextDocument(textDocument).then(textEditor => {
+                let formatter = new AutoPep8Formatter(ch, pythonSettings, pythoFilesPath);
+                return formatter.formatDocument(textDocument, null, null).then(edits => {
+                    textEditor.edit(editBuilder => {
+                        edits.forEach(edit => editBuilder.replace(edit.range, edit.newText));
+                    }).then(edited => {
+                        let formattedFile = path.join(pythoFilesPath, "afterAutoPep8.py");
+                        let formattedContents = fs.readFile(formattedFile, "utf-8", (error, data) => {
+                            if (error) {
+                                return assert.fail(error, "", "Failed to read formatted file");
+                            }
+                            assert.equal(textEditor.document.getText(), data, "Formatted text is not the same");
+                        });
                     });
+                }, error => {
+                    assert.fail(error, "", "Error in Formatting, " + error);
                 });
             }, error => {
                 assert.fail(error, "", "Error in Formatting, " + error);
@@ -54,20 +56,22 @@ suite("Formatting", () => {
     test("Yapf", done => {
         let fileToFormat = path.join(pythoFilesPath, "beforeYapf.py");
         vscode.workspace.openTextDocument(fileToFormat).then(textDocument => {
-            vscode.window.showTextDocument(textDocument);
-            let formatter = new YapfFormatter(ch, pythonSettings, pythoFilesPath);
-            return formatter.formatDocument(textDocument, null, null).then(edits => {
-                let activeEditor = vscode.window.activeTextEditor;
-                activeEditor.edit(editBuilder => {
-                    edits.forEach(edit => editBuilder.replace(edit.range, edit.newText));
-                }).then(edited => {
-                    let formattedFile = path.join(pythoFilesPath, "afterYapf.py");
-                    let formattedContents = fs.readFile(formattedFile, "utf-8", (error, data) => {
-                        if (error) {
-                            return assert.fail(error, "", "Failed to read formatted file");
-                        }
-                        assert.equal(activeEditor.document.getText(), data, "Formatted text is not the same");
+            vscode.window.showTextDocument(textDocument).then(textEditor => {
+                let formatter = new YapfFormatter(ch, pythonSettings, pythoFilesPath);
+                return formatter.formatDocument(textDocument, null, null).then(edits => {
+                    textEditor.edit(editBuilder => {
+                        edits.forEach(edit => editBuilder.replace(edit.range, edit.newText));
+                    }).then(edited => {
+                        let formattedFile = path.join(pythoFilesPath, "afterYapf.py");
+                        let formattedContents = fs.readFile(formattedFile, "utf-8", (error, data) => {
+                            if (error) {
+                                return assert.fail(error, "", "Failed to read formatted file");
+                            }
+                            assert.equal(textEditor.document.getText(), data, "Formatted text is not the same");
+                        });
                     });
+                }, error => {
+                    assert.fail(error, "", "Error in Formatting, " + error);
                 });
             }, error => {
                 assert.fail(error, "", "Error in Formatting, " + error);
