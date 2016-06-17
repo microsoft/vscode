@@ -757,21 +757,52 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private enableDropTarget(node: HTMLElement): void {
 		const $this = this;
 		const overlayId = 'monaco-workbench-editor-drop-overlay';
+		const splitToPropertyKey = 'splitToPosition';
 		let overlay: Builder;
 
-		function onDrop(e: DragEvent, position: Position): void {
+		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
 			DOM.removeClass(node, 'dropfeedback');
 			destroyOverlay();
+
+			const editorService = $this.editorService;
+			const groupService = $this.editorGroupService;
+			const stacks = groupService.getStacksModel();
+
+			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
+			const freeGroup = (stacks.groups.length === 1) ? Position.CENTER : Position.RIGHT;
+			const pinned = EditorOptions.create({ pinned: true });
 
 			// Check for transfer from title control
 			const draggedEditor = TitleControl.getDraggedEditor();
 			if (draggedEditor) {
 				const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+
+				// Copy editor to new location
 				if (isCopy) {
-					$this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true }), position).done(null, errors.onUnexpectedError);
-				} else {
-					const sourcePosition = $this.stacks.positionOfGroup(draggedEditor.group);
-					$this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, position);
+					if (splitEditor) {
+						editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+							if (splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+						});
+					} else {
+						editorService.openEditor(draggedEditor.editor, pinned, position).done(null, errors.onUnexpectedError);
+					}
+				}
+
+				// Move editor to new location
+				else {
+					const sourcePosition = stacks.positionOfGroup(draggedEditor.group);
+					if (splitEditor) {
+						editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+							if (splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+							groupService.moveEditor(draggedEditor.editor, stacks.positionOfGroup(draggedEditor.group), splitTo);
+						});
+					} else {
+						groupService.moveEditor(draggedEditor.editor, sourcePosition, position);
+					}
 				}
 			}
 
@@ -782,8 +813,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					window.focus(); // make sure this window has focus so that the open call reaches the right window!
 
 					// Open all
-					$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; }))
-						.then(() => $this.editorGroupService.focusGroup(position))
+					editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; }))
+						.then(() => {
+							if (splitEditor && splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+
+							groupService.focusGroup(splitEditor ? splitTo : position);
+						})
 						.done(null, errors.onUnexpectedError);
 				}
 			}
@@ -796,25 +833,63 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 		}
 
+		function positionOverlay(e: DragEvent, groups: number, position: Position): void {
+			const target = <HTMLElement>e.target;
+			const posXOnOverlay = e.offsetX;
+			const overlayIsSplit = typeof overlay.getProperty(splitToPropertyKey) === 'number';
+			const overlayWidth = target.clientWidth;
+			const splitThreshold = overlayIsSplit ? overlayWidth / 5 : overlayWidth / 10;
+			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+
+			if (groups === POSITIONS.length) {
+				return; // do not show split feedback when we already at the maximum
+			}
+
+			const draggedEditor = TitleControl.getDraggedEditor();
+			if (!isCopy && draggedEditor && draggedEditor.group.count === 1) {
+				return; // do not show split feedback when moving the only one editor of a group
+			}
+
+			if (posXOnOverlay + splitThreshold > overlayWidth) {
+				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.CENTER : Position.RIGHT);
+				overlay.style({
+					left: '50%',
+					width: '50%',
+				});
+			} else if (posXOnOverlay < splitThreshold) {
+				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.LEFT : Position.CENTER);
+				overlay.style({
+					width: '50%'
+				});
+			} else {
+				overlay.removeProperty(splitToPropertyKey);
+				overlay.style({
+					left: '0',
+					width: '100%'
+				});
+			}
+		}
+
 		function createOverlay(target: HTMLElement): void {
 			if (!overlay) {
-				$this.visibleEditorContainers.forEach((container, index) => {
+				const containers = $this.visibleEditorContainers.filter(c => !!c);
+				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
 						const useTabs = !!$this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
 						overlay = $('div').style({
-							position: 'absolute',
-							top: useTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
-							left: 0,
-							width: '100%',
-							height: '100%',
-							zIndex: 3000000
+							top: useTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0
 						}).id(overlayId);
+
 						overlay.appendTo(container);
 
 						overlay.on(DOM.EventType.DROP, (e: DragEvent) => {
 							DOM.EventHelper.stop(e, true);
-							onDrop(e, index);
+							onDrop(e, index, overlay.getProperty(splitToPropertyKey));
+						});
+
+						overlay.on(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+							positionOverlay(e, containers.length, index);
 						});
 
 						overlay.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
@@ -894,12 +969,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Overlay the editor area with a div to be able to capture all mouse events
 			let overlayDiv = $('div').style({
-				position: 'absolute',
-				top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px',
-				left: 0,
-				width: '100%',
-				height: '100%',
-				zIndex: 3000000
+				top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px'
 			}).id('monaco-workbench-editor-move-overlay');
 			overlayDiv.appendTo(this.parent);
 

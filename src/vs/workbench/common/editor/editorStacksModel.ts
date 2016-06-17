@@ -822,8 +822,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._groups.splice(index, 1);
 		this.groupToIdentifier[group.id] = void 0;
 
-		// Event
+		// Events
 		this.fireEvent(this._onGroupClosed, group, true);
+		for (let i = index; i < this._groups.length; i++) {
+			this.fireEvent(this._onGroupMoved, this._groups[i], true); // send move event for groups to the right that moved to the left into the closed group position
+		}
 	}
 
 	public closeGroups(except?: EditorGroup): void {
@@ -867,7 +870,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._groups.splice(toIndex, 0, group);
 
 		// Event
-		this.fireEvent(this._onGroupMoved, group, true);
+		for (let i = Math.min(index, toIndex); i <= Math.max(index, toIndex) && i < this._groups.length; i++) {
+			this.fireEvent(this._onGroupMoved, this._groups[i], true); // send move event for groups to the right that moved to the left into the closed group position
+		}
 	}
 
 	private indexOf(group: EditorGroup): number {

@@ -85,9 +85,14 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		// If a file becomes dirty but is not opened, we open it in the background
-		if (!this.stacks.isOpen(e.resource)) {
-			this.editorService.openEditor({ resource: e.resource, options: { inactive: true } }).done(null, errors.onUnexpectedError);
-		}
+		// Since it might be the intent of whoever created the model to show it shortly
+		// after, we delay this a little bit and check again if the editor has not been
+		// opened meanwhile
+		setTimeout(() => {
+			if (!this.stacks.isOpen(e.resource) && this.textFileService.isDirty(e.resource)) {
+				this.editorService.openEditor({ resource: e.resource, options: { inactive: true } }).done(null, errors.onUnexpectedError);
+			}
+		}, 500);
 	}
 
 	private onTextFileSaveError(e: TextFileChangeEvent): void {
