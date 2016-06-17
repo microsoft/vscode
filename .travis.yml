@@ -1,8 +1,9 @@
-sudo: false
 language: python
+
 python:
-  - "2.7"
-  - "3.5"
+  - 2.7
+
+sudo: false
 
 os:
   - osx
@@ -16,10 +17,10 @@ before_install:
     fi
 
 install:
-  - npm install
-  - npm run vscode:prepublish
   - pip install .
   - pip install -r requirements.txt
+  - npm install
+  - npm run vscode:prepublish
   
 script:
   - npm test --silent
