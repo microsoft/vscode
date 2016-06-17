@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -39,6 +40,11 @@ export interface ITerminalConfiguration {
 	};
 }
 
+export interface ITerminalProcess {
+	title: string;
+	process: cp.ChildProcess;
+}
+
 export interface ITerminalService {
 	serviceId: ServiceIdentifier<any>;
 
@@ -49,5 +55,8 @@ export interface ITerminalService {
 	focusPrevious(): TPromise<any>;
 	toggle(): TPromise<any>;
 
+	createTerminalProcess(): ITerminalProcess;
 	//getTerminalInstanceTitles(): TPromise<string[]>;
+	initConfigHelper(panelElement: HTMLElement): void;
+	killTerminalProcess(terminalProcess: ITerminalProcess): void;
 }

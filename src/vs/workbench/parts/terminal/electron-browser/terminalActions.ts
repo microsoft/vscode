@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action, IAction} from 'vs/base/common/actions';
 import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 export class ToggleTerminalAction extends Action {
 
