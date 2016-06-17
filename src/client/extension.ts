@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     sortImports.activate(context, formatOutChannel);
     activateUnitTestProvider(context, pythonSettings, unitTestOutChannel);
-    activateFormatOnSaveProvider(PYTHON, context, pythonSettings, formatOutChannel);
+    context.subscriptions.push(activateFormatOnSaveProvider(PYTHON, pythonSettings, formatOutChannel, vscode.workspace.rootPath));
 
     // Enable indentAction
     vscode.languages.setLanguageConfiguration(PYTHON.language, {
@@ -63,7 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider(PYTHON, new PythonCompletionItemProvider(context), "."));
     context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(PYTHON, new PythonSymbolProvider(context)));
 
-    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonFormattingEditProvider(context, formatOutChannel)));
+    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonFormattingEditProvider(context, formatOutChannel, pythonSettings, vscode.workspace.rootPath)));
     context.subscriptions.push(new LintProvider(context, lintingOutChannel));
 }
 

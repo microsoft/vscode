@@ -10,15 +10,11 @@ import * as telemetryHelper from "../common/telemetry";
 import * as telemetryContracts from "../common/telemetryContracts";
 
 export class PythonFormattingEditProvider implements vscode.DocumentFormattingEditProvider {
-    private rootDir: string;
-    private settings: settings.IPythonSettings;
     private formatters = new Map<string, BaseFormatter>();
 
-    public constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
-        this.rootDir = context.asAbsolutePath(".");
-        this.settings = settings.PythonSettings.getInstance();
-        let yapfFormatter = new YapfFormatter(outputChannel);
-        let autoPep8 = new AutoPep8Formatter(outputChannel);
+    public constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, private settings: settings.IPythonSettings, workspaceRootPath: string) {
+        let yapfFormatter = new YapfFormatter(outputChannel, settings, workspaceRootPath);
+        let autoPep8 = new AutoPep8Formatter(outputChannel, settings, workspaceRootPath);
         this.formatters.set(yapfFormatter.Id, yapfFormatter);
         this.formatters.set(autoPep8.Id, autoPep8);
     }

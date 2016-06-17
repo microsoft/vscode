@@ -4,8 +4,10 @@ import * as settings from "./configSettings";
 let outChannel: vscode.OutputChannel;
 
 class Logger {
+    public static IsDebug: boolean;
     static initializeChannel() {
         if (settings.PythonSettings.getInstance().devOptions.indexOf("DEBUG") >= 0) {
+            Logger.IsDebug = true;
             outChannel = vscode.window.createOutputChannel("PythonExtLog");
         }
     }
@@ -33,5 +35,6 @@ export function warn(title: string = "", message: any) {
     Logger.write.apply(Logger, ["warn", title, message]);
 }
 export function log(title: string = "", message: any) {
+    if (!Logger.IsDebug) return;
     Logger.write.apply(Logger, ["log", title, message]);
 }

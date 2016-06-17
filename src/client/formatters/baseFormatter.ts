@@ -8,14 +8,7 @@ import * as settings from "./../common/configSettings";
 import {getTextEditsFromPatch, getTempFileWithDocumentContents} from "./../common/editor";
 
 export abstract class BaseFormatter {
-    public Id: string;
-    protected outputChannel: vscode.OutputChannel;
-    protected pythonSettings: settings.IPythonSettings;
-
-    constructor(id: string, outputChannel: vscode.OutputChannel) {
-        this.Id = id;
-        this.outputChannel = outputChannel;
-        this.pythonSettings = settings.PythonSettings.getInstance();
+    constructor(public Id: string, protected outputChannel: vscode.OutputChannel, protected pythonSettings: settings.IPythonSettings, protected workspaceRootPath: string) {
     }
 
     public abstract formatDocument(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken): Thenable<vscode.TextEdit[]>;

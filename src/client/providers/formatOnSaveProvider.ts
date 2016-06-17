@@ -10,13 +10,12 @@ import * as settings from "./../common/configSettings";
 import * as telemetryHelper from "../common/telemetry";
 import * as telemetryContracts from "../common/telemetryContracts";
 
-export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilter, context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
-    let rootDir = context.asAbsolutePath(".");
+export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilter, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel, workspaceRootPath: string): vscode.Disposable {
     let formatters = new Map<string, BaseFormatter>();
     let pythonSettings = settings;
 
-    let yapfFormatter = new YapfFormatter(outputChannel);
-    let autoPep8 = new AutoPep8Formatter(outputChannel);
+    let yapfFormatter = new YapfFormatter(outputChannel, settings, workspaceRootPath);
+    let autoPep8 = new AutoPep8Formatter(outputChannel, settings, workspaceRootPath);
 
     formatters.set(yapfFormatter.Id, yapfFormatter);
     formatters.set(autoPep8.Id, autoPep8);
@@ -54,5 +53,5 @@ export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilt
         }
     }, null, null);
 
-    context.subscriptions.push(subscription);
+    return subscription;
 }
