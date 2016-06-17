@@ -1,26 +1,16 @@
-'use strict';
+"use strict";
 
-import * as vscode from 'vscode';
-import * as path from 'path';
-import * as linter from '../linters/baseLinter';
-import * as prospector from './../linters/prospector';
-import * as pylint from './../linters/pylint';
-import * as pep8 from './../linters/pep8Linter';
-import * as flake8 from './../linters/flake8';
-import * as pydocstyle from './../linters/pydocstyle';
-import * as settings from '../common/configSettings';
+import * as vscode from "vscode";
+import * as path from "path";
+import * as linter from "../linters/baseLinter";
+import * as prospector from "./../linters/prospector";
+import * as pylint from "./../linters/pylint";
+import * as pep8 from "./../linters/pep8Linter";
+import * as flake8 from "./../linters/flake8";
+import * as pydocstyle from "./../linters/pydocstyle";
+import * as settings from "../common/configSettings";
 import * as telemetryHelper from "../common/telemetry";
 import * as telemetryContracts from "../common/telemetryContracts";
-
-const FILE_PROTOCOL = "file:///"
-
-function uriToPath(pathValue: string): string {
-    if (pathValue.startsWith(FILE_PROTOCOL)) {
-        pathValue = pathValue.substring(FILE_PROTOCOL.length);
-    }
-
-    return path.normalize(decodeURIComponent(pathValue));
-}
 
 const lintSeverityToVSSeverity = new Map<linter.LintMessageSeverity, vscode.DiagnosticSeverity>();
 lintSeverityToVSSeverity.set(linter.LintMessageSeverity.Error, vscode.DiagnosticSeverity.Error)
@@ -29,18 +19,18 @@ lintSeverityToVSSeverity.set(linter.LintMessageSeverity.Information, vscode.Diag
 lintSeverityToVSSeverity.set(linter.LintMessageSeverity.Warning, vscode.DiagnosticSeverity.Warning)
 
 function createDiagnostics(message: linter.ILintMessage, txtDocumentLines: string[]): vscode.Diagnostic {
-    var sourceLine = txtDocumentLines[message.line - 1];
-    var sourceStart = sourceLine.substring(message.column - 1);
-    var endCol = txtDocumentLines[message.line - 1].length;
+    let sourceLine = txtDocumentLines[message.line - 1];
+    let sourceStart = sourceLine.substring(message.column - 1);
+    let endCol = txtDocumentLines[message.line - 1].length;
 
-    //try to get the first word from the startig position
+    // try to get the first word from the startig position
     if (message.possibleWord === "string" && message.possibleWord.length > 0) {
         endCol = message.column + message.possibleWord.length;
     }
 
-    var range = new vscode.Range(new vscode.Position(message.line - 1, message.column), new vscode.Position(message.line - 1, endCol));
+    let range = new vscode.Range(new vscode.Position(message.line - 1, message.column), new vscode.Position(message.line - 1, endCol));
 
-    var severity = lintSeverityToVSSeverity.get(message.severity);
+    let severity = lintSeverityToVSSeverity.get(message.severity);
     return new vscode.Diagnostic(range, message.code + ":" + message.message, severity);
 }
 
@@ -63,7 +53,7 @@ export class LintProvider extends vscode.Disposable {
 
     private initialize() {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection("python");
-        var disposables = [];
+        let disposables = [];
 
         this.linters.push(new prospector.Linter(this.outputChannel));
         this.linters.push(new pylint.Linter(this.outputChannel));
@@ -71,15 +61,7 @@ export class LintProvider extends vscode.Disposable {
         this.linters.push(new flake8.Linter(this.outputChannel));
         this.linters.push(new pydocstyle.Linter(this.outputChannel));
 
-        var disposable = vscode.workspace.onDidChangeTextDocument((e) => {
-            if (e.document.languageId !== "python" || !this.settings.linting.enabled || !this.settings.linting.lintOnTextChange) {
-                return;
-            }
-            this.lintDocument(e.document.uri, e.document.getText().split(/\r?\n/g), 1000);
-        });
-        this.context.subscriptions.push(disposable);
-
-        disposable = vscode.workspace.onDidSaveTextDocument((e) => {
+        let disposable = vscode.workspace.onDidSaveTextDocument((e) => {
             if (e.languageId !== "python" || !this.settings.linting.enabled || !this.settings.linting.lintOnSave) {
                 return;
             }
@@ -90,8 +72,8 @@ export class LintProvider extends vscode.Disposable {
 
     private lastTimeout: number;
     private lintDocument(documentUri: vscode.Uri, documentLines: string[], delay: number): void {
-        //Since this is a hack, lets wait for 2 seconds before linting
-        //Give user to continue typing before we waste CPU time
+        // Since this is a hack, lets wait for 2 seconds before linting
+        // Give user to continue typing before we waste CPU time
         if (this.lastTimeout) {
             clearTimeout(this.lastTimeout);
             this.lastTimeout = 0;
@@ -108,7 +90,7 @@ export class LintProvider extends vscode.Disposable {
             this.pendingLintings.delete(documentUri.fsPath);
         }
 
-        var cancelToken = new vscode.CancellationTokenSource();
+        let cancelToken = new vscode.CancellationTokenSource();
         cancelToken.token.onCancellationRequested(() => {
             if (this.pendingLintings.has(documentUri.fsPath)) {
                 this.pendingLintings.delete(documentUri.fsPath);
@@ -116,7 +98,7 @@ export class LintProvider extends vscode.Disposable {
         });
 
         this.pendingLintings.set(documentUri.fsPath, cancelToken);
-        var promises = this.linters.map(linter => {
+        let promises = this.linters.map(linter => {
             if (!linter.isEnabled()) {
                 return Promise.resolve([]);
             }
@@ -133,15 +115,15 @@ export class LintProvider extends vscode.Disposable {
                 return;
             }
 
-            //Flatten the array
-            var consolidatedMessages: linter.ILintMessage[] = [];
+            // Flatten the array
+            let consolidatedMessages: linter.ILintMessage[] = [];
             msgs.forEach(lintMessages => consolidatedMessages = consolidatedMessages.concat(lintMessages));
 
-            //Limit the number of messages to the max value
+            // Limit the number of messages to the max value
             consolidatedMessages = consolidatedMessages.filter((value, index) => index <= this.settings.linting.maxNumberOfProblems);
 
-            //Build the message and suffix the message with the name of the linter used
-            var messages = [];
+            // Build the message and suffix the message with the name of the linter used
+            let messages = [];
             consolidatedMessages.forEach(d => {
                 d.message = `${d.message} (${d.provider})`;
                 messages.push(createDiagnostics(d, documentLines));
