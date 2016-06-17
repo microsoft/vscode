@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, IExtension, IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryVersion, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryVersion, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -193,7 +193,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
 	}
 
-	uninstall(extension: IExtension): TPromise<void> {
+	uninstall(extension: ILocalExtension): TPromise<void> {
 		const id = extension.id;
 		const extensionPath = path.join(this.extensionsPath, id);
 
@@ -206,7 +206,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this._onDidUninstallExtension.fire(id));
 	}
 
-	getInstalled(includeDuplicateVersions: boolean = false): TPromise<IExtension[]> {
+	getInstalled(includeDuplicateVersions: boolean = false): TPromise<ILocalExtension[]> {
 		const all = this.getAllInstalled();
 
 		if (includeDuplicateVersions) {
@@ -219,14 +219,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	private getAllInstalled(): TPromise<IExtension[]> {
+	private getAllInstalled(): TPromise<ILocalExtension[]> {
 		const limiter = new Limiter(10);
 
 		return this.getObsoleteExtensions()
 			.then(obsolete => {
 				return pfs.readdir(this.extensionsPath)
 					.then(extensions => extensions.filter(id => !obsolete[id]))
-					.then<IExtension[]>(extensionIds => Promise.join(extensionIds.map(id => {
+					.then<ILocalExtension[]>(extensionIds => Promise.join(extensionIds.map(id => {
 						const extensionPath = path.join(this.extensionsPath, id);
 
 						return limiter.queue(
@@ -257,7 +257,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			});
 	}
 
-	private getOutdatedExtensionIds(): TPromise<IExtension[]> {
+	private getOutdatedExtensionIds(): TPromise<ILocalExtension[]> {
 		return this.getAllInstalled()
 			.then(extensions => values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`)))
 			.then(versions => flatten(versions.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));

@@ -54,7 +54,7 @@ export interface IGalleryMetadata {
 	publisherDisplayName: string;
 }
 
-export interface IExtension {
+export interface ILocalExtension {
 	id: string;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
@@ -95,15 +95,15 @@ export interface IExtensionManagementService {
 
 	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
-	uninstall(extension: IExtension): TPromise<void>;
-	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
+	uninstall(extension: ILocalExtension): TPromise<void>;
+	getInstalled(includeDuplicateVersions?: boolean): TPromise<ILocalExtension[]>;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
 	serviceId: ServiceIdentifier<IExtensionTipsService>;
-	getRecommendations(): TPromise<IExtension[]>;
+	getRecommendations(): TPromise<ILocalExtension[]>;
 }
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");

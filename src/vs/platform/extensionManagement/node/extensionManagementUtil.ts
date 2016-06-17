@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IExtensionIdentity, IExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentity, ILocalExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
 
@@ -13,8 +13,8 @@ export function extensionEquals(one: IExtensionIdentity, other: IExtensionIdenti
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
-export function getTelemetryData(extension: IExtension | IGalleryExtension): any {
-	const local = extension as IExtension;
+export function getTelemetryData(extension: ILocalExtension | IGalleryExtension): any {
+	const local = extension as ILocalExtension;
 	const gallery = extension as IGalleryExtension;
 
 	if (local.path) {
@@ -38,7 +38,7 @@ export function getTelemetryData(extension: IExtension | IGalleryExtension): any
 	}
 }
 
-export function getOutdatedExtensions(extensionsService: IExtensionManagementService, galleryService: IExtensionGalleryService): TPromise<IExtension[]> {
+export function getOutdatedExtensions(extensionsService: IExtensionManagementService, galleryService: IExtensionGalleryService): TPromise<ILocalExtension[]> {
 	if (!galleryService.isEnabled()) {
 		return TPromise.as([]);
 	}

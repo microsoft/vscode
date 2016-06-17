@@ -7,14 +7,14 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { IExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class ExtensionsInput extends EditorInput {
 
 	static get ID()  { return 'workbench.extensions.input2'; }
-	get extension(): IExtension | IGalleryExtension { return this._extension; }
+	get extension(): ILocalExtension | IGalleryExtension { return this._extension; }
 
-	constructor(private _extension: IExtension | IGalleryExtension) {
+	constructor(private _extension: ILocalExtension | IGalleryExtension) {
 		super();
 	}
 
@@ -23,7 +23,7 @@ export class ExtensionsInput extends EditorInput {
 	}
 
 	getName(): string {
-		const local = this.extension as IExtension;
+		const local = this.extension as ILocalExtension;
 		const gallery = this.extension as IGalleryExtension;
 
 		if (local.path) {

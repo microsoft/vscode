@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionManagementService, IExtensionGalleryService, IExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -32,7 +32,7 @@ export class ExtensionsViewlet extends Viewlet {
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
-	private list: PagedList<IExtension | IGalleryExtension>;
+	private list: PagedList<ILocalExtension | IGalleryExtension>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -100,7 +100,7 @@ export class ExtensionsViewlet extends Viewlet {
 
 	private doSearch(text: string = ''): TPromise<any> {
 		const progressRunner = this.progressService.show(true);
-		let promise: TPromise<PagedModel<IExtension | IGalleryExtension>>;
+		let promise: TPromise<PagedModel<ILocalExtension | IGalleryExtension>>;
 
 		if (text) {
 			promise = this.galleryService.query({ text })

@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtensionManagementService, IExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
@@ -173,7 +173,7 @@ export class UninstallAction extends Action {
 		super('extensions.uninstall', nls.localize('uninstall', "Uninstall Extension"), 'octicon octicon-x', true);
 	}
 
-	run(extension: IExtension): TPromise<any> {
+	run(extension: ILocalExtension): TPromise<any> {
 		const name = extension.manifest.displayName || extension.manifest.name;
 
 		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", name))) {
@@ -196,7 +196,7 @@ export class UninstallAction extends Action {
 		});
 	}
 
-	private onSuccess(extension: IExtension) {
+	private onSuccess(extension: ILocalExtension) {
 		const name = extension.manifest.displayName || extension.manifest.name;
 		this.reportTelemetry(extension, true);
 
@@ -209,12 +209,12 @@ export class UninstallAction extends Action {
 		});
 	}
 
-	private onError(err: Error, extension: IExtension) {
+	private onError(err: Error, extension: ILocalExtension) {
 		this.reportTelemetry(extension, false);
 		this.messageService.show(Severity.Error, err);
 	}
 
-	private reportTelemetry(extension: IExtension, success: boolean) {
+	private reportTelemetry(extension: ILocalExtension, success: boolean) {
 		const data = assign(getTelemetryData(extension), { success });
 
 		this.telemetryService.publicLog('extensionGallery:uninstall', data);

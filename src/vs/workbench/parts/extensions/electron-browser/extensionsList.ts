@@ -9,10 +9,10 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export interface ITemplateData {
-	extension: IExtension | IGalleryExtension;
+	extension: ILocalExtension | IGalleryExtension;
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
@@ -21,12 +21,12 @@ export interface ITemplateData {
 	description: HTMLElement;
 }
 
-export class Delegate implements IDelegate<IExtension | IGalleryExtension> {
+export class Delegate implements IDelegate<ILocalExtension | IGalleryExtension> {
 	getHeight() { return 62; }
 	getTemplateId() { return 'extension'; }
 }
 
-export class Renderer implements IPagedRenderer<IExtension | IGalleryExtension, ITemplateData> {
+export class Renderer implements IPagedRenderer<ILocalExtension | IGalleryExtension, ITemplateData> {
 
 	private _templates: ITemplateData[];
 	get templates(): ITemplateData[] { return this._templates; }
@@ -64,8 +64,8 @@ export class Renderer implements IPagedRenderer<IExtension | IGalleryExtension, 
 		data.description.textContent = '';
 	}
 
-	renderElement(extension: IExtension | IGalleryExtension, index: number, data: ITemplateData): void {
-		const local = extension as IExtension;
+	renderElement(extension: ILocalExtension | IGalleryExtension, index: number, data: ITemplateData): void {
+		const local = extension as ILocalExtension;
 		const galleryExtension = extension as IGalleryExtension;
 
 		if (local.path) {
@@ -75,7 +75,7 @@ export class Renderer implements IPagedRenderer<IExtension | IGalleryExtension, 
 		}
 	}
 
-	private renderExtension(extension: IExtension, data: ITemplateData): void {
+	private renderExtension(extension: ILocalExtension, data: ITemplateData): void {
 		let iconUrl: string;
 		let publisher = extension.manifest.publisher;
 

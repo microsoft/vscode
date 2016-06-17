@@ -15,7 +15,7 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, IGalleryExtension, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { text as downloadText, IRequestOptions } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -63,7 +63,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		let promise = TPromise.as<void>(null);
 		const extension = input.extension;
-		const local = extension as IExtension;
+		const local = extension as ILocalExtension;
 		const gallery = extension as IGalleryExtension;
 
 		if (local.path) {
