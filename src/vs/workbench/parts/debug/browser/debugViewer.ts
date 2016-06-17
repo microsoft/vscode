@@ -682,6 +682,19 @@ export class VariablesController extends BaseDebugController {
 
 		return super.onLeftClick(tree, element, event);
 	}
+
+	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		// double click on primitive value: open input box to be able to set the value
+		const element = tree.getFocus();
+		if (element instanceof model.Variable) {
+			if (element.reference === 0) {
+				this.debugService.getViewModel().setSelectedExpression(element);
+			}
+			return true;
+		}
+
+		return super.onEnter(tree, event);
+	}
 }
 
 // watch expressions
