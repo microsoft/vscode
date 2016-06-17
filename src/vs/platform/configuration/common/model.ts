@@ -117,16 +117,17 @@ export function consolidate(configMap: { [key: string]: IConfigFile; }): { conte
 
 // defaults...
 
-function processDefaultValues(withConfig: (config: configurationRegistry.IConfigurationNode, isTop?: boolean) => void): void {
+function processDefaultValues(withConfig: (config: configurationRegistry.IConfigurationNode, isTop?: boolean) => boolean): void {
 
 	let configurations = (<configurationRegistry.IConfigurationRegistry>platform.Registry.as(configurationRegistry.Extensions.Configuration)).getConfigurations();
 
-	let visit = (config: configurationRegistry.IConfigurationNode, isFirst: boolean) => {
-		withConfig(config, isFirst);
+	let visit = (config: configurationRegistry.IConfigurationNode, level: number) => {
+		let handled = withConfig(config, level === 0);
 
 		if (Array.isArray(config.allOf)) {
 			config.allOf.forEach((c) => {
-				visit(c, false);
+				// if the config node only contains an `allOf` we treat the `allOf` children as if they were at the top level
+				visit(c, (!handled && level === 0) ? level : level + 1);
 			});
 		}
 	};
@@ -142,7 +143,7 @@ function processDefaultValues(withConfig: (config: configurationRegistry.IConfig
 
 		return c1.order - c2.order;
 	}).forEach((config) => {
-		visit(config, true);
+		visit(config, 0);
 	});
 }
 
@@ -150,7 +151,7 @@ function processDefaultValues(withConfig: (config: configurationRegistry.IConfig
 export function getDefaultValues(): any {
 	let ret: any = Object.create(null);
 
-	let handleConfig = (config: configurationRegistry.IConfigurationNode, isTop: boolean) => {
+	let handleConfig = (config: configurationRegistry.IConfigurationNode, isTop: boolean) : boolean => {
 		if (config.properties) {
 			Object.keys(config.properties).forEach((key) => {
 				let prop = config.properties[key];
@@ -160,7 +161,9 @@ export function getDefaultValues(): any {
 				}
 				setNode(ret, key, value);
 			});
+			return true;
 		}
+		return false;
 	};
 	processDefaultValues(handleConfig);
 	return ret;
@@ -172,9 +175,11 @@ export function getDefaultValuesContent(indent: string): string {
 	let result: string[] = [];
 	result.push('{');
 
-	let handleConfig = (config: configurationRegistry.IConfigurationNode, isTop: boolean) => {
+	let handleConfig = (config: configurationRegistry.IConfigurationNode, isTop: boolean) : boolean => {
 
+		let handled = false;
 		if (config.title) {
+			handled = true;
 			if (isTop) {
 				result.push('');
 				result.push('//-------- ' + config.title + ' --------');
@@ -184,6 +189,7 @@ export function getDefaultValuesContent(indent: string): string {
 			result.push('');
 		}
 		if (config.properties) {
+			handled = true;
 			Object.keys(config.properties).forEach((key) => {
 
 				let prop = config.properties[key];
@@ -209,6 +215,7 @@ export function getDefaultValuesContent(indent: string): string {
 				result.push('');
 			});
 		}
+		return handled;
 	};
 	processDefaultValues(handleConfig);
 
