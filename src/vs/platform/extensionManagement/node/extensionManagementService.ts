@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, IExtension, IGalleryExtension, IExtensionManifest, IGalleryVersion, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtension, IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryVersion, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -41,7 +41,7 @@ function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; me
 	});
 }
 
-function validate(zipPath: string, extension?: IExtensionManifest, version = extension && extension.version): TPromise<IExtensionManifest> {
+function validate(zipPath: string, extension?: IExtensionIdentity, version?: string): TPromise<IExtensionManifest> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
 		.then(({ manifest }) => {
@@ -63,7 +63,7 @@ function validate(zipPath: string, extension?: IExtensionManifest, version = ext
 		});
 }
 
-function getExtensionId(extension: IExtensionManifest, version = extension.version): string {
+function getExtensionId(extension: IExtensionIdentity, version: string): string {
 	return `${ extension.publisher }.${ extension.name }-${ version }`;
 }
 
@@ -116,12 +116,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		}
 
 		const extension = arg as IGalleryExtension;
-		const { manifest } = extension;
-		const id = getExtensionId(manifest);
+		const id = getExtensionId(extension, extension.versions[0].version);
 
 		return this.isObsolete(id).then(obsolete => {
 			if (obsolete) {
-				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.name)));
+				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
 			}
 
 			return this.installFromGallery(arg);
@@ -134,23 +133,23 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				const url = versionInfo.downloadUrl;
 				const headers = versionInfo.downloadHeaders;
 				const zipPath = path.join(tmpdir(), extension.id);
-				const id = getExtensionId(extension.manifest, version);
+				const id = getExtensionId(extension, version);
 
 				return this.request(url)
 					.then(opts => assign(opts, { headers }))
 					.then(opts => download(zipPath, opts))
-					.then(() => validate(zipPath, extension.manifest, version))
-					.then(() => this.installValidExtension(zipPath, id, extension.metadata));
+					.then(() => validate(zipPath, extension, version))
+					.then(() => this.installValidExtension(zipPath, id));
 		});
 	}
 
 	private getLastValidExtensionVersion(extension: IGalleryExtension): TPromise<IGalleryVersion> {
-		return this._getLastValidExtensionVersion(extension, extension.metadata.versions);
+		return this._getLastValidExtensionVersion(extension, extension.versions);
 	}
 
 	private _getLastValidExtensionVersion(extension: IGalleryExtension, versions: IGalleryVersion[]): TPromise<IGalleryVersion> {
 		if (!versions.length) {
-			return TPromise.wrapError(new Error(nls.localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.manifest.displayName)));
+			return TPromise.wrapError(new Error(nls.localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName || extension.name)));
 		}
 
 		const version = versions[0];
@@ -172,7 +171,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private installFromZip(zipPath: string): TPromise<void> {
-		return validate(zipPath).then(manifest => this.installValidExtension(zipPath, getExtensionId(manifest)));
+		return validate(zipPath).then(manifest => this.installValidExtension(zipPath, getExtensionId(manifest, manifest.version)));
 	}
 
 	private installValidExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<void> {
@@ -238,7 +237,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	removeDeprecatedExtensions(): TPromise<void> {
 		const outdated = this.getOutdatedExtensionIds()
-			.then(extensions => extensions.map(e => getExtensionId(e.manifest)));
+			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)));
 
 		const obsolete = this.getObsoleteExtensions()
 			.then(obsolete => Object.keys(obsolete));

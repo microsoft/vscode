@@ -127,7 +127,7 @@ export class InstallAction extends Action {
 		this.enabled = false;
 
 		return this.extensionManagementService.getInstalled()
-			.then(installed => installed.some(({ manifest }) => extensionEquals(manifest, extension.manifest)))
+			.then(installed => installed.some(({ manifest }) => extensionEquals(manifest, extension)))
 			.then(isUpdate => {
 				return this.extensionManagementService
 					.install(extension)
@@ -140,7 +140,7 @@ export class InstallAction extends Action {
 	private onSuccess(extension: IGalleryExtension, isUpdate: boolean) {
 		this.reportTelemetry(extension, isUpdate, true);
 		this.messageService.show(Severity.Info, {
-			message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.manifest.displayName),
+			message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName || extension.name),
 			actions: [
 				CloseAction,
 				this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))

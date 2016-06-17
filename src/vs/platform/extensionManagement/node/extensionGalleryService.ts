@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryExtension, IExtensionManifest, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -171,24 +171,16 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		iconUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Icons.Default`
 	}));
 
-	const manifest: IExtensionManifest = {
-		name: galleryExtension.extensionName,
-		displayName: galleryExtension.displayName || galleryExtension.extensionName,
-		publisher: galleryExtension.publisher.publisherName,
-		version: versions[0].version,
-		engines: { vscode: void 0 }, // TODO: ugly
-		description: galleryExtension.shortDescription || '',
-	};
-
 	return {
 		id: galleryExtension.extensionId,
-		manifest,
-		metadata: {
-			publisherId: galleryExtension.publisher.publisherId,
-			publisherDisplayName: galleryExtension.publisher.displayName,
-			installCount: getInstallCount(galleryExtension.statistics),
-			versions
-		}
+		name: galleryExtension.extensionName,
+		displayName: galleryExtension.displayName,
+		publisherId: galleryExtension.publisher.publisherId,
+		publisher: galleryExtension.publisher.publisherName,
+		publisherDisplayName: galleryExtension.publisher.displayName,
+		description: galleryExtension.shortDescription || '',
+		installCount: getInstallCount(galleryExtension.statistics),
+		versions
 	};
 }
 

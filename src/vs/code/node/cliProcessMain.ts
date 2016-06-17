@@ -98,7 +98,7 @@ class Main {
 						console.log(localize('installing', "Installing..."));
 
 						return this.extensionManagementService.install(extension).then(() => {
-							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.manifest.version));
+							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.versions[0].version));
 						});
 					});
 			});
