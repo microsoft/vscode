@@ -15,7 +15,7 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtension, IGalleryExtension, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { text as downloadText, IRequestOptions } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -59,21 +59,32 @@ export class ExtensionEditor extends BaseEditor {
 	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
 		this.transientDisposables = dispose(this.transientDisposables);
 
-		addClass(this.body, 'loading');
 		this.body.innerHTML = '';
 
-		const [version] = input.extension.versions;
-		const headers = version.downloadHeaders;
+		let promise = TPromise.as<void>(null);
+		const extension = input.extension;
+		const local = extension as IExtension;
+		const gallery = extension as IGalleryExtension;
 
-		const promise = super.setInput(input, options)
-			.then(() => this.request(version.readmeUrl))
-			.then(opts => assign(opts, { headers }))
-			.then(opts => downloadText(opts))
-			.then(marked.parse)
-			.then(html => {
-				removeClass(this.body, 'loading');
-				this.body.innerHTML = html;
-			});
+		if (local.path) {
+
+
+		} else {
+			const [version] = gallery.versions;
+			const headers = version.downloadHeaders;
+
+			addClass(this.body, 'loading');
+
+			promise = super.setInput(input, options)
+				.then(() => this.request(version.readmeUrl))
+				.then(opts => assign(opts, { headers }))
+				.then(opts => downloadText(opts))
+				.then(marked.parse)
+				.then(html => {
+					removeClass(this.body, 'loading');
+					this.body.innerHTML = html;
+				});
+		}
 
 		this.transientDisposables.push(toDisposable(() => promise.cancel()));
 

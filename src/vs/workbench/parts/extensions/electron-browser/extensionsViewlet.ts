@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -41,7 +41,7 @@ export class ExtensionsViewlet extends Viewlet {
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
-	private list: PagedList<IGalleryExtension>;
+	private list: PagedList<IExtension | IGalleryExtension>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -112,10 +112,10 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	private doSearch(text: string = ''): TPromise<any> {
-		// return this.extensionService.getInstalled()
-		// 	.then(result => singlePageModel(result))
-		return this.galleryService.query({ text })
-			.then(result => new PagedModel(result))
+		return this.extensionService.getInstalled()
+			.then(result => singlePageModel(result))
+		// return this.galleryService.query({ text })
+		// 	.then(result => new PagedModel(result))
 			.then(model => this.list.model = model);
 	}
 
