@@ -12,8 +12,8 @@
 		"Languages"
 	],
 	"activationEvents": [
-		"onCommand:extension.previewMarkdown",
-		"onCommand:extension.previewMarkdownSide"
+		"onCommand:markdown.showPreview",
+		"onCommand:markdown.showPreviewToSide"
 	],
 	"contributes": {
 		"languages": [
@@ -41,7 +41,14 @@
 		],
 		"commands": [
 			{
-				"command": "extension.previewMarkdown",
+				"command": "markdown.showPreview",
+				"title": "%markdown.openPreview%",
+				"category": "%markdown.category%",
+				"where": ["explorer/context"],
+				"when": "markdown"
+			},
+			{
+				"command": "markdown.showPreview",
 				"title": "%markdown.previewMarkdown.title%",
 				"category": "%markdown.category%",
 				"icon": {
@@ -52,6 +59,7 @@
 				"when": "markdown"
 			},
 			{
+				"command": "markdown.showSource",
 				"title": "%markdown.previewMarkdown.title%",
 				"category": "%markdown.category%",
 				"icon": {
@@ -59,11 +67,10 @@
 					"dark": "./media/ViewSource_inverse.svg"
 				},
 				"where": ["editor/primary"],
-				"when": { "scheme": "markdown" },
-				"command": "extension.previewMarkdown"
+				"when": { "scheme": "markdown" }
 			},
 			{
-				"command": "extension.previewMarkdownSide",
+				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewMarkdownSide.title%",
 				"where": "editor/secondary",
 				"when": "markdown"
@@ -71,12 +78,12 @@
 		],
 		"keybindings": [
 			{
-				"command": "extension.previewMarkdown",
+				"command": "markdown.showPreview",
 				"key": "shift+ctrl+v",
 				"mac": "shift+cmd+v"
 			},
 			{
-				"command": "extension.previewMarkdownSide",
+				"command": "markdown.showPreviewToSide",
 				"key": "ctrl+k v",
 				"mac": "cmd+k v"
 			}

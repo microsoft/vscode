@@ -80,7 +80,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['none', 'default'],
 			'default': 'default',
-			'description': nls.localize('updateChannel', "Configure the update channel to receive updates from. Requires a restart after change.")
+			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
 		}
 	}
 });

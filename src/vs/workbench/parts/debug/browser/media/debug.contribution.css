@@ -130,9 +130,18 @@
 	padding-top: 3px;
 	left: 50%;
 	margin-left: -96px;
+	display: flex;
+	padding-left: 7px;
 }
 
-.monaco-workbench  .debug-actions-widget > .monaco-action-bar .action-label {
+.monaco-workbench .debug-actions-widget .drag-area {
+	cursor: -webkit-grabbing;
+	height: 32px;
+	width: 10px;
+	background: url('drag.svg') center center no-repeat;
+}
+
+.monaco-workbench  .debug-actions-widget .monaco-action-bar .action-label {
 	width: 32px;
 	height: 32px;
 	margin-right: 0;

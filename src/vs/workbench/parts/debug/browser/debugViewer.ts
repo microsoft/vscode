@@ -668,6 +668,22 @@ export class VariablesAccessibilityProvider implements tree.IAccessibilityProvid
 	}
 }
 
+export class VariablesController extends BaseDebugController {
+
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
+		// double click on primitive value: open input box to be able to set the value
+		if (element instanceof model.Variable && event.detail === 2) {
+			const expression = <debug.IExpression>element;
+			if (expression.reference === 0) {
+				this.debugService.getViewModel().setSelectedExpression(expression);
+			}
+			return true;
+		}
+
+		return super.onLeftClick(tree, element, event);
+	}
+}
+
 // watch expressions
 
 export class WatchExpressionsActionProvider implements renderer.IActionProvider {
