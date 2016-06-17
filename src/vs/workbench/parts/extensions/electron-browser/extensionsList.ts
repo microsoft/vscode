@@ -65,8 +65,8 @@ export class Renderer implements IPagedRenderer<IGalleryExtension, ITemplateData
 	}
 
 	renderElement(extension: IGalleryExtension, index: number, data: ITemplateData): void {
-		const publisher = extension ? extension.publisherDisplayName : extension.manifest.publisher;
-		const version = extension.versions[0];
+		const publisher = extension ? extension.metadata.publisherDisplayName : extension.manifest.publisher;
+		const version = extension.metadata.versions[0];
 
 		data.extension = extension;
 		removeClass(data.element, 'loading');

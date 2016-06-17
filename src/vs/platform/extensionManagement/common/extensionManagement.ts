@@ -30,13 +30,17 @@ export interface IGalleryVersion {
 	downloadHeaders: { [key: string]: string; };
 }
 
-export interface IGalleryExtension {
-	id: string;
-	manifest: IExtensionManifest;
+export interface IGalleryMetadata {
 	publisherId: string;
 	publisherDisplayName: string;
 	installCount: number;
 	versions: IGalleryVersion[];
+}
+
+export interface IGalleryExtension {
+	id: string;
+	manifest: IExtensionManifest;
+	metadata: IGalleryMetadata;
 }
 
 export interface IExtension {

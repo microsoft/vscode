@@ -62,7 +62,7 @@ export class ExtensionEditor extends BaseEditor {
 		addClass(this.body, 'loading');
 		this.body.innerHTML = '';
 
-		const [version] = input.extension.versions;
+		const [version] = input.extension.metadata.versions;
 		const headers = version.downloadHeaders;
 
 		const promise = super.setInput(input, options)

@@ -148,7 +148,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private getLastValidExtensionVersion(extension: IGalleryExtension): TPromise<IGalleryVersion> {
-		return this._getLastValidExtensionVersion(extension, extension.versions);
+		return this._getLastValidExtensionVersion(extension, extension.metadata.versions);
 	}
 
 	private _getLastValidExtensionVersion(extension: IGalleryExtension, versions: IGalleryVersion[]): TPromise<IGalleryVersion> {

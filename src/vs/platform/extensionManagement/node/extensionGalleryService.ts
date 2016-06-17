@@ -182,11 +182,13 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 
 	return {
 		id: galleryExtension.extensionId,
-		publisherId: galleryExtension.publisher.publisherId,
-		publisherDisplayName: galleryExtension.publisher.displayName,
-		installCount: getInstallCount(galleryExtension.statistics),
-		versions,
-		manifest
+		manifest,
+		metadata: {
+			publisherId: galleryExtension.publisher.publisherId,
+			publisherDisplayName: galleryExtension.publisher.displayName,
+			installCount: getInstallCount(galleryExtension.statistics),
+			versions
+		}
 	};
 }
 
