@@ -36,6 +36,17 @@
             ],
             "sourceMaps": true,
             "outDir": "${workspaceRoot}/out/client"
+        },
+        {
+            "name": "Launch Tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceRoot}", "--extensionTestsPath=${workspaceRoot}/out/test" ],
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "outDir": "${workspaceRoot}/out/test",
+            "preLaunchTask": "npm"
         }
     ]
 }
