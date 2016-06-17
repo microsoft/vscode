@@ -85,6 +85,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private static MIN_EDITOR_WIDTH = 170;
 	private static EDITOR_TITLE_HEIGHT = 35;
 	private static SNAP_TO_MINIMIZED_THRESHOLD = 50;
+	private static SHOW_SPLIT_DROP_FEEDBACK_THRESHOLD = 50;
 
 	private stacks: IEditorStacksModel;
 
@@ -757,9 +758,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private enableDropTarget(node: HTMLElement): void {
 		const $this = this;
 		const overlayId = 'monaco-workbench-editor-drop-overlay';
+		const splitToPropertyKey = 'splitToPosition';
 		let overlay: Builder;
 
-		function onDrop(e: DragEvent, position: Position): void {
+		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
 			DOM.removeClass(node, 'dropfeedback');
 			destroyOverlay();
 
@@ -781,10 +783,21 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				if (droppedResources.length) {
 					window.focus(); // make sure this window has focus so that the open call reaches the right window!
 
-					// Open all
-					$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; }))
-						.then(() => $this.editorGroupService.focusGroup(position))
+					if (splitTo === Position.LEFT && position === Position.LEFT && $this.stacks.groups.length === 1) {
+						$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: Position.CENTER }; }))
+						.then(() => {
+							$this.editorGroupService.moveGroup(Position.LEFT, Position.CENTER);
+							$this.editorGroupService.focusGroup(position);
+						})
 						.done(null, errors.onUnexpectedError);
+					}
+
+					// Open all
+					else {
+						$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; }))
+							.then(() => $this.editorGroupService.focusGroup(position))
+							.done(null, errors.onUnexpectedError);
+					}
 				}
 			}
 		}
@@ -796,25 +809,55 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 		}
 
+		function positionOverlay(e: DragEvent, groups: number, position: Position): void {
+			const target = <HTMLElement>e.target;
+			const posXOnOverlay = e.offsetX;
+			const overlayWidth = target.clientWidth;
+
+			if (groups === POSITIONS.length) {
+				return; // do not show split feedback when we already at the maximum
+			}
+
+			if (posXOnOverlay + SideBySideEditorControl.SHOW_SPLIT_DROP_FEEDBACK_THRESHOLD > overlayWidth) {
+				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.CENTER : Position.RIGHT);
+				overlay.style({
+					left: '50%',
+					width: '50%',
+				});
+			} else if (posXOnOverlay < SideBySideEditorControl.SHOW_SPLIT_DROP_FEEDBACK_THRESHOLD) {
+				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.LEFT : Position.CENTER);
+				overlay.style({
+					width: '50%'
+				});
+			} else {
+				overlay.removeProperty(splitToPropertyKey);
+				overlay.style({
+					left: '0',
+					width: '100%'
+				});
+			}
+		}
+
 		function createOverlay(target: HTMLElement): void {
 			if (!overlay) {
-				$this.visibleEditorContainers.forEach((container, index) => {
+				const containers = $this.visibleEditorContainers.filter(c => !!c);
+				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
 						const useTabs = !!$this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
 						overlay = $('div').style({
-							position: 'absolute',
-							top: useTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
-							left: 0,
-							width: '100%',
-							height: '100%',
-							zIndex: 3000000
+							top: useTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0
 						}).id(overlayId);
+
 						overlay.appendTo(container);
 
 						overlay.on(DOM.EventType.DROP, (e: DragEvent) => {
 							DOM.EventHelper.stop(e, true);
-							onDrop(e, index);
+							onDrop(e, index, overlay.getProperty(splitToPropertyKey));
+						});
+
+						overlay.on(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+							positionOverlay(e, containers.length, index);
 						});
 
 						overlay.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
@@ -894,12 +937,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Overlay the editor area with a div to be able to capture all mouse events
 			let overlayDiv = $('div').style({
-				position: 'absolute',
-				top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px',
-				left: 0,
-				width: '100%',
-				height: '100%',
-				zIndex: 3000000
+				top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px'
 			}).id('monaco-workbench-editor-move-overlay');
 			overlayDiv.appendTo(this.parent);
 
