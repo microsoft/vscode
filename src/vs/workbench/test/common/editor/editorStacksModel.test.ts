@@ -29,7 +29,7 @@ function create(): EditorStacksModel {
 	services.set(IWorkspaceContextService, new TestContextService());
 
 	const config = new TestConfigurationService();
-	config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 	services.set(IConfigurationService, config);
 
 	let inst = new InstantiationService(services);
@@ -266,6 +266,21 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups.length, 0);
 	});
 
+	test('Groups - Close Group sends move event for others to the right', function () {
+		const model = create();
+		const events = modelListener(model);
+
+		const first = model.openGroup('first');
+		model.openGroup('second');
+		const third = model.openGroup('third');
+
+		model.closeGroup(first);
+		assert.equal(events.moved.length, 2);
+
+		model.closeGroup(third);
+		assert.equal(events.moved.length, 2);
+	});
+
 	test('Groups - Move Groups', function () {
 		const model = create();
 		const events = modelListener(model);
@@ -293,13 +308,11 @@ suite('Editor Stacks Model', () => {
 
 	test('Groups - Rename Group', function () {
 		const model = create();
-		const events = modelListener(model);
 
 		const group1 = model.openGroup('first');
 		const group2 = model.openGroup('second');
 
 		model.moveGroup(group1, 1);
-		assert.equal(events.moved[0], group1);
 		assert.equal(model.groups[0], group2);
 		assert.equal(model.groups[1], group1);
 
@@ -314,6 +327,38 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups[0], group2);
 		assert.equal(model.groups[1], group3);
 		assert.equal(model.groups[2], group1);
+	});
+
+	test('Groups - Move Group sends move events for all moved groups', function () {
+		const model = create();
+		let events = modelListener(model);
+
+		let group1 = model.openGroup('first');
+		let group2 = model.openGroup('second');
+		let group3 = model.openGroup('third');
+
+		model.moveGroup(group1, 1);
+		assert.equal(events.moved.length, 2);
+
+		model.closeGroups();
+
+		events = modelListener(model);
+		group1 = model.openGroup('first');
+		group2 = model.openGroup('second');
+		group3 = model.openGroup('third');
+
+		model.moveGroup(group1, 2);
+		assert.equal(events.moved.length, 3);
+
+		model.closeGroups();
+
+		events = modelListener(model);
+		group1 = model.openGroup('first');
+		group2 = model.openGroup('second');
+		group3 = model.openGroup('third');
+
+		model.moveGroup(group3, 1);
+		assert.equal(events.moved.length, 2);
 	});
 
 	test('Groups - Event Aggregation', function () {
@@ -599,7 +644,7 @@ suite('Editor Stacks Model', () => {
 
 		const config = new TestConfigurationService();
 		services.set(IConfigurationService, config);
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'left' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' }});
 
 		let inst = new InstantiationService(services);
 
@@ -1132,7 +1177,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1176,7 +1221,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1258,7 +1303,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1308,7 +1353,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1350,7 +1395,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editorOpenPositioning: 'right' });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);

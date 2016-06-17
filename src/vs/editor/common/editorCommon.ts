@@ -3711,6 +3711,7 @@ export interface IThemeDecorationRenderOptions {
 	letterSpacing?: string;
 
 	gutterIconPath?: string;
+	gutterIconSize?: string;
 
 	overviewRulerColor?: string;
 

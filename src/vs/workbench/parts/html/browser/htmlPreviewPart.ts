@@ -24,7 +24,7 @@ import {IOpenerService} from 'vs/platform/opener/common/opener';
 import Webview from './webview';
 
 /**
- * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
+ * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
  */
 export class HtmlPreviewPart extends BaseEditor {
 
@@ -109,11 +109,15 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._themeChangeSubscription = this._themeService.onDidThemeChange(themeId => this.webview.style(themeId));
 			this.webview.style(this._themeService.getTheme());
 
-			if (this._model) {
+			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
 				this.webview.contents = this._model.getLinesContent();
 			}
 		}
+	}
+
+	private _hasValidModel(): boolean {
+		return this._model && !this._model.isDisposed();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -129,7 +133,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
 
-		if (this.input === input) {
+		if (this.input === input && this._hasValidModel()) {
 			return TPromise.as(undefined);
 		}
 
@@ -140,16 +144,17 @@ export class HtmlPreviewPart extends BaseEditor {
 			return TPromise.wrapError<void>('Invalid input');
 		}
 
-		return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
-			if (model instanceof BaseTextEditorModel) {
-				this._model = model.textEditorModel;
-			}
-			if (!this._model) {
-				return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
-			}
-			this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
-			this.webview.contents = this._model.getLinesContent();
-			return super.setInput(input, options);
+		return super.setInput(input, options).then(() => {
+			return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
+				if (model instanceof BaseTextEditorModel) {
+					this._model = model.textEditorModel;
+				}
+				if (!this._model) {
+					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
+				}
+				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
+				this.webview.contents = this._model.getLinesContent();
+			});
 		});
 	}
 }

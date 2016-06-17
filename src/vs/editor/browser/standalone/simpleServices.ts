@@ -25,6 +25,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Selection} from 'vs/editor/common/core/selection';
+import {IEventService} from 'vs/platform/event/common/event';
 
 export class SimpleEditor implements IEditor {
 
@@ -280,6 +281,11 @@ export class SimpleExtensionService extends AbstractExtensionService<ActivatedEx
 }
 
 export class SimpleConfigurationService extends ConfigurationService {
+
+	constructor(contextService: IWorkspaceContextService, eventService: IEventService) {
+		super(contextService, eventService);
+		this.initialize();
+	}
 
 	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
 		return TPromise.as(resources.map((resource) => {

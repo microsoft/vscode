@@ -218,6 +218,28 @@ export class StepOutDebugAction extends AbstractDebugAction {
 	}
 }
 
+export class StepBackDebugAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.stepBack';
+	static LABEL = nls.localize('stepBackDebug', "Step Back");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action step-back', debugService, keybindingService);
+	}
+
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.stepBack(threadId);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const activeSession = this.debugService.getActiveSession();
+		return super.isEnabled(state) && state === debug.State.Stopped &&
+			activeSession && activeSession.configuration.capabilities.supportsStepBack;
+	}
+}
+
 export class StopDebugAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stop';
 	static LABEL = nls.localize('stopDebug', "Stop");
@@ -521,6 +543,28 @@ export class EditorConditionalBreakpointAction extends EditorAction {
 	}
 }
 
+export class SetValueAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.setValue';
+	static LABEL = nls.localize('setValue', "Set Value");
+
+	constructor(id: string, label: string, private variable: model.Variable, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(): TPromise<any> {
+		if (this.variable instanceof model.Variable) {
+			this.debugService.getViewModel().setSelectedExpression(this.variable);
+		}
+
+		return TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const session = this.debugService.getActiveSession();
+		return super.isEnabled(state) && state === debug.State.Stopped && session && session.configuration.capabilities.supportsSetVariable;
+	}
+}
+
 export class CopyValueAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.copyValue';
 	static LABEL = nls.localize('copyValue', "Copy Value");
@@ -557,11 +601,13 @@ export class RunToCursorAction extends EditorAction {
 		const lineNumber = this.editor.getPosition().lineNumber;
 		const uri = this.editor.getModel().uri;
 
-		const oneTimeListener = this.debugService.getActiveSession().onDidStop(() => {
-			const toRemove = this.debugService.getModel().getBreakpoints()
-				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
-			this.debugService.removeBreakpoints(toRemove.getId());
-			oneTimeListener.dispose();
+		const oneTimeListener = this.debugService.getActiveSession().onDidEvent(event => {
+			if (event.event === 'stopped' || event.event === 'exit') {
+				const toRemove = this.debugService.getModel().getBreakpoints()
+					.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+				this.debugService.removeBreakpoints(toRemove.getId());
+				oneTimeListener.dispose();
+			}
 		});
 
 		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {

@@ -259,6 +259,12 @@ export class MarkersModel {
 		return {errors: errors, warnings: warnings, infos: infos, unknwons: unknowns};
 	}
 
+	public dispose() : void {
+		this.markersByResource.clear();
+		this._filteredResources= [];
+		this._nonFilteredResources= [];
+	}
+
 	public getTitle(markerStatistics: MarkerStatistics):string {
 		let title= MarkersModel.getStatisticsLabel(markerStatistics);
 		return title ? title : Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS;

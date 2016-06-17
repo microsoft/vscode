@@ -91,19 +91,22 @@
 		{
 			"scope": "markup.bold",
 			"settings": {
-				"fontStyle": "bold"
+				"fontStyle": "bold",
+				"foreground": "#000080"
+
 			}
 		},
 		{
 			"scope": "markup.heading",
 			"settings": {
-				"foreground": "#000080"
+				"foreground": "#800000"
 			}
 		},
 		{
 			"scope": "markup.italic",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStyle": "italic",
+				"foreground": "#000080"
 			}
 		},
 		{
@@ -122,6 +125,24 @@
 			"scope": "markup.changed",
 			"settings": {
 				"foreground": "#0451a5"
+			}
+		},
+		{
+			"scope": ["markup.punctuation.quote", "markup.punctuation.list"],
+			"settings": {
+				"foreground": "#0451a5"
+			}
+		},
+		{
+			"scope": ["markup.quote", "markup.list"],
+			"settings": {
+				"foreground": "#000000"
+			}
+		},
+		{
+			"scope": "markup.inline.raw",
+			"settings": {
+				"foreground": "#800000"
 			}
 		},
 		{

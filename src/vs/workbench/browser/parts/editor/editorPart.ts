@@ -128,7 +128,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.stacks = this.instantiationService.createInstance(EditorStacksModel);
 
-		this.previewEditors = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.previewEditors;
+		const editorConfig = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor;
+		this.previewEditors = editorConfig.enablePreview;
+
+		this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
 
 		this.registerListeners();
 	}
@@ -140,7 +143,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		const newPreviewEditors = configuration.workbench.previewEditors;
+		const newPreviewEditors = configuration.workbench.editor.enablePreview;
 
 		// Pin all preview editors of the user chose to disable preview
 		if (this.previewEditors !== newPreviewEditors && !newPreviewEditors) {
@@ -235,7 +238,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// stacks model gets updated if any of the UI updating fails with an error.
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
 		const pinned = !this.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
-		group.openEditor(input, { active: true, pinned, index: options && options.index });
+		const active = (group.count === 0) || !options || !options.inactive;
+		group.openEditor(input, { active, pinned, index: options && options.index });
+
+		// Return early if the editor is to be open inactive and there are other editors in this group to show
+		if (!active) {
+			return TPromise.as<BaseEditor>(null);
+		}
 
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
@@ -313,6 +322,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Build Container off-DOM
 			editorContainer = $().div({
 				'class': 'editor-container',
+				'role': 'tabpanel',
 				id: descriptor.getId()
 			}, (div) => {
 				newlyCreatedEditorContainerBuilder = div;
@@ -922,8 +932,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Validate width ratios
 		const positions = rightEditors.length ? 3 : centerEditors.length ? 2 : 1;
-		if (!widthRatios || widthRatios.length !== positions) {
-			widthRatios = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
+		if (widthRatios.length !== positions) {
+			widthRatios = void 0; // being taken care of by the layouting
 		}
 
 		// Open each input respecting the options. Since there can only be one active editor in each

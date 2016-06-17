@@ -11,20 +11,22 @@ import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
-import {Builder} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
+import {TPromise} from 'vs/base/common/winjs.base';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IEditorStacksModel, IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import {IActionItem, ActionsOrientation, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position} from 'vs/platform/editor/common/editor';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {QuickOpenAction} from 'vs/workbench/browser/quickopen';
+import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -41,7 +43,7 @@ export interface IToolbarActions {
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	allowDragging(element: HTMLElement): boolean;
-	create(parent: Builder): void;
+	create(parent: HTMLElement): void;
 	refresh(instant?: boolean): void;
 	update(instant?: boolean): void;
 	layout(): void;
@@ -49,6 +51,9 @@ export interface ITitleAreaControl {
 }
 
 export abstract class TitleControl {
+
+	private static draggedEditor: IEditorIdentifier;
+
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
 	protected toDispose: IDisposable[];
@@ -66,6 +71,9 @@ export abstract class TitleControl {
 	protected splitEditorAction: SplitEditorAction;
 	protected showAllEditorsAction: ShowAllEditorsAction;
 
+	private previewEditors: boolean;
+	private showTabs: boolean;
+
 	private mapActionsToEditors: { [editorId: string]: IToolbarActions; };
 	private scheduler: RunOnceScheduler;
 	private refreshScheduled: boolean;
@@ -73,6 +81,7 @@ export abstract class TitleControl {
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
@@ -83,10 +92,34 @@ export abstract class TitleControl {
 		this.stacks = editorGroupService.getStacksModel();
 		this.mapActionsToEditors = Object.create(null);
 
+		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+
 		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
 		this.toDispose.push(this.scheduler);
 
 		this.initActions();
+		this.registerListeners();
+	}
+
+	public static getDraggedEditor(): IEditorIdentifier {
+		return TitleControl.draggedEditor;
+	}
+
+	protected onEditorDragStart(editor: IEditorIdentifier): void {
+		TitleControl.draggedEditor = editor;
+	}
+
+	protected onEditorDragEnd(): void {
+		TitleControl.draggedEditor = void 0;
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
+		this.previewEditors = config.workbench.editor.enablePreview;
+		this.showTabs = config.workbench.editor.showTabs;
 	}
 
 	private updateActionEnablement(): void {
@@ -184,8 +217,8 @@ export abstract class TitleControl {
 		[this.showEditorsOfLeftGroup, this.showEditorsOfCenterGroup, this.showEditorsOfRightGroup, this.showAllEditorsAction].forEach(a => a.class = 'show-group-editors-action');
 	}
 
-	protected doCreateToolbar(container: Builder): ToolBar {
-		const toolbar = new ToolBar(container.getHTMLElement(), this.contextMenuService, {
+	protected doCreateToolbar(container: HTMLElement): ToolBar {
+		const toolbar = new ToolBar(container, this.contextMenuService, {
 			actionItemProvider: (action: Action) => this.actionItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
@@ -333,6 +366,55 @@ export abstract class TitleControl {
 		];
 
 		return { primary, secondary };
+	}
+
+	protected onContextMenu(identifier: IEditorIdentifier, e: Event, node: HTMLElement): void {
+		let anchor: HTMLElement | { x: number, y: number } = node;
+		if (e instanceof MouseEvent) {
+			const event = new StandardMouseEvent(e);
+			anchor = { x: event.posx, y: event.posy };
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
+			getActionsContext: () => identifier,
+			getKeyBinding: (action) => {
+				var opts = this.keybindingService.lookupKeybindings(action.id);
+				if (opts.length > 0) {
+					return opts[0]; // only take the first one
+				}
+
+				return null;
+			}
+		});
+	}
+
+	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
+		const {editor, group} = identifier;
+
+		// Enablement
+		this.closeOtherEditorsAction.enabled = group.count > 1;
+		this.pinEditorAction.enabled = !group.isPinned(editor);
+		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
+
+		// Actions: For all editors
+		const actions: IAction[] = [
+			this.closeEditorAction,
+			this.closeOtherEditorsAction
+		];
+
+		if (this.showTabs) {
+			actions.push(this.closeRightEditorsAction);
+		}
+
+		actions.push(this.closeEditorsInGroupAction);
+
+		if (this.previewEditors) {
+			actions.push(new Separator(), this.pinEditorAction);
+		}
+
+		return actions;
 	}
 
 	public dispose(): void {

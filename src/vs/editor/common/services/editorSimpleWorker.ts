@@ -20,6 +20,15 @@ import {IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon'
 import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
 import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 
+export interface IMirrorModel {
+	uri: URI;
+	version: number;
+	getText(): string;
+}
+
+/**
+ * @internal
+ */
 export class MirrorModel extends MirrorModel2 {
 
 	public get uri(): URI {
@@ -134,6 +143,9 @@ export class MirrorModel extends MirrorModel2 {
 	}
 }
 
+/**
+ * @internal
+ */
 export class EditorSimpleWorkerImpl implements IRequestHandler {
 	_requestHandlerTrait: any;
 
@@ -288,11 +300,11 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
-	public loadForeignModule(moduleId:string): TPromise<string[]> {
+	public loadForeignModule(moduleId:string, createData:any): TPromise<string[]> {
 		return new TPromise<any>((c, e) => {
 			// Use the global require to be sure to get the global config
 			(<any>self).require([moduleId], (foreignModule) => {
-				this._foreignModule = foreignModule.create();
+				this._foreignModule = foreignModule.create(createData);
 
 				let methods: string[] = [];
 				for (let prop in this._foreignModule) {
@@ -326,7 +338,15 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 const instance = new EditorSimpleWorkerImpl();
 
 /**
+ * Get all available mirror models in this worker.
+ */
+export function getMirrorModels(): IMirrorModel[] {
+	return instance.getModels();
+}
+
+/**
  * Called on the worker side
+ * @internal
  */
 export function create(): IRequestHandler {
 	return instance;
@@ -334,9 +354,7 @@ export function create(): IRequestHandler {
 
 function createMonacoWorkerAPI(): typeof monaco.worker {
 	return {
-		get mirrorModels () {
-			return instance.getModels();
-		}
+		getMirrorModels: getMirrorModels
 	};
 }
 

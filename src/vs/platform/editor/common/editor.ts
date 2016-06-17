@@ -162,6 +162,12 @@ export interface IEditorOptionsBag {
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	index?: number;
+
+	/**
+	 * An active editor that is opened will show its contents directly. Set to true to open an editor
+	 * in the background.
+	 */
+	inactive?: boolean;
 }
 
 export interface ITextEditorOptions extends IEditorOptionsBag {

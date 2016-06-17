@@ -137,10 +137,11 @@ export class FileTracker implements IWorkbenchContribution {
 				}
 
 				// Otherwise open all
+				const activeEditor = this.editorService.getActiveEditor();
 				return this.editorService.openEditors(resources.map((r, index) => {
 					return {
 						input: r,
-						position: Math.min(index, Position.RIGHT) // put any resource > RIGHT to right position
+						position: activeEditor ? activeEditor.position : Position.LEFT
 					};
 				}));
 			});

@@ -49,7 +49,6 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		if (action instanceof Action) {
 			let l = (<Action>action).addBulkListener2((events: EmitterEvent[]) => {
-
 				if (!this.builder) {
 					// we have not been rendered yet, so there
 					// is no point in updating the UI
@@ -57,7 +56,6 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 				}
 
 				events.forEach((event: EmitterEvent) => {
-
 					switch (event.getType()) {
 						case Action.ENABLED:
 							this._updateEnabled();
@@ -113,20 +111,24 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this.builder = $(container);
 		this.gesture = new Gesture(container);
 
-		this.builder.on(DOM.EventType.CLICK, (event: Event) => { this.onClick(event); });
-		this.builder.on(EventType.Tap, e => { this.onClick(e); });
+		this.builder.on(DOM.EventType.CLICK, (event: Event) => this.onClick(event));
+		this.builder.on(EventType.Tap, e => this.onClick(e));
 
 		if (platform.isMacintosh) {
-			this.builder.on(DOM.EventType.CONTEXT_MENU, (event: Event) => { this.onClick(event); }); // https://github.com/Microsoft/vscode/issues/1011
+			this.builder.on(DOM.EventType.CONTEXT_MENU, (event: Event) => this.onClick(event)); // https://github.com/Microsoft/vscode/issues/1011
 		}
 
-		this.builder.on('mousedown', (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e);
+
 			if (e.button === 0 && this._action.enabled) {
 				this.builder.addClass('active');
 			}
 		});
 
-		this.builder.on(['mouseup', 'mouseout'], (e: MouseEvent) => {
+		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
+			DOM.EventHelper.stop(e);
+
 			if (e.button === 0 && this._action.enabled) {
 				this.builder.removeClass('active');
 			}
@@ -135,6 +137,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public onClick(event: Event): void {
 		DOM.EventHelper.stop(event, true);
+		
 		let context: any;
 		if (types.isUndefinedOrNull(this._context)) {
 			context = event;
@@ -270,7 +273,7 @@ export class ActionItem extends BaseActionItem {
 			title = this.getAction().label;
 
 			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding']}, "{0} ({1})", title, this.options.keybinding);
+				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
 			}
 		}
 
@@ -512,7 +515,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	public setAriaLabel(label: string): void {
 		if (label) {
 			this.actionsList.setAttribute('aria-label', label);
-		} else{
+		} else {
 			this.actionsList.removeAttribute('aria-label');
 		}
 	}

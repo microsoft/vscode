@@ -8,6 +8,10 @@ export function isLightTheme(themeId: string) {
 	return /vs($| )/.test(themeId);
 }
 
+export function isDarkTheme(themeId: string) {
+	return /vs-dark($| )/.test(themeId);
+}
+
 export function getSyntaxThemeId(themeId: string) {
 	return themeId.split(' ')[1];
 }

@@ -23,6 +23,7 @@ import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAc
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
+import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IEditor} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
@@ -172,8 +173,8 @@ export class ExplorerView extends CollapsibleViewletView {
 			}
 		}
 
-		// Handle closed (convince explorer to not reopen any file when getting visible)
-		if (!activeInput) {
+		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
+		if (activeInput instanceof UntitledEditorInput || !activeInput) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
 		}

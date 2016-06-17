@@ -249,12 +249,12 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return TPromise.as(null);
 		}
 
-		// We need a map from interactive variables to keys because we only want to trigger an action once per action -
+		// We need a map from interactive variables to keys because we only want to trigger an command once per key -
 		// even though it might occure multiple times in configuration #7026.
 		const interactiveVariablesToKeys: { [key: string]: string[] } = {};
 		Object.keys(this.configuration).forEach(key => {
 			if (typeof this.configuration[key] === 'string') {
-				const matches = /\${action.(.+)}/.exec(this.configuration[key]);
+				const matches = /\${command.(.+)}/.exec(this.configuration[key]);
 				if (matches && matches.length === 2) {
 					const interactiveVariable = matches[1];
 					if (!interactiveVariablesToKeys[interactiveVariable]) {

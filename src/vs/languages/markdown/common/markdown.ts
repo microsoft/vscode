@@ -4,24 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import URI from 'vs/base/common/uri';
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import Modes = require('vs/editor/common/modes');
-import MarkdownWorker = require('vs/languages/markdown/common/markdownWorker');
-import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
-import markdownTokenTypes = require('vs/languages/markdown/common/markdownTokenTypes');
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
+
+export const TOKEN_HEADER_LEAD = 'entity.name.tag';
+export const TOKEN_HEADER = 'entity.name.tag';
+export const TOKEN_EXT_HEADER = 'entity.other.attribute-name';
+export const TOKEN_SEPARATOR = 'meta.separator';
+export const TOKEN_QUOTE = 'comment';
+export const TOKEN_LIST = 'keyword';
+export const TOKEN_BLOCK = 'string';
+export const TOKEN_BLOCK_CODE = 'variable.source';
 
 export const language =
 	<Types.IMonarchLanguage>{
@@ -46,50 +50,50 @@ export const language =
 			root: [
 
 				// headers (with #)
-				[/^(\s{0,3})(#+)((?:[^\\#]|@escapes)+)((?:#+)?)/, ['white', markdownTokenTypes.TOKEN_HEADER_LEAD, markdownTokenTypes.TOKEN_HEADER, markdownTokenTypes.TOKEN_HEADER]],
+				[/^(\s{0,3})(#+)((?:[^\\#]|@escapes)+)((?:#+)?)/, ['white', TOKEN_HEADER_LEAD, TOKEN_HEADER, TOKEN_HEADER]],
 
 				// headers (with =)
-				[/^\s*(=+|\-+)\s*$/, markdownTokenTypes.TOKEN_EXT_HEADER],
+				[/^\s*(=+|\-+)\s*$/, TOKEN_EXT_HEADER],
 
 				// headers (with ***)
-				[/^\s*((\*[ ]?)+)\s*$/, markdownTokenTypes.TOKEN_SEPARATOR],
+				[/^\s*((\*[ ]?)+)\s*$/, TOKEN_SEPARATOR],
 
 				// quote
-				[/^\s*>+/, markdownTokenTypes.TOKEN_QUOTE],
+				[/^\s*>+/, TOKEN_QUOTE],
 
 				// list (starting with * or number)
-				[/^\s*([\*\-+:]|\d+\.)\s/, markdownTokenTypes.TOKEN_LIST],
+				[/^\s*([\*\-+:]|\d+\.)\s/, TOKEN_LIST],
 
 				// code block (4 spaces indent)
-				[/^(\t|[ ]{4})[^ ].*$/, markdownTokenTypes.TOKEN_BLOCK],
+				[/^(\t|[ ]{4})[^ ].*$/, TOKEN_BLOCK],
 
 				// code block (3 tilde)
-				[/^\s*~{3}\s*((?:\w|[\/\-#])+)?\s*$/, { token: markdownTokenTypes.TOKEN_BLOCK, next: '@codeblock' }],
+				[/^\s*~{3}\s*((?:\w|[\/\-#])+)?\s*$/, { token: TOKEN_BLOCK, next: '@codeblock' }],
 
 				// github style code blocks (with backticks and language)
-				[/^\s*```\s*((?:\w|[\/\-#])+)\s*$/, { token: markdownTokenTypes.TOKEN_BLOCK, next: '@codeblockgh', nextEmbedded: '$1' }],
+				[/^\s*```\s*((?:\w|[\/\-#])+)\s*$/, { token: TOKEN_BLOCK, next: '@codeblockgh', nextEmbedded: '$1' }],
 
 				// github style code blocks (with backticks but no language)
-				[/^\s*`{3}\s*$/, { token: markdownTokenTypes.TOKEN_BLOCK, next: '@codeblock' }],
+				[/^\s*`{3}\s*$/, { token: TOKEN_BLOCK, next: '@codeblock' }],
 
 				// markup within lines
 				{ include: '@linecontent' },
 			],
 
 			codeblock: [
-				[/^\s*~{3}\s*$/, { token: markdownTokenTypes.TOKEN_BLOCK, next: '@pop' }],
-				[/^\s*`{3}\s*$/, { token: markdownTokenTypes.TOKEN_BLOCK, next: '@pop' }],
-				[/.*$/, markdownTokenTypes.TOKEN_BLOCK_CODE],
+				[/^\s*~{3}\s*$/, { token: TOKEN_BLOCK, next: '@pop' }],
+				[/^\s*`{3}\s*$/, { token: TOKEN_BLOCK, next: '@pop' }],
+				[/.*$/, TOKEN_BLOCK_CODE],
 			],
 
 			// github style code blocks
 			codeblockgh: [
 				[/```\s*$/, { token: '@rematch', switchTo: '@codeblockghend', nextEmbedded: '@pop' }],
-				[/[^`]*$/, markdownTokenTypes.TOKEN_BLOCK_CODE],
+				[/[^`]*$/, TOKEN_BLOCK_CODE],
 			],
 
 			codeblockghend: [
-				[/\s*```/, { token: markdownTokenTypes.TOKEN_BLOCK_CODE, next: '@pop' }],
+				[/\s*```/, { token: TOKEN_BLOCK_CODE, next: '@pop' }],
 				[/./, '@rematch', '@pop'],
 			],
 
@@ -197,22 +201,17 @@ export const language =
 		}
 	};
 
-export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
+export class MarkdownMode extends AbstractMode {
 
-	public static LANG_CONFIG:LanguageConfiguration = {
+	public static LANG_CONFIG: LanguageConfiguration = {
 		comments: {
 			blockComment: ['<!--', '-->',]
 		},
-		brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+		brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['<', '>']],
 		autoClosingPairs: []
 	};
 
-	public emitOutputSupport: Modes.IEmitOutputSupport;
-	public configSupport:Modes.IConfigurationSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
-
-	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
-	private _threadService:IThreadService;
 
 	constructor(
 		descriptor: Modes.IModeDescriptor,
@@ -225,12 +224,6 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 		super(descriptor.id);
 		let lexer = Compile.compile(descriptor.id, language);
 
-		this._modeWorkerManager = new ModeWorkerManager<MarkdownWorker.MarkdownWorker>(descriptor, 'vs/languages/markdown/common/markdownWorker', 'MarkdownWorker', null, instantiationService);
-		this._threadService = threadService;
-
-		this.emitOutputSupport = this;
-		this.configSupport = this;
-
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
 		LanguageConfigurationRegistry.register(this.getId(), MarkdownMode.LANG_CONFIG);
@@ -242,27 +235,5 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 				return wireCancellationToken(token, editorWorkerService.textualSuggest(model.uri, position));
 			}
 		}, true);
-	}
-
-	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {
-		return this._modeWorkerManager.worker(runner);
-	}
-
-	public configure(options:any): WinJS.TPromise<void> {
-		if (this._threadService.isInMainThread) {
-			return this._configureWorkers(options);
-		} else {
-			return this._worker((w) => w._doConfigure(options));
-		}
-	}
-
-	static $_configureWorkers = AllWorkersAttr(MarkdownMode, MarkdownMode.prototype._configureWorkers);
-	private _configureWorkers(options:any): WinJS.TPromise<void> {
-		return this._worker((w) => w._doConfigure(options));
-	}
-
-	static $getEmitOutput = OneWorkerAttr(MarkdownMode, MarkdownMode.prototype.getEmitOutput);
-	public getEmitOutput(resource: URI, absoluteWorkerResourcesPath?: string): WinJS.TPromise<Modes.IEmitOutput> { // TODO@Ben technical debt: worker cannot resolve paths absolute
-		return this._worker((w) => w.getEmitOutput(resource, absoluteWorkerResourcesPath));
 	}
 }

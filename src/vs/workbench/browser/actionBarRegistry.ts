@@ -198,8 +198,13 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	actions = actions.sort((first: Action, second: Action) => {
 		let firstOrder = first.order;
 		let secondOrder = second.order;
-
-		return firstOrder < secondOrder ? -1 : 1;
+		if (firstOrder < secondOrder) {
+			return -1;
+		} else if (firstOrder > secondOrder) {
+			return 1;
+		} else {
+			return 0;
+		}
 	});
 
 	// Clean up leading separators

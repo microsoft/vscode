@@ -50,7 +50,7 @@ export class OpenEditor {
 	}
 
 	public getId(): string {
-		return `openeditor:${this.group.id}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
 	public isPreview(): boolean {
@@ -495,7 +495,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		}
 
 		const resource = element.getResource();
-		// Some open editors do not have a resource (markdown preview) so use the name as drag identifier instead #7021
+		// Some open editors do not have a resource so use the name as drag identifier instead #7021
 		return resource ? resource.toString() : element.editorInput.getName();
 	}
 

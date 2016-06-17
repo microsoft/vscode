@@ -31,6 +31,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 import * as cp from 'child_process';
+import * as ansiregex from 'ansi-regex';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -311,7 +312,7 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 			const raw = Buffer.concat(buffers).toString('utf8');
 
 			try {
-				const env = JSON.parse(raw);
+				const env = JSON.parse(raw.replace(ansiregex(), ''));
 
 				if (runAsNode) {
 					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;

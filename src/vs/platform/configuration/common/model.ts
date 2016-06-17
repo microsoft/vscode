@@ -177,7 +177,7 @@ export function getDefaultValuesContent(indent: string): string {
 		if (config.title) {
 			if (isTop) {
 				result.push('');
-				result.push(indent + '//-------- ' + config.title + ' --------');
+				result.push('//-------- ' + config.title + ' --------');
 			} else {
 				result.push(indent + '// ' + config.title);
 			}

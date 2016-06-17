@@ -86,6 +86,11 @@
 	background: url('step-out.svg') center center no-repeat;
 }
 
+.monaco-workbench .debug-action.step-back {
+	background: url('step-over.svg') center center no-repeat;
+	transform: scaleX(-1);
+}
+
 .monaco-workbench .debug-action.continue {
 	background: url('continue.svg') center center no-repeat;
 }
@@ -125,9 +130,18 @@
 	padding-top: 3px;
 	left: 50%;
 	margin-left: -96px;
+	display: flex;
+	padding-left: 7px;
 }
 
-.monaco-workbench  .debug-actions-widget > .monaco-action-bar .action-label {
+.monaco-workbench .debug-actions-widget .drag-area {
+	cursor: -webkit-grabbing;
+	height: 32px;
+	width: 10px;
+	background: url('drag.svg') center center no-repeat;
+}
+
+.monaco-workbench  .debug-actions-widget .monaco-action-bar .action-label {
 	width: 32px;
 	height: 32px;
 	margin-right: 0;
@@ -280,6 +294,11 @@
 	background: url('step-out-inverse.svg') center center no-repeat;
 }
 
+.vs-dark .monaco-workbench .debug-action.step-back {
+	background: url('step-over-inverse.svg') center center no-repeat;
+	transform: scaleX(-1);
+}
+
 .vs-dark .monaco-workbench .debug-action.continue {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
@@ -338,6 +357,11 @@
 
 .hc-black .monaco-workbench .debug-action.step-out {
 	background: url('step-out-inverse.svg') center center no-repeat;
+}
+
+.hc-black .monaco-workbench .debug-action.step-back {
+	background: url('step-over-inverse.svg') center center no-repeat;
+	transform: scaleX(-1);
 }
 
 .hc-black .monaco-workbench .debug-action.continue {

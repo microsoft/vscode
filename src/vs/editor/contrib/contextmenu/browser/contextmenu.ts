@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import {IAction} from 'vs/base/common/actions';
 import {KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {SortedList} from 'vs/base/common/sortedList';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -124,47 +123,53 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	private _getMenuActions(): IAction[] {
-		var editorModel = this._editor.getModel();
+		const editorModel = this._editor.getModel();
 		if (!editorModel) {
 			return [];
 		}
 
-		var allActions = <EditorAction[]>this._editor.getActions();
-		var contributedActions = allActions.filter((action)=>(typeof action.shouldShowInContextMenu === 'function') && action.shouldShowInContextMenu() && action.isSupported());
-
-		return this._prepareActions(contributedActions);
-	}
-
-	private _prepareActions(actions:EditorAction[]):IAction[] {
-		var list = new SortedList<string, SortedList<string, EditorAction>>();
-
-		actions.forEach((action)=>{
-			var groups = action.getGroupId().split('/');
-			var actionsForGroup = list.getValue(groups[0]);
-			if (!actionsForGroup) {
-				actionsForGroup = new SortedList<string, EditorAction>();
-				list.add(groups[0], actionsForGroup);
+		const contributedActions = <EditorAction[]> this._editor.getActions().filter(action => {
+			if (action instanceof EditorAction) {
+				return action.shouldShowInContextMenu() && action.isSupported();
 			}
-
-			actionsForGroup.add(groups[1] || groups[0], action);
 		});
 
-		var sortedAndGroupedActions:IAction[] = [];
-		var groupIterator = list.getIterator();
-		while(groupIterator.moveNext()) {
-			var group = groupIterator.current.value;
-			var actionsIterator = group.getIterator();
-			while(actionsIterator.moveNext()) {
-				var action = actionsIterator.current.value;
-				sortedAndGroupedActions.push(action);
-			}
+		return ContextMenuController._prepareActions(contributedActions);
+	}
 
-			if (groupIterator.hasNext()) {
-				sortedAndGroupedActions.push(new Separator());
-			}
-		}
+	private static _prepareActions(actions: EditorAction[]): IAction[] {
 
-		return sortedAndGroupedActions;
+		const data = actions.map(action => {
+			const groupId = action.getGroupId();
+			const idx = groupId.indexOf('/');
+			const group = idx > 0
+				? groupId.substr(0, idx)
+				: groupId;
+
+			return { action, group };
+		});
+
+		data.sort((a, b) => {
+			if (a.group < b.group) {
+				return -1;
+			} else if (a.group > b.group) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
+
+		const result: IAction[] = [];
+		let lastGroup: string;
+		data.forEach((value, idx) => {
+			if (lastGroup && lastGroup !== value.group) {
+				result.push(new Separator());
+			}
+			result.push(value.action);
+			lastGroup = value.group;
+		});
+
+		return result;
 	}
 
 	private _doShowContextMenu(actions:IAction[], forcedPosition:IPosition = null): void {

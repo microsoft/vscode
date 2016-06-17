@@ -36,7 +36,7 @@ suite('JSON Completion', () => {
 		let idx = stringAfter ? value.indexOf(stringAfter) : 0;
 
 		let schemaService = new SchemaService.JSONSchemaService(requestService);
-		let completionProvider = new JSONCompletion(schemaService, console);
+		let completionProvider = new JSONCompletion(schemaService);
 		if (schema) {
 			let id = "http://myschemastore/test1";
 			schemaService.registerExternalSchema(id, ["*.json"], schema);

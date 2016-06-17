@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .iframe-container .iframe {
-	box-sizing:			border-box;
-}
-
-.monaco-workbench .iframe-container.ipad-touch-enabled {
-	-webkit-overflow-scrolling: touch;
-	overflow: auto;
-}
+/// <reference path='../../../declares.d.ts'/>
+/// <reference path='../../../lib.core.d.ts'/>
+/// <reference path='../../../node.d.ts'/>

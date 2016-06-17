@@ -752,14 +752,29 @@ declare module monaco.editor {
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function create(domElement: HTMLElement, options: IEditorConstructionOptions, services: IEditorOverrideServices): ICodeEditor;
+    export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneCodeEditor;
 
     /**
      * Create a new diff editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function createDiffEditor(domElement: HTMLElement, options: IDiffEditorConstructionOptions, services: IEditorOverrideServices): IDiffEditor;
+    export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneDiffEditor;
+
+    export interface IDiffNavigator {
+        canNavigate(): boolean;
+        next(): void;
+        previous(): void;
+        dispose(): void;
+    }
+
+    export interface IDiffNavigatorOptions {
+        followsCaret?: boolean;
+        ignoreCharChanges?: boolean;
+        alwaysRevealFirst?: boolean;
+    }
+
+    export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator;
 
     /**
      * Create a new editor model.
@@ -830,6 +845,10 @@ declare module monaco.editor {
          * It should export a function `create` that should return the exported proxy.
          */
         moduleId: string;
+        /**
+         * The data to send over when calling create on the module.
+         */
+        createData?: any;
     }
 
     /**
@@ -873,6 +892,26 @@ declare module monaco.editor {
      * The options to create a diff editor.
      */
     export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+    }
+
+    export interface IStandaloneCodeEditor extends ICodeEditor {
+        addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        addAction(descriptor: IActionDescriptor): void;
+    }
+
+    export interface IStandaloneDiffEditor extends IDiffEditor {
+        addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
+        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        addAction(descriptor: IActionDescriptor): void;
+    }
+    export interface ICommandHandler {
+        (...args: any[]): void;
+    }
+
+    export interface IKeybindingContextKey<T> {
+        set(value: T): void;
+        reset(): void;
     }
 
     export interface IEditorOverrideServices {
@@ -4669,12 +4708,16 @@ declare module monaco.languages {
 
 declare module monaco.worker {
 
+
     export interface IMirrorModel {
         uri: Uri;
         version: number;
         getText(): string;
     }
 
-    export var mirrorModels: IMirrorModel[];
+    /**
+     * Get all available mirror models in this worker.
+     */
+    export function getMirrorModels(): IMirrorModel[];
 
 }

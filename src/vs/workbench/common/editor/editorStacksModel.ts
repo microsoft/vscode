@@ -117,7 +117,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.editorOpenPositioning = config.workbench.editorOpenPositioning;
+		this.editorOpenPositioning = config.workbench.editor.openPositioning;
 	}
 
 	public get id(): GroupIdentifier {
@@ -217,12 +217,12 @@ export class EditorGroup implements IEditorGroup {
 			}
 
 			// Insert to the BEGINNING
-			else if (this.editorOpenPositioning === EditorOpenPositioning.BEGINNING) {
+			else if (this.editorOpenPositioning === EditorOpenPositioning.FIRST) {
 				targetIndex = 0;
 			}
 
 			// Insert to the END
-			else if (this.editorOpenPositioning === EditorOpenPositioning.END) {
+			else if (this.editorOpenPositioning === EditorOpenPositioning.LAST) {
 				targetIndex = this.editors.length;
 			}
 
@@ -603,13 +603,18 @@ export class EditorGroup implements IEditorGroup {
 
 		this._label = data.label;
 		this.editors = data.editors.map(e => {
-			const editor = registry.getEditorInputFactory(e.id).deserialize(this.instantiationService, e.value);
+			const factory = registry.getEditorInputFactory(e.id);
+			if (factory) {
+				const editor = factory.deserialize(this.instantiationService, e.value);
 
-			this.hookEditorListeners(editor);
-			this.updateResourceMap(editor, false /* add */);
+				this.hookEditorListeners(editor);
+				this.updateResourceMap(editor, false /* add */);
 
-			return editor;
-		});
+				return editor;
+			}
+
+			return null;
+		}).filter(e => !!e);
 		this.mru = data.mru.map(i => this.editors[i]);
 		this.active = this.mru[0];
 		this.preview = this.editors[data.preview];
@@ -817,8 +822,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._groups.splice(index, 1);
 		this.groupToIdentifier[group.id] = void 0;
 
-		// Event
+		// Events
 		this.fireEvent(this._onGroupClosed, group, true);
+		for (let i = index; i < this._groups.length; i++) {
+			this.fireEvent(this._onGroupMoved, this._groups[i], true); // send move event for groups to the right that moved to the left into the closed group position
+		}
 	}
 
 	public closeGroups(except?: EditorGroup): void {
@@ -862,7 +870,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._groups.splice(toIndex, 0, group);
 
 		// Event
-		this.fireEvent(this._onGroupMoved, group, true);
+		for (let i = Math.min(index, toIndex); i <= Math.max(index, toIndex) && i < this._groups.length; i++) {
+			this.fireEvent(this._onGroupMoved, this._groups[i], true); // send move event for groups to the right that moved to the left into the closed group position
+		}
 	}
 
 	private indexOf(group: EditorGroup): number {
@@ -1008,7 +1018,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 				const editorsRaw: { inputId: string; inputValue: string }[] = state.editors;
 
 				const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-				const editors = editorsRaw.map(editorRaw => registry.getEditorInputFactory(editorRaw.inputId).deserialize(this.instantiationService, editorRaw.inputValue));
+				const editors = editorsRaw.map(editorRaw => {
+					const factory = registry.getEditorInputFactory(editorRaw.inputId);
+					if (factory) {
+						return factory.deserialize(this.instantiationService, editorRaw.inputValue);
+					}
+
+					return null;
+				}).filter(editor => !!editor);
 
 				if (editors.length > 0) {
 					const leftGroup = this.openGroup('', true);

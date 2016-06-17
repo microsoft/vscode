@@ -10,7 +10,7 @@
 	"dependencies": {
 		"vscode-nls": "^1.0.4",
 		"request-light": "^0.1.0",
-		"jsonc-parser": "^0.2.0"
+		"jsonc-parser": "^0.2.2"
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:javascript",

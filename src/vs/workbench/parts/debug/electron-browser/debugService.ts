@@ -483,6 +483,18 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
+	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
+		if (!this.session || !(variable instanceof model.Variable)) {
+			return TPromise.as(null);
+		}
+
+		return this.session.setVarialbe({
+			name: variable.name,
+			value,
+			variablesReference: (<model.Variable>variable).parent.reference
+		}).then(response => variable.value = response.body.value);
+	}
+
 	public addWatchExpression(name: string): TPromise<void> {
 		return this.model.addWatchExpression(this.session, this.viewModel.getFocusedStackFrame(), name);
 	}
@@ -868,6 +880,16 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.stepOut({ threadId }).then(() => {
+			this.lazyTransitionToRunningState(threadId);
+		});
+	}
+
+	public stepBack(threadId: number): TPromise<void> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.stepBack({ threadId }).then(() => {
 			this.lazyTransitionToRunningState(threadId);
 		});
 	}

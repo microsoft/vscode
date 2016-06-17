@@ -10,6 +10,7 @@ import JsonSchema = require('../jsonSchema');
 import Json = require('jsonc-parser');
 import Parser = require('../jsonParser');
 import fs = require('fs');
+import url = require('url');
 import path = require('path');
 import {XHROptions, XHRResponse} from 'request-light';
 
@@ -43,8 +44,14 @@ suite('JSON Schema', () => {
 		return Promise.reject<XHRResponse>({ responseText: '', status: 404 });
 	}
 
+	let workspaceContext = {
+		resolveRelativePath: (relativePath: string, resource: string) => {
+			return url.resolve(resource, relativePath);
+		}
+	};
+
 	test('Resolving $refs', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 		service.setSchemaContributions({ schemas: {
 			"https://myschemastore/main" : {
 				id: 'https://myschemastore/main',
@@ -73,9 +80,9 @@ suite('JSON Schema', () => {
 		});
 
 	});
-	
+
 	test('Resolving $refs 2', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 		service.setSchemaContributions({ schemas: {
 			"http://json.schemastore.org/swagger-2.0" : {
 				id: 'http://json.schemastore.org/swagger-2.0',
@@ -112,8 +119,56 @@ suite('JSON Schema', () => {
 
 	});
 
+	test('Resolving $refs 3', function(testDone) {
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
+		service.setSchemaContributions({ schemas: {
+			"https://myschemastore/main/schema1.json" : {
+				id: 'https://myschemastore/schema1.json',
+				type: 'object',
+				properties: {
+					p1: {
+						'$ref': 'schema2.json#/definitions/hello'
+					},
+					p2: {
+						'$ref': './schema2.json#/definitions/hello'
+					},
+					p3: {
+						'$ref': '/main/schema2.json#/definitions/hello'
+					}
+				}
+			},
+			"https://myschemastore/main/schema2.json" :{
+				id: 'https://myschemastore/main/schema2.json',
+				definitions: {
+					"hello": {
+						"type": "string",
+						"enum": [ "object" ],
+					}
+				}
+			}
+		}});
+
+		service.getResolvedSchema('https://myschemastore/main/schema1.json').then(fs => {
+			assert.deepEqual(fs.schema.properties['p1'], {
+				type: 'string',
+				enum: [ "object" ]
+			});
+			assert.deepEqual(fs.schema.properties['p2'], {
+				type: 'string',
+				enum: [ "object" ]
+			});
+			assert.deepEqual(fs.schema.properties['p3'], {
+				type: 'string',
+				enum: [ "object" ]
+			});
+		}).then(() => testDone(), (error) => {
+			testDone(error);
+		});
+
+	});
+
 	test('FileSchema', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 
 		service.setSchemaContributions({ schemas: {
 			"main" : {
@@ -142,7 +197,7 @@ suite('JSON Schema', () => {
 	});
 
 	test('Array FileSchema', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 
 		service.setSchemaContributions({ schemas: {
 			"main" : {
@@ -174,7 +229,7 @@ suite('JSON Schema', () => {
 	});
 
 	test('Missing subschema', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 
 		service.setSchemaContributions({ schemas: {
 			"main" : {
@@ -197,7 +252,7 @@ suite('JSON Schema', () => {
 	});
 
 	test('Preloaded Schema', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 		var id = 'https://myschemastore/test1';
 		var schema : JsonSchema.IJSONSchema = {
 			type: 'object',
@@ -225,7 +280,7 @@ suite('JSON Schema', () => {
 	});
 
 	test('External Schema', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 		var id = 'https://myschemastore/test1';
 		var schema : JsonSchema.IJSONSchema = {
 				type: 'object',
@@ -254,7 +309,7 @@ suite('JSON Schema', () => {
 
 
 	test('Resolving in-line $refs', function (testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 		var id = 'https://myschemastore/test1';
 
 		var schema:JsonSchema.IJSONSchema = {
@@ -292,7 +347,7 @@ suite('JSON Schema', () => {
 	});
 
 	test('Resolving in-line $refs automatically for external schemas', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 		var id = 'https://myschemastore/test1';
 		var schema:JsonSchema.IJSONSchema = {
 			id: 'main',
@@ -329,7 +384,7 @@ suite('JSON Schema', () => {
 
 
 	test('Clearing External Schemas', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 		var id1 = 'http://myschemastore/test1';
 		var schema1:JsonSchema.IJSONSchema = {
 			type: 'object',
@@ -370,7 +425,7 @@ suite('JSON Schema', () => {
 	});
 
 	test('Schema contributions', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 
 		service.setSchemaContributions({ schemas: {
 			"http://myschemastore/myschemabar" : {
@@ -420,7 +475,7 @@ suite('JSON Schema', () => {
 
 	test('Resolving circular $refs', function(testDone) {
 
-		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 
 		var input = {
 			"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
@@ -463,7 +518,7 @@ suite('JSON Schema', () => {
 
 	test('Resolving circular $refs, invalid document', function(testDone) {
 
-		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 
 		var input = {
 			"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
@@ -498,7 +553,7 @@ suite('JSON Schema', () => {
 	test('Validate Azure Resource Dfinition', function(testDone) {
 
 
-		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock);
+		var service : SchemaService.IJSONSchemaService = new SchemaService.JSONSchemaService(requestServiceMock, workspaceContext);
 
 		var input = {
 			"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",

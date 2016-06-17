@@ -6,12 +6,10 @@
 
 import {Registry} from 'vs/platform/platform';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Action, IAction} from 'vs/base/common/actions';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor} from 'vs/workbench/browser/quickopen';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor, EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -24,8 +22,6 @@ import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
-import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -38,7 +34,7 @@ import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEdit
 	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInLeftGroupAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_LEFT_GROUP_PREFIX,
 	GlobalQuickOpenAction, OpenPreviousEditorFromHistoryAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction, ShowEditorsInCenterGroupAction,
-	NAVIGATE_IN_CENTER_GROUP_PREFIX, ShowEditorsInRightGroupAction, NAVIGATE_IN_RIGHT_GROUP_PREFIX, RemoveFromEditorHistoryAction
+	NAVIGATE_IN_CENTER_GROUP_PREFIX, ShowEditorsInRightGroupAction, NAVIGATE_IN_RIGHT_GROUP_PREFIX, RemoveFromEditorHistoryAction, FocusLastEditorInStackAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -82,19 +78,6 @@ import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEdit
 	]
 );
 
-// Register IFrame Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
-	new EditorDescriptor(
-		IFrameEditor.ID,
-		nls.localize('iframeEditor', "IFrame Editor"),
-		'vs/workbench/browser/parts/editor/iframeEditor',
-		'IFrameEditor'
-	),
-	[
-		new SyncDescriptor(IFrameEditorInput)
-	]
-);
-
 // Register Editor Status
 let statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
@@ -104,64 +87,6 @@ let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchA
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
-
-export class ViewSourceEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super('workbench.files.action.viewSourceFromEditor', nls.localize('viewSource', "View Source"), 'iframe-editor-action view-source');
-	}
-
-	public run(event?: any): TPromise<any> {
-		let iFrameEditorInput = <IFrameEditorInput>this.input;
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-
-		return this.editorService.openEditor({
-			resource: iFrameEditorInput.getResource()
-		}, sideBySide);
-	}
-}
-
-export class RefreshIFrameEditorInputAction extends EditorInputAction {
-
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super('workbench.files.action.refreshIFrameEditor', nls.localize('reload', "Reload"), 'iframe-editor-action refresh');
-	}
-
-	public run(event?: any): TPromise<any> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor instanceof IFrameEditor) {
-			(<IFrameEditor>editor).reload(true);
-			(<IFrameEditor>editor).focus();
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-class IFrameEditorActionContributor extends EditorInputActionContributor {
-
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
-		return context.input instanceof IFrameEditorInput;
-	}
-
-	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
-		return [
-			this.instantiationService.createInstance(RefreshIFrameEditorInputAction),
-			this.instantiationService.createInstance(ViewSourceEditorInputAction)
-		];
-	}
-}
-
-// Contribute to IFrame Editor Inputs
-actionBarRegistry.registerActionBarContributor(Scope.EDITOR, IFrameEditorActionContributor);
 
 // Register keybinding for "Next Change" & "Previous Change" in visible diff editor
 KeybindingsRegistry.registerCommandDesc({
@@ -246,6 +171,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 	}
 }
 
+const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
@@ -368,6 +294,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBetweenGroupsA
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus Left Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus Center Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus Right Editor Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusLastEditorInStackAction, FocusLastEditorInStackAction.ID, FocusLastEditorInStackAction.LABEL, { primary: KeyMod.WinCtrl | KeyCode.KEY_0 }), 'View: Focus Last Editor in Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EvenGroupWidthsAction.ID, EvenGroupWidthsAction.LABEL), 'View: Even Editor Group Widths', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MaximizeGroupAction.ID, MaximizeGroupAction.LABEL), 'View: Maximize Editor Group and Hide Sidebar', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Minimize Other Editor Groups', category);
@@ -396,6 +323,48 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistor
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), KbExpr.has('inQuickOpen'), KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
 
+// Keybindings to focus a specific index in the tab folder if tabs are enabled
+for (let i = 0; i < 9; i++) {
+	const editorIndex = i;
+	const visibleIndex = i + 1;
+
+	KeybindingsRegistry.registerCommandDesc({
+		id: 'workbench.action.openEditorAtIndex' + visibleIndex,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: KeyMod.WinCtrl | toKeyCode(visibleIndex),
+		handler: accessor => {
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const editorGroupService = accessor.get(IEditorGroupService);
+
+			const active = editorService.getActiveEditor();
+			if (active) {
+				const group = editorGroupService.getStacksModel().groupAt(active.position);
+				const editor = group.getEditor(editorIndex);
+
+				if (editor) {
+					return editorService.openEditor(editor);
+				}
+			}
+		}
+	});
+}
+
+function toKeyCode(index: number): KeyCode {
+	switch (index) {
+		case 0: return KeyCode.KEY_0;
+		case 1: return KeyCode.KEY_1;
+		case 2: return KeyCode.KEY_2;
+		case 3: return KeyCode.KEY_3;
+		case 4: return KeyCode.KEY_4;
+		case 5: return KeyCode.KEY_5;
+		case 6: return KeyCode.KEY_6;
+		case 7: return KeyCode.KEY_7;
+		case 8: return KeyCode.KEY_8;
+		case 9: return KeyCode.KEY_9;
+	}
+}
+
 // Configuration
 let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -404,26 +373,26 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench configuration"),
 	'type': 'object',
 	'properties': {
-		'workbench.showEditorTabs': {
+		'workbench.editor.showTabs': {
 			'type': 'boolean',
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 			'default': false
 		},
-		'workbench.previewEditors': {
+		'workbench.editor.enablePreview': {
 			'type': 'boolean',
-			'description': nls.localize('previewEditors', "Controls if opened editors show as preview until getting pinned. Set to false to always open editors pinned."),
+			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
 			'default': true
 		},
-		'workbench.quickOpenPreviews': {
+		'workbench.editor.enablePreviewFromQuickOpen': {
 			'type': 'boolean',
-			'description': nls.localize('quickOpenPreviews', "Controls if editors opened from quick open show as preview. Set to false to always open editors from quick open pinned."),
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from quick open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
 			'default': true
 		},
-		'workbench.editorOpenPositioning': {
+		'workbench.editor.openPositioning': {
 			'type': 'string',
-			'enum': ['left', 'right', 'beginning', 'end'],
+			'enum': ['left', 'right', 'first', 'last'],
 			'default': 'right',
-			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'beginning' or 'end' to open editors independently from the currently active one.")
+			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		}
 	}
 });

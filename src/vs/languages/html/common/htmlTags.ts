@@ -286,13 +286,13 @@ export const HTML_TAGS: ITagSet = {
 		['form', 'for']),
 	input: new HTMLTagSpecification(
 		nls.localize('tags.input', 'The input element represents a typed data field, usually with a form control to allow the user to edit the data.'),
-		['accept', 'alt', 'autocomplete:o', 'autofocus:v', 'checked:v', 'dirname', 'disabled:v', 'form', 'formaction', 'formenctype:et', 'formmethod:fm', 'formnovalidate:v', 'formtarget', 'height', 'inputmode:im', 'list', 'max', 'maxlength', 'min', 'minlength', 'multiple:v', 'name', 'pattern', 'placeholder', 'readonly:v', 'required:v', 'size', 'src', 'step', 'type:t', 'value', 'width']),
+		['accept', 'alt', 'autocomplete:inputautocomplete', 'autofocus:v', 'checked:v', 'dirname', 'disabled:v', 'form', 'formaction', 'formenctype:et', 'formmethod:fm', 'formnovalidate:v', 'formtarget', 'height', 'inputmode:im', 'list', 'max', 'maxlength', 'min', 'minlength', 'multiple:v', 'name', 'pattern', 'placeholder', 'readonly:v', 'required:v', 'size', 'src', 'step', 'type:t', 'value', 'width']),
 	button: new HTMLTagSpecification(
 		nls.localize('tags.button', 'The button element represents a button labeled by its contents.'),
 		['autofocus:v', 'disabled:v', 'form', 'formaction', 'formenctype:et', 'formmethod:fm', 'formnovalidate:v', 'formtarget', 'name', 'type:bt', 'value']),
 	select: new HTMLTagSpecification(
 		nls.localize('tags.select', 'The select element represents a control for selecting amongst a set of options.'),
-		['autocomplete:o', 'autofocus:v', 'disabled:v', 'form', 'multiple:v', 'name', 'required:v', 'size']),
+		['autocomplete:inputautocomplete', 'autofocus:v', 'disabled:v', 'form', 'multiple:v', 'name', 'required:v', 'size']),
 	datalist: new HTMLTagSpecification(
 		nls.localize('tags.datalist', 'The datalist element represents a set of option elements that represent predefined options for other controls. In the rendering, the datalist element represents nothing and it, along with its children, should be hidden.')),
 	optgroup: new HTMLTagSpecification(
@@ -303,7 +303,7 @@ export const HTML_TAGS: ITagSet = {
 		['disabled:v', 'label', 'selected:v', 'value']),
 	textarea: new HTMLTagSpecification(
 		nls.localize('tags.textarea', 'The textarea element represents a multiline plain text edit control for the element\'s raw value. The contents of the control represent the control\'s default value.'),
-		['autocomplete:o', 'autofocus:v', 'cols', 'dirname', 'disabled:v', 'form', 'inputmode:im', 'maxlength', 'minlength', 'name', 'placeholder', 'readonly:v', 'required:v', 'rows', 'wrap:w']),
+		['autocomplete:inputautocomplete', 'autofocus:v', 'cols', 'dirname', 'disabled:v', 'form', 'inputmode:im', 'maxlength', 'minlength', 'name', 'placeholder', 'readonly:v', 'required:v', 'rows', 'wrap:w']),
 	output: new HTMLTagSpecification(
 		nls.localize('tags.output', 'The output element represents the result of a calculation performed by the application, or the result of a user action.'),
 		['for', 'form', 'name']),
@@ -452,6 +452,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		xo: ['anonymous', 'use-credentials'],
 		sb: ['allow-forms', 'allow-modals', 'allow-pointer-lock', 'allow-popups', 'allow-popups-to-escape-sandbox', 'allow-same-origin', 'allow-scripts', 'allow-top-navigation'],
 		tristate: ['true', 'false', 'mixed', 'undefined'],
+		inputautocomplete: ['additional-name', 'address-level1', 'address-level2', 'address-level3', 'address-level4', 'address-line1', 'address-line2', 'address-line3', 'bday', 'bday-year', 'bday-day', 'bday-month', 'billing', 'cc-additional-name', 'cc-csc', 'cc-exp', 'cc-exp-month', 'cc-exp-year', 'cc-family-name', 'cc-given-name', 'cc-name', 'cc-number', 'cc-type', 'country', 'country-name', 'current-password', 'email', 'family-name', 'fax', 'given-name', 'home', 'honorific-prefix', 'honorific-suffix', 'impp', 'language', 'mobile', 'name', 'new-password', 'nickname', 'organization', 'organization-title', 'pager', 'photo', 'postal-code', 'sex', 'shipping', 'street-address', 'tel-area-code', 'tel', 'tel-country-code', 'tel-extension', 'tel-local', 'tel-local-prefix', 'tel-local-suffix', 'tel-national', 'transaction-amount', 'transaction-currency', 'url', 'username', 'work'],
 		autocomplete: ['inline', 'list', 'both', 'none'],
 		current: ['page', 'step', 'location', 'date', 'time', 'true', 'false'],
 		dropeffect: ['copy', 'move', 'link', 'execute', 'popup', 'none'],
