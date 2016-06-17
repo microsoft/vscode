@@ -30,21 +30,18 @@ export interface IGalleryVersion {
 	downloadHeaders: { [key: string]: string; };
 }
 
-export interface IGalleryMetadata {
+export interface IGalleryExtension {
 	id: string;
+	manifest: IExtensionManifest;
 	publisherId: string;
 	publisherDisplayName: string;
 	installCount: number;
 	versions: IGalleryVersion[];
 }
 
-export interface IGalleryExtension extends IGalleryMetadata {
-	manifest: IExtensionManifest;
-}
-
 export interface IExtension {
+	id: string;
 	manifest: IExtensionManifest;
-	path: string;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');

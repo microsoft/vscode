@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -44,6 +44,7 @@ export class ExtensionsViewlet extends Viewlet {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
@@ -109,6 +110,10 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	private doSearch(text: string = ''): TPromise<any> {
+		this.extensionService.getInstalled().then(r => {
+			console.log(r);
+		});
+
 		return this.galleryService.query({ text })
 			.then(result => new PagedModel(result))
 			.then(model => this.list.model = model);
