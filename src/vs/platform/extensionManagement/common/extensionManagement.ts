@@ -31,7 +31,6 @@ export interface IGalleryVersion {
 }
 
 export interface IGalleryMetadata {
-	galleryApiUrl: string;
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
@@ -39,13 +38,13 @@ export interface IGalleryMetadata {
 	versions: IGalleryVersion[];
 }
 
+export interface IGalleryExtension extends IGalleryMetadata {
+	manifest: IExtensionManifest;
+}
+
 export interface IExtension {
 	manifest: IExtensionManifest;
 	path: string;
-}
-
-export interface IGalleryExtension extends IGalleryMetadata {
-	manifest: IExtensionManifest;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');

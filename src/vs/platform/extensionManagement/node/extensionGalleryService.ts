@@ -30,7 +30,6 @@ interface IRawGalleryExtension {
 	shortDescription: string;
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
 	versions: IRawGalleryExtensionVersion[];
-	galleryApiUrl: string;
 	statistics: IRawGalleryExtensionStatistics[];
 }
 
@@ -182,7 +181,6 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 	};
 
 	return {
-		galleryApiUrl: extensionsGalleryUrl,
 		id: galleryExtension.extensionId,
 		publisherId: galleryExtension.publisher.publisherId,
 		publisherDisplayName: galleryExtension.publisher.displayName,
