@@ -49,7 +49,9 @@ export interface IGalleryExtension {
 }
 
 export interface IGalleryMetadata {
-	// TODO, do we need this?!
+	id: string;
+	publisherId: string;
+	publisherDisplayName: string;
 }
 
 export interface IExtension {

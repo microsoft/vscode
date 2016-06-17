@@ -134,12 +134,17 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				const headers = versionInfo.downloadHeaders;
 				const zipPath = path.join(tmpdir(), extension.id);
 				const id = getExtensionId(extension, version);
+				const metadata = {
+					id: extension.id,
+					publisherId: extension.publisherId,
+					publisherDisplayName: extension.publisherDisplayName
+				};
 
 				return this.request(url)
 					.then(opts => assign(opts, { headers }))
 					.then(opts => download(zipPath, opts))
 					.then(() => validate(zipPath, extension, version))
-					.then(() => this.installValidExtension(zipPath, id));
+					.then(() => this.installValidExtension(zipPath, id, metadata));
 		});
 	}
 

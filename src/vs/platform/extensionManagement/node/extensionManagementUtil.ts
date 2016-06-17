@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IExtension, IExtensionIdentity, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentity, IExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
 
@@ -13,17 +13,29 @@ export function extensionEquals(one: IExtensionIdentity, other: IExtensionIdenti
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
-export function getTelemetryData(extension: any): any {
-	return {};
-	// TODO
-	// return {
-	// 	id: getExtensionId(extension),
-	// 	name: extension.name,
-	// 	galleryId: extension.galleryInformation ? extension.galleryInformation.id : null,
-	// 	publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-	// 	publisherName: extension.publisher,
-	// 	publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
-	// };
+export function getTelemetryData(extension: IExtension | IGalleryExtension): any {
+	const local = extension as IExtension;
+	const gallery = extension as IGalleryExtension;
+
+	if (local.path) {
+		return {
+			id: `${ local.manifest.publisher }.${ local.manifest.name }`,
+			name: local.manifest.name,
+			galleryId: local.metadata ? local.metadata.id : null,
+			publisherId: local.metadata ? local.metadata.publisherId : null,
+			publisherName: local.manifest.publisher,
+			publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
+		};
+	} else {
+		return {
+			id: `${ gallery.publisher }.${ gallery.name }`,
+			name: gallery.name,
+			galleryId: gallery.id,
+			publisherId: gallery.publisherId,
+			publisherName: gallery.publisher,
+			publisherDisplayName: gallery.publisherDisplayName
+		};
+	}
 }
 
 export function getOutdatedExtensions(extensionsService: IExtensionManagementService, galleryService: IExtensionGalleryService): TPromise<IExtension[]> {
