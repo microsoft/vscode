@@ -27,21 +27,22 @@ export function activate(context: ExtensionContext) {
 	let provider = new MDDocumentContentProvider(context);
 	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
 
-	let d1 = vscode.commands.registerCommand('extension.previewMarkdown', () => openPreview());
-	let d2 = vscode.commands.registerCommand('extension.previewMarkdownSide', () => openPreview(true));
+	let d1 = vscode.commands.registerCommand('markdown.showPreview', showPreview);
+	let d2 = vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true));
+	let d3 = vscode.commands.registerCommand('markdown.showSource', showSource);
 
-	context.subscriptions.push(d1, d2, registration);
+	context.subscriptions.push(d1, d2, d3, registration);
 
 	vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {
-			const uri = getMarkdownUri(document);
+			const uri = getMarkdownUri(document.uri);
 			provider.update(uri);
 		}
 	});
 
 	vscode.workspace.onDidChangeTextDocument(event => {
 		if (isMarkdownFile(event.document)) {
-			const uri = getMarkdownUri(event.document);
+			const uri = getMarkdownUri(event.document.uri);
 			provider.update(uri);
 
 		}
@@ -61,22 +62,28 @@ function isMarkdownFile(document: vscode.TextDocument) {
 		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
 }
 
-function getMarkdownUri(document: vscode.TextDocument) {
-	return document.uri.with({ scheme: 'markdown', path: document.uri.path + '.rendered', query: document.uri.toString() });
+function getMarkdownUri(uri: Uri) {
+	return uri.with({ scheme: 'markdown', path: uri.path + '.rendered', query: uri.toString() });
 }
 
-function openPreview(sideBySide?: boolean): void {
-	const activeEditor = vscode.window.activeTextEditor;
-	if (!activeEditor) {
-		vscode.commands.executeCommand('workbench.action.navigateBack');
+function showPreview(resource?: Uri, sideBySide: boolean = false) {
+
+	if (!(resource instanceof Uri)) {
+		if (vscode.window.activeTextEditor) {
+			// we are relaxed and don't check for markdown files
+			resource = vscode.window.activeTextEditor.document.uri;
+		}
+	}
+
+	if (!(resource instanceof Uri)) {
+		// nothing found that could be shown
 		return;
 	}
 
-	let markdownPreviewUri = getMarkdownUri(activeEditor.document);
-	vscode.commands.executeCommand('vscode.previewHtml',
-		markdownPreviewUri,
+	return vscode.commands.executeCommand('vscode.previewHtml',
+		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
-		`Preview '${path.basename(activeEditor.document.fileName)}'`);
+		`Preview '${path.basename(resource.fsPath)}'`);
 }
 
 function getViewColumn(sideBySide): ViewColumn {
@@ -99,6 +106,19 @@ function getViewColumn(sideBySide): ViewColumn {
 	return active.viewColumn;
 }
 
+function showSource(mdUri: Uri) {
+	const docUri = Uri.parse(mdUri.query);
+
+	for (let editor of vscode.window.visibleTextEditors) {
+		if (editor.document.uri.toString() === docUri.toString()) {
+			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
+		}
+	}
+
+	return vscode.workspace.openTextDocument(docUri).then(doc => {
+		return vscode.window.showTextDocument(doc);
+	});
+}
 
 class MDDocumentContentProvider implements TextDocumentContentProvider {
 	private _context: ExtensionContext;
