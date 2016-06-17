@@ -21,13 +21,14 @@ import {IShell, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browse
 
 export class TerminalInstance {
 
+	private processTitle: string = '';
+
 	private toDispose: lifecycle.IDisposable[];
 	private ptyProcess: cp.ChildProcess;
 	private terminal;
 	private terminalDomElement: HTMLDivElement;
 	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
-	private tabElement: HTMLLIElement;
 
 	public constructor(
 		private shell: IShell,
@@ -53,9 +54,7 @@ export class TerminalInstance {
 			if (message.type === 'data') {
 				this.terminal.write(message.content);
 			} else if (message.type === 'title') {
-				let tabLabel = this.getTabElement().querySelector('.tab-label');
-				tabLabel.textContent = message.content;
-				tabLabel.setAttribute('title', message.content);
+				this.processTitle = message.content;
 			}
 		});
 		this.terminal.on('data', (data) => {
@@ -106,9 +105,6 @@ export class TerminalInstance {
 		let cols = Math.floor(dimension.width / this.font.charWidth);
 		let rows = Math.floor(dimension.height / this.font.charHeight);
 		if (this.terminal) {
-			console.log('this.font', this.font);
-			console.log('cols: ' + cols);
-			console.log('rows: ' + rows);
 			this.terminal.resize(cols, rows);
 		}
 		if (this.ptyProcess.connected) {
@@ -167,19 +163,8 @@ export class TerminalInstance {
 		this.terminal.element.dispatchEvent(event);
 	}
 
-	public getTabElement(): HTMLLIElement {
-		if (!this.tabElement) {
-			let tabLabel = document.createElement('div');
-			DOM.addClass(tabLabel, 'tab-label');
-			let tabClose = document.createElement('div');
-			DOM.addClass(tabClose, 'tab-close');
-			this.tabElement = document.createElement('li');
-			DOM.addClass(this.tabElement, 'tab');
-			DOM.addClass(this.tabElement, 'monaco-editor-background');
-			this.tabElement.appendChild(tabLabel);
-			this.tabElement.appendChild(tabClose);
-		}
-		return this.tabElement;
+	public getProcessTitle(): string {
+		return this.processTitle;
 	}
 
 	public dispose(): void {

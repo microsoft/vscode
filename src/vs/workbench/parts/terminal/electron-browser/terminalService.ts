@@ -24,27 +24,17 @@ export class TerminalService implements ITerminalService {
 
 	public focusNext(): TPromise<any> {
 		return this.focus().then(() => {
-			let panel = this.panelService.getActivePanel();
-			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				return this.toggle().then(() => {
-					panel = this.panelService.getActivePanel();
-					return (<TerminalPanel>panel).focusNext();
-				});
-			}
-			return (<TerminalPanel>panel).focusNext();
+			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+				terminalPanel.focusNext();
+			});
 		});
 	}
 
 	public focusPrevious(): TPromise<any> {
 		return this.focus().then(() => {
-			let panel = this.panelService.getActivePanel();
-			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				return this.toggle().then(() => {
-					panel = this.panelService.getActivePanel();
-					return (<TerminalPanel>panel).focusPrevious();
-				});
-			}
-			return (<TerminalPanel>panel).focusPrevious();
+			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+				terminalPanel.focusPrevious();
+			});
 		});
 	}
 
@@ -60,25 +50,33 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createNew(): TPromise<any> {
-		let panel = this.panelService.getActivePanel();
-		if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-			return this.toggle().then(() => {
-				panel = this.panelService.getActivePanel();
-				return (<TerminalPanel>panel).createNewTerminalInstance();
-			});
-		}
-		return (<TerminalPanel>panel).createNewTerminalInstance();
+		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+			terminalPanel.createNewTerminalInstance();
+		});
 	}
 
 	public close(): TPromise<any> {
-		// TODO: Refactor to share code with createNew
-		let panel = this.panelService.getActivePanel();
-		if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-			return this.toggle().then(() => {
-				panel = this.panelService.getActivePanel();
-				return (<TerminalPanel>panel).closeActiveTerminal();
-			});
-		}
-		return (<TerminalPanel>panel).closeActiveTerminal();
+		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+			terminalPanel.closeActiveTerminal();
+		});
 	}
+
+	private toggleAndGetTerminalPanel(): TPromise<TerminalPanel> {
+		return new TPromise<TerminalPanel>((complete) => {
+			let panel = this.panelService.getActivePanel();
+			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
+				this.toggle().then(() => {
+					panel = this.panelService.getActivePanel();
+					complete(<TerminalPanel>panel);
+				});
+			}
+			complete(<TerminalPanel>panel);
+		});
+	}
+
+	/*public getTerminalInstanceTitles(): TPromise<string[]> {
+		return this.getTerminalPanel().then((terminalPanel) => {
+			return terminalPanel.getTerminalInstanceTitles();
+		});
+	}*/
 }

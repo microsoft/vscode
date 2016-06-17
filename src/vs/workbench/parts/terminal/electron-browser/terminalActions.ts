@@ -5,8 +5,9 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Action} from 'vs/base/common/actions';
+import {Action, IAction} from 'vs/base/common/actions';
 import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 
 export class ToggleTerminalAction extends Action {
 
@@ -109,5 +110,34 @@ export class FocusPreviousTerminalAction extends Action {
 
 	public run(event?: any): TPromise<any> {
 		return this.terminalService.focusPrevious();
+	}
+}
+
+export class SwitchTerminalInstanceAction extends Action {
+
+	public static ID = 'workbench.action.terminal.switchTerminalInstance';
+	public static LABEL = nls.localize('workbench.action.terminal.switchTerminalInstance', "Terminal: Switch Terminal Instance");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL);
+		this.class = 'terminal-action switch-terminal-instance';
+	}
+
+	public run(channelId?: string): TPromise<any> {
+		return null;
+		//return this.outputService.getChannel(channelId).show();
+	}
+}
+
+export class SwitchTerminalInstanceActionItem extends SelectActionItem {
+
+	constructor(
+		action: IAction,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(null, action, ['foo', 'bar'], Math.max(0, ['foo', 'bar'].indexOf('foo')));
 	}
 }

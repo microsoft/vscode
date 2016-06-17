@@ -48,4 +48,6 @@ export interface ITerminalService {
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
 	toggle(): TPromise<any>;
+
+	//getTerminalInstanceTitles(): TPromise<string[]>;
 }

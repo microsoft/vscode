@@ -6,7 +6,8 @@
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
 import DOM = require('vs/base/browser/dom');
-import {IAction} from 'vs/base/common/actions';
+import {Action, IAction} from 'vs/base/common/actions';
+import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -18,9 +19,7 @@ import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/e
 import {Panel} from 'vs/workbench/browser/panel';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import {CreateNewTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 
 export class TerminalPanel extends Panel {
 
@@ -29,9 +28,6 @@ export class TerminalPanel extends Panel {
 
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
-	private tabsOuterContainer: HTMLElement;
-	private tabsContainer: HTMLElement;
-	private tabScrollbar: ScrollableElement;
 	private terminalContainer: HTMLElement;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
@@ -53,21 +49,16 @@ export class TerminalPanel extends Panel {
 			return;
 		}
 		if (this.terminalInstances.length > 0) {
-			this.tabScrollbar.updateState({
-				width: this.tabsOuterContainer.offsetWidth,
-				scrollWidth: this.tabsContainer.offsetWidth
-			});
-			let computedStyle = window.getComputedStyle(this.tabsContainer);
-			let height = dimension.height - parseInt(computedStyle.height.replace(/px/, ''), 10);
-			let terminalContainerDimension = new Dimension(dimension.width, height);
-			this.terminalInstances[this.activeTerminalIndex].layout(terminalContainerDimension);
+			this.terminalInstances[this.activeTerminalIndex].layout(dimension);
 		}
 	}
 
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
+				this.instantiationService.createInstance(SwitchTerminalInstanceAction, SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL),
 				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL)
+				// TODO: Add close
 			];
 
 			this.actions.forEach(a => {
@@ -78,37 +69,24 @@ export class TerminalPanel extends Panel {
 		return this.actions;
 	}
 
+	public getActionItem(action: Action): IActionItem {
+		if (action.id === SwitchTerminalInstanceAction.ID) {
+			return this.instantiationService.createInstance(SwitchTerminalInstanceActionItem, action);
+		}
+
+		return super.getActionItem(action);
+	}
+
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
 		DOM.addClass(this.parentDomElement, 'integrated-terminal');
 		this.themeStyleElement = document.createElement('style');
-		this.tabsOuterContainer = document.createElement('div');
-		DOM.addClass(this.tabsOuterContainer, 'tabs-outer-container');
-		this.tabsContainer = document.createElement('ul');
-		DOM.addClass(this.tabsContainer, 'tabs-container');
-
-		// Custom Scrollbar
-		this.tabScrollbar = new ScrollableElement(this.tabsContainer, {
-			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Hidden,
-			scrollYToX: true,
-			useShadows: false,
-			canUseTranslate3d: true,
-			horizontalScrollbarSize: 3
-		});
-
-		this.tabScrollbar.onScroll(e => {
-			this.tabsContainer.scrollLeft = e.scrollLeft;
-		});
-		this.tabsContainer.style.overflow = 'scroll';
-		this.tabsOuterContainer.appendChild(this.tabScrollbar.getDomNode());
 
 		this.terminalContainer = document.createElement('div');
 		DOM.addClass(this.terminalContainer, 'terminal-outer-container');
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.parentDomElement.appendChild(this.terminalContainer);
-		this.parentDomElement.appendChild(this.tabsOuterContainer);
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
 		this.toDispose.push(DOM.addDisposableListener(this.terminalContainer, 'wheel', (event: WheelEvent) => {
@@ -137,6 +115,14 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
+	public getTerminalInstanceTitles(): string[] {
+		let result: string[] = [];
+		this.terminalInstances.forEach((instance) => {
+			result.push(instance.getProcessTitle());
+		});
+		return result;
+	}
+
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
 			if (this.terminalInstances.length > 0) {
@@ -158,40 +144,23 @@ export class TerminalPanel extends Panel {
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
-
-			// TODO: Dispose these when the tab gets destroyed, not when the panel does
-			this.toDispose.push(DOM.addDisposableListener(terminalInstance.getTabElement(), DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-				if (e.button === 0 /* Left Button */) {
-					this.setActiveTerminal(this.getTerminalInstanceIndex(terminalInstance));
-				}
-			}));
-			this.toDispose.push(DOM.addDisposableListener(terminalInstance.getTabElement(), DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
-				DOM.EventHelper.stop(e);
-				if (e.button === 1 /* Middle Button */) {
-					this.closeTerminal(this.getTerminalInstanceIndex(terminalInstance));
-				}
-			}));
-
-			this.tabsContainer.appendChild(terminalInstance.getTabElement());
 			resolve(terminalInstance);
 		});
 	}
 
-	private getTerminalInstanceIndex(terminalInstance: TerminalInstance): number {
+	/*private getTerminalInstanceIndex(terminalInstance: TerminalInstance): number {
 		for (let i = 0; i < this.terminalInstances.length; i++) {
 			if (terminalInstance === this.terminalInstances[i]) {
 				return i;
 			}
 		};
 		return -1;
-	}
+	}*/
 
 	private setActiveTerminal(index: number) {
 		this.activeTerminalIndex = index;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			let isActive = i === this.activeTerminalIndex;
-			terminalInstance.toggleVisibility(isActive);
-			DOM.toggleClass(terminalInstance.getTabElement(), 'active', isActive);
+			terminalInstance.toggleVisibility(i === this.activeTerminalIndex);
 		});
 	}
 
@@ -205,7 +174,6 @@ export class TerminalPanel extends Panel {
 				killedTerminal.dispose();
 			}
 		}
-		this.tabsContainer.removeChild(terminalInstance.getTabElement());
 		if (this.terminalInstances.length === 0) {
 			this.activeTerminalIndex = -1;
 			this.terminalService.toggle();
