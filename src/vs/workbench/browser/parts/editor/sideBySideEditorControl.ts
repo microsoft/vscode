@@ -841,33 +841,40 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const splitThreshold = overlayIsSplit ? overlayWidth / 5 : overlayWidth / 10;
 			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
+			let allowSplit = true;
 			if (groups === POSITIONS.length) {
-				return; // do not show split feedback when we already at the maximum
+				allowSplit = false; // do not show split feedback when we already at the maximum
 			}
 
 			const draggedEditor = TitleControl.getDraggedEditor();
 			if (!isCopy && draggedEditor && draggedEditor.group.count === 1) {
-				return; // do not show split feedback when moving the only one editor of a group
+				allowSplit = false; // do not show split feedback when moving the only one editor of a group
 			}
 
-			if (posXOnOverlay + splitThreshold > overlayWidth) {
-				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.CENTER : Position.RIGHT);
-				overlay.style({
-					left: '50%',
-					width: '50%',
-				});
-			} else if (posXOnOverlay < splitThreshold) {
-				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.LEFT : Position.CENTER);
-				overlay.style({
-					width: '50%'
-				});
-			} else {
-				overlay.removeProperty(splitToPropertyKey);
-				overlay.style({
-					left: '0',
-					width: '100%'
-				});
+			// Compute split decoration
+			if (allowSplit) {
+				if (posXOnOverlay + splitThreshold > overlayWidth) {
+					overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.CENTER : Position.RIGHT);
+					overlay.style({
+						left: '50%',
+						width: '50%',
+					});
+				} else if (posXOnOverlay < splitThreshold) {
+					overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.LEFT : Position.CENTER);
+					overlay.style({
+						width: '50%'
+					});
+				} else {
+					overlay.removeProperty(splitToPropertyKey);
+					overlay.style({
+						left: '0',
+						width: '100%'
+					});
+				}
 			}
+
+			// Make sure the overlay is visible
+			overlay.style({ opacity: 1 });
 		}
 
 		function createOverlay(target: HTMLElement): void {

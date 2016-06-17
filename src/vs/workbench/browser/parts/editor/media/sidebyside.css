@@ -20,6 +20,10 @@
 	z-index: 3000000;
 }
 
+#monaco-workbench-editor-drop-overlay {
+	opacity: 0; /* initially not visible until moving around */
+}
+
 .vs #monaco-workbench-editor-drop-overlay,
 .vs .monaco-workbench .editor.empty > .content.dropfeedback {
 	background-color: rgba(51,153,255, 0.18);
