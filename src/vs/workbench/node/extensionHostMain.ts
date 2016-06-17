@@ -5,6 +5,9 @@
 
 'use strict';
 
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import URI from 'vs/base/common/uri';
@@ -58,11 +61,52 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, threadService])));
 	let telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 
+	let workspaceStoragePath: string;
+	const workspace = contextService.getWorkspace();
+	const env = contextService.getConfiguration().env;
+	function rmkDir(directory: string): boolean {
+		console.log('Creating Directory ' + directory);
+		try {
+			fs.mkdirSync(directory);
+			return true;
+		} catch (err) {
+			if (err.code === 'ENOENT') {
+				if (rmkDir(paths.dirname(directory))) {
+					fs.mkdirSync(directory);
+					return true;
+				}
+			} else {
+				return fs.statSync(directory).isDirectory();
+			}
+		}
+	}
+	if (workspace) {
+		const hash = crypto.createHash('md5');
+		hash.update(workspace.resource.fsPath);
+		if (workspace.uid) {
+			hash.update(workspace.uid.toString());
+		}
+		workspaceStoragePath = paths.join(env.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
+		if (!fs.existsSync(workspaceStoragePath)) {
+			try {
+				if (rmkDir(workspaceStoragePath)) {
+					fs.writeFileSync(paths.join(workspaceStoragePath, 'meta.json'), JSON.stringify({
+						workspacePath: workspace.resource.fsPath,
+						uid: workspace.uid ? workspace.uid : null
+					}, null, 4));
+				} else {
+					workspaceStoragePath = undefined;
+				}
+			} catch (err) {
+				workspaceStoragePath = undefined;
+			}
+		}
+	}
 	let services = new ServiceCollection();
 	services.set(IWorkspaceContextService, contextService);
 	services.set(ITelemetryService, telemetryService);
 	services.set(IThreadService, threadService);
-	services.set(IExtensionService, new ExtHostExtensionService(threadService, telemetryService));
+	services.set(IExtensionService, new ExtHostExtensionService(threadService, telemetryService, {serviceId: 'optionalArgs', workspaceStoragePath }));
 
 	// Connect to shared process services
 	const channel = sharedProcessClient.getChannel<IExtensionManagementChannel>('extensions');

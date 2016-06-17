@@ -63,7 +63,7 @@ export function activate(context: ExtensionContext): void {
 			modeIds: [MODE_ID_JS, MODE_ID_JSX],
 			extensions: ['.js', '.jsx']
 		}
-	]);
+	], context.storagePath);
 
 	let client = clientHost.serviceClient;
 
@@ -285,7 +285,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[];
 	private languagePerId: Map<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[]) {
+	constructor(descriptions: LanguageDescription[], storagePath: string) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -300,7 +300,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		watcher.onDidDelete(handleProjectCreateOrDelete);
 		watcher.onDidChange(handleProjectChange);
 
-		this.client = new TypeScriptServiceClient(this);
+		this.client = new TypeScriptServiceClient(this, storagePath);
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		descriptions.forEach(description => {

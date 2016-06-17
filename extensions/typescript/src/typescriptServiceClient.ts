@@ -68,6 +68,7 @@ namespace Trace {
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
 	private host: ITypescriptServiceClientHost;
+	private storagePath: string;
 	private pathSeparator: string;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
@@ -90,8 +91,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _packageInfo: IPackageInfo;
 	private telemetryReporter: TelemetryReporter;
 
-	constructor(host: ITypescriptServiceClientHost) {
+	constructor(host: ITypescriptServiceClientHost, storagePath: string) {
 		this.host = host;
+		this.storagePath = storagePath;
 		this.pathSeparator = path.sep;
 
 		let p = new Promise<void>((resolve, reject) => {
@@ -201,7 +203,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			try {
 				let options: electron.IForkOptions = {
-					execArgv: [] //[`--debug-brk=5859`]
+					execArgv: [`--debug-brk=5859`]
 				};
 				let value = process.env.TSS_DEBUG;
 				if (value) {
@@ -239,6 +241,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceStarted(resendModels: boolean): void {
+		this.execute('configure', {
+			autoBuild: this.storagePath ? true : false,
+			metaDataDirectory: this.storagePath
+		});
 		if (resendModels) {
 			this.host.populateService();
 		}
