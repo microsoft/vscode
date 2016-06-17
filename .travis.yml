@@ -17,7 +17,6 @@ before_install:
     fi
 
 install:
-  - pip install .
   - pip install -r requirements.txt
   - npm install
   - npm run vscode:prepublish
