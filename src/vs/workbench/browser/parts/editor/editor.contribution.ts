@@ -291,10 +291,10 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherEditorsInGro
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL), 'View: Close Editors in Other Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBetweenGroupsAction, NavigateBetweenGroupsAction.ID, NavigateBetweenGroupsAction.LABEL), 'View: Navigate Between Editor Groups', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }, KbExpr.has('!config.workbench.editor.showTabs')), 'View: Focus Left Editor Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }, KbExpr.has('!config.workbench.editor.showTabs')), 'View: Focus Center Editor Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }, KbExpr.has('!config.workbench.editor.showTabs')), 'View: Focus Right Editor Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusLastEditorInStackAction, FocusLastEditorInStackAction.ID, FocusLastEditorInStackAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_0 }, KbExpr.has('config.workbench.editor.showTabs')), 'View: Focus Last Editor in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus Left Editor Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus Center Editor Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus Right Editor Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusLastEditorInStackAction, FocusLastEditorInStackAction.ID, FocusLastEditorInStackAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_0 }), 'View: Focus Last Editor in Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EvenGroupWidthsAction.ID, EvenGroupWidthsAction.LABEL), 'View: Even Editor Group Widths', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MaximizeGroupAction.ID, MaximizeGroupAction.LABEL), 'View: Maximize Editor Group and Hide Sidebar', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Minimize Other Editor Groups', category);
@@ -331,8 +331,8 @@ for (let i = 0; i < 9; i++) {
 	KeybindingsRegistry.registerCommandDesc({
 		id: 'workbench.action.openEditorAtIndex' + visibleIndex,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: KbExpr.has('config.workbench.editor.showTabs'),
-		primary: KeyMod.CtrlCmd | toKeyCode(visibleIndex),
+		when: void 0,
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | toKeyCode(visibleIndex),
 		handler: accessor => {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const editorGroupService = accessor.get(IEditorGroupService);
