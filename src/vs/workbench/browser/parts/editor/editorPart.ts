@@ -932,8 +932,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Validate width ratios
 		const positions = rightEditors.length ? 3 : centerEditors.length ? 2 : 1;
-		if (!widthRatios || widthRatios.length !== positions) {
-			widthRatios = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
+		if (widthRatios.length !== positions) {
+			widthRatios = void 0; // being taken care of by the layouting
 		}
 
 		// Open each input respecting the options. Since there can only be one active editor in each

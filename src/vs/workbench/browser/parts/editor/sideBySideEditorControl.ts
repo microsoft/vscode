@@ -85,7 +85,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private static MIN_EDITOR_WIDTH = 170;
 	private static EDITOR_TITLE_HEIGHT = 35;
 	private static SNAP_TO_MINIMIZED_THRESHOLD = 50;
-	private static SHOW_SPLIT_DROP_FEEDBACK_THRESHOLD = 50;
 
 	private stacks: IEditorStacksModel;
 
@@ -765,15 +764,45 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			DOM.removeClass(node, 'dropfeedback');
 			destroyOverlay();
 
+			const editorService = $this.editorService;
+			const groupService = $this.editorGroupService;
+			const stacks = groupService.getStacksModel();
+
+			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
+			const freeGroup = (stacks.groups.length === 1) ? Position.CENTER : Position.RIGHT;
+			const pinned = EditorOptions.create({ pinned: true });
+
 			// Check for transfer from title control
 			const draggedEditor = TitleControl.getDraggedEditor();
 			if (draggedEditor) {
 				const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+
+				// Copy editor to new location
 				if (isCopy) {
-					$this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true }), position).done(null, errors.onUnexpectedError);
-				} else {
-					const sourcePosition = $this.stacks.positionOfGroup(draggedEditor.group);
-					$this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, position);
+					if (splitEditor) {
+						editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+							if (splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+						});
+					} else {
+						editorService.openEditor(draggedEditor.editor, pinned, position).done(null, errors.onUnexpectedError);
+					}
+				}
+
+				// Move editor to new location
+				else {
+					const sourcePosition = stacks.positionOfGroup(draggedEditor.group);
+					if (splitEditor) {
+						editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+							if (splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+							groupService.moveEditor(draggedEditor.editor, stacks.positionOfGroup(draggedEditor.group), splitTo);
+						});
+					} else {
+						groupService.moveEditor(draggedEditor.editor, sourcePosition, position);
+					}
 				}
 			}
 
@@ -783,21 +812,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				if (droppedResources.length) {
 					window.focus(); // make sure this window has focus so that the open call reaches the right window!
 
-					if (splitTo === Position.LEFT && position === Position.LEFT && $this.stacks.groups.length === 1) {
-						$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: Position.CENTER }; }))
+					// Open all
+					editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; }))
 						.then(() => {
-							$this.editorGroupService.moveGroup(Position.LEFT, Position.CENTER);
-							$this.editorGroupService.focusGroup(position);
+							if (splitEditor && splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+
+							groupService.focusGroup(splitEditor ? splitTo : position);
 						})
 						.done(null, errors.onUnexpectedError);
-					}
-
-					// Open all
-					else {
-						$this.editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position }; }))
-							.then(() => $this.editorGroupService.focusGroup(position))
-							.done(null, errors.onUnexpectedError);
-					}
 				}
 			}
 		}
@@ -812,19 +836,27 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		function positionOverlay(e: DragEvent, groups: number, position: Position): void {
 			const target = <HTMLElement>e.target;
 			const posXOnOverlay = e.offsetX;
+			const overlayIsSplit = typeof overlay.getProperty(splitToPropertyKey) === 'number';
 			const overlayWidth = target.clientWidth;
+			const splitThreshold = overlayIsSplit ? overlayWidth / 5 : overlayWidth / 10;
+			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 			if (groups === POSITIONS.length) {
 				return; // do not show split feedback when we already at the maximum
 			}
 
-			if (posXOnOverlay + SideBySideEditorControl.SHOW_SPLIT_DROP_FEEDBACK_THRESHOLD > overlayWidth) {
+			const draggedEditor = TitleControl.getDraggedEditor();
+			if (!isCopy && draggedEditor && draggedEditor.group.count === 1) {
+				return; // do not show split feedback when moving the only one editor of a group
+			}
+
+			if (posXOnOverlay + splitThreshold > overlayWidth) {
 				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.CENTER : Position.RIGHT);
 				overlay.style({
 					left: '50%',
 					width: '50%',
 				});
-			} else if (posXOnOverlay < SideBySideEditorControl.SHOW_SPLIT_DROP_FEEDBACK_THRESHOLD) {
+			} else if (posXOnOverlay < splitThreshold) {
 				overlay.setProperty(splitToPropertyKey, position === Position.LEFT ? Position.LEFT : Position.CENTER);
 				overlay.style({
 					width: '50%'
