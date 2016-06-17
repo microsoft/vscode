@@ -266,6 +266,21 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups.length, 0);
 	});
 
+	test('Groups - Close Group sends move event for others to the right', function () {
+		const model = create();
+		const events = modelListener(model);
+
+		const first = model.openGroup('first');
+		model.openGroup('second');
+		const third = model.openGroup('third');
+
+		model.closeGroup(first);
+		assert.equal(events.moved.length, 2);
+
+		model.closeGroup(third);
+		assert.equal(events.moved.length, 2);
+	});
+
 	test('Groups - Move Groups', function () {
 		const model = create();
 		const events = modelListener(model);
