@@ -8,6 +8,7 @@
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
+import { IPager } from 'vs/base/common/paging';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExtensionManifest {
@@ -70,17 +71,10 @@ export interface IQueryOptions {
 	pageSize?: number;
 }
 
-export interface IQueryResult {
-	firstPage: IGalleryExtension[];
-	total: number;
-	pageSize: number;
-	getPage(pageNumber: number): TPromise<IGalleryExtension[]>;
-}
-
 export interface IExtensionGalleryService {
 	serviceId: ServiceIdentifier<any>;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions): TPromise<IQueryResult>;
+	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 }
 
 export type DidInstallExtensionEvent = { id: string; error?: Error; };
