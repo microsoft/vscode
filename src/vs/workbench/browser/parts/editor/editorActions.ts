@@ -970,6 +970,38 @@ export class ShowEditorsInRightGroupAction extends QuickOpenAction {
 	}
 }
 
+export class ShowEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.action.showEditorsInGroup';
+	public static LABEL = nls.localize('showEditorsInGroup', "Show Editors in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		const stacks = this.editorGroupService.getStacksModel();
+		const groupCount = stacks.groups.length;
+		if (groupCount <= 1 || !context) {
+			return this.quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
+		}
+
+		switch (stacks.positionOfGroup(context.group)) {
+			case Position.CENTER:
+				return this.quickOpenService.show((groupCount === 2) ? NAVIGATE_IN_RIGHT_GROUP_PREFIX : NAVIGATE_IN_CENTER_GROUP_PREFIX);
+			case Position.RIGHT:
+				return this.quickOpenService.show(NAVIGATE_IN_RIGHT_GROUP_PREFIX);
+		}
+
+		return this.quickOpenService.show(NAVIGATE_IN_LEFT_GROUP_PREFIX);
+	}
+}
+
 export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 
 export class ShowAllEditorsAction extends QuickOpenAction {

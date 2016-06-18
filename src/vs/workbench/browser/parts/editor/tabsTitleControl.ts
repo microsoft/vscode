@@ -78,6 +78,14 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.setAttribute('role', 'tablist');
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 
+		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
+			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
+				this.scrollbar.updateState({
+					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
+				});
+			}
+		}));
+
 		// Custom Scrollbar
 		this.scrollbar = new ScrollableElement(this.tabsContainer, {
 			horizontal: ScrollbarVisibility.Auto,
@@ -87,7 +95,6 @@ export class TabsTitleControl extends TitleControl {
 			canUseTranslate3d: true,
 			horizontalScrollbarSize: 3
 		});
-		// this.tabsContainer.style.overflow = 'scroll'; // custom scrollbar is eager on removing this style but we want it for DND scroll feedback
 
 		this.scrollbar.onScroll(e => {
 			this.tabsContainer.scrollLeft = e.scrollLeft;
@@ -97,6 +104,8 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.addClass(this.tabsContainer, 'scroll'); // enable support to scroll while dragging
+
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.addClass(this.tabsContainer, 'dropfeedback');
@@ -106,16 +115,19 @@ export class TabsTitleControl extends TitleControl {
 		// Drag leave
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drag end
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+			DOM.removeClass(this.tabsContainer, 'scroll');
 		}));
 
 		// Drop onto tabs container
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.removeClass(this.tabsContainer, 'dropfeedback');
+			DOM.removeClass(this.tabsContainer, 'scroll');
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
@@ -339,10 +351,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update enablement of certain actions that depend on overflow
 		const isOverflowing = (totalContainerWidth > visibleContainerWidth);
-		this.showEditorsOfLeftGroup.enabled = isOverflowing;
-		this.showEditorsOfCenterGroup.enabled = isOverflowing;
-		this.showEditorsOfRightGroup.enabled = isOverflowing;
-		this.showAllEditorsAction.enabled = isOverflowing;
+		this.showEditorsInGroupAction.enabled = isOverflowing;
 	}
 
 	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): void {
@@ -420,7 +429,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drag start
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
-			DOM.addClass(tab, 'dragged');
 			this.onEditorDragStart({ editor, group });
 			e.dataTransfer.effectAllowed = 'copyMove';
 
@@ -443,13 +451,15 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drag end
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
-			DOM.removeClass(tab, 'dragged');
 			DOM.removeClass(tab, 'dropfeedback');
+
 			this.onEditorDragEnd();
 		}));
 
 		// Drop
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.removeClass(tab, 'dropfeedback');
+
 			const targetPosition = this.stacks.positionOfGroup(group);
 			const targetIndex = group.indexOf(editor);
 

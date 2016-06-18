@@ -1541,13 +1541,18 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		const stacks = this.editorGroupService.getStacksModel();
 
 		// Store some properties per untitled file to restore later after save is completed
-		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; } } = Object.create(null);
+		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
 		this.textFileService.getDirty()
 			.filter(r => r.scheme === 'untitled')			// All untitled resources
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
-			.filter(i => !!i)								// If possible :)
-			.forEach(i => {
-				mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding(), indexInGroups: stacks.groups.map(g => g.indexOf(i)) };
+			.filter(input => !!input)								// If possible :)
+			.forEach(input => {
+				mapUntitledToProperties[input.getResource().toString()] = {
+					mime: input.getMime(),
+					encoding: input.getEncoding(),
+					indexInGroups: stacks.groups.map(g => g.indexOf(input)),
+					activeInGroups: stacks.groups.map(g => g.isActive(input))
+				};
 			});
 
 		// Save all
@@ -1582,7 +1587,8 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 								options: {
 									pinned: true,
 									index: indexInGroup,
-									preserveFocus: true
+									preserveFocus: true,
+									inactive: !untitledProps.activeInGroups[index]
 								}
 							},
 							position: index
