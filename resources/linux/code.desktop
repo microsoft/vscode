@@ -10,6 +10,7 @@ StartupWMClass=@@NAME_SHORT@@
 Categories=Utility;TextEditor;Development;IDE;
 MimeType=text/plain;
 Actions=new-window;
+Keywords=vscode;
 
 [Desktop Action new-window]
 Name=New Window
