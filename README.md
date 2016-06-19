@@ -6,7 +6,7 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
 * Install the extension
 * If not using [Virtual Environments](https://virtualenv.readthedocs.org/) and the Python executable isn't located in the current path, then [configure the path](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version) to the python executable.  
 * If using [Virtual Environments](https://virtualenv.readthedocs.org/), you could either:     
-  + Activate the virtual environment from within your terminal/command window and then launch VS Code (see [wiki](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version#virtual-environments)).
+  + Close all instances of VS Code, and activate the virtual environment from within your terminal/command window and then launch VS Code (see [wiki](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version#virtual-environments)).
   + Or manually [configure the paths](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version).  
 
 ###[Troubleshooting guide](https://github.com/DonJayamanne/pythonVSCode/wiki/Troubleshooting)
@@ -123,6 +123,15 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
  + pip install nose
 
 ## Change Log
+
+### Version 0.3.11  
+* Added support for telemetry [#156](https://github.com/DonJayamanne/pythonVSCode/issues/156)
+* Optimized code formatting and sorting of imports [#150](https://github.com/DonJayamanne/pythonVSCode/issues/150), [#151](https://github.com/DonJayamanne/pythonVSCode/issues/151), [#157](https://github.com/DonJayamanne/pythonVSCode/issues/157)
+* Fixed issues in code formatting [#171](https://github.com/DonJayamanne/pythonVSCode/issues/171)
+* Modifications to display errors returned by debugger [#111](https://github.com/DonJayamanne/pythonVSCode/issues/111)
+* Fixed the prospector linter [#142](https://github.com/DonJayamanne/pythonVSCode/issues/142)
+* Modified to resolve issues where debugger wasn't handling code exceptions correctly [#159](https://github.com/DonJayamanne/pythonVSCode/issues/159)
+* Added support for unit tests using pytest [#164](https://github.com/DonJayamanne/pythonVSCode/issues/164)
 
 ### Version 0.3.10
 * Fixed issue with duplicate output channels being created
