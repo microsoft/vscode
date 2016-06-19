@@ -9,6 +9,7 @@ import pkg from 'vs/platform/package';
 import { ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
+import { IPager } from 'vs/base/common/paging';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { IExtensionManagementService, IExtensionGalleryService, IQueryResult, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -77,7 +78,7 @@ class Main {
 				}
 
 				return this.extensionGalleryService.query({ ids: [id] })
-					.then<IQueryResult>(null, err => {
+					.then<IPager<IGalleryExtension>>(null, err => {
 						if (err.responseText) {
 							try {
 								const response = JSON.parse(err.responseText);
