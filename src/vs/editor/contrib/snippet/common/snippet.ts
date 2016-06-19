@@ -700,7 +700,7 @@ class InsertSnippetController {
 }
 
 export interface ISnippetController extends editorCommon.IEditorContribution {
-	run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number): void;
+	run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?:boolean): void;
 	jumpToNextPlaceholder(): void;
 	jumpToPrevPlaceholder(): void;
 	acceptSnippet(): void;
@@ -736,7 +736,7 @@ class SnippetController implements ISnippetController {
 		return SnippetController.ID;
 	}
 
-	public run(snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number): void {
+	public run(snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix?:boolean): void {
 		let prevController = this._currentController;
 		this._currentController = null;
 
@@ -744,7 +744,7 @@ class SnippetController implements ISnippetController {
 			// No placeholders => execute for all editor selections
 			this._runForAllSelections(snippet, overwriteBefore, overwriteAfter);
 		} else {
-			this._runForPrimarySelection(snippet, overwriteBefore, overwriteAfter);
+			this._runForPrimarySelection(snippet, overwriteBefore, overwriteAfter, stripPrefix);
 		}
 
 		if (!this._currentController) {
@@ -785,12 +785,12 @@ class SnippetController implements ISnippetController {
 		}
 	}
 
-	private _runForPrimarySelection(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number): void {
+	private _runForPrimarySelection(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?:boolean): void {
 		let initialAlternativeVersionId = this._editor.getModel().getAlternativeVersionId();
 
 		let edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
-		let prepared = SnippetController._prepareSnippet(this._editor, this._editor.getSelection(), snippet, overwriteBefore, overwriteAfter);
+		let prepared = SnippetController._prepareSnippet(this._editor, this._editor.getSelection(), snippet, overwriteBefore, overwriteAfter, stripPrefix);
 		SnippetController._addCommandForSnippet(this._editor.getModel(), prepared.adaptedSnippet, prepared.typeRange, edits);
 
 		if (edits.length > 0) {
@@ -822,7 +822,7 @@ class SnippetController implements ISnippetController {
 		}
 	}
 
-	private static _prepareSnippet(editor:editorCommon.ICommonCodeEditor, selection:Selection, snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
+	private static _prepareSnippet(editor:editorCommon.ICommonCodeEditor, selection:Selection, snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix?:boolean): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
 		var model = editor.getModel();
 
 		var typeRange = SnippetController._getTypeRangeForSelection(model, selection, overwriteBefore, overwriteAfter);
@@ -831,7 +831,7 @@ class SnippetController implements ISnippetController {
 			var nextInSnippet = snippet.lines[0].substr(overwriteBefore);
 			var commonPrefix = strings.commonPrefixLength(nextTextOnLine, nextInSnippet);
 
-			if (commonPrefix > 0) {
+			if (commonPrefix > 0 && !stripPrefix === false) {
 				typeRange = typeRange.setEndPosition(typeRange.endLineNumber, typeRange.endColumn + commonPrefix);
 			}
 		}

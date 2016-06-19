@@ -60,7 +60,7 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public setCaretPos(pos: number): void {
-		//
+		this.createSelection(pos);
 	}
 
 	public getCurrentLine(): string {
@@ -86,29 +86,29 @@ export class EditorAccessor implements emmet.Editor {
 
 		// shift column by +1 since they are 1 based
 		let range = new Range(startPosition.lineNumber, startPosition.column + 1, endPosition.lineNumber, endPosition.column + 1);
-		let deletePreviousChars = 0;
 
-		if (range.startLineNumber === range.endLineNumber) {
-			// The snippet will delete
-			deletePreviousChars = range.endColumn - range.startColumn;
-		} else {
-			// We must manually delete
-			let command = new ReplaceCommand(range, '');
-			this.editor.executeCommand('emmet', command);
-			deletePreviousChars = 0;
-		}
+		let command = new ReplaceCommand(range, '');
+		this.editor.executeCommand('emmet', command);
 
 		let snippet = snippets.CodeSnippet.convertExternalSnippet(value, snippets.ExternalSnippetType.EmmetSnippet);
 		let codeSnippet = new snippets.CodeSnippet(snippet);
-		snippets.getSnippetController(this.editor).run(codeSnippet, deletePreviousChars, 0);
+		snippets.getSnippetController(this.editor).run(codeSnippet, 0, 0, false);
 	}
 
 	public getContent(): string {
 		return this.editor.getModel().getValue();
 	}
 
-	public createSelection(start: number, end: number): void {
-		//
+	public createSelection(startOffset: number, endOffset?: number): void {
+		let startPosition = this.getPositionFromOffset(startOffset);
+		let endPosition = null;
+		if (!endOffset) {
+			endPosition = startPosition;
+		} else {
+			endPosition = this.getPositionFromOffset(endOffset);
+		}
+		let range = new Range(startPosition.lineNumber, startPosition.column + 1, endPosition.lineNumber, endPosition.column + 1);
+		this.editor.setSelection(range);
 	}
 
 	public getSyntax(): string {
@@ -136,7 +136,12 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getSelection(): string {
-		return '';
+		let selection = this.editor.getSelection();
+		let model = this.editor.getModel();
+		let start = selection.getStartPosition();
+		let end = selection.getEndPosition();
+		let range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+		return model.getValueInRange(range);
 	}
 
 	public getFilePath(): string {

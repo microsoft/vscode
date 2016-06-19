@@ -10,34 +10,113 @@ import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/e
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {EditorAccessor} from './editorAccessor';
+import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import nls = require('vs/nls');
 
-export class ExpandAbbreviationAction extends EditorAction {
-	static ID = 'editor.emmet.action.expandAbbreviation';
+export abstract class EmmetEditorAction extends EditorAction {
 
-	private editorAccessor: EditorAccessor;
+	protected static editorAccessor: EditorAccessor;
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.TextFocus);
-		this.editorAccessor = new EditorAccessor(editor);
+		if (!EmmetEditorAction.editorAccessor) {
+			EmmetEditorAction.editorAccessor = new EditorAccessor(editor);
+		}
 	}
+
+	abstract runEmmetAction(_module: any);
 
 	public run(): TPromise<boolean> {
 		return new TPromise((c, e) => {
 			require(['emmet'], (_module) => {
 				try {
-					if (!this.editorAccessor.isEmmetEnabledMode()) {
-						this.editorAccessor.noExpansionOccurred();
+					if (!EmmetEditorAction.editorAccessor.isEmmetEnabledMode()) {
+						EmmetEditorAction.editorAccessor.noExpansionOccurred();
 						return;
 					}
-					if (!_module.run('expand_abbreviation', this.editorAccessor)) {
-						this.editorAccessor.noExpansionOccurred();
-					}
+					this.runEmmetAction(_module);
 				} catch (err) {
 					//
 				} finally {
-					this.editorAccessor.flushCache();
+					EmmetEditorAction.editorAccessor.flushCache();
 				}
 			}, e);
 		});
+	}
+}
+
+export class ExpandAbbreviationAction extends EmmetEditorAction {
+	static ID = 'editor.emmet.action.expandAbbreviation';
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
+		super(descriptor, editor);
+	}
+
+	public runEmmetAction(_module) {
+		if (!_module.run('expand_abbreviation', EmmetEditorAction.editorAccessor)) {
+			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		}
+	}
+}
+
+export class RemoveTagAction extends EmmetEditorAction {
+	static ID = 'editor.emmet.action.removeTag';
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
+		super(descriptor, editor);
+	}
+
+	public runEmmetAction(_module) {
+		if (!_module.run('remove_tag', EmmetEditorAction.editorAccessor)) {
+			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		}
+	}
+}
+
+export class UpdateTagAction extends EmmetEditorAction {
+	static ID = 'editor.emmet.action.updateTag';
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+		super(descriptor, editor);
+	}
+
+	public runEmmetAction(_module) {
+		let options: IInputOptions = {
+			prompt: nls.localize('enterTag', "Enter Tag"),
+			placeHolder: nls.localize('tag', "Tag")
+		};
+		this.quickOpenService.input(options).then(tag => {
+			this.wrapAbbreviation(_module, tag);
+		});
+	}
+
+	private wrapAbbreviation(_module: any, tag) {
+		if (!_module.run('update_tag', EmmetEditorAction.editorAccessor, tag)) {
+			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		}
+	}
+}
+
+export class WrapWithAbbreviationAction extends EmmetEditorAction {
+	static ID = 'editor.emmet.action.wrapWithAbbreviation';
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+		super(descriptor, editor);
+	}
+
+	public runEmmetAction(_module) {
+		let options: IInputOptions = {
+			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
+			placeHolder: nls.localize('abbreviation', "Abbreviation")
+		};
+		this.quickOpenService.input(options).then(abbreviation => {
+			this.wrapAbbreviation(_module, abbreviation);
+		});
+	}
+
+	private wrapAbbreviation(_module: any, abbreviation) {
+		if (!_module.run('wrap_with_abbreviation', EmmetEditorAction.editorAccessor, abbreviation)) {
+			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		}
 	}
 }
