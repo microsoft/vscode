@@ -9,7 +9,7 @@ import 'vs/css!./media/extensionsViewlet';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IPager } from 'vs/base/common/paging';
+import { IPager, mapPager } from 'vs/base/common/paging';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export enum ExtensionState {
@@ -21,8 +21,9 @@ export enum ExtensionState {
 
 export interface IExtension {
 	name: string;
-	publisher: string;
 	displayName: string;
+	publisher: string;
+	publisherDisplayName: string;
 	version: string;
 	description: string;
 	iconUrl: string;
@@ -30,10 +31,10 @@ export interface IExtension {
 
 class Extension implements IExtension {
 
-	local: ILocalExtension;
-	gallery: IGalleryExtension;
-
-	constructor() {
+	constructor(
+		public local: ILocalExtension,
+		public gallery: IGalleryExtension = null
+	) {
 
 	}
 
@@ -41,7 +42,19 @@ class Extension implements IExtension {
 		return this.local ? this.local.manifest.name : this.gallery.name;
 	}
 
+	get displayName(): string {
+		if (this.local) {
+			return this.local.manifest.displayName || this.local.manifest.name;
+		}
+
+		return this.gallery.displayName || this.gallery.name;
+	}
+
 	get publisher(): string {
+		return this.local ? this.local.manifest.publisher : this.gallery.publisher;
+	}
+
+	get publisherDisplayName(): string {
 		if (this.local) {
 			if (this.local.metadata && this.local.metadata.publisherDisplayName) {
 				return this.local.metadata.publisherDisplayName;
@@ -51,14 +64,6 @@ class Extension implements IExtension {
 		}
 
 		return this.gallery.publisherDisplayName || this.gallery.publisher;
-	}
-
-	get displayName(): string {
-		if (this.local) {
-			return this.local.manifest.displayName || this.local.manifest.name;
-		}
-
-		return this.gallery.displayName || this.gallery.name;
 	}
 
 	get version(): string {
@@ -99,12 +104,14 @@ export class ExtensionsModel {
 		// todo
 	}
 
-	getInstalled(): IExtension[] {
-		throw new Error('not implemented');
+	getInstalled(): TPromise<IExtension[]> {
+		return this.extensionService.getInstalled()
+			.then(result => result.map(local => new Extension(local)));
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		throw new Error('not implemented');
+		return this.galleryService.query(options)
+			.then(result => mapPager(result, gallery => new Extension(null, gallery)));
 	}
 
 	getState(extension: IExtension): ExtensionState {

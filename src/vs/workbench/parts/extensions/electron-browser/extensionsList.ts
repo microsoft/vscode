@@ -9,10 +9,10 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtension } from './extensionsModel';
 
 export interface ITemplateData {
-	extension: ILocalExtension | IGalleryExtension;
+	extension: IExtension;
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
@@ -21,12 +21,12 @@ export interface ITemplateData {
 	description: HTMLElement;
 }
 
-export class Delegate implements IDelegate<ILocalExtension | IGalleryExtension> {
+export class Delegate implements IDelegate<IExtension> {
 	getHeight() { return 62; }
 	getTemplateId() { return 'extension'; }
 }
 
-export class Renderer implements IPagedRenderer<ILocalExtension | IGalleryExtension, ITemplateData> {
+export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	private _templates: ITemplateData[];
 	get templates(): ITemplateData[] { return this._templates; }
@@ -64,49 +64,14 @@ export class Renderer implements IPagedRenderer<ILocalExtension | IGalleryExtens
 		data.description.textContent = '';
 	}
 
-	renderElement(extension: ILocalExtension | IGalleryExtension, index: number, data: ITemplateData): void {
-		const local = extension as ILocalExtension;
-		const galleryExtension = extension as IGalleryExtension;
-
-		if (local.path) {
-			return this.renderExtension(local, data);
-		} else {
-			return this.renderGalleryExtension(galleryExtension, data);
-		}
-	}
-
-	private renderExtension(extension: ILocalExtension, data: ITemplateData): void {
-		let iconUrl: string;
-		let publisher = extension.manifest.publisher;
-
-		if (extension.manifest.icon) {
-			iconUrl = `file://${ extension.path }/${ extension.manifest.icon }`;
-		}
-
-		if (extension.metadata) {
-			publisher = extension.metadata.publisherDisplayName || publisher;
-		}
-
+	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		data.extension = extension;
 		removeClass(data.element, 'loading');
-		data.icon.src = iconUrl || require.toUrl('./media/defaultIcon.png');
-		data.name.textContent = extension.manifest.displayName || extension.manifest.name;
-		data.version.textContent = ` ${ extension.manifest.version }`;
-		data.author.textContent = ` ${ publisher }`;
-		data.description.textContent = extension.manifest.description;
-	}
 
-	private renderGalleryExtension(extension: IGalleryExtension, data: ITemplateData): void {
-		const version = extension.versions[0];
-		const publisher = extension.publisherDisplayName || extension.publisher;
-		const iconUrl = version.iconUrl;
-
-		data.extension = extension;
-		removeClass(data.element, 'loading');
-		data.icon.src = iconUrl || require.toUrl('./media/defaultIcon.png');
-		data.name.textContent = extension.displayName || extension.name;
-		data.version.textContent = ` ${ version.version }`;
-		data.author.textContent = ` ${ publisher }`;
+		data.icon.src = extension.iconUrl;
+		data.name.textContent = extension.displayName;
+		data.version.textContent = extension.version;
+		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 	}
 

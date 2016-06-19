@@ -18,7 +18,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsModel, IExtension } from './extensionsModel';
+import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -32,7 +33,8 @@ export class ExtensionsViewlet extends Viewlet {
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
-	private list: PagedList<ILocalExtension | IGalleryExtension>;
+	private model: ExtensionsModel;
+	private list: PagedList<IExtension>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -45,6 +47,7 @@ export class ExtensionsViewlet extends Viewlet {
 		super(ExtensionsViewlet.ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
 		this.disposables = [];
+		this.model = instantiationService.createInstance(ExtensionsModel);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -100,13 +103,13 @@ export class ExtensionsViewlet extends Viewlet {
 
 	private doSearch(text: string = ''): TPromise<any> {
 		const progressRunner = this.progressService.show(true);
-		let promise: TPromise<PagedModel<ILocalExtension | IGalleryExtension>>;
+		let promise: TPromise<PagedModel<IExtension>>;
 
 		if (text) {
-			promise = this.galleryService.query({ text })
+			promise = this.model.queryGallery({ text })
 				.then(result => new PagedModel(result));
 		} else {
-			promise = this.extensionService.getInstalled()
+			promise = this.model.getInstalled()
 				.then(result => new SinglePagePagedModel(result));
 		}
 

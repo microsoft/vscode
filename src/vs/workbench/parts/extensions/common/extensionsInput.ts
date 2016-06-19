@@ -7,14 +7,16 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+
+// TODO@joao: layer breaker
+import { IExtension } from '../electron-browser/extensionsModel';
 
 export class ExtensionsInput extends EditorInput {
 
 	static get ID()  { return 'workbench.extensions.input2'; }
-	get extension(): ILocalExtension | IGalleryExtension { return this._extension; }
+	get extension(): IExtension { return this._extension; }
 
-	constructor(private _extension: ILocalExtension | IGalleryExtension) {
+	constructor(private _extension: IExtension) {
 		super();
 	}
 
@@ -23,14 +25,7 @@ export class ExtensionsInput extends EditorInput {
 	}
 
 	getName(): string {
-		const local = this.extension as ILocalExtension;
-		const gallery = this.extension as IGalleryExtension;
-
-		if (local.path) {
-			return local.manifest.displayName || local.manifest.name;
-		} else {
-			return gallery.displayName || gallery.name;
-		}
+		return this.extension.displayName;
 	}
 
 	matches(other: any): boolean {
@@ -39,7 +34,9 @@ export class ExtensionsInput extends EditorInput {
 		}
 
 		const otherExtensionInput = other as ExtensionsInput;
-		return this.extension.id === otherExtensionInput.extension.id;
+
+		// TODO@joao is this correct?
+		return this.extension === otherExtensionInput.extension;
 	}
 
 	resolve(refresh?: boolean): TPromise<any> {
