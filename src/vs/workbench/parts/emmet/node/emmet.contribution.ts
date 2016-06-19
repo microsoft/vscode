@@ -11,7 +11,7 @@ import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/edi
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 
 import editorCommon = require('vs/editor/common/editorCommon');
-import {ExpandAbbreviationAction} from './emmetActions';
+import {ExpandAbbreviationAction, WrapWithAbbreviationAction, RemoveTagAction, UpdateTagAction} from './emmetActions';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
@@ -20,6 +20,21 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ExpandAbbre
 	ExpandAbbreviationAction.ID,
 	nls.localize('expandAbbreviationAction',
 	"Emmet: Expand Abbreviation"), void 0, 'Emmet: Expand Abbreviation'));
+
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(WrapWithAbbreviationAction,
+	WrapWithAbbreviationAction.ID,
+	nls.localize('wrapWithAbbreviationAction',
+	"Emmet: Wrap with Abbreviation"), void 0, 'Emmet: Wrap with Abbreviation'));
+
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RemoveTagAction,
+	RemoveTagAction.ID,
+	nls.localize('removeTag',
+	"Emmet: Remove Tag"), void 0, 'Emmet: Remove Tag'));
+
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UpdateTagAction,
+	UpdateTagAction.ID,
+	nls.localize('updateTag',
+	"Emmet: Update Tag"), void 0, 'Emmet: Update Tag'));
 
 KeybindingsRegistry.registerCommandRule({
 	id: ExpandAbbreviationAction.ID,
