@@ -11,6 +11,8 @@ import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, emmet as $ } from 'vs/base/browser/dom';
 import { PagedModel, SinglePagePagedModel } from 'vs/base/common/paging';
@@ -28,13 +30,13 @@ export class ExtensionsViewlet extends Viewlet {
 
 	static ID: string = 'workbench.viewlet.extensions';
 
-	private disposables: IDisposable[];
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
 	private model: ExtensionsModel;
 	private list: PagedList<IExtension>;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -46,7 +48,6 @@ export class ExtensionsViewlet extends Viewlet {
 	) {
 		super(ExtensionsViewlet.ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
-		this.disposables = [];
 		this.model = instantiationService.createInstance(ExtensionsModel);
 	}
 
@@ -65,7 +66,8 @@ export class ExtensionsViewlet extends Viewlet {
 		const renderer = this.instantiationService.createInstance(Renderer, this.model);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
-		this.searchBox.oninput = () => this.triggerSearch(this.searchBox.value);
+		this.searchBox.onkeydown = e => this.onSearchKeyDown(new StandardKeyboardEvent(e));
+		this.searchBox.oninput = () => this.triggerSearch();
 
 		this.list.onSelectionChange(e => {
 			const [extension] = e.elements;
@@ -83,8 +85,11 @@ export class ExtensionsViewlet extends Viewlet {
 	setVisible(visible:boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
 			if (visible) {
-				this.searchBox.value = '';
-				this.triggerSearch('', 0);
+				this.searchBox.focus();
+				this.searchBox.setSelectionRange(0,this.searchBox.value.length);
+				this.triggerSearch(0);
+			} else {
+				this.list.model = new SinglePagePagedModel([]);
 			}
 		});
 	}
@@ -97,7 +102,8 @@ export class ExtensionsViewlet extends Viewlet {
 		this.list.layout(height - 38);
 	}
 
-	private triggerSearch(text: string = '', delay = 500): void {
+	private triggerSearch(delay = 500): void {
+		const text = this.searchBox.value;
 		this.searchDelayer.trigger(() => this.doSearch(text), text ? delay : 0);
 	}
 
@@ -115,6 +121,13 @@ export class ExtensionsViewlet extends Viewlet {
 
 		return always(promise, () => progressRunner.done())
 			.then(model => this.list.model = model);
+	}
+
+	private onSearchKeyDown(e: StandardKeyboardEvent): void {
+		if (e.keyCode === KeyCode.Escape) {
+			this.searchBox.value = '';
+			this.triggerSearch(0);
+		}
 	}
 
 	dispose(): void {
