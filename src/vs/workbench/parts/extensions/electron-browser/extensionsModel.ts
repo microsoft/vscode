@@ -114,6 +114,7 @@ export class ExtensionsModel {
 		this.stateProvider = ext => this.getExtensionState(ext);
 		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
 		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
+		this.disposables.push(extensionService.onUninstallExtension((id) => this.onUninstallExtension(id)));
 	}
 
 	getLocal(): TPromise<IExtension[]> {
@@ -149,6 +150,14 @@ export class ExtensionsModel {
 		});
 	}
 
+	canInstall(extension: IExtension): boolean {
+		if (!(extension instanceof Extension)) {
+			return;
+		}
+
+		return !!(extension as Extension).gallery;
+	}
+
 	install(extension: IExtension): TPromise<void> {
 		if (!(extension instanceof Extension)) {
 			return;
@@ -162,6 +171,21 @@ export class ExtensionsModel {
 		}
 
 		return this.extensionService.install(gallery);
+	}
+
+	uninstall(extension: IExtension): TPromise<void> {
+		if (!(extension instanceof Extension)) {
+			return;
+		}
+
+		const ext = extension as Extension;
+		const local = ext.local;
+
+		if (!local) {
+			return TPromise.wrapError<void>(new Error('Missing local'));
+		}
+
+		return this.extensionService.uninstall(local);
 	}
 
 	private onInstallExtension(id: string, gallery: IGalleryExtension): void {
@@ -193,6 +217,17 @@ export class ExtensionsModel {
 
 		this.installing = this.installing.filter(e => e.id !== id);
 		this.installed.push(extension);
+
+		this._onChange.fire();
+	}
+
+	private onUninstallExtension(id: string): void {
+		const previousLength = this.installed.length;
+		this.installed = this.installed.filter(e => e.local.id !== id);
+
+		if (previousLength === this.installed.length) {
+			return;
+		}
 
 		this._onChange.fire();
 	}

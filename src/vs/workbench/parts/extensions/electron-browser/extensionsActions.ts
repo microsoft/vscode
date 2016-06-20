@@ -123,7 +123,7 @@ export class InstallAction extends Action {
 	}
 
 	private updateEnablement(): void {
-		this.enabled = this.extension.state === ExtensionState.Uninstalled;
+		this.enabled = this.model.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
 	}
 
 	run(): TPromise<any> {
@@ -171,40 +171,46 @@ export class InstallAction extends Action {
 	}
 }
 
-// export class UninstallAction extends Action {
+export class UninstallAction extends Action {
 
-// 	constructor(
-// 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-// 		@IExtensionManagementService protected extensionManagementService: IExtensionManagementService,
-// 		@IMessageService protected messageService: IMessageService,
-// 		@ITelemetryService protected telemetryService: ITelemetryService,
-// 		@IInstantiationService protected instantiationService: IInstantiationService
-// 	) {
-// 		super('extensions.uninstall', nls.localize('uninstall', "Uninstall Extension"), 'octicon octicon-x', true);
-// 	}
+	private disposables: IDisposable[] = [];
 
-// 	run(extension: ILocalExtension): TPromise<any> {
-// 		const name = extension.manifest.displayName || extension.manifest.name;
+	constructor(private model: ExtensionsModel, private extension: IExtension) {
+		super('extensions.uninstall', nls.localize('uninstall', "Uninstall"), 'octicon octicon-x', false);
 
-// 		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", name))) {
-// 			return TPromise.as(null);
-// 		}
+		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
+		this.updateEnablement();
+	}
 
-// 		this.enabled = false;
+	private updateEnablement(): void {
+		this.enabled = this.extension.state === ExtensionState.Installed;
+	}
 
-// 		return this.extensionManagementService.getInstalled().then(localExtensions => {
-// 			const [local] = localExtensions.filter(local => extensionEquals(local.manifest, extension.manifest));
+	run(): TPromise<any> {
+		// const name = extension.manifest.displayName || extension.manifest.name;
 
-// 			if (!local) {
-// 				return TPromise.wrapError(nls.localize('notFound', "Extension '{0}' not installed.", name));
-// 			}
+		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", this.extension.displayName))) {
+			return TPromise.as(null);
+		}
 
-// 			return this.extensionManagementService.uninstall(local)
-// 				.then(() => this.onSuccess(local), err => this.onError(err, local))
-// 				.then(() => this.enabled = true)
-// 				.then(() => null);
-// 		});
-// 	}
+
+		return this.model.uninstall(this.extension);
+
+		// this.enabled = false;
+
+		// return this.extensionManagementService.getInstalled().then(localExtensions => {
+		// 	const [local] = localExtensions.filter(local => extensionEquals(local.manifest, extension.manifest));
+
+		// 	if (!local) {
+		// 		return TPromise.wrapError(nls.localize('notFound', "Extension '{0}' not installed.", name));
+		// 	}
+
+		// 	return this.extensionManagementService.uninstall(local)
+		// 		.then(() => this.onSuccess(local), err => this.onError(err, local))
+		// 		.then(() => this.enabled = true)
+		// 		.then(() => null);
+		// });
+	}
 
 // 	private onSuccess(extension: ILocalExtension) {
 // 		const name = extension.manifest.displayName || extension.manifest.name;
@@ -229,4 +235,9 @@ export class InstallAction extends Action {
 
 // 		this.telemetryService.publicLog('extensionGallery:uninstall', data);
 // 	}
-// }
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
