@@ -42,21 +42,14 @@
 		"commands": [
 			{
 				"command": "markdown.showPreview",
-				"title": "%markdown.openPreview%",
-				"category": "%markdown.category%",
-				"where": ["explorer/context"],
-				"when": "markdown"
-			},
-			{
-				"command": "markdown.showPreview",
 				"title": "%markdown.previewMarkdown.title%",
 				"category": "%markdown.category%",
 				"icon": {
 					"light": "./media/Preview.svg",
 					"dark": "./media/Preview_inverse.svg"
 				},
-				"where": ["editor/primary"],
-				"when": "markdown"
+				"when": "resourceLangId == markdown",
+				"where": "editor/primary"
 			},
 			{
 				"command": "markdown.showSource",
@@ -66,14 +59,14 @@
 					"light": "./media/ViewSource.svg",
 					"dark": "./media/ViewSource_inverse.svg"
 				},
-				"where": ["editor/primary"],
-				"when": { "scheme": "markdown" }
+				"when": "resourceScheme == markdown",
+				"where": "editor/primary"
 			},
 			{
 				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewMarkdownSide.title%",
-				"where": "editor/secondary",
-				"when": "markdown"
+				"when": "resourceLangId == markdown",
+				"where": "editor/secondary"
 			}
 		],
 		"keybindings": [
