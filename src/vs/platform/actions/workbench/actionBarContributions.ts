@@ -56,11 +56,11 @@ abstract class BaseActionBarContributor extends ActionBarContributor {
 		const result: IAction[] = [];
 
 		for (let command of commands) {
-			console.log(command.id, command.when,
-				this._keybindingService.contextMatchesRules(command.when),
-				this._keybindingService.getContextValue('resourceLangId'),
-				this._keybindingService.getContextValue('resourceScheme')
-			);
+			// console.log(command.id, command.when,
+			// 	this._keybindingService.contextMatchesRules(command.when),
+			// 	this._keybindingService.getContextValue('resourceLangId'),
+			// 	this._keybindingService.getContextValue('resourceScheme')
+			// );
 			if (command.where === where && this._keybindingService.contextMatchesRules(command.when)) {
 				let resource = this._keybindingService.getContextValue<URI>('resource');
 
