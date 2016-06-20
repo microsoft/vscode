@@ -32,9 +32,10 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions, getResource} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {extractResources} from 'vs/base/browser/dnd';
+import ResourceContextKey from 'vs/platform/actions/workbench/resourceContextKey';
 
 export enum Rochade {
 	NONE,
@@ -116,6 +117,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private _onGroupFocusChanged: Emitter<void>;
 
+	private resourceContextKey: ResourceContextKey;
+
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -150,6 +153,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this._onGroupFocusChanged = new Emitter<void>();
 
+		this.resourceContextKey = this.instantiationService.createInstance(ResourceContextKey);
+
 		this.toDispose = [];
 
 		this.create(this.parent);
@@ -159,7 +164,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private registerListeners(): void {
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
-		this.extensionService.onReady().then(() => POSITIONS.forEach(position => this.titleAreaControl[position].refresh()));
+		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -181,7 +186,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 	}
 
+	private onExtensionsReady(): void {
+
+		// Up to date resource context
+		this.resourceContextKey.set(getResource(this.stacks.activeGroup.activeEditor));
+
+		// Up to date title areas
+		POSITIONS.forEach(position => this.titleAreaControl[position].refresh());
+	}
+
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
+
+		// Up to date resource context
+		this.resourceContextKey.set(getResource(e.group.activeEditor));
 
 		// Up to date context
 		POSITIONS.forEach(position => {
@@ -709,6 +726,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private create(parent: Builder): void {
+
+		// Set resource context
+		this.resourceContextKey.set(getResource(this.stacks.activeGroup.activeEditor));
 
 		// Allow to drop into container to open
 		this.enableDropTarget(parent.getHTMLElement());
