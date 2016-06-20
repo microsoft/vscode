@@ -85,6 +85,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 
 		this.dragArea.on(dom.EventType.MOUSE_DOWN, event => {
 			const $window = $(window);
+			this.dragArea.addClass('dragged');
 
 			$window.on('mousemove', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
@@ -92,6 +93,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 			}).once('mouseup', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
+				this.dragArea.removeClass('dragged');
 				$window.off('mousemove');
 			});
 		});
