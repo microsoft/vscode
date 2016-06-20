@@ -107,7 +107,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		const halfWidgetWidth = this.$el.getHTMLElement().clientWidth / 2;
 		x = x + halfWidgetWidth - 16; // take into account half the size of the widget
 		x = Math.max(148, x); // do not allow the widget to overflow on the left
-		x = Math.min(x, window.innerWidth - halfWidgetWidth); // do not allow the widget to overflow on the right
+		x = Math.min(x, window.innerWidth - halfWidgetWidth - 10); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
 	}
 
