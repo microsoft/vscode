@@ -728,7 +728,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private create(parent: Builder): void {
 
 		// Set resource context
-		this.resourceContextKey.set(getResource(this.stacks.activeGroup.activeEditor));
+		this.resourceContextKey.set(this.stacks.activeGroup && getResource(this.stacks.activeGroup.activeEditor));
 
 		// Allow to drop into container to open
 		this.enableDropTarget(parent.getHTMLElement());
