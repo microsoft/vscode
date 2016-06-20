@@ -5,18 +5,14 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import platform = require('vs/platform/platform');
 import { Promise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import wbaregistry = require('vs/workbench/common/actionRegistry');
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ListExtensionsAction } from './extensionsActions';
 import {ipcRenderer as ipc} from 'electron';
 
 interface IInstallExtensionsRequest {
@@ -41,8 +37,8 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
 		}
 
-		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
-		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), 'Extensions: Show Installed Extensions', ExtensionsLabel);
+		// const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
+		// actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), 'Extensions: Show Installed Extensions', ExtensionsLabel);
 	}
 
 	private registerListeners(): void {

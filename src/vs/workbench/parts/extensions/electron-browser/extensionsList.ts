@@ -6,10 +6,13 @@
 'use strict';
 
 import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IExtension } from './extensionsModel';
+import { IExtension, ExtensionsModel } from './extensionsModel';
+import { InstallAction } from './extensionsActions';
 
 export interface ITemplateData {
 	extension: IExtension;
@@ -19,6 +22,8 @@ export interface ITemplateData {
 	version: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
+	actionbar: ActionBar;
+	disposables: IDisposable[];
 }
 
 export class Delegate implements IDelegate<IExtension> {
@@ -32,6 +37,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	get templates(): ITemplateData[] { return this._templates; }
 
 	constructor(
+		private model: ExtensionsModel,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this._templates = [];
@@ -48,13 +54,17 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version.ellipsis'));
 		const author = append(header, $('span.author.ellipsis'));
 		const description = append(details, $('.description.ellipsis'));
-		const result = { extension: null, element, icon, name, version, author, description };
+		const actionbar = new ActionBar(details);
+		const disposables = [];
 
+		const result = { extension: null, element, icon, name, version, author, description, actionbar, disposables };
 		this._templates.push(result);
 		return result;
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
+		data.disposables = dispose(data.disposables);
+
 		addClass(data.element, 'loading');
 		data.extension = null;
 		data.icon.src = '';
@@ -62,17 +72,21 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.version.textContent = '';
 		data.author.textContent = '';
 		data.description.textContent = '';
+		data.actionbar.clear();
 	}
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
-		data.extension = extension;
-		removeClass(data.element, 'loading');
+		data.disposables = dispose(data.disposables);
 
+		removeClass(data.element, 'loading');
+		data.extension = extension;
 		data.icon.src = extension.iconUrl;
 		data.name.textContent = extension.displayName;
 		data.version.textContent = extension.version;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
+		data.actionbar.clear();
+		data.actionbar.push(new InstallAction(this.model, extension));
 	}
 
 	disposeTemplate(data: ITemplateData): void {

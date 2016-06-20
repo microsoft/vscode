@@ -62,7 +62,7 @@ export class ExtensionsViewlet extends Viewlet {
 		this.extensionsBox = append(this.root, $('.extensions'));
 
 		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(Renderer);
+		const renderer = this.instantiationService.createInstance(Renderer, this.model);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
 		this.searchBox.oninput = () => this.triggerSearch(this.searchBox.value);

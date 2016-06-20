@@ -21,6 +21,7 @@ export enum ExtensionState {
 }
 
 export interface IExtension {
+	state: ExtensionState;
 	name: string;
 	displayName: string;
 	publisher: string;
@@ -30,14 +31,17 @@ export interface IExtension {
 	iconUrl: string;
 }
 
+interface IExtensionStateProvider {
+	(extension: Extension): ExtensionState;
+}
+
 class Extension implements IExtension {
 
 	constructor(
+		private stateProvider: IExtensionStateProvider,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension = null
-	) {
-
-	}
+	) {}
 
 	get name(): string {
 		return this.local ? this.local.manifest.name : this.gallery.name;
@@ -86,22 +90,28 @@ class Extension implements IExtension {
 
 		return require.toUrl('./media/defaultIcon.png');
 	}
+
+	get state(): ExtensionState {
+		return this.stateProvider(this);
+	}
 }
 
 export class ExtensionsModel {
 
 	private disposables: IDisposable[] = [];
 
-	private installing: { id: string; extension: Extension; }[];
+	private stateProvider: IExtensionStateProvider;
+	private installing: { id: string; extension: Extension; }[] = [];
 	private installed: Extension[] = [];
 
-	private _onChange: Emitter<void>;
+	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
 	constructor(
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
+		this.stateProvider = ext => this.getExtensionState(ext);
 		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
 		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
 	}
@@ -112,7 +122,7 @@ export class ExtensionsModel {
 
 			this.installed = result.map(local => {
 				const id = local.path;
-				const extension = installedById[id] || new Extension(local);
+				const extension = installedById[id] || new Extension(this.stateProvider, local);
 				extension.local = local;
 				return extension;
 			});
@@ -134,27 +144,24 @@ export class ExtensionsModel {
 					return installed;
 				}
 
-				return new Extension(null, gallery);
+				return new Extension(this.stateProvider, null, gallery);
 			});
 		});
 	}
 
-	getState(extension: IExtension): ExtensionState {
+	install(extension: IExtension): TPromise<void> {
 		if (!(extension instanceof Extension)) {
 			return;
 		}
 
 		const ext = extension as Extension;
+		const gallery = ext.gallery;
 
-		if (this.installed.indexOf(ext) > -1) {
-			return ExtensionState.Installed;
+		if (!gallery) {
+			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		if (this.installing.some(e => e.extension === ext)) {
-			return ExtensionState.Installing;
-		}
-
-		return ExtensionState.Uninstalled;
+		return this.extensionService.install(gallery);
 	}
 
 	private onInstallExtension(id: string, gallery: IGalleryExtension): void {
@@ -165,7 +172,7 @@ export class ExtensionsModel {
 		let extension = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === gallery.id)[0];
 
 		if (!extension) {
-			extension = new Extension(null, gallery);
+			extension = new Extension(this.stateProvider, null, gallery);
 		}
 
 		extension.gallery = gallery;
@@ -188,6 +195,18 @@ export class ExtensionsModel {
 		this.installed.push(extension);
 
 		this._onChange.fire();
+	}
+
+	private getExtensionState(extension: Extension): ExtensionState {
+		if (this.installed.indexOf(extension) > -1) {
+			return ExtensionState.Installed;
+		}
+
+		if (this.installing.some(e => e.extension === extension)) {
+			return ExtensionState.Installing;
+		}
+
+		return ExtensionState.Uninstalled;
 	}
 
 	dispose(): void {
