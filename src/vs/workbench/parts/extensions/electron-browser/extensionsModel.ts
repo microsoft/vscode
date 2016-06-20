@@ -92,7 +92,7 @@ export class ExtensionsModel {
 
 	private disposables: IDisposable[] = [];
 
-	// private installing: Extension[];
+	private installing: { id: string; extension: Extension; }[];
 	private installed: Extension[] = [];
 
 	private _onChange: Emitter<void>;
@@ -102,10 +102,11 @@ export class ExtensionsModel {
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
-		// todo
+		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
+		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
 	}
 
-	getInstalled(): TPromise<IExtension[]> {
+	getLocal(): TPromise<IExtension[]> {
 		return this.extensionService.getInstalled().then(result => {
 			const installedById = index(this.installed, e => e.local.id);
 
@@ -140,6 +141,39 @@ export class ExtensionsModel {
 
 	getState(extension: IExtension): ExtensionState {
 		throw new Error('not implemented');
+	}
+
+	private onInstallExtension(id: string, gallery: IGalleryExtension): void {
+		if (!gallery) {
+			return;
+		}
+
+		let extension = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === gallery.id)[0];
+
+		if (!extension) {
+			extension = new Extension(null, gallery);
+		}
+
+		extension.gallery = gallery;
+		this.installing.push({ id, extension });
+
+		this._onChange.fire();
+	}
+
+	private onDidInstallExtension(id: string, local: ILocalExtension, error: Error): void {
+		const installing = this.installing.filter(e => e.id === id)[0];
+
+		if (!installing) {
+			return;
+		}
+
+		const extension = installing.extension;
+		extension.local = local;
+
+		this.installing = this.installing.filter(e => e.id !== id);
+		this.installed.push(extension);
+
+		this._onChange.fire();
 	}
 
 	dispose(): void {

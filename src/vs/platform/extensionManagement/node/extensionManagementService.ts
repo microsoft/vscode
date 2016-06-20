@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryVersion, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryVersion, IGalleryMetadata, InstallExtensionEvent, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -76,11 +76,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private obsoleteFileLimiter: Limiter<void>;
 	private disposables: IDisposable[];
 
-	private _onInstallExtension = new Emitter<string>();
-	onInstallExtension: Event<string> = this._onInstallExtension.event;
+	private _onInstallExtension = new Emitter<InstallExtensionEvent>();
+	onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
 
-	private _onDidInstallExtension = new Emitter<{ id: string; error?: Error; }>();
-	onDidInstallExtension: Event<{ id: string; error?: Error; }> = this._onDidInstallExtension.event;
+	private _onDidInstallExtension = new Emitter<DidInstallExtensionEvent>();
+	onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
 
 	private _onUninstallExtension = new Emitter<string>();
 	onUninstallExtension: Event<string> = this._onUninstallExtension.event;
@@ -112,11 +112,19 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	install(zipPath: string): TPromise<void>;
 	install(arg: any): TPromise<void> {
 		if (types.isString(arg)) {
-			return this.installFromZip(arg);
+			const zipPath = arg as string;
+
+			return validate(zipPath).then(manifest => {
+				const id = getExtensionId(manifest, manifest.version);
+				this._onInstallExtension.fire({ id });
+
+				return this.installValidExtension(zipPath, id);
+			});
 		}
 
 		const extension = arg as IGalleryExtension;
 		const id = getExtensionId(extension, extension.versions[0].version);
+		this._onInstallExtension.fire({ id, gallery: extension });
 
 		return this.isObsolete(id).then(obsolete => {
 			if (obsolete) {
@@ -174,22 +182,25 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				return version;
 			});
 	}
-
-	private installFromZip(zipPath: string): TPromise<void> {
-		return validate(zipPath).then(manifest => this.installValidExtension(zipPath, getExtensionId(manifest, manifest.version)));
-	}
+	id: string;
+	manifest: IExtensionManifest;
+	metadata: IGalleryMetadata;
+	path: string;
 
 	private installValidExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<void> {
 		const extensionPath = path.join(this.extensionsPath, id);
 		const manifestPath = path.join(extensionPath, 'package.json');
-		this._onInstallExtension.fire(id);
 
 		return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
 			.then(() => pfs.readFile(manifestPath, 'utf8'))
 			.then(raw => parseManifest(raw))
-			.then(({ manifest }) => assign(manifest, { __metadata: metadata }))
-			.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
-			.then(() => this._onDidInstallExtension.fire({ id }))
+			.then(({ manifest }) => {
+				const local: ILocalExtension = { id, manifest, metadata, path: extensionPath };
+				const rawManifest = assign(manifest, { __metadata: metadata });
+
+				return pfs.writeFile(manifestPath, JSON.stringify(rawManifest, null, '\t'))
+					.then(() => this._onDidInstallExtension.fire({ id, local }));
+			})
 			.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
 	}
 

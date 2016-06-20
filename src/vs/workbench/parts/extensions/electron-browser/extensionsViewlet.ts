@@ -109,7 +109,7 @@ export class ExtensionsViewlet extends Viewlet {
 			promise = this.model.queryGallery({ text })
 				.then(result => new PagedModel(result));
 		} else {
-			promise = this.model.getInstalled()
+			promise = this.model.getLocal()
 				.then(result => new SinglePagePagedModel(result));
 		}
 

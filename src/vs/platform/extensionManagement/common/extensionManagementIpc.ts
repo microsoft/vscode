@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, DidInstallExtensionEvent } from './extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent } from './extensionManagement';
 import Event from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
@@ -44,8 +44,8 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	constructor(private channel: IExtensionManagementChannel) { }
 
-	private _onInstallExtension = eventFromCall<string>(this.channel, 'event:onInstallExtension');
-	get onInstallExtension(): Event<string> { return this._onInstallExtension; }
+	private _onInstallExtension = eventFromCall<InstallExtensionEvent>(this.channel, 'event:onInstallExtension');
+	get onInstallExtension(): Event<InstallExtensionEvent> { return this._onInstallExtension; }
 
 	private _onDidInstallExtension = eventFromCall<DidInstallExtensionEvent>(this.channel, 'event:onDidInstallExtension');
 	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return this._onDidInstallExtension; }

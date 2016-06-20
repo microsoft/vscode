@@ -77,12 +77,13 @@ export interface IExtensionGalleryService {
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 }
 
-export type DidInstallExtensionEvent = { id: string; error?: Error; };
+export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; };
+export type DidInstallExtensionEvent = { id: string; local?: ILocalExtension; error?: Error; };
 
 export interface IExtensionManagementService {
 	serviceId: ServiceIdentifier<any>;
 
-	onInstallExtension: Event<string>;
+	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
 	onUninstallExtension: Event<string>;
 	onDidUninstallExtension: Event<string>;
