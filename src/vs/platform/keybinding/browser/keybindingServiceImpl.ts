@@ -143,9 +143,9 @@ export abstract class AbstractKeybindingService {
 		return new KeybindingContextKey(this, key, defaultValue);
 	}
 
-	public contextMatchesRules(rules: KbExpr): boolean {
-		return false;
-	}
+	public abstract contextMatchesRules(rules: KbExpr): boolean;
+
+	public abstract getContextValue<T>(key: string): T;
 
 	public setInstantiationService(instantiationService: IInstantiationService): void {
 		this._instantiationService = instantiationService;
@@ -237,6 +237,13 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._configurationContext.fillInContext(ctx);
 		// console.log(JSON.stringify(contextValue, null, '\t'));
 		return KeybindingResolver.contextMatchesRules(ctx, rules);
+	}
+
+	public getContextValue<T>(key: string): T {
+		const ctx = Object.create(null);
+		this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(ctx);
+		this._configurationContext.fillInContext(ctx);
+		return <T> ctx[key];
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
@@ -419,6 +426,14 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 	public dispose(): void {
 		this._parent.disposeContext(this._myContextId);
 		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+	}
+
+	public contextMatchesRules(rules: KbExpr): boolean {
+		return this._parent.contextMatchesRules(rules);
+	}
+
+	public getContextValue<T>(key: string): T {
+		return this._parent.getContextValue<T>(key);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {

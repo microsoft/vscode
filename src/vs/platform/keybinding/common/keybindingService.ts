@@ -443,6 +443,7 @@ export interface IKeybindingService {
 
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
 	contextMatchesRules(rules: KbExpr): boolean;
+	getContextValue<T>(key: string): T;
 
 	createScoped(domNode: IKeybindingScopeLocation): IKeybindingService;
 

@@ -43,6 +43,10 @@ export class MockKeybindingService implements IKeybindingService {
 		return false;
 	}
 
+	public getContextValue(key: string) {
+		return;
+	}
+
 	public getLabelFor(keybinding: Keybinding): string {
 		return keybinding._toUSLabel();
 	}
