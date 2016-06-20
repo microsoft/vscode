@@ -8,19 +8,17 @@
 import 'vs/css!./media/extensionEditor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
-import { assign } from 'vs/base/common/objects';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IRequestService } from 'vs/platform/request/common/request';
 // import { IExtension } from './extensionsModel';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
-import { text as downloadText, IRequestOptions } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getProxyAgent } from 'vs/base/node/proxy';
 import { ITemplateData } from './extensionsList';
 import { EditorOptions } from 'vs/workbench/common/editor';
 
@@ -40,7 +38,8 @@ export class ExtensionEditor extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IRequestService private requestService: IRequestService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -63,21 +62,16 @@ export class ExtensionEditor extends BaseEditor {
 		this.body.innerHTML = '';
 
 		let promise = TPromise.as<void>(null);
-		// const extension = input.extension;
+		const extension = input.extension;
 
-		if (1 === 1/*local.path*/) {
-			// TODO@joao
-
+		if (!extension.readmeUrl) {
+			this.body.innerHTML = 'no readme :(';
 		} else {
-			const version = null/*gallery.versions[0]*/;
-			const headers = version.downloadHeaders;
-
 			addClass(this.body, 'loading');
 
 			promise = super.setInput(input, options)
-				.then(() => this.request(version.readmeUrl))
-				.then(opts => assign(opts, { headers }))
-				.then(opts => downloadText(opts))
+				.then(() => this.requestService.makeRequest({ url: extension.readmeUrl }))
+				.then(response => response.responseText)
 				.then(marked.parse)
 				.then(html => {
 					removeClass(this.body, 'loading');
@@ -92,17 +86,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	layout(): void {
 		return;
-	}
-
-	// Helper for proxy business... shameful.
-	// This should be pushed down and not rely on the configuration service
-	private request(url: string): IRequestOptions {
-		const http = this.configurationService.getConfiguration<{ proxy?: string; proxyStrictSSL?: boolean; }>('http');
-		const proxyUrl: string = http.proxy;
-		const strictSSL: boolean = http.proxyStrictSSL;
-		const agent = getProxyAgent(url, { proxyUrl, strictSSL });
-
-		return { url, agent, strictSSL };
 	}
 
 	dispose(): void {
