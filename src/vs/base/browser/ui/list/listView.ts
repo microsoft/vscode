@@ -78,7 +78,6 @@ export class ListView<T> implements IDisposable {
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-list';
-		this._domNode.tabIndex = 0;
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';

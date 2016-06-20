@@ -8,6 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
 import Event, { Emitter, mapEvent, EventBufferer } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 
@@ -138,6 +139,8 @@ class Controller<T> implements IDisposable {
 	private onClick(e: IListMouseEvent<T>) {
 		e.preventDefault();
 		e.stopPropagation();
+		this.view.domNode.focus();
+		this.list.setFocus(e.index);
 		this.list.setSelection(e.index);
 	}
 
@@ -170,6 +173,9 @@ export class List<T> implements IDisposable {
 		return this.eventBufferer.wrapEvent(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
 	}
 
+	private _onDOMFocus: Event<FocusEvent>;
+	get onDOMFocus(): Event<FocusEvent> { return this._onDOMFocus; }
+
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<T>,
@@ -188,7 +194,10 @@ export class List<T> implements IDisposable {
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'listbox');
+		this.view.domNode.tabIndex = 0;
 		this.controller = new Controller(this, this.view);
+
+		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
