@@ -16,7 +16,7 @@ import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 export enum ExtensionState {
 	Installing,
 	Installed,
-	Uninstalling,
+	// Uninstalling,
 	Uninstalled
 }
 
@@ -140,7 +140,21 @@ export class ExtensionsModel {
 	}
 
 	getState(extension: IExtension): ExtensionState {
-		throw new Error('not implemented');
+		if (!(extension instanceof Extension)) {
+			return;
+		}
+
+		const ext = extension as Extension;
+
+		if (this.installed.indexOf(ext) > -1) {
+			return ExtensionState.Installed;
+		}
+
+		if (this.installing.some(e => e.extension === ext)) {
+			return ExtensionState.Installing;
+		}
+
+		return ExtensionState.Uninstalled;
 	}
 
 	private onInstallExtension(id: string, gallery: IGalleryExtension): void {
