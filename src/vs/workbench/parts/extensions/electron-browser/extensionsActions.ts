@@ -241,3 +241,51 @@ export class UninstallAction extends Action {
 		this.disposables = dispose(this.disposables);
 	}
 }
+
+export class CombinedInstallAction extends Action {
+
+	private installAction: InstallAction;
+	private uninstallAction: UninstallAction;
+	private disposables: IDisposable[] = [];
+
+	constructor(private model: ExtensionsModel, private extension: IExtension) {
+		super('extensions.combinedInstall', '', '', false);
+
+		this.installAction = new InstallAction(model, extension);
+		this.uninstallAction = new UninstallAction(model, extension);
+		this.disposables.push(this.installAction, this.uninstallAction);
+
+		this.disposables.push(this.installAction.addListener2(Action.ENABLED, () => this.update()));
+		this.disposables.push(this.uninstallAction.addListener2(Action.ENABLED, () => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		if (this.installAction.enabled) {
+			this.enabled = true;
+			this.label = this.installAction.label;
+			this.class = this.installAction.class;
+		} else if (this.uninstallAction.enabled) {
+			this.enabled = true;
+			this.label = this.uninstallAction.label;
+			this.class = this.uninstallAction.class;
+		} else {
+			this.enabled = false;
+		}
+	}
+
+	run(): TPromise<any> {
+		if (this.installAction.enabled) {
+			return this.installAction.run();
+		} else if (this.uninstallAction.enabled) {
+			return this.uninstallAction.run();
+		}
+
+		return TPromise.as(null);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}

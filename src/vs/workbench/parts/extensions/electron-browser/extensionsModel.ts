@@ -122,8 +122,7 @@ export class ExtensionsModel {
 			const installedById = index(this.installed, e => e.local.id);
 
 			this.installed = result.map(local => {
-				const id = local.path;
-				const extension = installedById[id] || new Extension(this.stateProvider, local);
+				const extension = installedById[local.id] || new Extension(this.stateProvider, local);
 				extension.local = local;
 				return extension;
 			});
@@ -241,11 +240,11 @@ export class ExtensionsModel {
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		if (this.installed.indexOf(extension) > -1) {
+		if (this.installed.some(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))) {
 			return ExtensionState.Installed;
 		}
 
-		if (this.installing.some(e => e.extension === extension)) {
+		if (extension.gallery && this.installing.some(e => e.extension.gallery.id === extension.gallery.id)) {
 			return ExtensionState.Installing;
 		}
 
