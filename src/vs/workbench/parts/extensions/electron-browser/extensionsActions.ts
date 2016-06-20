@@ -269,6 +269,10 @@ export class CombinedInstallAction extends Action {
 			this.enabled = true;
 			this.label = this.uninstallAction.label;
 			this.class = this.uninstallAction.class;
+		} else if (this.extension.state === ExtensionState.Installing) {
+			this.enabled = false;
+			this.label = this.installAction.label;
+			this.class = this.installAction.class;
 		} else {
 			this.enabled = false;
 		}

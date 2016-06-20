@@ -127,7 +127,11 @@ export class ExtensionsModel {
 				return extension;
 			});
 
-			return this.installed;
+			const installing = this.installing
+				.filter(e => !this.installed.some(installed => installed.local.id === e.id))
+				.map(e => e.extension);
+
+			return [...this.installed, ...installing];
 		});
 	}
 
@@ -178,7 +182,7 @@ export class ExtensionsModel {
 		}
 
 		const ext = extension as Extension;
-		const local = ext.local;
+		const local = ext.local || this.installed.filter(e => e.local.metadata && ext.gallery && e.local.metadata.id === ext.gallery.id)[0].local;
 
 		if (!local) {
 			return TPromise.wrapError<void>(new Error('Missing local'));
