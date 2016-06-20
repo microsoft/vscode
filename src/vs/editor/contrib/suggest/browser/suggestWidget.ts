@@ -143,7 +143,7 @@ class Delegate implements IDelegate<CompletionItem> {
 	constructor(private listProvider: () => List<CompletionItem>) { }
 
 	getHeight(element: CompletionItem): number {
-		const focus = this.listProvider().getFocus()[0];
+		const focus = this.listProvider().getFocusedElements()[0];
 
 		if (element.suggestion.documentationLabel && element === focus) {
 			return FocusHeight;
@@ -735,7 +735,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			case State.Loading:
 				return !this.isAuto;
 			default:
-				const focus = this.list.getFocus()[0];
+				const focus = this.list.getFocusedElements()[0];
 				if (focus) {
 					this.list.setSelection(this.completionModel.items.indexOf(focus));
 				} else {
@@ -756,7 +756,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		const item = this.list.getFocus()[0];
+		const item = this.list.getFocusedElements()[0];
 
 		if (!item || !item.suggestion.documentationLabel) {
 			return;
@@ -820,7 +820,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		} else if (this.state === State.Details) {
 			height = 12 * UnfocusedHeight;
 		} else {
-			const focus = this.list.getFocus()[0];
+			const focus = this.list.getFocusedElements()[0];
 			const focusHeight = focus ? this.delegate.getHeight(focus) : UnfocusedHeight;
 			height = focusHeight;
 
@@ -839,7 +839,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		if (this.state !== State.Details) {
 			this.details.render(null);
 		} else {
-			this.details.render(this.list.getFocus()[0]);
+			this.details.render(this.list.getFocusedElements()[0]);
 		}
 	}
 

@@ -239,6 +239,10 @@ export class List<T> implements IDisposable {
 		this.setSelection(Math.max(index, 0));
 	}
 
+	getSelection(): number[] {
+		return this.selection.get();
+	}
+
 	setFocus(...indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
 			indexes = indexes.concat(this.focus.set(...indexes));
@@ -265,7 +269,7 @@ export class List<T> implements IDisposable {
 		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
 		const lastPageElement = this.view.element(lastPageIndex);
-		const currentlyFocusedElement = this.getFocus()[0];
+		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
 			this.setFocus(lastPageIndex);
@@ -291,7 +295,7 @@ export class List<T> implements IDisposable {
 		}
 
 		const firstPageElement = this.view.element(firstPageIndex);
-		const currentlyFocusedElement = this.getFocus()[0];
+		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
 			this.setFocus(firstPageIndex);
@@ -306,8 +310,12 @@ export class List<T> implements IDisposable {
 		}
 	}
 
-	getFocus(): T[] {
-		return this.focus.get().map(i => this.view.element(i));
+	getFocus(): number[] {
+		return this.focus.get();
+	}
+
+	getFocusedElements(): T[] {
+		return this.getFocus().map(i => this.view.element(i));
 	}
 
 	reveal(index: number, relativeTop?: number): void {

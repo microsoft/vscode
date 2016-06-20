@@ -124,9 +124,20 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	private onSearchKeyDown(e: StandardKeyboardEvent): void {
-		if (e.keyCode === KeyCode.Escape) {
-			this.searchBox.value = '';
-			this.triggerSearch(0);
+		switch (e.keyCode) {
+			case KeyCode.DownArrow:
+				this.list.focusNext();
+				break;
+			case KeyCode.UpArrow:
+				this.list.focusPrevious();
+				break;
+			case KeyCode.Enter:
+				this.list.setSelection(...this.list.getFocus());
+				break;
+			case KeyCode.Escape:
+				this.searchBox.value = '';
+				this.triggerSearch(0);
+				break;
 		}
 	}
 

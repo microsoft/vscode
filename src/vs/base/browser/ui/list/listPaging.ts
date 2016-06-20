@@ -93,6 +93,30 @@ export class PagedList<T> {
 		return this.list.scrollTop;
 	}
 
+	focusNext(n?: number, loop?: boolean): void {
+		this.list.focusNext(n, loop);
+	}
+
+	focusPrevious(n?: number, loop?: boolean): void {
+		this.list.focusPrevious(n, loop);
+	}
+
+	selectNext(n?: number, loop?: boolean): void {
+		this.list.selectNext(n, loop);
+	}
+
+	selectPrevious(n?: number, loop?: boolean): void {
+		this.list.selectPrevious(n, loop);
+	}
+
+	getFocus(): number[] {
+		return this.list.getFocus();
+	}
+
+	setSelection(...indexes: number[]): void {
+		this.list.setSelection(...indexes);
+	}
+
 	layout(height?: number): void {
 		this.list.layout(height);
 	}
