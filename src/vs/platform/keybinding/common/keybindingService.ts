@@ -442,6 +442,7 @@ export interface IKeybindingService {
 	dispose(): void;
 
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	contextMatchesRules(rules: KbExpr): boolean;
 
 	createScoped(domNode: IKeybindingScopeLocation): IKeybindingService;
 

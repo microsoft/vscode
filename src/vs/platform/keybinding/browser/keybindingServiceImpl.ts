@@ -16,7 +16,7 @@ import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {ICommandHandler, ICommandHandlerDescription, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, ICommandHandlerDescription, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -143,6 +143,10 @@ export abstract class AbstractKeybindingService {
 		return new KeybindingContextKey(this, key, defaultValue);
 	}
 
+	public contextMatchesRules(rules: KbExpr): boolean {
+		return false;
+	}
+
 	public setInstantiationService(instantiationService: IInstantiationService): void {
 		this._instantiationService = instantiationService;
 	}
@@ -225,6 +229,14 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
+	}
+
+	public contextMatchesRules(rules: KbExpr): boolean {
+		const ctx = Object.create(null);
+		this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(ctx);
+		this._configurationContext.fillInContext(ctx);
+		// console.log(JSON.stringify(contextValue, null, '\t'));
+		return KeybindingResolver.contextMatchesRules(ctx, rules);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
