@@ -28,6 +28,7 @@ export interface IExtension {
 	publisherDisplayName: string;
 	version: string;
 	description: string;
+	readmeUrl: string;
 	iconUrl: string;
 }
 
@@ -77,6 +78,18 @@ class Extension implements IExtension {
 
 	get description(): string {
 		return this.local ? this.local.manifest.description : this.gallery.description;
+	}
+
+	get readmeUrl(): string {
+		if (this.local && this.local.readmeUrl) {
+			return this.local.readmeUrl;
+		}
+
+		if (this.gallery && this.gallery.versions[0].readmeUrl) {
+			return this.gallery.versions[0].readmeUrl;
+		}
+
+		return null;
 	}
 
 	get iconUrl(): string {

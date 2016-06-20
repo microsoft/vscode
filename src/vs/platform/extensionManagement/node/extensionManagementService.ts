@@ -191,11 +191,16 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => pfs.readFile(manifestPath, 'utf8'))
 			.then(raw => parseManifest(raw))
 			.then(({ manifest }) => {
-				const local: ILocalExtension = { id, manifest, metadata, path: extensionPath };
-				const rawManifest = assign(manifest, { __metadata: metadata });
+				return pfs.readdir(extensionPath).then(children => {
+					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+					const readmeUrl = readme ? `file://${ extensionPath }/${ readme }` : null;
 
-				return pfs.writeFile(manifestPath, JSON.stringify(rawManifest, null, '\t'))
-					.then(() => this._onDidInstallExtension.fire({ id, local }));
+					const local: ILocalExtension = { id, manifest, metadata, path: extensionPath, readmeUrl };
+					const rawManifest = assign(manifest, { __metadata: metadata });
+
+					return pfs.writeFile(manifestPath, JSON.stringify(rawManifest, null, '\t'))
+						.then(() => this._onDidInstallExtension.fire({ id, local }));
+				});
 			})
 			.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
 	}
@@ -236,12 +241,16 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					.then<ILocalExtension[]>(extensionIds => Promise.join(extensionIds.map(id => {
 						const extensionPath = path.join(this.extensionsPath, id);
 
-						return limiter.queue(
-							() => pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
+						const each = () => pfs.readdir(extensionPath).then(children => {
+							const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+							const readmeUrl = readme ? `file://${ extensionPath }/${ readme }` : null;
+
+							return pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 								.then(raw => parseManifest(raw))
-								.then(({ manifest, metadata }) => ({ id, manifest, metadata, path: extensionPath }))
-								.then(null, () => null)
-						);
+								.then<ILocalExtension>(({ manifest, metadata }) => ({ id, manifest, metadata, path: extensionPath, readmeUrl }));
+						}).then(null, () => null);
+
+						return limiter.queue(each);
 					})))
 					.then(result => result.filter(a => !!a));
 			});

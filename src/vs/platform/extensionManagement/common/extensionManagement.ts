@@ -60,6 +60,7 @@ export interface ILocalExtension {
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	path: string;
+	readmeUrl: string;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
