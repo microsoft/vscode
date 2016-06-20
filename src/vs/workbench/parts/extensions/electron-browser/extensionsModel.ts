@@ -7,6 +7,7 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import Event, { Emitter } from 'vs/base/common/event';
+import { index } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager } from 'vs/base/common/paging';
@@ -92,7 +93,7 @@ export class ExtensionsModel {
 	private disposables: IDisposable[] = [];
 
 	// private installing: Extension[];
-	// private installed: Extension[];
+	private installed: Extension[] = [];
 
 	private _onChange: Emitter<void>;
 	get onChange(): Event<void> { return this._onChange.event; }
@@ -105,13 +106,36 @@ export class ExtensionsModel {
 	}
 
 	getInstalled(): TPromise<IExtension[]> {
-		return this.extensionService.getInstalled()
-			.then(result => result.map(local => new Extension(local)));
+		return this.extensionService.getInstalled().then(result => {
+			const installedById = index(this.installed, e => e.local.id);
+
+			this.installed = result.map(local => {
+				const id = local.path;
+				const extension = installedById[id] || new Extension(local);
+				extension.local = local;
+				return extension;
+			});
+
+			return this.installed;
+		});
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		return this.galleryService.query(options)
-			.then(result => mapPager(result, gallery => new Extension(null, gallery)));
+		return this.galleryService.query(options).then(result => {
+			const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
+
+			return mapPager(result, gallery => {
+				const id = gallery.id;
+				const installed = installedByGalleryId[id];
+
+				if (installed) {
+					installed.gallery = gallery;
+					return installed;
+				}
+
+				return new Extension(null, gallery);
+			});
+		});
 	}
 
 	getState(extension: IExtension): ExtensionState {
