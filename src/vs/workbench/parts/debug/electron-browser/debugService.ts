@@ -575,6 +575,7 @@ export class DebugService implements debug.IDebugService {
 			return telemetryInfo;
 		}).then(data => {
 			const { aiKey, type } = this.configurationManager.adapter;
+			const publisher = this.configurationManager.adapter.extensionDescription.publisher;
 			this.customTelemetryService = null;
 
 			if (aiKey) {
@@ -583,7 +584,7 @@ export class DebugService implements debug.IDebugService {
 					{
 						serverName: 'Debug Telemetry',
 						timeout: 1000 * 60 * 5,
-						args: [type, JSON.stringify(data), aiKey],
+						args: [`${ publisher }.${ type }`, JSON.stringify(data), aiKey],
 						env: {
 							ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
 							PIPE_LOGGING: 'true',
