@@ -17,7 +17,7 @@ import { CombinedInstallAction } from './extensionsActions';
 export interface ITemplateData {
 	extension: IExtension;
 	element: HTMLElement;
-	icon: HTMLImageElement;
+	icon: HTMLElement;
 	name: HTMLElement;
 	version: HTMLElement;
 	author: HTMLElement;
@@ -49,7 +49,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderTemplate(root: HTMLElement): ITemplateData {
 		const element = append(root, $('.extension'));
-		const icon = append(element, $<HTMLImageElement>('img.icon'));
+		const icon = append(element, $('.icon'));
 		const details = append(element, $('.details'));
 		const header = append(details, $('.header'));
 		const name = append(header, $('span.name.ellipsis'));
@@ -69,7 +69,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		addClass(data.element, 'loading');
 		data.extension = null;
-		data.icon.src = '';
+		data.icon.style.backgroundImage = '';
 		data.name.textContent = '';
 		data.version.textContent = '';
 		data.author.textContent = '';
@@ -82,7 +82,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		removeClass(data.element, 'loading');
 		data.extension = extension;
-		data.icon.src = extension.iconUrl;
+		data.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
 		data.name.textContent = extension.displayName;
 		data.version.textContent = extension.version;
 		data.author.textContent = extension.publisherDisplayName;

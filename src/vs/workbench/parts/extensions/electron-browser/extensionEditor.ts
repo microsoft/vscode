@@ -26,6 +26,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extension';
 
+	private icon: HTMLElement;
 	private body: HTMLElement;
 
 	private _highlight: ITemplateData;
@@ -52,7 +53,11 @@ export class ExtensionEditor extends BaseEditor {
 
 		const root = append(container, $('.extension-editor'));
 		const header = append(root, $('.header'));
-		header.innerText = 'here goes description, author name, links, ratings, install buttons, etc';
+
+		this.icon = append(header, $('.icon'));
+		// const details = append(header, $('.details'));
+
+		// header.innerText = 'here goes description, author name, links, ratings, install buttons, etc';
 		this.body = append(root, $('.body'));
 	}
 
@@ -63,6 +68,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		let promise = TPromise.as<void>(null);
 		const extension = input.extension;
+
+		this.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
 
 		if (!extension.readmeUrl) {
 			this.body.innerHTML = 'no readme :(';

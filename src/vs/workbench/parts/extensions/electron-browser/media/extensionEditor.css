@@ -12,9 +12,17 @@
 }
 
 .extension-editor > .header {
-	height: 40px;
+	height: 128px;
 	background: rgba(128, 128, 128, 0.15); /* TODO */
 	padding: 20px;
+}
+
+.extension-editor > .header > .icon {
+	height: 128px;
+	width: 128px;
+	background-size: 128px;
+	background-repeat: no-repeat;
+	background-position: center center;
 }
 
 .extension-editor > .body {
