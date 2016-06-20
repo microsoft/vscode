@@ -11,6 +11,8 @@ import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
+import { mapEvent, filterEvent } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
@@ -66,8 +68,22 @@ export class ExtensionsViewlet extends Viewlet {
 		const renderer = this.instantiationService.createInstance(Renderer, this.model);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
-		this.searchBox.onkeydown = e => this.onSearchKeyDown(new StandardKeyboardEvent(e));
-		this.searchBox.oninput = () => this.triggerSearch();
+		const onRawKeyDown = domEvent(this.searchBox, 'keydown');
+		const onKeyDown = mapEvent(onRawKeyDown, e => new StandardKeyboardEvent(e));
+		const onEnter = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Enter);
+		const onEscape = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Escape);
+		const onUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow);
+		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
+
+		onEnter(() => this.onEnter(), null, this.disposables);
+		onEscape(() => this.onEscape(), null, this.disposables);
+		onUpArrow(() => this.onUpArrow(), null, this.disposables);
+		onDownArrow(() => this.onDownArrow(), null, this.disposables);
+
+		const onInput = domEvent(this.searchBox, 'input');
+		onInput(() => this.triggerSearch(), null, this.disposables);
+
+		this.list.onDOMFocus(() => this.searchBox.focus(), null, this.disposables);
 
 		this.list.onSelectionChange(e => {
 			const [extension] = e.elements;
@@ -123,22 +139,21 @@ export class ExtensionsViewlet extends Viewlet {
 			.then(model => this.list.model = model);
 	}
 
-	private onSearchKeyDown(e: StandardKeyboardEvent): void {
-		switch (e.keyCode) {
-			case KeyCode.DownArrow:
-				this.list.focusNext();
-				break;
-			case KeyCode.UpArrow:
-				this.list.focusPrevious();
-				break;
-			case KeyCode.Enter:
-				this.list.setSelection(...this.list.getFocus());
-				break;
-			case KeyCode.Escape:
-				this.searchBox.value = '';
-				this.triggerSearch(0);
-				break;
-		}
+	private onEnter(): void {
+		this.list.setSelection(...this.list.getFocus());
+	}
+
+	private onEscape(): void {
+		this.searchBox.value = '';
+		this.triggerSearch(0);
+	}
+
+	private onUpArrow(): void {
+		this.list.focusPrevious();
+	}
+
+	private onDownArrow(): void {
+		this.list.focusNext();
 	}
 
 	dispose(): void {

@@ -62,6 +62,7 @@ export class PagedList<T> {
 
 	private list: List<number>;
 	private _model: PagedModel<T>;
+	get onDOMFocus(): Event<FocusEvent> { return this.list.onDOMFocus; }
 
 	constructor(
 		container: HTMLElement,
