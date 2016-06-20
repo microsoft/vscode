@@ -182,10 +182,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				return version;
 			});
 	}
-	id: string;
-	manifest: IExtensionManifest;
-	metadata: IGalleryMetadata;
-	path: string;
 
 	private installValidExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<void> {
 		const extensionPath = path.join(this.extensionsPath, id);
