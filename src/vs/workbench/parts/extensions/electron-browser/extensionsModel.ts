@@ -216,7 +216,15 @@ export class ExtensionsModel {
 		extension.local = local;
 
 		this.installing = this.installing.filter(e => e.id !== id);
-		this.installed.push(extension);
+
+		const galleryId = local.metadata && local.metadata.id;
+		const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
+
+		if (galleryId && installed) {
+			installed.local = local;
+		} else {
+			this.installed.push(extension);
+		}
 
 		this._onChange.fire();
 	}
