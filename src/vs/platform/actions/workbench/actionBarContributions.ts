@@ -158,16 +158,10 @@ class EditorContributor extends BaseActionBarContributor {
 		return { primary: 'editor/primary', secondary: 'editor/secondary' };
 	}
 	protected _getResource(context: any): URI {
-		const {input, position, editor} = context;
-		if (typeof position !== 'number' || !editor) {
-			//todo@ben I get called two times with different
-			//but very similar looking context-objects in case
-			//an editor is created the first time
-			return;
-		}
+		const {input} = context;
 		if (input instanceof EditorInput) {
 			if (typeof input.getResource === 'function') {
-				const candidate = context.input.getResource();
+				const candidate = input.getResource();
 				if (candidate instanceof URI) {
 					return candidate;
 				}

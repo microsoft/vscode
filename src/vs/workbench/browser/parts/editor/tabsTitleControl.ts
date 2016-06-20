@@ -521,7 +521,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Actions: For active editor
 		if (group.isActive(editor)) {
-			const editorActions = this.getEditorActions(group);
+			const editorActions = this.getEditorActions(identifier);
 			if (editorActions.primary.length) {
 				actions.push(new Separator(), ...prepareActions(editorActions.primary));
 			}

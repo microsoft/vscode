@@ -186,7 +186,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Update Editor Actions Toolbar
-		const editorActions = this.getEditorActions(group);
+		const editorActions = this.getEditorActions({group, editor });
 		const primaryEditorActions = prepareActions(editorActions.primary);
 		if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primaryEditorActions.push(this.splitEditorAction);

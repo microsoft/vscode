@@ -246,33 +246,35 @@ export abstract class TitleControl {
 
 		// Check Registry
 		if (!actionItem) {
-			let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
+			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 			actionItem = actionBarRegistry.getActionItemForContext(Scope.EDITOR, { input: editor && editor.input, editor, position }, action);
 		}
 
 		return actionItem;
 	}
 
-	protected getEditorActions(group: IEditorGroup): IToolbarActions {
-		const position = this.stacks.positionOfGroup(group);
-		const isActive = this.stacks.isActive(group);
+	protected getEditorActions(identifier: IEditorIdentifier): IToolbarActions {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const editor = this.editorService.getVisibleEditors()[position];
 
-		if (isActive && editor instanceof BaseEditor) {
-			let editorActions = this.mapActionsToEditors[editor.getId()];
+		const {group} = identifier;
+		const position = this.stacks.positionOfGroup(group);
+
+		// Editor actions require the editor control to be there, so we retrieve it via service
+		const control = this.editorService.getVisibleEditors()[position];
+		if (this.stacks.isActive(group) && control instanceof BaseEditor && control.input && typeof control.position === 'number') {
+
+			// Editor Control Actions
+			let editorActions = this.mapActionsToEditors[control.getId()];
 			if (!editorActions) {
-				editorActions = this.getEditorActionsForContext(editor);
-				this.mapActionsToEditors[editor.getId()] = editorActions;
+				editorActions = this.getEditorActionsForContext(control);
+				this.mapActionsToEditors[control.getId()] = editorActions;
 			}
-
 			primary.push(...editorActions.primary);
 			secondary.push(...editorActions.secondary);
 
-			// Handle Editor Input Actions
-			let editorInputActions = this.getEditorActionsForContext({ input: editor.input, editor, position: editor.position });
-
+			// Editor Input Actions
+			const editorInputActions = this.getEditorActionsForContext({ input: control.input, editor: control, position: control.position });
 			primary.push(...editorInputActions.primary);
 			secondary.push(...editorInputActions.secondary);
 		}
@@ -283,8 +285,8 @@ export abstract class TitleControl {
 	private getEditorActionsForContext(context: BaseEditor): IToolbarActions;
 	private getEditorActionsForContext(context: IEditorInputActionContext): IToolbarActions;
 	private getEditorActionsForContext(context: any): IToolbarActions {
-		let primaryActions: IAction[] = [];
-		let secondaryActions: IAction[] = [];
+		const primaryActions: IAction[] = [];
+		const secondaryActions: IAction[] = [];
 
 		// From Editor
 		if (context instanceof BaseEditor) {
@@ -293,9 +295,11 @@ export abstract class TitleControl {
 		}
 
 		// From Contributions
-		let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
-		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.EDITOR, context));
-		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.EDITOR, context));
+		else {
+			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
+			primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.EDITOR, context));
+			secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.EDITOR, context));
+		}
 
 		return {
 			primary: primaryActions,
