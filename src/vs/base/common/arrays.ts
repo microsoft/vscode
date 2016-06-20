@@ -233,3 +233,9 @@ export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
 
 	return arr;
 }
+
+export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; } {
+	const result = Object.create(null);
+	array.forEach(t => result[indexer(t)] = t);
+	return result;
+}
