@@ -138,6 +138,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			if (e.compositeId === VIEWLET_ID) {
 				this.fullRefreshNeeded = true;
 				this.structuralTreeUpdate();
+				this.updateDirtyIndicator();
 			}
 		}));
 	}
