@@ -132,7 +132,7 @@ export class ExtensionEditor extends BaseEditor {
 				.then(response => response.responseText)
 				.then(marked.parse)
 				.then<void>(html => this.body.innerHTML = html)
-				.then(null, err => console.error(err))
+				.then(null, () => null)
 				.then(() => removeClass(this.body, 'loading'));
 		}
 
