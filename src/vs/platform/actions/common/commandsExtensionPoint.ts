@@ -15,12 +15,12 @@ import {IExtensionPointUser, ExtensionsRegistry} from 'vs/platform/extensions/co
 
 export type Locations = 'editor/primary' | 'editor/secondary' | 'explorer/context';
 
-export interface ThemableIcon {
+interface ThemableIcon {
 	dark: string;
 	light: string;
 }
 
-export interface Command {
+interface Command {
 	command: string;
 	title: string;
 	category?: string;
@@ -41,18 +41,16 @@ export class ParsedCommand {
 	lightThemeIcon: string;
 	darkThemeIcon: string;
 	when: KbExpr;
-
 	where: Locations;
 
-	constructor(command: Command, extension: IExtensionDescription) {
+	constructor(extension: IExtensionDescription, id: string, title: string, category: string, icon: string | { dark: string, light: string }, when: string, where: Locations) {
 
-		this.id = command.command;
-		this.title = command.title;
-		this.category = command.category;
-		this.when = KbExpr.deserialize(command.when);
-		this.where = command.where;
+		this.id = id;
+		this.title = title;
+		this.category = category;
+		this.when = KbExpr.deserialize(when);
+		this.where = where;
 
-		const {icon} = command;
 		if (!icon) {
 			// nothing
 		} else if (isThemableIcon(icon)) {
@@ -190,7 +188,7 @@ const _commandsById: { [id: string]: ParsedCommand } = Object.create(null);
 function handleCommand(command: Command, user: IExtensionPointUser<any>): void {
 	if (validation.isValidCommand(command, user)) {
 		// store command globally
-		const parsedCommand = new ParsedCommand(command, user.description);
+		const parsedCommand = new ParsedCommand(user.description, command.command, command.title, command.category, command.icon, command.when, command.where);
 		_commandsById[parsedCommand.id] = parsedCommand;
 	}
 }
