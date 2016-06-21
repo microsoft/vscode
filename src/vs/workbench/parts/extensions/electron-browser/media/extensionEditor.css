@@ -46,11 +46,18 @@
 }
 
 .extension-editor > .header > .details > .subtitle {
-	font-size: 18px;
 	padding-top: 10px;
 	white-space: nowrap;
 	height: 20px;
 	line-height: 20px;
+}
+
+.extension-editor > .header > .details > .subtitle > .publisher {
+	font-size: 18px;
+}
+
+.extension-editor > .header > .details > .subtitle > .install > .count {
+	margin-left: 6px;
 }
 
 .extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty),

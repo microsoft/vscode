@@ -20,7 +20,7 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
-import { RatingsWidget } from './extensionsWidgets';
+import { RatingsWidget, Label } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
@@ -78,7 +78,11 @@ export class ExtensionEditor extends BaseEditor {
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
 		this.publisher.href = '#';
-		this.installCount = append(subtitle, $('span.install'));
+
+		const install = append(subtitle, $('span.install'));
+		append(install, $('span.octicon.octicon-cloud-download'));
+		this.installCount = append(install, $('span.count'));
+
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
 
@@ -114,6 +118,9 @@ export class ExtensionEditor extends BaseEditor {
 					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`, true));
 			});
 		}
+
+		const install = new Label(this.installCount, input.model, extension, e => `${ e.installCount }`);
+		this.transientDisposables.push(install);
 
 		const ratings = new RatingsWidget(this.rating, input.model, extension);
 		this.transientDisposables.push(ratings);
