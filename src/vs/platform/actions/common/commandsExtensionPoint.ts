@@ -189,6 +189,9 @@ function handleCommand(command: Command, user: IExtensionPointUser<any>): void {
 	if (validation.isValidCommand(command, user)) {
 		// store command globally
 		const parsedCommand = new ParsedCommand(user.description, command.command, command.title, command.category, command.icon, command.when, command.where);
+		if (_commandsById[parsedCommand.id]) {
+			user.collector.info(localize('command.overwrite', "Command `{0}` appears multiple times in the `commands` section.", parsedCommand.id));
+		}
 		_commandsById[parsedCommand.id] = parsedCommand;
 	}
 }
