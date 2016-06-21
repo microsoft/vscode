@@ -236,7 +236,7 @@
 		<key>regexp_escaped_char</key>
 		<dict>
 			<key>match</key>
-			<string>\\(\")</string>
+			<string>[^\\]\\(\")</string>
 			<key>name</key>
 			<string>string.regexp.clojure</string>
 		</dict>
