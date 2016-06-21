@@ -46,17 +46,13 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	private updateEmmetConfig(_module: any, config: any) {
 		const editorPreferences = config.emmet.preferences;
-		if (editorPreferences) {
-			this.updateEmmetPreferences(_module, editorPreferences);
-		}
+		this.updateEmmetPreferences(_module, editorPreferences);
 
 		const editorSyntaxProfiles = config.emmet.syntaxProfiles;
-		if (editorSyntaxProfiles) {
-			_module.loadProfiles(editorSyntaxProfiles);
-		}
+		this.updateEmmetSyntaxPofiles(_module, editorSyntaxProfiles);
 	}
 
-	private updateEmmetPreferences(_module: any, editorPreferences: any) {
+	private updateEmmetPreferences(_module: any, editorPreferences: {}) {
 		const emmetPreferences = _module.preferences.list();
 		for (let index = 0; index < emmetPreferences.length; index++) {
 			const key = emmetPreferences[index];
@@ -84,6 +80,11 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 			_module.preferences.set(key, editorPreferences[key]);
 		}
+	}
+
+	private updateEmmetSyntaxPofiles(_module: any, editorSyntaxProfiles: {}) {
+		_module.profile.reset();
+		_module.loadProfiles(editorSyntaxProfiles);
 	}
 
 	abstract runEmmetAction(_module: any);
