@@ -25,6 +25,10 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
 import { IExtensionsViewlet } from './extensions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { CombinedInstallAction, UpdateAction } from './extensionsActions';
+
+const actionOptions = { icon: true, label: false };
 
 export class ExtensionEditor extends BaseEditor {
 
@@ -36,6 +40,7 @@ export class ExtensionEditor extends BaseEditor {
 	private installCount: HTMLElement;
 	private rating: HTMLAnchorElement;
 	private description: HTMLElement;
+	private actionBar: ActionBar;
 	private body: HTMLElement;
 
 	private _highlight: ITemplateData;
@@ -77,7 +82,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
 
-		this.description = append(details, $('p.description'));
+		this.description = append(details, $('.description'));
+
+		const actions = append(details, $('.actions'));
+		this.actionBar = new ActionBar(actions);
 
 		this.body = append(root, $('.body'));
 	}
@@ -109,6 +117,12 @@ export class ExtensionEditor extends BaseEditor {
 
 		const ratings = new RatingsWidget(this.rating, input.model, extension);
 		this.transientDisposables.push(ratings);
+
+		const installAction = new CombinedInstallAction(input.model, extension);
+		const updateAction = new UpdateAction(input.model, extension);
+		this.actionBar.clear();
+		this.actionBar.push([updateAction, installAction], actionOptions);
+		this.transientDisposables.push(updateAction, installAction);
 
 		addClass(this.body, 'loading');
 

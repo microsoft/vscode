@@ -60,6 +60,25 @@
 	padding-left: 14px;
 }
 
+.extension-editor > .header > .details > .description {
+	margin-top: 14px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.extension-editor > .header > .details > .actions {
+	margin-top: 14px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar {
+	text-align: initial;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container {
+	justify-content: flex-start;
+}
+
 .extension-editor > .body {
 	flex: 1;
 	overflow-y: scroll;

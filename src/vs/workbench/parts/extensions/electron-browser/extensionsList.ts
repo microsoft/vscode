@@ -87,15 +87,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
-		data.actionbar.clear();
 
 		const version = new Label(data.version, this.model, extension, e => e.version);
 
 		const installAction = new CombinedInstallAction(this.model, extension);
 		const updateAction = new UpdateAction(this.model, extension);
+		data.actionbar.clear();
 		data.actionbar.push([updateAction, installAction], actionOptions);
 
-		data.disposables.push(version, installAction, updateAction);
+			data.disposables.push(version, installAction, updateAction);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
