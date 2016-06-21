@@ -314,8 +314,6 @@ export class UpdateAction extends Action {
 		const isInstalled = this.extension.state === ExtensionState.Installed;
 		const canUpdate = semver.gt(this.extension.latestVersion, this.extension.version);
 
-		console.log(this.extension.latestVersion, this.extension.version);
-
 		this.enabled = canInstall && isInstalled && canUpdate;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}

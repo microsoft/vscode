@@ -98,10 +98,8 @@ export class ExtensionEditor extends BaseEditor {
 			this.rating.onclick = finalHandler(e => shell.openExternal(`${ extensionUrl }#review-details`));
 		}
 
-		if (extension.rating !== null) {
-			const ratings = new RatingsWidget(this.rating, input.model, extension);
-			this.transientDisposables.push(ratings);
-		}
+		const ratings = new RatingsWidget(this.rating, input.model, extension);
+		this.transientDisposables.push(ratings);
 
 		if (!extension.readmeUrl) {
 			// TODO@Joao

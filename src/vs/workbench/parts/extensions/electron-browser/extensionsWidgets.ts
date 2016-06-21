@@ -14,24 +14,43 @@ export interface IOptions {
 	small?: boolean;
 }
 
+export class Label implements IDisposable {
+
+	private listener: IDisposable;
+
+	constructor(
+		element: HTMLElement,
+		model: ExtensionsModel,
+		extension: IExtension,
+		fn: (extension: IExtension) => string
+	) {
+		const render = () => element.textContent = fn(extension);
+		render();
+		this.listener = model.onChange(render);
+	}
+
+	dispose(): void {
+		this.listener = dispose(this.listener);
+	}
+}
+
 export class RatingsWidget implements IDisposable {
 
 	static ID: string = 'workbench.editor.extension';
 
-	private element: HTMLElement;
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		container: HTMLElement,
+		private container: HTMLElement,
 		private model: ExtensionsModel,
 		private extension: IExtension,
 		options: IOptions = {}
 	) {
 		this.disposables.push(this.model.onChange(() => this.render()));
-		this.element = append(container, $('span.extension-ratings'));
+		addClass(container, 'extension-ratings');
 
 		if (options.small) {
-			addClass(this.element, 'small');
+			addClass(container, 'small');
 		}
 
 		this.render();
@@ -39,7 +58,7 @@ export class RatingsWidget implements IDisposable {
 
 	private render(): void {
 		const rating = this.extension.rating;
-		this.element.innerHTML = '';
+		this.container.innerHTML = '';
 
 		if (rating === null) {
 			return;
@@ -47,20 +66,19 @@ export class RatingsWidget implements IDisposable {
 
 		for (let i = 1; i <= 5; i++) {
 			if (rating >= i) {
-				append(this.element, $('span.full.star'));
+				append(this.container, $('span.full.star'));
 			} else if (rating >= i - 0.5) {
-				append(this.element, $('span.half.star'));
+				append(this.container, $('span.half.star'));
 			} else {
-				append(this.element, $('span.empty.star'));
+				append(this.container, $('span.empty.star'));
 			}
 		}
 
-		const count = append(this.element, $('span.count'));
+		const count = append(this.container, $('span.count'));
 		count.textContent = String(this.extension.ratingCount);
 	}
 
 	dispose(): void {
-		this.element.parentElement.removeChild(this.element);
 		this.disposables = dispose(this.disposables);
 	}
 }

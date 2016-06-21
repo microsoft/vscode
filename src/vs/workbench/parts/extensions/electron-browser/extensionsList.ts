@@ -13,6 +13,7 @@ import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IExtension, ExtensionsModel } from './extensionsModel';
 import { CombinedInstallAction, UpdateAction } from './extensionsActions';
+import { Label } from './extensionsWidgets';
 
 export interface ITemplateData {
 	extension: IExtension;
@@ -84,15 +85,17 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extension = extension;
 		data.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
 		data.name.textContent = extension.displayName;
-		data.version.textContent = extension.version;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 		data.actionbar.clear();
 
+		const version = new Label(data.version, this.model, extension, e => e.version);
+
 		const installAction = new CombinedInstallAction(this.model, extension);
 		const updateAction = new UpdateAction(this.model, extension);
 		data.actionbar.push([updateAction, installAction], actionOptions);
-		data.disposables.push(installAction, updateAction);
+
+		data.disposables.push(version, installAction, updateAction);
 	}
 
 	disposeTemplate(data: ITemplateData): void {

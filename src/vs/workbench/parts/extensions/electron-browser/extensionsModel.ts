@@ -185,8 +185,6 @@ export class ExtensionsModel {
 		return this.galleryService.query(options).then(result => {
 			const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
 
-			console.log(installedByGalleryId);
-
 			return mapPager(result, gallery => {
 				const id = gallery.id;
 				const installed = installedByGalleryId[id];
@@ -217,8 +215,6 @@ export class ExtensionsModel {
 		if (ids.length === 0) {
 			return TPromise.as(null);
 		}
-
-		console.log('sync', ids);
 
 		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
 	}
