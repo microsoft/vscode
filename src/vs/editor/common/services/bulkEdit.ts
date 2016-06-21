@@ -17,6 +17,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IIdentifiedSingleEditOperation, IModel, IRange, ISelection} from 'vs/editor/common/editorCommon';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {IProgressRunner} from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
 	resource: URI;
@@ -165,7 +166,7 @@ class BulkEditModel {
 	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[]) {
+	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner= null) {
 		this._editorService = editorService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
@@ -203,6 +204,10 @@ class BulkEditModel {
 		this._tasks = [];
 		var promises: TPromise<any>[] = [];
 
+		if (this.progress) {
+			this.progress.total(this._numberOfResourcesToModify * 2);
+		}
+
 		forEach(this._edits, entry => {
 			var promise = this._editorService.resolveEditorModel({ resource: URI.parse(entry.key) }).then(model => {
 				if (!model || !model.textEditorModel) {
@@ -221,31 +226,44 @@ class BulkEditModel {
 
 				entry.value.forEach(edit => task.addEdit(edit));
 				this._tasks.push(task);
+				if (this.progress) {
+					this.progress.worked(1);
+				}
 			});
 			promises.push(promise);
 		});
+
 
 		return TPromise.join(promises).then(_ => this);
 	}
 
 	public apply(): Selection {
-		this._tasks.forEach(task => task.apply());
+		this._tasks.forEach(task => this.applyTask(task));
 		var r: Selection = null;
 		if (this._sourceModelTask) {
 			r = this._sourceModelTask.getEndCursorSelection();
 		}
 		return r;
 	}
+
+	private applyTask(task): void {
+		task.apply();
+		if (this.progress) {
+			this.progress.worked(1);
+		}
+	}
 }
 
 export interface BulkEdit {
+	progress(progress: IProgressRunner);
 	add(edit: IResourceEdit[]): void;
 	finish(): TPromise<ISelection>;
 }
 
-export function bulkEdit(eventService:IEventService, editorService:IEditorService, editor:ICommonCodeEditor, edits:IResourceEdit[]):TPromise<any> {
+export function bulkEdit(eventService:IEventService, editorService:IEditorService, editor:ICommonCodeEditor, edits:IResourceEdit[], progress: IProgressRunner= null):TPromise<any> {
 	let bulk = createBulkEdit(eventService, editorService, editor);
 	bulk.add(edits);
+	bulk.progress(progress);
 	return bulk.finish();
 }
 
@@ -253,6 +271,11 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 
 	let all: IResourceEdit[] = [];
 	let recording = new ChangeRecorder(eventService).start();
+	let progressRunner: IProgressRunner;
+
+	function progress(progress: IProgressRunner) {
+		progressRunner= progress;
+	}
 
 	function add(edits: IResourceEdit[]): void {
 		all.push(...edits);
@@ -292,7 +315,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 			selections = editor.getSelections();
 		}
 
-		let model = new BulkEditModel(editorService, uri, selections, all);
+		let model = new BulkEditModel(editorService, uri, selections, all, progressRunner);
 
 		return model.prepare().then(_ => {
 
@@ -307,6 +330,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 	}
 
 	return {
+		progress,
 		add,
 		finish
 	};
