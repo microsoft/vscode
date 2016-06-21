@@ -12,6 +12,7 @@ import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecy
 import { Builder } from 'vs/base/browser/builder';
 import { append, emmet as $, addClass, removeClass, finalHandler } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -23,6 +24,7 @@ import { RatingsWidget } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
+import { IExtensionsViewlet } from './extensions';
 
 export class ExtensionEditor extends BaseEditor {
 
@@ -30,7 +32,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private icon: HTMLElement;
 	private name: HTMLAnchorElement;
-	private publisher: HTMLElement;
+	private publisher: HTMLAnchorElement;
 	private installCount: HTMLElement;
 	private rating: HTMLAnchorElement;
 	private description: HTMLElement;
@@ -47,7 +49,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IRequestService private requestService: IRequestService
+		@IRequestService private requestService: IRequestService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -68,7 +71,8 @@ export class ExtensionEditor extends BaseEditor {
 		this.name.href = '#';
 
 		const subtitle = append(details, $('.subtitle'));
-		this.publisher = append(subtitle, $('span.publisher'));
+		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
+		this.publisher.href = '#';
 		this.installCount = append(subtitle, $('span.install'));
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
@@ -83,7 +87,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.body.innerHTML = '';
 
-		let promise = TPromise.wrapError<void>('no readme');
+		let promise = TPromise.as(null);
 		const extension = input.extension;
 
 		this.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
@@ -94,8 +98,13 @@ export class ExtensionEditor extends BaseEditor {
 		if (product.extensionsGallery) {
 			const extensionUrl = `${ product.extensionsGallery.itemUrl }?itemName=${ extension.publisher }.${ extension.name }`;
 
-			this.name.onclick = finalHandler(e => shell.openExternal(extensionUrl));
-			this.rating.onclick = finalHandler(e => shell.openExternal(`${ extensionUrl }#review-details`));
+			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
+			this.rating.onclick = finalHandler(() => shell.openExternal(`${ extensionUrl }#review-details`));
+			this.publisher.onclick = finalHandler(() => {
+				this.viewletService.openViewlet('workbench.viewlet.extensions', true)
+					.then(viewlet => viewlet as IExtensionsViewlet)
+					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`, true));
+			});
 		}
 
 		const ratings = new RatingsWidget(this.rating, input.model, extension);
@@ -108,12 +117,10 @@ export class ExtensionEditor extends BaseEditor {
 				.then(() => this.requestService.makeRequest({ url: extension.readmeUrl }))
 				.then(response => response.responseText)
 				.then(marked.parse)
-				.then<void>(html => this.body.innerHTML = html);
+				.then<void>(html => this.body.innerHTML = html)
+				.then(null, err => console.error(err))
+				.then(() => removeClass(this.body, 'loading'));
 		}
-
-		promise = promise
-			.then(null, err => console.error(err))
-			.then(() => removeClass(this.body, 'loading'));
 
 		this.transientDisposables.push(toDisposable(() => promise.cancel()));
 

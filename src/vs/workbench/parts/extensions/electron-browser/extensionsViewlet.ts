@@ -23,12 +23,13 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { ExtensionsModel, IExtension } from './extensionsModel';
+import { IExtensionsViewlet } from './extensions';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class ExtensionsViewlet extends Viewlet {
+export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	static ID: string = 'workbench.viewlet.extensions';
 
@@ -61,6 +62,7 @@ export class ExtensionsViewlet extends Viewlet {
 		const header = append(this.root, $('.header'));
 
 		this.searchBox = append(header, $<HTMLInputElement>('input.search-box'));
+		this.searchBox.type = 'search';
 		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 		this.extensionsBox = append(this.root, $('.extensions'));
 
@@ -103,7 +105,7 @@ export class ExtensionsViewlet extends Viewlet {
 			if (visible) {
 				this.searchBox.focus();
 				this.searchBox.setSelectionRange(0,this.searchBox.value.length);
-				this.triggerSearch(0);
+				this.triggerSearch(true);
 			} else {
 				this.list.model = new SinglePagePagedModel([]);
 			}
@@ -118,9 +120,14 @@ export class ExtensionsViewlet extends Viewlet {
 		this.list.layout(height - 38);
 	}
 
-	private triggerSearch(delay = 500): void {
+	search(text: string, immediate = false): void {
+		this.searchBox.value = text;
+		this.triggerSearch(immediate);
+	}
+
+	private triggerSearch(immediate = false): void {
 		const text = this.searchBox.value;
-		this.searchDelayer.trigger(() => this.doSearch(text), text ? delay : 0);
+		this.searchDelayer.trigger(() => this.doSearch(text), immediate || !text ? 0 : 500);
 	}
 
 	private doSearch(text: string = ''): TPromise<any> {
@@ -145,7 +152,7 @@ export class ExtensionsViewlet extends Viewlet {
 
 	private onEscape(): void {
 		this.searchBox.value = '';
-		this.triggerSearch(0);
+		this.triggerSearch(true);
 	}
 
 	private onUpArrow(): void {
