@@ -100,6 +100,11 @@
 					"type": "array",
 					"default" : null,
 					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
+				},
+				"markdown.plugins": {
+					"type": "array",
+					"default": null,
+					"description": "A list of Objects describing plugins to load for the markdown preview. See README.md for more details."
 				}
 			}
 		}

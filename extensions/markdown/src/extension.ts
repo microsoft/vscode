@@ -9,23 +9,44 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from "vscode";
 
-const hljs = require('highlight.js');
-const mdnh = require('markdown-it-named-headers');
-const md = require('markdown-it')({
-	html: true,
-	highlight: function (str, lang) {
-		if (lang && hljs.getLanguage(lang)) {
-			try {
-				return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-			} catch (error) { }
-		}
-		return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-	}
-}).use(mdnh, {});
+let md;
 
 export function activate(context: ExtensionContext) {
+	// Upon activation, load markdown module with default
+	// plugins, and then load any user-defined plugins.
+	// Note: user-defined plugins may override default plugins.
+	const hljs = require('highlight.js');
+	const mdnh = require('markdown-it-named-headers');
+	md = require('markdown-it')({
+		html: true,
+		highlight: function (str, lang) {
+			if (lang && hljs.getLanguage(lang)) {
+				try {
+					return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+				} catch (error) { }
+			}
+			return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
+		}
+	}).use(mdnh, {});
+
+	// Load user defined plugins
+	const userPlugins = vscode.workspace.getConfiguration('markdown')['plugins'];
+	if (userPlugins instanceof Array) {
+		userPlugins.forEach(value => {
+			if (!value.name) { return; }
+			try {
+				let plugin = require(value.name);
+				md.use(plugin, value.options ? value.options : {});
+			} catch (e) {
+				vscode.window.showErrorMessage(`Unable to find Markdown plugin "${value.name}". Is it installed?`);
+				return;
+			}
+		});
+	}
+
 	let provider = new MDDocumentContentProvider(context);
 	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
+
 
 	let d1 = vscode.commands.registerCommand('markdown.showPreview', showPreview);
 	let d2 = vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true));
@@ -148,7 +169,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 
 	private computeCustomStyleSheetIncludes(uri: Uri): string[] {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
-		if (styles && Array.isArray(styles)) {
+		if (styles instanceof Array) {
 			return styles.map((style) => {
 				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			});
