@@ -15,5 +15,12 @@
 		"extensions/**/out/**": true
 	},
 	"tslint.enable": true,
-	"tslint.rulesDirectory": "build/lib/tslint"
+	"tslint.rulesDirectory": "build/lib/tslint",
+	"markdown.styles": [ "file:///home/breeden/git/KaTeX/build/katex.min.css" ],
+	"markdown.plugins": [
+		{
+            "name": "markdown-it-katex",
+            "options": { "throwOnError": false }
+        }
+	]
 }

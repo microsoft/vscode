@@ -1,30 +1,35 @@
 ## Using Markdown-it Plugins
 
-To use a `markdown-it` plugin, goto the directory containing the `markdown-it` extension.  This will
-be found in the `extensions` folder in your vscode installation.  Install the `markdown-it` plugin
-as a node module.  For example, to install the `KaTeX` markdown-it extension you would simply type:
+To use a markdown-it plugin for markdown preview rendering, you will need to provide the name
+and settings for each plugin in your "markdown.plugins" workspace configuration.  An example
+configuration is shown here:
+
+``` json
+	"markdown.styles": [ "file:///Path/To/katex.min.css" ],
+	"markdown.plugins": [
+	    {
+	        "name": "markdown-it-katex",
+	        "options": { "throwOnError": false }
+	    }
+	]
+```
+
+This configuration will tell the markdown extension to load the plugin "markdown-it-katex" with the options
+`{ "throwOnError": false }`.  This particular plugin requires additional styling to work properly, so you can
+place the references for these stylesheets in your "markdown.styles" workspace configuration.  The stylesheet
+in the "markdown.styles" may be either a URL, a `file:///...` or simply a filename like `styles.css` which
+then should be placed in the root directory of your workspace.
+
+Before the markdown extension can load markdown-it plugin properly, you must install the node package.  You
+can do this anywhere where the markdown extension can find your plugin.  So you can for instance install
+the package locally in the `extensions/markdown` folder using with
 
 ``` sh
 npm install markdown-it-katex
 ```
 
-Next, add the plugin into your [settings configuration](https://code.visualstudio.com/docs/customization/userandworkspace)
-under the `"markdown.plugs"` namespace.  This setting should contain a list for each `markdown-it` extension you wish
-to install.  The list should contain an object describing the name of the module, a list of styles that your extentsion
-may require, and options that you wish to pass to your extension.  For example, while installing the `markdown-it-katex`
-extension we would include this in your settings configuration:
+or globally with
 
-``` json
-    "markdown.plugins": [
-        {
-            "name": "markdown-it-katex",
-            "styles": [
-                "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.6.0/katex.min.css"
-            ],
-            "options": { "throwOnError": false }
-        }
-    ]
+``` sh
+npm install -g markdown-it-katex
 ```
-
-The `styles` field can contain a filename or a URL.  If the field is a file, file must be placed in the `/media` folder of
-the vscode markdown extension. And that's all there is to it.  Enjoy!

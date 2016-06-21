@@ -10,7 +10,6 @@ import * as path from 'path';
 import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from "vscode";
 
 let md;
-let userStyles = [];
 
 export function activate(context: ExtensionContext) {
 	// Upon activation, load markdown module with default
@@ -31,17 +30,13 @@ export function activate(context: ExtensionContext) {
 	}).use(mdnh, {});
 
 	// Load user defined plugins
-	const userPlugins = <Array<Object>>vscode.workspace.getConfiguration('markdown')['plugins'];
+	const userPlugins = vscode.workspace.getConfiguration('markdown')['plugins'];
 	if (userPlugins instanceof Array) {
 		userPlugins.forEach(value => {
 			if (!value.name) { return; }
 			try {
 				let plugin = require(value.name);
 				md.use(plugin, value.options ? value.options : {});
-
-				if (value.styles && Array.isArray(value.styles)) {
-					Array.prototype.push.apply(userStyles, value.styles);
-				}
 			} catch (e) {
 				vscode.window.showErrorMessage(`Unable to find Markdown plugin "${value.name}". Is it installed?`);
 				return;
@@ -182,19 +177,6 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		return [];
 	}
 
-	private computePluginStyleSheetIncludes() {
-		if (userStyles instanceof Array) {
-			return userStyles.map((style) => {
-				if (Uri.parse(style).scheme) {
-					return `<link rel="stylesheet" type="text/css" href="${style}" type="text/css" media="screen">`;
-
-				} else {
-					return `<link rel="stylehseet" type="text/css" href="${this.getMediaPath(style)}">`;
-				}
-			});
-		}
-	}
-
 	public provideTextDocumentContent(uri: Uri): Thenable<string> {
 
 		return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
@@ -206,7 +188,6 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
 				this.computeCustomStyleSheetIncludes(uri),
-				this.computePluginStyleSheetIncludes(),
 				'</head>',
 				'<body>'
 			).join('\n');
