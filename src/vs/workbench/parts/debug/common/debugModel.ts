@@ -226,11 +226,12 @@ export class KeyValueOutputElement extends OutputElement {
 	}
 }
 
-export class ExpressionContainer implements debug.IExpressionContainer {
+export abstract class ExpressionContainer implements debug.IExpressionContainer {
 
 	private children: TPromise<debug.IExpression[]>;
 	public valueChanged: boolean;
 	public static allValues: { [id: string]: string } = {};
+	private _value: string;
 
 	constructor(public reference: number, private id: string, private cacheChildren: boolean) {
 		this.children = null;
@@ -251,20 +252,6 @@ export class ExpressionContainer implements debug.IExpressionContainer {
 		return this.id;
 	}
 
-}
-
-export class Expression extends ExpressionContainer implements debug.IExpression {
-	static DEFAULT_VALUE = 'not available';
-
-	public available: boolean;
-	private _value: string;
-
-	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
-		super(0, id, cacheChildren);
-		this.value = Expression.DEFAULT_VALUE;
-		this.available = false;
-	}
-
 	public get value(): string {
 		return this._value;
 	}
@@ -277,15 +264,23 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	}
 }
 
-export class Variable extends ExpressionContainer implements debug.IExpression {
+export class Expression extends ExpressionContainer implements debug.IExpression {
+	static DEFAULT_VALUE = 'not available';
 
-	public value: string;
+	public available: boolean;
+
+	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
+		super(0, id, cacheChildren);
+		this.value = Expression.DEFAULT_VALUE;
+		this.available = false;
+	}
+}
+
+export class Variable extends ExpressionContainer implements debug.IExpression {
 
 	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public available = true) {
 		super(reference, `variable:${ parent.getId() }:${ name }`, true);
 		this.value = massageValue(value);
-		this.valueChanged = ExpressionContainer.allValues[this.getId()] && ExpressionContainer.allValues[this.getId()] !== value;
-		ExpressionContainer.allValues[this.getId()] = value;
 	}
 }
 
