@@ -7,11 +7,11 @@
 import {localize} from 'vs/nls';
 import {Action} from 'vs/base/common/actions';
 import {join} from 'vs/base/common/paths';
+import {values} from 'vs/base/common/collections';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {IExtensionPointUser, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-
 
 export type Locations = 'editor/primary' | 'editor/secondary' | 'explorer/context';
 
@@ -185,10 +185,13 @@ namespace schema {
 
 export const commands: ParsedCommand[] = [];
 
+const _commandsById: { [id: string]: ParsedCommand } = Object.create(null);
+
 function handleCommand(command: Command, user: IExtensionPointUser<any>): void {
 	if (validation.isValidCommand(command, user)) {
 		// store command globally
-		commands.push(new ParsedCommand(command, user.description));
+		const parsedCommand = new ParsedCommand(command, user.description);
+		_commandsById[parsedCommand.id] = parsedCommand;
 	}
 }
 
@@ -204,6 +207,7 @@ ExtensionsRegistry.registerExtensionPoint<Command | Command[]>('commands', schem
 		}
 	}
 
+	commands.push(...values(_commandsById));
 	Object.freeze(commands);
 });
 
