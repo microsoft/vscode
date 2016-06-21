@@ -932,11 +932,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Validate width ratios
 		const positions = rightEditors.length ? 3 : centerEditors.length ? 2 : 1;
-		if (widthRatios.length !== positions) {
+		if (!widthRatios || widthRatios.length !== positions) {
 			if (!this.getVisibleEditors().length) {
 				widthRatios = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
 			} else {
-				widthRatios = void 0; // being taken care of by the layouting if editors are already open
+				widthRatios = void 0;
 			}
 		}
 
