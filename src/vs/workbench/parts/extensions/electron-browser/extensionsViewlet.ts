@@ -95,9 +95,6 @@ export class ExtensionsViewlet extends Viewlet {
 			return this.editorService.openEditor(new ExtensionsInput(this.model, extension));
 		}, null, this.disposables);
 
-		this.searchBox.value = 'python';
-		this.triggerSearch();
-
 		return TPromise.as(null);
 	}
 

@@ -212,7 +212,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
-		const type = options.ids ? 'ids' : (options.text ? 'text' : 'all');
+		const type = options.names ? 'ids' : (options.text ? 'text' : 'all');
 		const text = options.text || '';
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
@@ -224,12 +224,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
 
 		if (text) {
-			query = query.withFilter(FilterType.SearchText, text)
-				.withSort(SortBy.NoneOrRelevance);
+			query = query.withFilter(FilterType.SearchText, text).withSort(SortBy.NoneOrRelevance);
 		} else if (options.ids) {
-			options.ids.forEach(id => {
-				query = query.withFilter(FilterType.ExtensionName, id);
-			});
+			query = options.ids.reduce((query, id) => query.withFilter(FilterType.ExtensionId, id), query);
+		} else if (options.names) {
+			query = options.names.reduce((query, name) => query.withFilter(FilterType.ExtensionName, name), query);
 		} else {
 			query = query.withSort(SortBy.InstallCount);
 		}

@@ -44,13 +44,13 @@ export function getOutdatedExtensions(extensionsService: IExtensionManagementSer
 	}
 
 	return extensionsService.getInstalled().then(installed => {
-		const ids = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
+		const names = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
 
 		if (installed.length === 0) {
 			return TPromise.as([]);
 		}
 
-		return galleryService.query({ ids, pageSize: ids.length }).then(result => {
+		return galleryService.query({ names, pageSize: names.length }).then(result => {
 			const available = result.firstPage;
 
 			return available.map(extension => {

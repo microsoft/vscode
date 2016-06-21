@@ -63,9 +63,9 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getRecommendations(): Promise<ILocalExtension[]> {
-		const ids = Object.keys(this._recommendations);
+		const names = Object.keys(this._recommendations);
 
-		return this._galleryService.query({ ids, pageSize: ids.length })
+		return this._galleryService.query({ names, pageSize: names.length })
 			.then(result => result.firstPage, () => []);
 	}
 

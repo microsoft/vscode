@@ -71,6 +71,7 @@ export const IExtensionGalleryService = createDecorator<IExtensionGalleryService
 export interface IQueryOptions {
 	text?: string;
 	ids?: string[];
+	names?: string[];
 	pageSize?: number;
 }
 

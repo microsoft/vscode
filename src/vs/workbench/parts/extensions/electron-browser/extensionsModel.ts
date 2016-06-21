@@ -8,6 +8,7 @@
 import 'vs/css!./media/extensionsViewlet';
 import Event, { Emitter } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager } from 'vs/base/common/paging';
@@ -126,11 +127,14 @@ class Extension implements IExtension {
 
 export class ExtensionsModel {
 
-	private disposables: IDisposable[] = [];
+	private static SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
 	private stateProvider: IExtensionStateProvider;
 	private installing: { id: string; extension: Extension; }[] = [];
 	private installed: Extension[] = [];
+	private didTriggerSync: boolean = false;
+	private syncDelayer: ThrottledDelayer<void>;
+	private disposables: IDisposable[] = [];
 
 	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
@@ -140,9 +144,12 @@ export class ExtensionsModel {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
+
 		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
 		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
 		this.disposables.push(extensionService.onUninstallExtension((id) => this.onUninstallExtension(id)));
+
+		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsModel.SyncPeriod);
 	}
 
 	getLocal(): TPromise<IExtension[]> {
@@ -159,6 +166,11 @@ export class ExtensionsModel {
 				.filter(e => !this.installed.some(installed => installed.local.id === e.id))
 				.map(e => e.extension);
 
+			if (!this.didTriggerSync) {
+				this.didTriggerSync = true;
+				this.syncWithGallery(true);
+			}
+
 			return [...this.installed, ...installing];
 		});
 	}
@@ -166,6 +178,8 @@ export class ExtensionsModel {
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
 		return this.galleryService.query(options).then(result => {
 			const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
+
+			console.log(installedByGalleryId);
 
 			return mapPager(result, gallery => {
 				const id = gallery.id;
@@ -179,6 +193,27 @@ export class ExtensionsModel {
 				return new Extension(this.stateProvider, null, gallery);
 			});
 		});
+	}
+
+	private syncWithGallery(immediate = false): void {
+		const loop = () => this.doSyncWithGallery().then(() => this.syncWithGallery());
+		const delay = immediate ? 0 : ExtensionsModel.SyncPeriod;
+
+		this.syncDelayer.trigger(loop, delay);
+	}
+
+	private doSyncWithGallery(): TPromise<void> {
+		const ids = this.installed
+			.filter(e => !!(e.local && e.local.metadata))
+			.map(e => e.local.metadata.id);
+
+		if (ids.length === 0) {
+			return TPromise.as(null);
+		}
+
+		console.log('sync', ids);
+
+		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
 	}
 
 	canInstall(extension: IExtension): boolean {
