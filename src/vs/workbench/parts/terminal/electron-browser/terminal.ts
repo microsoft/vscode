@@ -59,7 +59,6 @@ export interface ITerminalService {
 	focusPrevious(): TPromise<any>;
 	toggle(): TPromise<any>;
 
-	createTerminalProcess(): ITerminalProcess;
 	getActiveTerminalIndex(): number;
 	getTerminalInstanceTitles(): string[];
 	initConfigHelper(panelElement: HTMLElement): void;

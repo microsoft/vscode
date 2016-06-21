@@ -9,22 +9,22 @@ import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {IShell, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export class TerminalInstance {
+	private isExiting: boolean = false;
 
 	private toDispose: lifecycle.IDisposable[];
-	private terminalProcess: ITerminalProcess;
-	private terminal;
+	private xterm;
 	private terminalDomElement: HTMLDivElement;
 	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
 
 	public constructor(
-		private shell: IShell,
+		private terminalProcess: ITerminalProcess,
 		private parentDomElement: HTMLElement,
 		private contextService: IWorkspaceContextService,
 		private terminalService: ITerminalService,
@@ -33,7 +33,6 @@ export class TerminalInstance {
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
-		this.terminalProcess = this.terminalService.createTerminalProcess();
 		this.terminalDomElement = document.createElement('div');
 		let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
 			canUseTranslate3d: false,
@@ -41,17 +40,14 @@ export class TerminalInstance {
 			vertical: ScrollbarVisibility.Auto
 		});
 		this.toDispose.push(terminalScrollbar);
-		this.terminal = xterm();
+		this.xterm = xterm();
 
 		this.terminalProcess.process.on('message', (message) => {
 			if (message.type === 'data') {
-				this.terminal.write(message.content);
-			} else if (message.type === 'title') {
-				// TODO: Should this live in TerminalService?
-				this.terminalProcess.title = message.content;
+				this.xterm.write(message.content);
 			}
 		});
-		this.terminal.on('data', (data) => {
+		this.xterm.on('data', (data) => {
 			this.terminalProcess.process.send({
 				event: 'input',
 				data: data
@@ -59,11 +55,15 @@ export class TerminalInstance {
 			return false;
 		});
 		this.terminalProcess.process.on('exit', (exitCode) => {
-			this.dispose();
-			if (exitCode) {
-				console.error('Integrated terminal exited with code ' + exitCode);
+			// Prevent dispose functions being triggered multiple times
+			if (!this.isExiting) {
+				this.isExiting = true;
+				this.dispose();
+				if (exitCode) {
+					console.error('Integrated terminal exited with code ' + exitCode);
+				}
+				this.onExitCallback(this);
 			}
-			this.onExitCallback(this);
 		});
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mousedown', (event) => {
 			// Drop selection and focus terminal on Linux to enable middle button paste when click
@@ -84,7 +84,7 @@ export class TerminalInstance {
 			}
 		}));
 
-		this.terminal.open(this.terminalDomElement);
+		this.xterm.open(this.terminalDomElement);
 		this.wrapperElement.appendChild(terminalScrollbar.getDomNode());
 		this.parentDomElement.appendChild(this.wrapperElement);
 	}
@@ -98,8 +98,8 @@ export class TerminalInstance {
 		}
 		let cols = Math.floor(dimension.width / this.font.charWidth);
 		let rows = Math.floor(dimension.height / this.font.charHeight);
-		if (this.terminal) {
-			this.terminal.resize(cols, rows);
+		if (this.xterm) {
+			this.xterm.resize(cols, rows);
 		}
 		if (this.terminalProcess.process.connected) {
 			this.terminalProcess.process.send({
@@ -122,17 +122,17 @@ export class TerminalInstance {
 	}
 
 	public focus(force?: boolean): void {
-		if (!this.terminal) {
+		if (!this.xterm) {
 			return;
 		}
 		let text = window.getSelection().toString();
 		if (!text || force) {
-			this.terminal.focus();
+			this.xterm.focus();
 		}
 	}
 
 	public dispatchEvent(event: Event) {
-		this.terminal.element.dispatchEvent(event);
+		this.xterm.element.dispatchEvent(event);
 	}
 
 	public dispose(): void {
@@ -140,8 +140,14 @@ export class TerminalInstance {
 			this.parentDomElement.removeChild(this.wrapperElement);
 			this.wrapperElement = null;
 		}
+		if (this.xterm) {
+			this.xterm.destroy();
+			this.xterm = null;
+		}
+		if (this.terminalProcess) {
+			this.terminalService.killTerminalProcess(this.terminalProcess);
+			this.terminalProcess = null;
+		}
 		this.toDispose = lifecycle.dispose(this.toDispose);
-		this.terminal.destroy();
-		this.terminalService.killTerminalProcess(this.terminalProcess);
 	}
 }

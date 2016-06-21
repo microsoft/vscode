@@ -22,7 +22,9 @@ import {TerminalPanel} from 'vs/workbench/parts/terminal/electron-browser/termin
 export class TerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
 
+	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
+
 	private configHelper: TerminalConfigHelper;
 	private _onActiveInstanceChanged: Emitter<string>;
 	private _onInstancesChanged: Emitter<string>;
@@ -60,7 +62,16 @@ export class TerminalService implements ITerminalService {
 	public focusNext(): TPromise<any> {
 		return this.focus().then(() => {
 			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
-				terminalPanel.focusNext();
+				if (this.terminalProcesses.length <= 1) {
+					return;
+				}
+				this.activeTerminalIndex++;
+				if (this.activeTerminalIndex >= this.terminalProcesses.length) {
+					this.activeTerminalIndex = 0;
+				}
+				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
+				terminalPanel.focus();
+				this._onActiveInstanceChanged.fire();
 			});
 		});
 	}
@@ -68,7 +79,16 @@ export class TerminalService implements ITerminalService {
 	public focusPrevious(): TPromise<any> {
 		return this.focus().then(() => {
 			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
-				terminalPanel.focusPrevious();
+				if (this.terminalProcesses.length <= 1) {
+					return;
+				}
+				this.activeTerminalIndex--;
+				if (this.activeTerminalIndex < 0) {
+					this.activeTerminalIndex = this.terminalProcesses.length - 1;
+				}
+				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
+				terminalPanel.focus();
+				this._onActiveInstanceChanged.fire();
 			});
 		});
 	}
@@ -86,7 +106,8 @@ export class TerminalService implements ITerminalService {
 
 	public createNew(): TPromise<any> {
 		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
-			terminalPanel.createNewTerminalInstance();
+			terminalPanel.createNewTerminalInstance(this.createTerminalProcess());
+			this._onInstancesChanged.fire();
 		});
 	}
 
@@ -110,12 +131,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public getActiveTerminalIndex(): number {
-		// TODO: Pull active terminal logic into TerminalService
-		return 0;
+		return this.activeTerminalIndex;
 	}
 
 	public getTerminalInstanceTitles(): string[] {
-		return this.terminalProcesses.map((process) => process.title);
+		return this.terminalProcesses.map((process, index) => `${index + 1}: ${process.title}`);
 	}
 
 	public initConfigHelper(panelElement: HTMLElement): void {
@@ -125,12 +145,30 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public killTerminalProcess(terminalProcess: ITerminalProcess): void {
+		console.log('killTerminalProcess');
+		if (!terminalProcess.process.connected) {
+			console.log('  !connected');
+			return;
+		}
+		terminalProcess.process.disconnect();
+		console.log('  terminalProcess.process.kill()');
 		terminalProcess.process.kill();
-		this.terminalProcesses.slice(this.terminalProcesses.indexOf(terminalProcess), 1);
+
+		console.log('  Remove processes, fire, etc.');
+		let index = this.terminalProcesses.indexOf(terminalProcess);
+		let wasActiveTerminal = (index === this.getActiveTerminalIndex());
+		// Push active index back if the closed process was before the active process
+		if (this.getActiveTerminalIndex() > index) {
+			this.activeTerminalIndex--;
+		}
+		this.terminalProcesses.splice(index, 1);
 		this._onInstancesChanged.fire();
+		if (wasActiveTerminal) {
+			this._onActiveInstanceChanged.fire();
+		}
 	}
 
-	public createTerminalProcess(): ITerminalProcess {
+	private createTerminalProcess(): ITerminalProcess {
 		let env = this.cloneEnv();
 		let shell = this.configHelper.getShell();
 		env['PTYPID'] = process.pid.toString();
@@ -148,6 +186,14 @@ export class TerminalService implements ITerminalService {
 		};
 		this.terminalProcesses.push(terminalProcess);
 		this._onInstancesChanged.fire();
+		this.activeTerminalIndex = this.terminalProcesses.length - 1;
+		this._onActiveInstanceChanged.fire();
+		terminalProcess.process.on('message', (message) => {
+			if (message.type === 'title') {
+				terminalProcess.title = message.content;
+				this._onInstanceTitleChanged.fire();
+			}
+		});
 		return terminalProcess;
 	}
 
