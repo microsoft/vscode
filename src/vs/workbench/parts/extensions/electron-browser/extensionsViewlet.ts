@@ -134,12 +134,16 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const progressRunner = this.progressService.show(true);
 		let promise: TPromise<PagedModel<IExtension>>;
 
-		if (text) {
-			promise = this.model.queryGallery({ text })
-				.then(result => new PagedModel(result));
-		} else {
+		if (!text) {
 			promise = this.model.getLocal()
 				.then(result => new SinglePagePagedModel(result));
+		} else if (/@outdated/i.test(text)) {
+			promise = this.model.getLocal()
+				.then(result => result.filter(e => e.outdated))
+				.then(result => new SinglePagePagedModel(result));
+		} else {
+			promise = this.model.queryGallery({ text })
+				.then(result => new PagedModel(result));
 		}
 
 		return always(promise, () => progressRunner.done())

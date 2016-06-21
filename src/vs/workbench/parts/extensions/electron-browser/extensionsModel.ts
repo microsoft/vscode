@@ -13,6 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager } from 'vs/base/common/paging';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import * as semver from 'semver';
 
 export enum ExtensionState {
 	Installing,
@@ -35,6 +36,7 @@ export interface IExtension {
 	installCount: number;
 	rating: number;
 	ratingCount: number;
+	outdated: boolean;
 }
 
 interface IExtensionStateProvider {
@@ -127,6 +129,10 @@ class Extension implements IExtension {
 
 	get ratingCount(): number {
 		return this.gallery ? this.gallery.ratingCount : null;
+	}
+
+	get outdated(): boolean {
+		return semver.gt(this.latestVersion, this.version);
 	}
 }
 

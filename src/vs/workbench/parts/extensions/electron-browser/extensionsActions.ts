@@ -17,7 +17,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionsModel, ExtensionState } from './extensionsModel';
 // import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 // import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import * as semver from 'semver';
 
 // const CloseAction = new Action('action.close', nls.localize('close', "Close"));
 
@@ -313,9 +312,8 @@ export class UpdateAction extends Action {
 	private updateEnablement(): void {
 		const canInstall = this.model.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed;
-		const canUpdate = semver.gt(this.extension.latestVersion, this.extension.version);
 
-		this.enabled = canInstall && isInstalled && canUpdate;
+		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}
 
