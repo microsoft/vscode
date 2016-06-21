@@ -21,7 +21,7 @@ import {TerminalPanel} from 'vs/workbench/parts/terminal/electron-browser/termin
 export class TerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
 
-	private terminalProcesses: ITerminalProcess[];
+	private terminalProcesses: ITerminalProcess[] = [];
 	private configHelper: TerminalConfigHelper;
 
 	constructor(
@@ -120,6 +120,7 @@ export class TerminalService implements ITerminalService {
 				cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
 			})
 		};
+		this.terminalProcesses.push(terminalProcess);
 		return terminalProcess;
 	}
 
