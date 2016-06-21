@@ -1027,7 +1027,7 @@ interface Array<T> {
       * Combines two or more arrays.
       * @param items Additional items to add to the end of array1.
       */
-    concat<U extends T[]>(...items: U[]): T[];
+    concat<U extends T[]>(...items: (U | U[])[]): T[];
     /**
       * Combines two or more arrays.
       * @param items Additional items to add to the end of array1.
