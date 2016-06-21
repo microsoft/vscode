@@ -138,6 +138,13 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		action: IAction,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(null, action, ['foo', 'bar'], Math.max(0, ['foo', 'bar'].indexOf('foo')));
+		super(null, action, terminalService.getTerminalInstanceTitles(), terminalService.getActiveTerminalIndex());
+		this.toDispose.push(this.terminalService.onInstancesChanged(this.updateItems, this));
+		this.toDispose.push(this.terminalService.onActiveInstanceChanged(this.updateItems, this));
+		this.toDispose.push(this.terminalService.onInstanceTitleChanged(this.updateItems, this));
+	}
+
+	private updateItems(): void {
+		this.setOptions(this.terminalService.getTerminalInstanceTitles(), this.terminalService.getActiveTerminalIndex());
 	}
 }

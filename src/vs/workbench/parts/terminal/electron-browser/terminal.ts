@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import Event from 'vs/base/common/event';
 import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
@@ -46,6 +47,9 @@ export interface ITerminalProcess {
 }
 
 export interface ITerminalService {
+	onActiveInstanceChanged: Event<string>;
+	onInstancesChanged: Event<string>;
+	onInstanceTitleChanged: Event<string>;
 	serviceId: ServiceIdentifier<any>;
 
 	close(): TPromise<any>;
@@ -56,7 +60,8 @@ export interface ITerminalService {
 	toggle(): TPromise<any>;
 
 	createTerminalProcess(): ITerminalProcess;
-	//getTerminalInstanceTitles(): TPromise<string[]>;
+	getActiveTerminalIndex(): number;
+	getTerminalInstanceTitles(): string[];
 	initConfigHelper(panelElement: HTMLElement): void;
 	killTerminalProcess(terminalProcess: ITerminalProcess): void;
 }

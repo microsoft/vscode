@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import URI from 'vs/base/common/uri';
+import Event, {Emitter} from 'vs/base/common/event';
 import cp = require('child_process');
 import os = require('os');
 import path = require('path');
@@ -23,6 +24,9 @@ export class TerminalService implements ITerminalService {
 
 	private terminalProcesses: ITerminalProcess[] = [];
 	private configHelper: TerminalConfigHelper;
+	private _onActiveInstanceChanged: Emitter<string>;
+	private _onInstancesChanged: Emitter<string>;
+	private _onInstanceTitleChanged: Emitter<string>;
 
 	constructor(
 		@IPanelService private panelService: IPanelService,
@@ -30,6 +34,23 @@ export class TerminalService implements ITerminalService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
+		this._onActiveInstanceChanged = new Emitter<string>();
+		this._onInstancesChanged = new Emitter<string>();
+		this._onInstanceTitleChanged = new Emitter<string>();
+	}
+
+	// TODO: Hook up
+	public get onActiveInstanceChanged(): Event<string> {
+		return this._onActiveInstanceChanged.event;
+	}
+
+	public get onInstancesChanged(): Event<string> {
+		return this._onInstancesChanged.event;
+	}
+
+	// TODO: Hook up
+	public get onInstanceTitleChanged(): Event<string> {
+		return this._onInstanceTitleChanged.event;
 	}
 
 	public focus(): TPromise<any> {
@@ -88,6 +109,11 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
+	public getActiveTerminalIndex(): number {
+		// TODO: Pull active terminal logic into TerminalService
+		return 0;
+	}
+
 	public getTerminalInstanceTitles(): string[] {
 		return this.terminalProcesses.map((process) => process.title);
 	}
@@ -100,8 +126,8 @@ export class TerminalService implements ITerminalService {
 
 	public killTerminalProcess(terminalProcess: ITerminalProcess): void {
 		terminalProcess.process.kill();
-		// TODO: Be more defensive
 		this.terminalProcesses.slice(this.terminalProcesses.indexOf(terminalProcess), 1);
+		this._onInstancesChanged.fire();
 	}
 
 	public createTerminalProcess(): ITerminalProcess {
@@ -121,6 +147,7 @@ export class TerminalService implements ITerminalService {
 			})
 		};
 		this.terminalProcesses.push(terminalProcess);
+		this._onInstancesChanged.fire();
 		return terminalProcess;
 	}
 
