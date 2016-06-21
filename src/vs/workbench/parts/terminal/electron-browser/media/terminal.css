@@ -35,13 +35,9 @@
 
 /* Light theme */
 .monaco-workbench .terminal-action.close { background: url('close.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.focus-next { background: url('focus-next.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.focus-previous { background: url('focus-previous.svg') center center no-repeat; }
 .monaco-workbench .terminal-action.new { background: url('new.svg') center center no-repeat; }
 /* Dark theme */
 .vs-dark .monaco-workbench .terminal-action.close { background: url('close-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.focus-next { background: url('focus-next-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.focus-previous { background: url('focus-previous-inverse.svg') center center no-repeat; }
 .vs-dark .monaco-workbench .terminal-action.new { background: url('new-inverse.svg') center center no-repeat; }
 /* High contrast black theme */
 .hc-black .monaco-workbench .terminal-action { background: none; }
@@ -53,6 +49,4 @@
 	width: 16px;
 }
 .hc-black .monaco-workbench .terminal-action.close:before { content: url('close-inverse.svg'); }
-.hc-black .monaco-workbench .terminal-action.focus-next:before { content: url('focus-next-inverse.svg'); }
-.hc-black .monaco-workbench .terminal-action.focus-previous:before { content: url('focus-previous-inverse.svg'); }
 .hc-black .monaco-workbench .terminal-action.new:before { content: url('new-inverse.svg'); }

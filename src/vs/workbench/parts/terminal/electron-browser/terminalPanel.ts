@@ -8,7 +8,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
 import {Action, IAction} from 'vs/base/common/actions';
 import {Builder, Dimension} from 'vs/base/browser/builder';
-import {CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {CloseTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -57,8 +57,8 @@ export class TerminalPanel extends Panel {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchTerminalInstanceAction, SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL),
-				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL)
-				// TODO: Add close
+				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL),
+				this.instantiationService.createInstance(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
