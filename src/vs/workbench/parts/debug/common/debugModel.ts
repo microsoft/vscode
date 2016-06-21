@@ -278,6 +278,9 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 
 export class Variable extends ExpressionContainer implements debug.IExpression {
 
+	// Used to show the error message coming from the adapter when setting the value #7807
+	public errorMessage: string;
+
 	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public available = true) {
 		super(reference, `variable:${ parent.getId() }:${ name }`, true);
 		this.value = massageValue(value);

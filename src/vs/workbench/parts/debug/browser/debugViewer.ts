@@ -114,10 +114,13 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				debugService.renameFunctionBreakpoint(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.FunctionBreakpoint && !element.name) {
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
-			} else if (element instanceof model.Variable && renamed) {
-				debugService.setVariable(element, inputBox.value)
-					// if everything went fine we need to refresh that tree element since his value updated
-					.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+			} else if (element instanceof model.Variable) {
+				(<model.Variable>element).errorMessage = null;
+				if (renamed) {
+					debugService.setVariable(element, inputBox.value)
+						// if everything went fine we need to refresh that tree element since his value updated
+						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+				}
 			}
 
 			tree.clearHighlight();
@@ -639,13 +642,17 @@ export class VariablesRenderer implements tree.IRenderer {
 		if (templateId === VariablesRenderer.SCOPE_TEMPLATE_ID) {
 			this.renderScope(element, templateData);
 		} else {
-			if (element === this.debugService.getViewModel().getSelectedExpression()) {
-				renderRenameBox(this.debugService, this.contextViewService, tree, element, (<IVariableTemplateData>templateData).expression, {
-					initialValue: (<model.Variable>element).value,
-					ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value")
+			const variable = <model.Variable>element;
+			if (variable === this.debugService.getViewModel().getSelectedExpression() || variable.errorMessage) {
+				renderRenameBox(this.debugService, this.contextViewService, tree, variable, (<IVariableTemplateData>templateData).expression, {
+					initialValue: variable.value,
+					ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value"),
+					validationOptions: {
+						validation: (value: string) => variable.errorMessage ? ({ content: variable.errorMessage }) : null
+					}
 				});
 			} else {
-				renderVariable(tree, element, templateData, true);
+				renderVariable(tree, variable, templateData, true);
 			}
 		}
 	}

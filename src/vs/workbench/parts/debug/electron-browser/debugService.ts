@@ -492,7 +492,7 @@ export class DebugService implements debug.IDebugService {
 			name: variable.name,
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
-		}).then(response => variable.value = response.body.value);
+		}).then(response => variable.value = response.body.value, err => (<model.Variable>variable).errorMessage = err.message);
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
