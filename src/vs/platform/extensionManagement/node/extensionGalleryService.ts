@@ -152,12 +152,8 @@ class Query {
 	}
 }
 
-function getInstallCount(statistics: IRawGalleryExtensionStatistics[]): number {
-	if (!statistics) {
-		return 0;
-	}
-
-	const result = statistics.filter(s => s.statisticName === 'install')[0];
+function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string): number {
+	const result = (statistics || []).filter(s => s.statisticName === name)[0];
 	return result ? result.value : 0;
 }
 
@@ -180,7 +176,9 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		publisher: galleryExtension.publisher.publisherName,
 		publisherDisplayName: galleryExtension.publisher.displayName,
 		description: galleryExtension.shortDescription || '',
-		installCount: getInstallCount(galleryExtension.statistics),
+		installCount: getStatistic(galleryExtension.statistics, 'install'),
+		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
+		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		versions
 	};
 }

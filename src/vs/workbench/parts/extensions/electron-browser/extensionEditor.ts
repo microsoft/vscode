@@ -10,27 +10,29 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
-import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
+import { append, emmet as $, addClass, removeClass, finalHandler } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/common/request';
-// import { IExtension } from './extensionsModel';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
+import { RatingsWidget } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
+import { shell } from 'electron';
+import product from 'vs/platform/product';
 
 export class ExtensionEditor extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extension';
 
 	private icon: HTMLElement;
-	private name: HTMLElement;
+	private name: HTMLAnchorElement;
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
-	private rating: HTMLElement;
+	private rating: HTMLAnchorElement;
 	private description: HTMLElement;
 	private body: HTMLElement;
 
@@ -62,12 +64,14 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon = append(header, $('.icon'));
 
 		const details = append(header, $('.details'));
-		this.name = append(details, $('.name'));
+		this.name = append(details, $<HTMLAnchorElement>('a.name'));
+		this.name.href = '#';
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher'));
 		this.installCount = append(subtitle, $('span.install'));
-		this.rating = append(subtitle, $('span.rating'));
+		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
+		this.rating.href = '#';
 
 		this.description = append(details, $('p.description'));
 
@@ -87,7 +91,20 @@ export class ExtensionEditor extends BaseEditor {
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 
+		if (product.extensionsGallery) {
+			const extensionUrl = `${ product.extensionsGallery.itemUrl }?itemName=${ extension.publisher }.${ extension.name }`;
+
+			this.name.onclick = finalHandler(e => shell.openExternal(extensionUrl));
+			this.rating.onclick = finalHandler(e => shell.openExternal(`${ extensionUrl }#review-details`));
+		}
+
+		if (extension.rating !== null) {
+			const ratings = new RatingsWidget(this.rating, input.model, extension);
+			this.transientDisposables.push(ratings);
+		}
+
 		if (!extension.readmeUrl) {
+			// TODO@Joao
 			this.body.innerHTML = 'no readme :(';
 		} else {
 			addClass(this.body, 'loading');

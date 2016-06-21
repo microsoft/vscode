@@ -30,6 +30,9 @@ export interface IExtension {
 	description: string;
 	readmeUrl: string;
 	iconUrl: string;
+	installCount: number;
+	rating: number;
+	ratingCount: number;
 }
 
 interface IExtensionStateProvider {
@@ -106,6 +109,18 @@ class Extension implements IExtension {
 
 	get state(): ExtensionState {
 		return this.stateProvider(this);
+	}
+
+	get installCount(): number {
+		return this.gallery ? this.gallery.installCount : null;
+	}
+
+	get rating(): number {
+		return this.gallery ? this.gallery.rating : null;
+	}
+
+	get ratingCount(): number {
+		return this.gallery ? this.gallery.ratingCount : null;
 	}
 }
 

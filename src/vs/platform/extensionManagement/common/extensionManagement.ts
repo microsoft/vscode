@@ -46,6 +46,8 @@ export interface IGalleryExtension {
 	publisherDisplayName: string;
 	description: string;
 	installCount: number;
+	rating: number;
+	ratingCount: number;
 	versions: IGalleryVersion[];
 }
 
