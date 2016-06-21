@@ -28,7 +28,7 @@ import { IExtensionsViewlet } from './extensions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction } from './extensionsActions';
 
-const actionOptions = { icon: true, label: false };
+const actionOptions = { icon: true, label: true };
 
 export class ExtensionEditor extends BaseEditor {
 
@@ -85,7 +85,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.description = append(details, $('.description'));
 
 		const actions = append(details, $('.actions'));
-		this.actionBar = new ActionBar(actions);
+		this.actionBar = new ActionBar(actions, { animated: false });
 
 		this.body = append(root, $('.body'));
 	}

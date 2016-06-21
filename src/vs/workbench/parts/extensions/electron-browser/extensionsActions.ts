@@ -117,7 +117,7 @@ export class InstallAction extends Action {
 	private disposables: IDisposable[] = [];
 
 	constructor(private model: ExtensionsModel, private extension: IExtension) {
-		super('extensions.install', nls.localize('installAction', "Install"), 'octicon octicon-cloud-download', false);
+		super('extensions.install', nls.localize('installAction', "Install"), 'extension-action install', false);
 
 		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
 		this.updateEnablement();
@@ -177,7 +177,7 @@ export class UninstallAction extends Action {
 	private disposables: IDisposable[] = [];
 
 	constructor(private model: ExtensionsModel, private extension: IExtension) {
-		super('extensions.uninstall', nls.localize('uninstall', "Uninstall"), 'octicon octicon-x', false);
+		super('extensions.uninstall', nls.localize('uninstall', "Uninstall"), 'extension-action uninstall', false);
 
 		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
 		this.updateEnablement();
@@ -193,7 +193,6 @@ export class UninstallAction extends Action {
 		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", this.extension.displayName))) {
 			return TPromise.as(null);
 		}
-
 
 		return this.model.uninstall(this.extension);
 
@@ -297,13 +296,13 @@ export class CombinedInstallAction extends Action {
 
 export class UpdateAction extends Action {
 
-	private static EnabledClass = 'extension-update-action octicon octicon-cloud-download';
+	private static EnabledClass = 'extension-action update';
 	private static DisabledClass = `${ UpdateAction.EnabledClass } disabled`;
 
 	private disposables: IDisposable[] = [];
 
 	constructor(private model: ExtensionsModel, private extension: IExtension) {
-		super('extensions.install', nls.localize('installAction', "Install"), UpdateAction.DisabledClass, false);
+		super('extensions.update', nls.localize('updateAction', "Update"), UpdateAction.DisabledClass, false);
 
 		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
 		this.updateEnablement();

@@ -80,6 +80,11 @@
 	padding-left: 6px;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .monaco-action-bar .action-label {
+	margin-right: 0;
+	margin-left: 0.3em;
+}
+
 .extensions-viewlet > .extensions .extension .ellipsis {
 	overflow: hidden;
 	white-space: nowrap;

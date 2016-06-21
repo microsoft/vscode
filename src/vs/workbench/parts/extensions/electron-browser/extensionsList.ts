@@ -32,7 +32,7 @@ export class Delegate implements IDelegate<IExtension> {
 	getTemplateId() { return 'extension'; }
 }
 
-const actionOptions = { icon: true, label: false };
+const actionOptions = { icon: true, label: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
@@ -57,7 +57,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version.ellipsis'));
 		const author = append(header, $('span.author.ellipsis'));
 		const description = append(details, $('.description.ellipsis'));
-		const actionbar = new ActionBar(details);
+		const actionbar = new ActionBar(details, { animated: false });
 		const disposables = [];
 
 		const result = { extension: null, element, icon, name, version, author, description, actionbar, disposables };
@@ -89,13 +89,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.description.textContent = extension.description;
 
 		const version = new Label(data.version, this.model, extension, e => e.version);
-
 		const installAction = new CombinedInstallAction(this.model, extension);
 		const updateAction = new UpdateAction(this.model, extension);
 		data.actionbar.clear();
 		data.actionbar.push([updateAction, installAction], actionOptions);
 
-			data.disposables.push(version, installAction, updateAction);
+		data.disposables.push(version, installAction, updateAction);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
