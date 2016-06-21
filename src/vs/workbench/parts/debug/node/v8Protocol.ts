@@ -6,6 +6,7 @@
 import stream = require('stream');
 import uuid = require('vs/base/common/uuid');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { canceled } from 'vs/base/common/errors';
 
 export abstract class V8Protocol {
 
@@ -41,7 +42,9 @@ export abstract class V8Protocol {
 	}
 
 	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
+		let errorCallback;
 		return new TPromise((completeDispatch, errorDispatch) => {
+			errorCallback = errorDispatch;
 			this.doSend(command, args, (result: DebugProtocol.Response) => {
 				if (result.success) {
 					completeDispatch(result);
@@ -49,7 +52,7 @@ export abstract class V8Protocol {
 					errorDispatch(result);
 				}
 			});
-		});
+		}, () => errorCallback(canceled()));
 	}
 
 	private doSend(command: string, args: any, clb: (result: DebugProtocol.Response) => void): void {
