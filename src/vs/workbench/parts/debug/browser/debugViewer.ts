@@ -82,19 +82,22 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 }
 
-function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any,
-	container: HTMLElement, initialValue: string, placeholder: string, ariaLabel: string): void {
+interface IRenameBoxOptions {
+	initialValue: string;
+	ariaLabel: string;
+	placeholder?: string;
+	validationOptions?: inputbox.IInputValidationOptions;
+}
+
+function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 	let inputBox = new inputbox.InputBox(inputBoxContainer, contextViewService, {
-		validationOptions: {
-			validation: null,
-			showMessage: false
-		},
-		placeholder: placeholder,
-		ariaLabel: ariaLabel
+		validationOptions: options.validationOptions,
+		placeholder: options.placeholder,
+		ariaLabel: options.ariaLabel
 	});
 
-	inputBox.value = initialValue ? initialValue : '';
+	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 
 	let disposed = false;
@@ -262,7 +265,7 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent|IMouseEvent, preserveFocus: boolean): void {
+	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
 
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
@@ -637,8 +640,10 @@ export class VariablesRenderer implements tree.IRenderer {
 			this.renderScope(element, templateData);
 		} else {
 			if (element === this.debugService.getViewModel().getSelectedExpression()) {
-				renderRenameBox(this.debugService, this.contextViewService, tree, element, (<IVariableTemplateData>templateData).expression,
-					(<model.Variable>element).value, null, nls.localize('variableValueAriaLabel', "Type new variable value"));
+				renderRenameBox(this.debugService, this.contextViewService, tree, element, (<IVariableTemplateData>templateData).expression, {
+					initialValue: (<model.Variable>element).value,
+					ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value")
+				});
 			} else {
 				renderVariable(tree, element, templateData, true);
 			}
@@ -833,7 +838,11 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private renderWatchExpression(tree: tree.ITree, watchExpression: debug.IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if ((selectedExpression instanceof model.Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof model.Expression && !watchExpression.name)) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, watchExpression.name, nls.localize('watchExpressionPlaceholder', "Expression to watch"), nls.localize('watchExpressionInputAriaLabel', "Type watch expression"));
+			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, {
+				initialValue: watchExpression.name,
+				placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
+				ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
+			});
 		}
 		data.actionBar.context = watchExpression;
 
@@ -1106,7 +1115,11 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, functionBreakpoint.name, nls.localize('functionBreakpointPlaceholder', "Function to break on"), nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint"));
+			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, {
+				initialValue: functionBreakpoint.name,
+				placeholder: nls.localize('functionBreakpointPlaceholder', "Function to break on"),
+				ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
+			});
 		} else {
 			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
 			data.name.textContent = functionBreakpoint.name;
@@ -1222,7 +1235,7 @@ export class BreakpointsController extends BaseDebugController {
 		return false;
 	}
 
-	private openBreakpointSource(breakpoint: debug.IBreakpoint, event: IKeyboardEvent|IMouseEvent, preserveFocus: boolean): void {
+	private openBreakpointSource(breakpoint: debug.IBreakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		if (!breakpoint.source.inMemory) {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
 			this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
