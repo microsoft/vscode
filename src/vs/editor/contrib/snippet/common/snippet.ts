@@ -822,7 +822,7 @@ class SnippetController implements ISnippetController {
 		}
 	}
 
-	private static _prepareSnippet(editor:editorCommon.ICommonCodeEditor, selection:Selection, snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix?:boolean): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
+	private static _prepareSnippet(editor:editorCommon.ICommonCodeEditor, selection:Selection, snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix = true): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
 		var model = editor.getModel();
 
 		var typeRange = SnippetController._getTypeRangeForSelection(model, selection, overwriteBefore, overwriteAfter);
@@ -831,7 +831,7 @@ class SnippetController implements ISnippetController {
 			var nextInSnippet = snippet.lines[0].substr(overwriteBefore);
 			var commonPrefix = strings.commonPrefixLength(nextTextOnLine, nextInSnippet);
 
-			if (commonPrefix > 0 && !stripPrefix === false) {
+			if (commonPrefix > 0 && stripPrefix) {
 				typeRange = typeRange.setEndPosition(typeRange.endLineNumber, typeRange.endColumn + commonPrefix);
 			}
 		}
