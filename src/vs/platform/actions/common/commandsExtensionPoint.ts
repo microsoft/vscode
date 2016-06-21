@@ -140,7 +140,7 @@ namespace schema {
 			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
-				oneOf: [
+				anyOf: [
 					'string',
 					{
 						type: 'object',
