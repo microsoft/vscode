@@ -4,37 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, SortBy, SortOrder } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IPager } from 'vs/base/common/paging';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 
-export interface IGalleryExtensionFile {
+interface IRawGalleryExtensionFile {
 	assetType: string;
 }
 
-export interface IGalleryExtensionVersion {
+interface IRawGalleryExtensionVersion {
 	version: string;
 	lastUpdated: string;
 	assetUri: string;
-	files: IGalleryExtensionFile[];
+	files: IRawGalleryExtensionFile[];
 }
 
-export interface IGalleryExtension {
+interface IRawGalleryExtension {
 	extensionId: string;
 	extensionName: string;
 	displayName: string;
 	shortDescription: string;
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
-	versions: IGalleryExtensionVersion[];
-	galleryApiUrl: string;
-	statistics: IGalleryExtensionStatistics[];
+	versions: IRawGalleryExtensionVersion[];
+	statistics: IRawGalleryExtensionStatistics[];
 }
 
-export interface IGalleryExtensionStatistics {
+interface IRawGalleryExtensionStatistics {
 	statisticName: string;
 	value: number;
 }
@@ -61,22 +61,6 @@ enum FilterType {
 	Target = 8,
 	Featured = 9,
 	SearchText = 10
-}
-
-enum SortBy {
-	NoneOrRelevance = 0,
-	LastUpdatedDate = 1,
-	Title = 2,
-	PublisherName = 3,
-	InstallCount = 4,
-	PublishedDate = 5,
-	AverageRating = 6
-}
-
-enum SortOrder {
-	Default = 0,
-	Ascending = 1,
-	Descending = 2
 }
 
 interface ICriterium {
@@ -130,8 +114,12 @@ class Query {
 		return new Query(assign({}, this.state, { criteria }));
 	}
 
-	withSort(sortBy: SortBy, sortOrder = SortOrder.Default): Query {
-		return new Query(assign({}, this.state, { sortBy, sortOrder }));
+	withSortBy(sortBy: SortBy): Query {
+		return new Query(assign({}, this.state, { sortBy }));
+	}
+
+	withSortOrder(sortOrder): Query {
+		return new Query(assign({}, this.state, { sortOrder }));
 	}
 
 	withFlags(...flags: Flags[]): Query {
@@ -152,39 +140,34 @@ class Query {
 	}
 }
 
-function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
-	if (!statistics) {
-		return 0;
-	}
-
-	const result = statistics.filter(s => s.statisticName === 'install')[0];
+function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string): number {
+	const result = (statistics || []).filter(s => s.statisticName === name)[0];
 	return result ? result.value : 0;
 }
 
-function toExtension(galleryExtension: IGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IGalleryExtension {
 	const versions = galleryExtension.versions.map<IGalleryVersion>(v => ({
 		version: v.version,
 		date: v.lastUpdated,
 		downloadHeaders,
 		downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
-		manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`
+		manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`,
+		readmeUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Content.Details`,
+		iconUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Icons.Default`
 	}));
 
 	return {
+		id: galleryExtension.extensionId,
 		name: galleryExtension.extensionName,
-		displayName: galleryExtension.displayName || galleryExtension.extensionName,
+		displayName: galleryExtension.displayName,
+		publisherId: galleryExtension.publisher.publisherId,
 		publisher: galleryExtension.publisher.publisherName,
-		version: versions[0].version,
-		engines: { vscode: void 0 }, // TODO: ugly
+		publisherDisplayName: galleryExtension.publisher.displayName,
 		description: galleryExtension.shortDescription || '',
-		galleryInformation: {
-			galleryApiUrl: extensionsGalleryUrl,
-			id: galleryExtension.extensionId,
-			publisherId: galleryExtension.publisher.publisherId,
-			publisherDisplayName: galleryExtension.publisher.displayName,
-			installCount: getInstallCount(galleryExtension.statistics),
-			versions
-		}
+		installCount: getStatistic(galleryExtension.statistics, 'install'),
+		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
+		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
+		versions
 	};
 }
 
@@ -212,12 +195,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return !!this.extensionsGalleryUrl;
 	}
 
-	query(options: IQueryOptions = {}): TPromise<IQueryResult> {
+	query(options: IQueryOptions = {}): TPromise<IPager<IGalleryExtension>> {
 		if (!this.isEnabled()) {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
-		const type = options.ids ? 'ids' : (options.text ? 'text' : 'all');
+		const type = options.names ? 'ids' : (options.text ? 'text' : 'all');
 		const text = options.text || '';
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
@@ -229,14 +212,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
 
 		if (text) {
-			query = query.withFilter(FilterType.SearchText, text)
-				.withSort(SortBy.NoneOrRelevance);
+			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
 		} else if (options.ids) {
-			options.ids.forEach(id => {
-				query = query.withFilter(FilterType.ExtensionName, id);
-			});
+			query = options.ids.reduce((query, id) => query.withFilter(FilterType.ExtensionId, id), query);
+		} else if (options.names) {
+			query = options.names.reduce((query, name) => query.withFilter(FilterType.ExtensionName, name), query);
 		} else {
-			query = query.withSort(SortBy.InstallCount);
+			query = query.withSortBy(SortBy.InstallCount);
+		}
+
+		if (typeof options.sortBy === 'number') {
+			query = query.withSortBy(options.sortBy);
+		}
+
+		if (typeof options.sortOrder === 'number') {
+			query = query.withSortOrder(options.sortOrder);
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
@@ -251,7 +241,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private queryGallery(query: Query): TPromise<{ galleryExtensions: IGalleryExtension[], total: number; }> {
+	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
 		const data = JSON.stringify(query.raw);
 
 		return this.getRequestHeaders()

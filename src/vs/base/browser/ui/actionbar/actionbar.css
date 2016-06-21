@@ -36,7 +36,7 @@
 	cursor: default;
 }
 
-.monaco-action-bar .action-item.active {
+.monaco-action-bar.animated .action-item.active {
 	-ms-transform: translate(0, -3px);
 	-webkit-transform: translate(0, -3px);
 	-moz-transform: translate(0, -3px);
@@ -77,7 +77,7 @@
 	margin-right: .8em;
 }
 
-.monaco-action-bar.vertical .action-item.active {
+.monaco-action-bar.animated.vertical .action-item.active {
 	-ms-transform: translate(5px, 0);
 	-webkit-transform: translate(5px, 0);
 	-moz-transform: translate(5px, 0);

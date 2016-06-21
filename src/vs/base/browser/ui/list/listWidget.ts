@@ -8,8 +8,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
 import Event, { Emitter, mapEvent, EventBufferer } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
-import { ListView } from './listView';
+import { ListView, IListViewOptions } from './listView';
 
 interface ITraitTemplateData<D> {
 	container: HTMLElement;
@@ -138,6 +139,8 @@ class Controller<T> implements IDisposable {
 	private onClick(e: IListMouseEvent<T>) {
 		e.preventDefault();
 		e.stopPropagation();
+		this.view.domNode.focus();
+		this.list.setFocus(e.index);
 		this.list.setSelection(e.index);
 	}
 
@@ -145,6 +148,11 @@ class Controller<T> implements IDisposable {
 		this.toDispose = dispose(this.toDispose);
 	}
 }
+
+export interface IListOptions extends IListViewOptions {
+}
+
+const DefaultOptions: IListOptions = {};
 
 export class List<T> implements IDisposable {
 
@@ -165,10 +173,14 @@ export class List<T> implements IDisposable {
 		return this.eventBufferer.wrapEvent(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
 	}
 
+	private _onDOMFocus: Event<FocusEvent>;
+	get onDOMFocus(): Event<FocusEvent> { return this._onDOMFocus; }
+
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<T>,
-		renderers: IRenderer<T, any>[]
+		renderers: IRenderer<T, any>[],
+		options: IListOptions = DefaultOptions
 	) {
 		this.focus = new FocusTrait(i => this.getElementId(i));
 		this.selection = new Trait('selected');
@@ -180,9 +192,12 @@ export class List<T> implements IDisposable {
 			return r;
 		});
 
-		this.view = new ListView(container, delegate, renderers);
+		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'listbox');
+		this.view.domNode.tabIndex = 0;
 		this.controller = new Controller(this, this.view);
+
+		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
@@ -199,6 +214,10 @@ export class List<T> implements IDisposable {
 
 	get contentHeight(): number {
 		return this.view.getContentHeight();
+	}
+
+	get scrollTop(): number {
+		return this.view.getScrollTop();
 	}
 
 	layout(height?: number): void {
@@ -229,6 +248,10 @@ export class List<T> implements IDisposable {
 		this.setSelection(Math.max(index, 0));
 	}
 
+	getSelection(): number[] {
+		return this.selection.get();
+	}
+
 	setFocus(...indexes: number[]): void {
 		this.eventBufferer.bufferEvents(() => {
 			indexes = indexes.concat(this.focus.set(...indexes));
@@ -255,7 +278,7 @@ export class List<T> implements IDisposable {
 		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
 		const lastPageElement = this.view.element(lastPageIndex);
-		const currentlyFocusedElement = this.getFocus()[0];
+		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
 			this.setFocus(lastPageIndex);
@@ -281,7 +304,7 @@ export class List<T> implements IDisposable {
 		}
 
 		const firstPageElement = this.view.element(firstPageIndex);
-		const currentlyFocusedElement = this.getFocus()[0];
+		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
 			this.setFocus(firstPageIndex);
@@ -296,8 +319,12 @@ export class List<T> implements IDisposable {
 		}
 	}
 
-	getFocus(): T[] {
-		return this.focus.get().map(i => this.view.element(i));
+	getFocus(): number[] {
+		return this.focus.get();
+	}
+
+	getFocusedElements(): T[] {
+		return this.getFocus().map(i => this.view.element(i));
 	}
 
 	reveal(index: number, relativeTop?: number): void {

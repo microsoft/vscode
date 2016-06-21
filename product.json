@@ -6,6 +6,10 @@
 	"win32MutexName": "vscodeoss",
 	"licenseUrl": "https://github.com/Microsoft/vscode/blob/master/LICENSE.txt",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"welcomePage": "https://go.microsoft.com/fwlink/?LinkId=723048",
 	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new"
+	,"extensionsGallery": {
+		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+		"cacheUrl": "https://vscode.blob.core.windows.net/gallery/index",
+		"itemUrl": "https://marketplace.visualstudio.com/items"
+	}
 }

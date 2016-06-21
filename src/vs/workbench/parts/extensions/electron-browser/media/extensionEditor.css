@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extension-editor {
+	height: 100%;
+	overflow-y: scroll;
+	display: flex;
+	flex-direction: column;
+}
+
+.extension-editor a {
+	color: inherit;
+}
+
+.extension-editor > .header {
+	display: flex;
+	height: 128px;
+	background: rgba(128, 128, 128, 0.15);
+	padding: 20px;
+	overflow: hidden;
+	font-size: 14px;
+}
+
+.extension-editor > .header > .icon {
+	height: 128px;
+	width: 128px;
+	min-width: 128px;
+	background-size: 128px;
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
+.extension-editor > .header > .details {
+	flex: 1;
+	padding-left: 20px;
+	overflow: hidden;
+}
+
+.extension-editor > .header > .details > .name {
+	font-size: 26px;
+	font-weight: 600;
+	line-height: normal;
+	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .subtitle {
+	padding-top: 10px;
+	white-space: nowrap;
+	height: 20px;
+	line-height: 20px;
+}
+
+.extension-editor > .header > .details > .subtitle > .publisher {
+	font-size: 18px;
+}
+
+.extension-editor > .header > .details > .subtitle > .install > .count {
+	margin-left: 6px;
+}
+
+.extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty),
+.extension-editor > .header > .details > .subtitle > a:not(:first-child):not(:empty) {
+	border-left: 1px solid rgba(128, 128, 128, 0.7);
+	margin-left: 14px;
+	padding-left: 14px;
+}
+
+.extension-editor > .header > .details > .description {
+	margin-top: 14px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.extension-editor > .header > .details > .actions {
+	margin-top: 14px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar {
+	text-align: initial;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container {
+	justify-content: flex-start;
+}
+
+.extension-editor > .body {
+	flex: 1;
+	overflow-y: scroll;
+	overflow-x: hidden;
+	padding: 20px;
+}
+
+.extension-editor > .body img {
+	max-width: 100%;
+}
+
+.extension-editor > .body.loading {
+	background-image: url('loading.svg');
+	background-position: center center;
+	background-repeat: no-repeat;
+}

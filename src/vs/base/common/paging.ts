@@ -8,6 +8,9 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ArraySet } from 'vs/base/common/set';
 
+/**
+ * A Pager is a stateless abstraction over a paged collection.
+ */
 export interface IPager<T> {
 	firstPage: T[];
 	total: number;
@@ -22,7 +25,17 @@ interface IPage<T> {
 	elements: T[];
 }
 
-export class PagedModel<T> {
+/**
+ * A PagedModel is a stateful model over an abstracted paged collection.
+ */
+export interface IPagedModel<T> {
+	length: number;
+	isResolved(index: number): boolean;
+	get(index: number): T;
+	resolve(index: number): TPromise<T>;
+}
+
+export class PagedModel<T> implements IPagedModel<T> {
 
 	private pages: IPage<T>[] = [];
 
@@ -92,6 +105,21 @@ export class PagedModel<T> {
 	}
 }
 
+export class SinglePagePagedModel<T> extends PagedModel<T> {
+	constructor(elements: T[]) {
+		super({
+			firstPage: elements,
+			total: elements.length,
+			pageSize: elements.length,
+			getPage: null
+		});
+	}
+}
+
+/**
+ * Similar to array.map, `mapPager` lets you map the elements of an
+ * abstract paged collection to another type.
+ */
 export function mapPager<T,R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
 	return {
 		firstPage: pager.firstPage.map(fn),

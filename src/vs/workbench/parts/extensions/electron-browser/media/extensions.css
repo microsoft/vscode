@@ -199,3 +199,12 @@
 	background-image: linear-gradient(-45deg, rgba(255, 255, 255, 0.5) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.5) 75%, transparent 75%, transparent);
 	animation: move-background 0.5s linear infinite;
 }
+
+/* Global action */
+
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.extensions {
+	background: url('extensions-status.svg');
+	background-size: 22px;
+	background-repeat: no-repeat;
+	background-position: 50% !important;
+}
