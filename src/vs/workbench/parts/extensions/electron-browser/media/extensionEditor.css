@@ -20,6 +20,7 @@
 	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
 	overflow: hidden;
+	font-size: 14px;
 }
 
 .extension-editor > .header > .icon {
@@ -41,11 +42,13 @@
 	font-size: 26px;
 	font-weight: 600;
 	line-height: normal;
+	white-space: nowrap;
 }
 
 .extension-editor > .header > .details > .subtitle {
 	font-size: 18px;
 	padding-top: 10px;
+	white-space: nowrap;
 }
 
 .extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty),
