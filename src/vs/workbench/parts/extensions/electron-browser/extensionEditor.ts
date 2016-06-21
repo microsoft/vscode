@@ -83,7 +83,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.body.innerHTML = '';
 
-		let promise = TPromise.as<void>(null);
+		let promise = TPromise.wrapError<void>('no readme');
 		const extension = input.extension;
 
 		this.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
@@ -101,21 +101,19 @@ export class ExtensionEditor extends BaseEditor {
 		const ratings = new RatingsWidget(this.rating, input.model, extension);
 		this.transientDisposables.push(ratings);
 
-		if (!extension.readmeUrl) {
-			// TODO@Joao
-			this.body.innerHTML = 'no readme :(';
-		} else {
-			addClass(this.body, 'loading');
+		addClass(this.body, 'loading');
 
+		if (extension.readmeUrl) {
 			promise = super.setInput(input, options)
 				.then(() => this.requestService.makeRequest({ url: extension.readmeUrl }))
 				.then(response => response.responseText)
 				.then(marked.parse)
-				.then(html => {
-					removeClass(this.body, 'loading');
-					this.body.innerHTML = html;
-				});
+				.then<void>(html => this.body.innerHTML = html);
 		}
+
+		promise = promise
+			.then(null, err => console.error(err))
+			.then(() => removeClass(this.body, 'loading'));
 
 		this.transientDisposables.push(toDisposable(() => promise.cancel()));
 
