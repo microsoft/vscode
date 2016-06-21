@@ -19,6 +19,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 // import { EditorInput } from 'vs/workbench/common/editor';
 // import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ExtensionEditor } from './extensionEditor';
 
 // class ExtensionsInputFactory implements IEditorInputFactory {
 
@@ -46,7 +47,7 @@ Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 // 	.registerEditorInputFactory(ExtensionsInput.ID, ExtensionsInputFactory);
 
 const editorDescriptor = new EditorDescriptor(
-	'workbench.editor.extension',
+	ExtensionEditor.ID,
 	localize('extension', "Extension"),
 	'vs/workbench/parts/extensions/electron-browser/extensionEditor',
 	'ExtensionEditor'
