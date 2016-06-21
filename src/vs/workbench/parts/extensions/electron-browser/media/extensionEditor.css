@@ -8,21 +8,40 @@
 	overflow-y: scroll;
 	display: flex;
 	flex-direction: column;
-	/*padding: 20px;*/
 }
 
 .extension-editor > .header {
+	display: flex;
 	height: 128px;
-	background: rgba(128, 128, 128, 0.15); /* TODO */
+	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
+	overflow: hidden;
 }
 
 .extension-editor > .header > .icon {
 	height: 128px;
 	width: 128px;
+	min-width: 128px;
 	background-size: 128px;
 	background-repeat: no-repeat;
 	background-position: center center;
+}
+
+.extension-editor > .header > .details {
+	flex: 1;
+	padding-left: 20px;
+	overflow: hidden;
+}
+
+.extension-editor > .header > .details > .name {
+	font-size: 26px;
+	font-weight: 600;
+	line-height: normal;
+}
+
+.extension-editor > .header > .details > .subtitle {
+	font-size: 18px;
+	padding-top: 10px;
 }
 
 .extension-editor > .body {
