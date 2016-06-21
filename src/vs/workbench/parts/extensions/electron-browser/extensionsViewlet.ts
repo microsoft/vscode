@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from './extensionsList';
 import { ExtensionsModel, IExtension } from './extensionsModel';
 import { IExtensionsViewlet } from './extensions';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -141,6 +141,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			promise = this.model.getLocal()
 				.then(result => result.filter(e => e.outdated))
 				.then(result => new SinglePagePagedModel(result));
+		} else if (/@popular/i.test(text)) {
+			promise = this.model.queryGallery({ sortBy: SortBy.InstallCount })
+				.then(result => new PagedModel(result));
 		} else {
 			promise = this.model.queryGallery({ text })
 				.then(result => new PagedModel(result));

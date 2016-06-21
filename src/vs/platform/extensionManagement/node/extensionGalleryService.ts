@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, SortBy, SortOrder } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -63,22 +63,6 @@ enum FilterType {
 	SearchText = 10
 }
 
-enum SortBy {
-	NoneOrRelevance = 0,
-	LastUpdatedDate = 1,
-	Title = 2,
-	PublisherName = 3,
-	InstallCount = 4,
-	PublishedDate = 5,
-	AverageRating = 6
-}
-
-enum SortOrder {
-	Default = 0,
-	Ascending = 1,
-	Descending = 2
-}
-
 interface ICriterium {
 	filterType: FilterType;
 	value?: string;
@@ -130,8 +114,12 @@ class Query {
 		return new Query(assign({}, this.state, { criteria }));
 	}
 
-	withSort(sortBy: SortBy, sortOrder = SortOrder.Default): Query {
-		return new Query(assign({}, this.state, { sortBy, sortOrder }));
+	withSortBy(sortBy: SortBy): Query {
+		return new Query(assign({}, this.state, { sortBy }));
+	}
+
+	withSortOrder(sortOrder): Query {
+		return new Query(assign({}, this.state, { sortOrder }));
 	}
 
 	withFlags(...flags: Flags[]): Query {
@@ -224,13 +212,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
 
 		if (text) {
-			query = query.withFilter(FilterType.SearchText, text).withSort(SortBy.NoneOrRelevance);
+			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
 		} else if (options.ids) {
 			query = options.ids.reduce((query, id) => query.withFilter(FilterType.ExtensionId, id), query);
 		} else if (options.names) {
 			query = options.names.reduce((query, name) => query.withFilter(FilterType.ExtensionName, name), query);
 		} else {
-			query = query.withSort(SortBy.InstallCount);
+			query = query.withSortBy(SortBy.InstallCount);
+		}
+
+		if (typeof options.sortBy === 'number') {
+			query = query.withSortBy(options.sortBy);
+		}
+
+		if (typeof options.sortOrder === 'number') {
+			query = query.withSortOrder(options.sortOrder);
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {

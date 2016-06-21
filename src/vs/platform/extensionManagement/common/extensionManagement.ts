@@ -68,11 +68,29 @@ export interface ILocalExtension {
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
+export enum SortBy {
+	NoneOrRelevance = 0,
+	LastUpdatedDate = 1,
+	Title = 2,
+	PublisherName = 3,
+	InstallCount = 4,
+	PublishedDate = 5,
+	AverageRating = 6
+}
+
+export enum SortOrder {
+	Default = 0,
+	Ascending = 1,
+	Descending = 2
+}
+
 export interface IQueryOptions {
 	text?: string;
 	ids?: string[];
 	names?: string[];
 	pageSize?: number;
+	sortBy?: SortBy;
+	sortOrder?: SortOrder;
 }
 
 export interface IExtensionGalleryService {
