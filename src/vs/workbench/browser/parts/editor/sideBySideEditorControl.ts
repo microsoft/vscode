@@ -9,13 +9,14 @@ import 'vs/css!./media/sidebyside';
 import arrays = require('vs/base/common/arrays');
 import Event, {Emitter} from 'vs/base/common/event';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {isWindows} from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
+import errors = require('vs/base/common/errors');
+import {isMacintosh} from 'vs/base/common/platform';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
@@ -26,11 +27,14 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
+import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
+import {extractResources} from 'vs/base/browser/dnd';
 
 export enum Rochade {
 	NONE,
@@ -124,6 +128,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.stacks = editorGroupService.getStacksModel();
@@ -154,6 +159,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private registerListeners(): void {
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.extensionService.onReady().then(() => POSITIONS.forEach(position => this.titleAreaControl[position].refresh()));
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -161,7 +167,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const titleControl = this.titleAreaControl[position];
 			if (titleControl) {
 				const usingTabs = (titleControl instanceof TabsTitleControl);
-				const useTabs = configuration.workbench.showEditorTabs;
+				const useTabs = configuration.workbench.editor.showTabs;
 				if (usingTabs !== useTabs) {
 
 					// Dispose old
@@ -704,6 +710,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private create(parent: Builder): void {
 
+		// Allow to drop into container to open
+		this.enableDropTarget(parent.getHTMLElement());
+
 		// Left Container
 		this.containers[Position.LEFT] = $(parent).div({ class: 'one-editor-container editor-left monaco-editor-background' });
 
@@ -743,18 +752,238 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.progressBar[position] = new ProgressBar($(this.containers[position]));
 			this.progressBar[position].getContainer().hide();
 		});
+	}
 
-		// Drag cursor
-		if (isWindows) {
-			parent.addClass('custom-drag-cursor');
+	private enableDropTarget(node: HTMLElement): void {
+		const $this = this;
+		const overlayId = 'monaco-workbench-editor-drop-overlay';
+		const splitToPropertyKey = 'splitToPosition';
+		const stacks = this.editorGroupService.getStacksModel();
+		let overlay: Builder;
+
+		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
+			DOM.removeClass(node, 'dropfeedback');
+			destroyOverlay();
+
+			const editorService = $this.editorService;
+			const groupService = $this.editorGroupService;
+
+			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
+			const freeGroup = (stacks.groups.length === 1) ? Position.CENTER : Position.RIGHT;
+			const pinned = EditorOptions.create({ pinned: true });
+
+			// Check for transfer from title control
+			const draggedEditor = TitleControl.getDraggedEditor();
+			if (draggedEditor) {
+				const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+
+				// Copy editor to new location
+				if (isCopy) {
+					if (splitEditor) {
+						editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+							if (splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+						}).done(null, errors.onUnexpectedError);
+					} else {
+						editorService.openEditor(draggedEditor.editor, pinned, position).done(null, errors.onUnexpectedError);
+					}
+				}
+
+				// Move editor to new location
+				else {
+					const sourcePosition = stacks.positionOfGroup(draggedEditor.group);
+					if (splitEditor) {
+						if (draggedEditor.group.count === 1) {
+							groupService.moveGroup(sourcePosition, splitTo);
+						} else {
+							editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+								if (splitTo !== freeGroup) {
+									groupService.moveGroup(freeGroup, splitTo);
+								}
+								groupService.moveEditor(draggedEditor.editor, stacks.positionOfGroup(draggedEditor.group), splitTo);
+							}).done(null, errors.onUnexpectedError);
+						}
+
+					} else {
+						groupService.moveEditor(draggedEditor.editor, sourcePosition, position);
+					}
+				}
+			}
+
+			// Check for URI transfer
+			else {
+				const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
+				if (droppedResources.length) {
+					window.focus(); // make sure this window has focus so that the open call reaches the right window!
+
+					// Open all
+					editorService.openEditors(droppedResources.map(resource => { return { input: { resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; }))
+						.then(() => {
+							if (splitEditor && splitTo !== freeGroup) {
+								groupService.moveGroup(freeGroup, splitTo);
+							}
+
+							groupService.focusGroup(splitEditor ? splitTo : position);
+						})
+						.done(null, errors.onUnexpectedError);
+				}
+			}
 		}
+
+		function destroyOverlay(): void {
+			if (overlay) {
+				overlay.destroy();
+				overlay = void 0;
+			}
+		}
+
+		function positionOverlay(e: DragEvent, groups: number, position: Position): void {
+			const target = <HTMLElement>e.target;
+			const posXOnOverlay = e.offsetX;
+			const overlayIsSplit = typeof overlay.getProperty(splitToPropertyKey) === 'number';
+			const overlayWidth = target.clientWidth;
+			const splitThreshold = overlayIsSplit ? overlayWidth / 5 : overlayWidth / 10;
+			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+			const draggedEditor = TitleControl.getDraggedEditor();
+
+			const isOverSplitLeft = posXOnOverlay < splitThreshold;
+			const isOverSplitRight = posXOnOverlay + splitThreshold > overlayWidth;
+
+			let splitTarget: Position;
+
+			// No splitting if we reached maximum group count
+			if (groups === POSITIONS.length) {
+				splitTarget = null;
+			}
+
+			// Special splitting if we drag an editor of a group with only one editor
+			else if (!isCopy && draggedEditor && draggedEditor.group.count === 1) {
+				const positionOfDraggedEditor = stacks.positionOfGroup(draggedEditor.group);
+				switch (positionOfDraggedEditor) {
+					case Position.LEFT:
+						if (position === Position.CENTER && isOverSplitRight) {
+							splitTarget = Position.CENTER; // allow to move single editor from LEFT to CENTER
+						}
+						break;
+					case Position.CENTER:
+						if (position === Position.LEFT && isOverSplitLeft) {
+							splitTarget = Position.LEFT; // allow to move single editor from CENTER to LEFT
+						}
+						break;
+					default:
+						splitTarget = null; // splitting not allowed
+				}
+			}
+
+			// Any other case, check for mouse position
+			else {
+				if (isOverSplitRight) {
+					splitTarget = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
+				} else if (isOverSplitLeft) {
+					splitTarget = (position === Position.LEFT) ? Position.LEFT : Position.CENTER;
+				}
+			}
+
+			// Apply split target
+			const canSplit = (typeof splitTarget === 'number');
+			if (canSplit) {
+				overlay.setProperty(splitToPropertyKey, splitTarget);
+			} else {
+				overlay.removeProperty(splitToPropertyKey);
+			}
+
+			// Update overlay styles
+			if (canSplit && isOverSplitRight) {
+				overlay.style({
+					left: '50%',
+					width: '50%',
+				});
+			} else if (canSplit && isOverSplitLeft) {
+				overlay.style({
+					width: '50%'
+				});
+			} else {
+				overlay.style({
+					left: '0',
+					width: '100%'
+				});
+			}
+
+			// Make sure the overlay is visible
+			overlay.style({ opacity: 1 });
+		}
+
+		function createOverlay(target: HTMLElement): void {
+			if (!overlay) {
+				const containers = $this.visibleEditorContainers.filter(c => !!c);
+				containers.forEach((container, index) => {
+					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
+						const useTabs = !!$this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
+
+						overlay = $('div').style({
+							top: useTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
+							height: useTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%'
+						}).id(overlayId);
+
+						overlay.appendTo(container);
+
+						overlay.on(DOM.EventType.DROP, (e: DragEvent) => {
+							DOM.EventHelper.stop(e, true);
+							onDrop(e, index, overlay.getProperty(splitToPropertyKey));
+						});
+
+						overlay.on(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+							positionOverlay(e, containers.length, index);
+						});
+
+						overlay.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
+							destroyOverlay();
+						});
+					}
+				});
+			}
+		}
+
+		// Let a dropped file open inside Code (only if dropped over editor area)
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.EventHelper.stop(e, true);
+			onDrop(e, Position.LEFT);
+		}));
+
+		// Drag over
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.addClass(node, 'dropfeedback');
+
+			const target = <HTMLElement>e.target;
+			if (target) {
+				if (overlay && target.id !== overlayId) {
+					destroyOverlay(); // somehow we managed to move the mouse quickly out of the current overlay, so destroy it
+				}
+
+				createOverlay(target);
+			}
+		}));
+
+		// Drag leave
+		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			DOM.removeClass(node, 'dropfeedback');
+		}));
+
+		// Drag end (also install globally to be safe)
+		[node, window].forEach(container => {
+			this.toDispose.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
+				DOM.removeClass(node, 'dropfeedback');
+				destroyOverlay();
+			}));
+		});
 	}
 
 	private createTitleControl(position: Position): void {
-		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.showEditorTabs;
+		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
 		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
-		this.titleAreaControl[position].create($(this.titleContainer[position]));
+		this.titleAreaControl[position].create(this.titleContainer[position].getHTMLElement());
 		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
 		this.titleAreaControl[position].refresh();
 	}
@@ -783,15 +1012,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			DOM.EventHelper.stop(e);
 
-			// Overlay the editor area with a div to be able to capture all mouse events (helps when iframes are used in any editor)
+			// Overlay the editor area with a div to be able to capture all mouse events
 			let overlayDiv = $('div').style({
-				position: 'absolute',
 				top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px',
-				left: 0,
-				width: '100%',
-				height: '100%',
-				zIndex: 3000000
-			}).id(isWindows ? 'monaco-workbench-editor-move-overlay-custom-drag-cursor' : 'monaco-workbench-editor-move-overlay');
+				height: '100%'
+			}).id('monaco-workbench-editor-move-overlay');
 			overlayDiv.appendTo(this.parent);
 
 			// Update flag
@@ -936,8 +1161,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move to valid position if any
 				if (moveTo !== null) {
 					this.editorGroupService.moveGroup(position, moveTo);
-					this.titleAreaControl[position].refresh(true);
-					this.titleAreaControl[moveTo].refresh(true);
+
+					// To reduce flickering during this operation we trigger a refresh of all
+					// title controls right after.
+					POSITIONS.forEach(p => {
+						this.titleAreaControl[p].refresh(true);
+					});
 				}
 
 				// Otherwise layout to restore proper positioning

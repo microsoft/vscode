@@ -336,13 +336,15 @@ export class EditorOptions implements IEditorOptions {
 		preserveFocus?: boolean;
 		forceOpen?: boolean;
 		pinned?: boolean,
-		index?: number
+		index?: number,
+		inactive?: boolean
 	}): EditorOptions {
 		let options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
+		options.inactive = settings.inactive;
 
 		return options;
 	}
@@ -380,6 +382,12 @@ export class EditorOptions implements IEditorOptions {
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	public index: number;
+
+	/**
+	 * An active editor that is opened will show its contents directly. Set to true to open an editor
+	 * in the background.
+	 */
+	public inactive: boolean;
 }
 
 /**
@@ -395,7 +403,7 @@ export class TextEditorOptions extends EditorOptions {
 	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus || input.options.pinned || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -414,6 +422,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.pinned) {
 				options.pinned = true;
+			}
+
+			if (input.options.inactive) {
+				options.inactive = true;
 			}
 
 			if (typeof input.options.index === 'number') {
@@ -669,15 +681,17 @@ export type GroupIdentifier = number;
 export const EditorOpenPositioning = {
 	LEFT: 'left',
 	RIGHT: 'right',
-	BEGINNING: 'beginning',
-	END: 'end'
+	FIRST: 'first',
+	LAST: 'last'
 };
 
 export interface IWorkbenchEditorConfiguration {
 	workbench: {
-		showEditorTabs: boolean;
-		previewEditors: boolean;
-		quickOpenPreviews: boolean;
-		editorOpenPositioning: string;
+		editor: {
+			showTabs: boolean;
+			enablePreview: boolean;
+			enablePreviewFromQuickOpen: boolean;
+			openPositioning: string;
+		}
 	};
 }

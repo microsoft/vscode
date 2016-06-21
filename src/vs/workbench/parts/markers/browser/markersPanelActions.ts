@@ -19,7 +19,7 @@ import Constants from 'vs/workbench/parts/markers/common/constants';
 import { FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';	
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';

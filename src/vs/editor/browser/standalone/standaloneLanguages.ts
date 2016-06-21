@@ -396,7 +396,7 @@ class SuggestAdapter {
 					let isSingleLine = (editRange.startLineNumber === editRange.endLineNumber);
 
 					// invalid text edit
-					if (!isSingleLine || editRange.startColumn !== position.lineNumber) {
+					if (!isSingleLine || editRange.startLineNumber !== position.lineNumber) {
 						console.warn('INVALID text edit, must be single line and on the same line');
 						continue;
 					}

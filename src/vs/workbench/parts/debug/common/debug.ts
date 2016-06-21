@@ -257,11 +257,6 @@ export interface IRawDebugSession {
 
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 
-	/**
-	 * Allows to register on each debug session stop event.
-	 */
-	onDidStop: Event<DebugProtocol.StoppedEvent>;
-
 	onDidEvent: Event<DebugProtocol.Event>;
 }
 
@@ -364,6 +359,11 @@ export interface IDebugService {
 	appendReplOutput(value: string, severity?: severity): void;
 
 	/**
+	 * Sets the value for the variable against the debug adapter.
+	 */
+	setVariable(variable: IExpression, value: string): TPromise<void>;
+
+	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
 	addWatchExpression(name?: string): TPromise<void>;
@@ -411,6 +411,7 @@ export interface IDebugService {
 	next(threadId: number): TPromise<void>;
 	stepIn(threadId: number): TPromise<void>;
 	stepOut(threadId: number): TPromise<void>;
+	stepBack(threadId: number): TPromise<void>;
 	continue(threadId: number): TPromise<void>;
 	pause(threadId: number): TPromise<any>;
 }

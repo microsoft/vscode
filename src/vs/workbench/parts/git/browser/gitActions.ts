@@ -773,7 +773,7 @@ export class InputCommitAction extends GitAction {
 
 		const status = this.gitService.getModel().getStatus();
 
-		return this.quickOpenService.input({ prompt: 'Commit Message' })
+		return this.quickOpenService.input({ prompt: nls.localize('commitMessage', "Commit Message") })
 			.then(message => message && this.gitService.commit(message, false, status.getIndexStatus().all().length === 0));
 	}
 }

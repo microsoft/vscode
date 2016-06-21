@@ -11,8 +11,12 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container {
 	display: flex;
-	overflow: scroll;
 	background-color: rgba(128, 128, 128, 0.2);
+	height: 35px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.scroll {
+	overflow: scroll !important;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container::-webkit-scrollbar {
@@ -35,12 +39,8 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:focus {
-	outline-offset: -2px;
-}
-
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active  {
-	border: 1px solid #6FC3DF;
+	border: 1px solid #f38518;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child {
@@ -48,28 +48,29 @@
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active {
-	border-bottom: 0;
+	border-bottom-color: transparent;
 	opacity: 1 !important;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback {
+	background-color: rgba(51,153,255, 0.18);
+}
+
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
-	background-color: #DDECFF;
+	background-color: rgba(187, 230, 255, 0.5);
+	opacity: 1 !important;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
-	background-color: #383B3D;
+	background-color: rgba(83, 89, 93, 0.5);
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
 	background: none !important;
-	border: 1px dashed #f38518;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dragged {
-	opacity: 0.7 !important;
+	outline: 2px dashed #f38518;
+	outline-offset: -2px;
 }
 
 /* Tab Close */
@@ -133,6 +134,7 @@
 	content: url('close-dirty-inverse.svg');
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .close-editor-action,
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
 	content: url('close-inverse.svg');
 }

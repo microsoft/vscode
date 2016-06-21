@@ -27,13 +27,9 @@ var root = path.dirname(__dirname);
 var build = path.join(root, '.build');
 var commit = util.getVersion(root);
 
-var baseModules = [
-	'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
-	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
-	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
-	'os', 'path', 'pty.js', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url', 'term.js',
-	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib', 'minimist', 'xterm'
-];
+var dependencies = Object.keys(shrinkwrap.dependencies);
+var baseModules = Object.keys(process.binding('natives')).filter(function (n) { return !/^_|\//.test(n); });
+var nodeModules = ['electron'].concat(dependencies).concat(baseModules);
 
 // Build
 
@@ -57,7 +53,6 @@ var vscodeResources = [
 	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
-	'out-build/vs/languages/markdown/common/*.css',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/index.html',
 	'out-build/vs/workbench/parts/debug/**/*.json',
@@ -65,7 +60,6 @@ var vscodeResources = [
 	'out-build/vs/workbench/parts/git/**/*.html',
 	'out-build/vs/workbench/parts/git/**/*.sh',
 	'out-build/vs/workbench/parts/html/browser/webview.html',
-	'out-build/vs/workbench/parts/markdown/**/*.md',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
@@ -84,7 +78,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	entryPoints: vscodeEntryPoints,
 	otherSources: [],
 	resources: vscodeResources,
-	loaderConfig: common.loaderConfig(baseModules),
+	loaderConfig: common.loaderConfig(nodeModules),
 	header: BUNDLED_FILE_HEADER,
 	out: 'out-vscode'
 }));
@@ -173,10 +167,11 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/{client,server}/out/**/test/**',
 			'!extensions/*/{client,server}/out/**/typings/**',
 			'!extensions/**/.vscode/**',
+			'!extensions/**/tsconfig.json',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**',
-			'!extensions/css/server/out/data/**'
+			'!extensions/css/server/out/data/buildscripts/**'
 		], { base: '.' });
 
 		var sources = es.merge(src, extensions)
@@ -199,7 +194,7 @@ function packageTask(platform, arch, opts) {
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		var depsSrc = _.flatten(Object.keys(shrinkwrap.dependencies)
+		var depsSrc = _.flatten(dependencies
 			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })

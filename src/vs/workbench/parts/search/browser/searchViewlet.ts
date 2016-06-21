@@ -6,32 +6,24 @@
 'use strict';
 
 import 'vs/css!./media/searchviewlet';
-import {TPromise, PPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
+import {TPromise, PPromise} from 'vs/base/common/winjs.base';
 import {EditorType} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
-import {IExpression, splitGlobAware} from 'vs/base/common/glob';
+import { IExpression } from 'vs/base/common/glob';
 import {isFunction} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
 import dom = require('vs/base/browser/dom');
-import {IAction, Action, IActionRunner} from 'vs/base/common/actions';
+import {IAction, Action} from 'vs/base/common/actions';
 import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import timer = require('vs/base/common/timer');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {FileLabel} from 'vs/base/browser/ui/fileLabel/fileLabel';
 import {FindInput, IFindInputOptions} from 'vs/base/browser/ui/findinput/findInput';
-import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
-import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
-import {ITree, IElementCallback, IFilter, ISorter, IDataSource, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
+import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
-import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
@@ -39,16 +31,12 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {Match, EmptyMatch, SearchResult, FileMatch} from 'vs/workbench/parts/search/common/searchModel';
+import {Match, EmptyMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {Checkbox} from 'vs/base/browser/ui/checkbox/checkbox';
-import {VIEWLET_ID} from 'vs/workbench/parts/search/browser/search.contribution';
-import {MessageType, InputBox, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
-import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
+import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
+import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import {ISearchProgressItem, IFileMatch, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {Range} from 'vs/editor/common/core/range';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
@@ -61,585 +49,9 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
-
-const ID = VIEWLET_ID;
-
-export class FindInFolderAction extends Action {
-	private resource: URI;
-
-	constructor(resource: URI, @IViewletService private viewletService: IViewletService) {
-		super('workbench.search.action.findInFolder', nls.localize('findInFolder', "Find in Folder"));
-
-		this.resource = resource;
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(this.resource);
-		});
-	}
-}
-
-export class SearchDataSource implements IDataSource {
-
-	public getId(tree: ITree, element: any): string {
-		if (element instanceof FileMatch) {
-			return element.id();
-		}
-
-		if (element instanceof Match) {
-			return element.id();
-		}
-
-		return 'root';
-	}
-
-	public getChildren(tree: ITree, element: any): TPromise<any[]> {
-		let value: any[] = [];
-
-		if (element instanceof FileMatch) {
-			value = element.matches();
-		} else if (element instanceof SearchResult) {
-			value = element.matches();
-		}
-
-		return TPromise.as(value);
-	}
-
-	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof FileMatch || element instanceof SearchResult;
-	}
-
-	public getParent(tree: ITree, element: any): TPromise<any> {
-		let value: any = null;
-
-		if (element instanceof Match) {
-			value = element.parent();
-		} else if (element instanceof FileMatch) {
-			value = element.parent();
-		}
-
-		return TPromise.as(value);
-	}
-}
-
-export type FileMatchOrMatch = FileMatch | Match;
-
-export class SearchSorter implements ISorter {
-
-	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
-		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-			return strings.localeCompare(elementA.resource().fsPath, elementB.resource().fsPath) || strings.localeCompare(elementA.name(), elementB.name());
-		}
-
-		if (elementA instanceof Match && elementB instanceof Match) {
-			return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
-		}
-	}
-}
-
-export class SearchAccessibilityProvider implements IAccessibilityProvider {
-
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-	}
-
-	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
-		if (element instanceof FileMatch) {
-			const path = this.contextService.toWorkspaceRelativePath(element.resource()) || element.resource().fsPath;
-
-			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
-		}
-
-		if (element instanceof Match) {
-			return nls.localize('searchResultAria', "{0}, Search result", element.text());
-		}
-	}
-}
-
-class SearchController extends DefaultController {
-
-	constructor(private viewlet: SearchViewlet) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
-
-		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onEnter.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
-		}
-
-		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
-	}
-
-	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
-		if (this.viewlet.cancelSearch()) {
-			return true;
-		}
-
-		return super.onEscape(tree, event);
-	}
-
-	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof FileMatch) {
-			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-}
-
-class SearchFilter implements IFilter {
-
-	public isVisible(tree: ITree, element: any): boolean {
-		return !(element instanceof FileMatch) || element.matches().length > 0;
-	}
-}
-
-class SearchActionProvider extends ContributableActionProvider {
-
-	public hasActions(tree: ITree, element: any): boolean {
-		return element instanceof FileMatch || super.hasActions(tree, element);
-	}
-
-	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return super.getActions(tree, element).then(actions => {
-			if (element instanceof FileMatch) {
-				actions.unshift(new RemoveAction(tree, element));
-			}
-
-			return actions;
-		});
-	}
-}
-
-class RemoveAction extends Action {
-	private viewer: ITree;
-	private fileMatch: FileMatch;
-
-	constructor(viewer: ITree, element: FileMatch) {
-		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
-
-		this.viewer = viewer;
-		this.fileMatch = element;
-	}
-
-	public run(): TPromise<any> {
-		let parent = this.fileMatch.parent();
-		parent.remove(this.fileMatch);
-
-		return this.viewer.refresh(parent);
-	}
-}
-
-class SearchRenderer extends ActionsRenderer {
-
-	constructor(actionRunner: IActionRunner, @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		super({
-			actionProvider: new SearchActionProvider(),
-			actionRunner: actionRunner
-		});
-	}
-
-	public getContentHeight(tree: ITree, element: any): number {
-		return 22;
-	}
-
-	public renderContents(tree: ITree, element: FileMatchOrMatch, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-
-		// File
-		if (element instanceof FileMatch) {
-			let fileMatch = <FileMatch>element;
-			let container = $('.filematch');
-			let leftRenderer: IRenderer;
-			let rightRenderer: IRenderer;
-			let widget: LeftRightWidget;
-
-			leftRenderer = (left: HTMLElement): any => {
-				new FileLabel(left, fileMatch.resource(), this.contextService);
-
-				return null;
-			};
-
-			rightRenderer = (right: HTMLElement) => {
-				let len = fileMatch.count();
-
-				return new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
-			};
-
-			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
-
-			container.appendTo(domElement);
-
-			return widget.dispose.bind(widget);
-		}
-
-		// Empty
-		else if (element instanceof EmptyMatch) {
-			dom.addClass(domElement, 'linematch');
-			$('a.plain.label').innerHtml(nls.localize('noMatches', "no matches")).appendTo(domElement);
-		}
-
-		// Match
-		else if (element instanceof Match) {
-			dom.addClass(domElement, 'linematch');
-
-			let elements: string[] = [];
-			let preview = element.preview();
-
-			elements.push('<span>');
-			elements.push(strings.escape(preview.before));
-			elements.push('</span><span class="findInFileMatch">');
-			elements.push(strings.escape(preview.inside));
-			elements.push('</span><span>');
-			elements.push(strings.escape(preview.after));
-			elements.push('</span>');
-
-			$('a.plain')
-				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + preview.inside + preview.after).trim().substr(0, 999))
-				.appendTo(domElement);
-		}
-
-		return null;
-	}
-}
-
-export class RefreshAction extends Action {
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('refresh');
-
-		this.label = nls.localize('RefreshAction.label', "Refresh");
-		this.enabled = false;
-		this.class = 'search-action refresh';
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<void> {
-		this.viewlet.onQueryChanged(true);
-
-		return TPromise.as(null);
-	}
-}
-
-export class SelectOrRemoveAction extends Action {
-	private selectMode: boolean;
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('selectOrRemove');
-
-		this.label = nls.localize('SelectOrRemoveAction.selectLabel', "Select");
-		this.enabled = false;
-		this.selectMode = true;
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<any> {
-		let result: TPromise<any>;
-
-		if (this.selectMode) {
-			result = this.runAsSelect();
-		} else {
-			result = this.runAsRemove();
-		}
-
-		this.selectMode = !this.selectMode;
-		this.label = this.selectMode ? nls.localize('SelectOrRemoveAction.selectLabel', "Select") : nls.localize('SelectOrRemoveAction.removeLabel', "Remove");
-
-		return result;
-	}
-
-	private runAsSelect(): TPromise<void> {
-		this.viewlet.getResults().addClass('select');
-
-		return TPromise.as(null);
-	}
-
-	private runAsRemove(): TPromise<void> {
-		let elements: any[] = [];
-		let tree: ITree = this.viewlet.getControl();
-
-		tree.getInput().matches().forEach((fileMatch: FileMatch) => {
-			fileMatch.matches().filter((lineMatch: Match) => {
-				return (<any>lineMatch).$checked;
-			}).forEach((lineMatch: Match) => {
-				lineMatch.parent().remove(lineMatch);
-				elements.push(lineMatch.parent());
-			});
-		});
-
-		this.viewlet.getResults().removeClass('select');
-
-		if (elements.length > 0) {
-			return tree.refreshAll(elements).then(() => {
-				return tree.refresh();
-			});
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-export class CollapseAllAction extends Action {
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('collapseAll');
-
-		this.label = nls.localize('CollapseAllAction.label', "Collapse");
-		this.enabled = false;
-		this.class = 'search-action collapse';
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<void> {
-		let tree = this.viewlet.getControl();
-		if (tree) {
-			tree.collapseAll();
-			tree.clearSelection();
-			tree.clearFocus();
-			tree.DOMFocus();
-			tree.focusFirst();
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-export class ClearSearchResultsAction extends Action {
-	private viewlet: SearchViewlet;
-
-	constructor(viewlet: SearchViewlet) {
-		super('clearSearchResults');
-
-		this.label = nls.localize('ClearSearchResultsAction.label', "Clear Search Results");
-		this.enabled = false;
-		this.class = 'search-action clear-search-results';
-		this.viewlet = viewlet;
-	}
-
-	public run(): TPromise<void> {
-		this.viewlet.clearSearchResults();
-
-		return TPromise.as(null);
-	}
-}
-
-class ConfigureGlobalExclusionsAction extends Action {
-
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		super('configureGlobalExclusionsAction');
-
-		this.label = nls.localize('ConfigureGlobalExclusionsAction.label', "Open Settings");
-		this.enabled = true;
-		this.class = 'search-configure-exclusions';
-	}
-
-	public run(): TPromise<void> {
-		let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
-		action.run().done(() => action.dispose(), errors.onUnexpectedError);
-
-		return TPromise.as(null);
-	}
-}
-
-interface IOptions {
-	placeholder?: string;
-	width?: number;
-	validation?: IInputValidator;
-	ariaLabel?: string;
-}
-
-class PatternInput {
-
-	static OPTION_CHANGE: string = 'optionChange';
-
-	private contextViewProvider: IContextViewProvider;
-	private onOptionChange: (event: Event) => void;
-	private width: number;
-	private placeholder: string;
-	private ariaLabel: string;
-
-	private listenersToRemove: any[];
-	private pattern: Checkbox;
-	public domNode: HTMLElement;
-	private inputNode: HTMLInputElement;
-	private inputBox: InputBox;
-
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null)) {
-		this.contextViewProvider = contextViewProvider;
-		this.onOptionChange = null;
-		this.width = options.width || 100;
-		this.placeholder = options.placeholder || '';
-		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
-
-		this.listenersToRemove = [];
-		this.pattern = null;
-		this.domNode = null;
-		this.inputNode = null;
-		this.inputBox = null;
-
-		this.buildDomNode();
-
-		if (Boolean(parent)) {
-			parent.appendChild(this.domNode);
-		}
-	}
-
-	public destroy(): void {
-		this.pattern.dispose();
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
-	}
-
-	public on(eventType: string, handler: (event: Event) => void): PatternInput {
-		switch (eventType) {
-			case 'keydown':
-			case 'keyup':
-				$(this.inputBox.inputElement).on(eventType, handler);
-				break;
-			case PatternInput.OPTION_CHANGE:
-				this.onOptionChange = handler;
-				break;
-		}
-		return this;
-	}
-
-	public setWidth(newWidth: number): void {
-		this.width = newWidth;
-		this.domNode.style.width = this.width + 'px';
-		this.contextViewProvider.layout();
-		this.setInputWidth();
-	}
-
-	public getValue(): string {
-		return this.inputBox.value;
-	}
-
-	public setValue(value: string): void {
-		if (this.inputBox.value !== value) {
-			this.inputBox.value = value;
-		}
-	}
-
-	public getGlob(): IExpression {
-		let pattern = this.getValue();
-		let isGlobPattern = this.isGlobPattern();
-
-		if (!pattern) {
-			return void 0;
-		}
-
-		let glob: IExpression = Object.create(null);
-
-		let segments: string[];
-		if (isGlobPattern) {
-			segments = splitGlobAware(pattern, ',').map(s => s.trim()).filter(s => !!s.length);
-		} else {
-			segments = pattern.split(',').map(s => strings.trim(s.trim(), '/')).filter(s => !!s.length).map(p => {
-				if (p[0] === '.') {
-					p = '*' + p; // convert ".js" to "*.js"
-				}
-
-				return strings.format('{{0}/**,**/{1}}', p, p); // convert foo to {foo/**,**/foo} to cover files and folders
-			});
-		}
-
-		return segments.reduce((prev, cur) => { glob[cur] = true; return glob; }, glob);
-	}
-
-	public select(): void {
-		this.inputBox.select();
-	}
-
-	public focus(): void {
-		this.inputBox.focus();
-	}
-
-	public isGlobPattern(): boolean {
-		return this.pattern.checked;
-	}
-
-	public setIsGlobPattern(value: boolean): void {
-		this.pattern.checked = value;
-		this.setInputWidth();
-	}
-
-	private setInputWidth(): void {
-		let w = this.width - this.pattern.width();
-		this.inputBox.width = w;
-	}
-
-	private buildDomNode(): void {
-		this.domNode = document.createElement('div');
-		this.domNode.style.width = this.width + 'px';
-		$(this.domNode).addClass('monaco-findInput');
-
-		this.inputBox = new InputBox(this.domNode, this.contextViewProvider, {
-			placeholder: this.placeholder || '',
-			ariaLabel: this.ariaLabel || '',
-			validationOptions: {
-				validation: null,
-				showMessage: true
-			}
-		});
-
-		this.pattern = new Checkbox({
-			actionClassName: 'pattern',
-			title: nls.localize('patternDescription', "Use Glob Patterns"),
-			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this.onOptionChange(null);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-
-				if (this.isGlobPattern()) {
-					this.showGlobHelp();
-				} else {
-					this.inputBox.hideMessage();
-				}
-			}
-		});
-
-		$(this.pattern.domNode).on('mouseover', () => {
-			if (this.isGlobPattern()) {
-				this.showGlobHelp();
-			}
-		});
-
-		$(this.pattern.domNode).on(['mouseleave', 'mouseout'], () => {
-			this.inputBox.hideMessage();
-		});
-
-		this.setInputWidth();
-
-		let controls = document.createElement('div');
-		controls.className = 'controls';
-		controls.appendChild(this.pattern.domNode);
-
-		this.domNode.appendChild(controls);
-	}
-
-	private showGlobHelp(): void {
-		this.inputBox.showMessage({
-			type: MessageType.INFO,
-			formatContent: true,
-			content: nls.localize('patternHelpInclude',
-				"The pattern to match. e.g. **\\*\\*/*.js** to match all JavaScript files or **myFolder/\\*\\*** to match that folder with all children.\n\n**Reference**:\n**\\*** matches 0 or more characters\n**?** matches 1 character\n**\\*\\*** matches zero or more directories\n**[a-z]** matches a range of characters\n**{a,b}** matches any of the patterns)"
-			)
-		}, true);
-	}
-}
+import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
+import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { RefreshAction, SelectOrRemoveAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 
 export class SearchViewlet extends Viewlet {
 
@@ -662,10 +74,10 @@ export class SearchViewlet extends Viewlet {
 	private findInput: FindInput;
 	private size: Dimension;
 	private queryDetails: HTMLElement;
-	private inputPatternExclusions: PatternInput;
+	private inputPatternExclusions: PatternInputWidget;
 	private inputPatternGlobalExclusions: InputBox;
 	private inputPatternGlobalExclusionsContainer: Builder;
-	private inputPatternIncludes: PatternInput;
+	private inputPatternIncludes: PatternInputWidget;
 	private results: Builder;
 
 	constructor(
@@ -683,7 +95,7 @@ export class SearchViewlet extends Viewlet {
 		@ISearchService private searchService: ISearchService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(ID, telemetryService);
+		super(VIEWLET_ID, telemetryService);
 
 		this.viewletVisible = keybindingService.createKey<boolean>('searchViewletVisible', true);
 		this.callOnModelChange = [];
@@ -799,7 +211,7 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
-				this.inputPatternIncludes = new PatternInput(builder.getContainer(), this.contextViewService, {
+				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
 				});
 
@@ -829,7 +241,7 @@ export class SearchViewlet extends Viewlet {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
-				this.inputPatternExclusions = new PatternInput(builder.getContainer(), this.contextViewService, {
+				this.inputPatternExclusions = new PatternInputWidget(builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				});
 
@@ -1256,7 +668,7 @@ export class SearchViewlet extends Viewlet {
 
 			this.actionRegistry['refresh'].enabled = true;
 			this.actionRegistry['selectOrRemove'].enabled = hasResults;
-			this.actionRegistry['collapseAll'].enabled = hasResults;
+			this.actionRegistry['vs.tree.collapse'].enabled = hasResults;
 			this.actionRegistry['clearSearchResults'].enabled = hasResults;
 
 			if (completed && completed.limitHit) {
@@ -1414,8 +826,8 @@ export class SearchViewlet extends Viewlet {
 				}).done(null, errors.onUnexpectedError);
 
 				// since we have results now, enable some actions
-				if (!this.actionRegistry['collapseAll'].enabled) {
-					this.actionRegistry['collapseAll'].enabled = true;
+				if (!this.actionRegistry['vs.tree.collapse'].enabled) {
+					this.actionRegistry['vs.tree.collapse'].enabled = true;
 				}
 			}
 		}, 200);
@@ -1429,7 +841,7 @@ export class SearchViewlet extends Viewlet {
 		// disable 'result'-actions
 		this.actionRegistry['refresh'].enabled = false;
 		this.actionRegistry['selectOrRemove'].enabled = false;
-		this.actionRegistry['collapseAll'].enabled = false;
+		this.actionRegistry['vs.tree.collapse'].enabled = false;
 		this.actionRegistry['clearSearchResults'].enabled = false;
 
 		// clean up ui
@@ -1486,7 +898,7 @@ export class SearchViewlet extends Viewlet {
 	public getActions(): IAction[] {
 		return [
 			this.actionRegistry['refresh'],
-			this.actionRegistry['collapseAll'],
+			this.actionRegistry['vs.tree.collapse'],
 			this.actionRegistry['clearSearchResults']
 		];
 	}
@@ -1497,6 +909,9 @@ export class SearchViewlet extends Viewlet {
 		if (this.tree) {
 			this.tree.dispose();
 		}
+
+		this.inputPatternIncludes.dispose();
+		this.inputPatternExclusions.dispose();
 
 		this.disposeModel();
 

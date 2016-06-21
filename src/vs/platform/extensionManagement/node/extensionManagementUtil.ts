@@ -46,7 +46,11 @@ export function getOutdatedExtensions(extensionsService: IExtensionManagementSer
 	return extensionsService.getInstalled().then(installed => {
 		const ids = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
 
-		return galleryService.query({ ids, pageSize: 1000 }).then(result => {
+		if (installed.length === 0) {
+			return TPromise.as([]);
+		}
+
+		return galleryService.query({ ids, pageSize: ids.length }).then(result => {
 			const available = result.firstPage;
 
 			return available.map(extension => {

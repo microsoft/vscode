@@ -575,10 +575,17 @@ export class QuickOpenWidget implements IModelProvider {
 			}
 		}
 
-		// Finally check for auto focus of second entry
+		// Check for auto focus of second entry
 		else if (autoFocus.autoFocusSecondEntry) {
 			if (entries.length > 1) {
 				this.tree.focusNth(1);
+			}
+		}
+
+		// Finally check for auto focus of last entry
+		else if (autoFocus.autoFocusLastEntry) {
+			if (entries.length > 1) {
+				this.tree.focusLast();
 			}
 		}
 	}
@@ -719,8 +726,8 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public isQuickNavigating(): boolean {
-		return !!this.quickNavigateConfiguration;
+	public getQuickNavigateConfiguration(): IQuickNavigateConfiguration {
+		return this.quickNavigateConfiguration;
 	}
 
 	public setPlaceHolder(placeHolder: string): void {

@@ -9,26 +9,38 @@
 	<script>
 		'use strict';
 
+		var initData = {};
+
+		function styleBody(body) {
+			if (body) {
+				body.classList.remove.apply(body.classList, initData.bodyClasses.remove);
+				body.classList.add(initData.bodyClasses.add);
+			}
+		}
+
+
 		const ipcRenderer = require('electron').ipcRenderer;
 		const target = document.getElementById('_target');
-
-		let initData = {};
 
 		ipcRenderer.on('baseUrl', function(event, value) {
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', function(event, value) {
+		ipcRenderer.on('styles', function(event, value, bodyClasses) {
 			initData.styles = value;
+			initData.bodyClasses = bodyClasses;
 
 			// webview
 			let defaultStyles = document.getElementById('_defaultStyles');
-			defaultStyles.innerHTML = value;
+			defaultStyles.innerHTML = initData.styles;
+
+			let body = target.contentDocument.getElementsByTagName('body');
+			styleBody(body[0]);
 
 			// iframe
 			defaultStyles = target.contentDocument.getElementById('_defaultStyles');
 			if(defaultStyles) {
-				defaultStyles.innerHTML = value;
+				defaultStyles.innerHTML = initData.styles;
 			}
 		});
 
@@ -62,25 +74,40 @@
 
 			// script to bubble out link-clicks
 			const defaultScripts = newDocument.createElement('script');
+			const isLocal = initData.baseUrl ? `node.href.indexOf('${initData.baseUrl}') >= 0 && node.hash` : 'node.hash';
 			defaultScripts.innerHTML = `
 				document.body.addEventListener('click', function(event) {
 					let node = event.target;
 					while (node) {
-						if (node.tagName === 'A' && node.href && node.href[0] !== '#') {
-							window.parent.postMessage({ command: 'did-click-link', data: node.href }, 'file://');
+						if (node.tagName === 'A' && node.href) {
+							if (${isLocal}) {
+								let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));
+								if (scrollTarget) {
+									scrollTarget.scrollIntoView();
+								}
+							} else {
+								window.parent.postMessage({ command: 'did-click-link', data: node.href }, 'file://');
+							}
 							event.preventDefault();
 							break;
 						}
 						node = node.parentNode;
 					}
 				});`
+
+
 			newDocument.body.appendChild(defaultScripts);
+			styleBody(newDocument.body);
 
 			// write new content onto iframe
 			target.contentDocument.open('text/html', 'replace');
+			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+			target.contentDocument.write('<!DOCTYPE html>');
 			target.contentDocument.write(newDocument.documentElement.innerHTML);
 			target.contentDocument.close();
 
+			ipcRenderer.sendToHost('did-set-content');
 		});
 
 		// forward messages from the embedded iframe

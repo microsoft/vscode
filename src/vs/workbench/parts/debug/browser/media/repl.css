@@ -31,6 +31,8 @@
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
 	white-space: pre-wrap;
+	/* Break on all #7533 */
+	word-break: break-all;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree-row .input.expression.mac,

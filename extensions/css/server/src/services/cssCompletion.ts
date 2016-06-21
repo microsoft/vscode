@@ -206,10 +206,13 @@ export class CSSCompletion {
 	public getUnitProposals(entry: languageFacts.IEntry, result: CompletionList): CompletionList {
 		let currentWord = '0';
 		if (this.currentWord.length > 0) {
-			let numMatch = this.currentWord.match(/-?\d[\.\d+]*/);
+			let numMatch = this.currentWord.match(/^-?\d[\.\d+]*/);
 			if (numMatch) {
 				currentWord = numMatch[0];
+				result.isIncomplete = currentWord.length === this.currentWord.length;
 			}
+		} else if (this.currentWord.length === 0) {
+			result.isIncomplete = true;
 		}
 		entry.restrictions.forEach((restriction) => {
 			let units = languageFacts.units[restriction];
@@ -223,7 +226,6 @@ export class CSSCompletion {
 				});
 			}
 		});
-		result.isIncomplete = true;
 		return result;
 	}
 

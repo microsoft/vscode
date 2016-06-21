@@ -87,7 +87,7 @@ export class ExplorerViewlet extends Viewlet {
 	private onConfigurationUpdated(config: IFilesConfiguration): TPromise<void> {
 
 		// No need to delay if preview is disabled
-		this.delayEditorOpeningInOpenedEditors = !!config.workbench.previewEditors;
+		this.delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
 
 		// Open editors view should always be visible in no folder workspace.
 		let openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;

@@ -468,6 +468,29 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** setVariable request; value of command field is "setVariable".
+		Set the variable with the given name in the variable container to a new value.
+	*/
+	export interface SetVariableRequest extends Request {
+		arguments: SetVariableArguments;
+	}
+	/** Arguments for "setVariable" request. */
+	export interface SetVariableArguments {
+		/** The reference of the variable container. */
+		variablesReference: number;
+		/** The name of the variable. */
+		name: string;
+		/** The value of the variable. */
+		value: string;
+	}
+	/** Response to "setVariable" request. */
+	export interface SetVariableResponse extends Response {
+		body: {
+			/** the new value of the variable. */
+			value: string;
+		};
+	}
+
 	/** Source request; value of command field is "source".
 		The request retrieves the source code for a given source reference.
 	*/
@@ -565,6 +588,8 @@ declare module DebugProtocol {
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
 		/** The debug adapter supports stepping back. */
 		supportsStepBack?: boolean;
+		/** The debug adapter supports setting a variable to a value. */
+		supportsSetVariable?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -620,7 +645,7 @@ declare module DebugProtocol {
 		/** True if the module is optimized. */
 		isOptimized?: boolean
 		/** True if the module is considered 'user code' by a debugger that supports 'Just My Code'. */
-		isUseCode?: boolean
+		isUserCode?: boolean
 		/** Version of Module. */
 		version? : string
 		/** User understandable description of if symbols were found for the module (ex: 'Symbols Loaded', 'Symbols not found', etc */

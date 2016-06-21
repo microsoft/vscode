@@ -43,11 +43,11 @@ export interface LanguageSettings {
 let cssParser = new Parser();
 let cssCompletion = new CSSCompletion();
 let cssHover = new CSSHover();
-let cssValidation = new CSSValidation();
 let cssNavigation = new CSSNavigation();
 let cssCodeActions = new CSSCodeActions();
 
 export function getCSSLanguageService() : LanguageService {
+	let cssValidation = new CSSValidation(); // an instance per language service
 	return {
 		configure: cssValidation.configure.bind(cssValidation),
 		doValidation: cssValidation.doValidation.bind(cssValidation),

@@ -57,7 +57,6 @@ export abstract class TextFileService implements ITextFileService {
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationChange(configuration);
 
-		// we want to find out about this setting from telemetry
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 	}
 

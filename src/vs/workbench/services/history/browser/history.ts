@@ -269,7 +269,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 				// Bounding
 				if (this.recentlyClosed.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
-					this.recentlyClosed.shift().dispose(); // remove first and dispose
+					this.recentlyClosed.shift();
 				}
 
 				// Restore on dispose
@@ -363,7 +363,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Respect max entries setting
 		if (this.history.length > HistoryService.MAX_HISTORY_ITEMS) {
-			this.history.pop().dispose(); // remove and dispose last
+			this.history.pop();
 		}
 
 		// Restore on dispose
@@ -495,7 +495,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 			// Check for limit
 			if (this.stack.length > HistoryService.MAX_STACK_ITEMS) {
-				this.stack.shift().input.dispose(); // remove first and dispose
+				this.stack.shift(); // remove first and dispose
 				if (this.index > 0) {
 					this.index--;
 				}

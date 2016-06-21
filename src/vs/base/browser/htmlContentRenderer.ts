@@ -7,6 +7,7 @@
 
 import DOM = require('vs/base/browser/dom');
 import {defaultGenerator} from 'vs/base/common/idGenerator';
+import {escape} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {marked} from 'vs/base/common/marked/marked';
@@ -111,7 +112,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 					}, err => {
 						// ignore
 					});
-					return `<span data-code="${id}">${code}</span>`;
+					return `<span data-code="${id}">${escape(code)}</span>`;
 				}
 
 				return code;

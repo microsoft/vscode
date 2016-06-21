@@ -300,7 +300,7 @@
 			<key>name</key>
 			<string>Headings</string>
 			<key>scope</key>
-			<string>markup.heading punctuation.definition.heading, entity.name.section</string>
+			<string>markup.heading, markup.heading.setext, punctuation.definition.heading, entity.name.section</string>
 			<key>settings</key>
 			<dict>
 				<key>fontStyle</key>

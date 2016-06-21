@@ -6,9 +6,11 @@
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
 import DOM = require('vs/base/browser/dom');
+import {IAction} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -16,20 +18,23 @@ import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/e
 import {Panel} from 'vs/workbench/browser/panel';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import {CloseTerminalAction, CreateNewTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 
 export class TerminalPanel extends Panel {
 
 	private toDispose: lifecycle.IDisposable[] = [];
 	private terminalInstances: TerminalInstance[] = [];
 
+	private actions: IAction[];
 	private parentDomElement: HTMLElement;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 	private activeTerminalIndex: number;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IThemeService private themeService: IThemeService
@@ -41,6 +46,23 @@ export class TerminalPanel extends Panel {
 		if (this.terminalInstances.length > 0) {
 			this.terminalInstances[this.activeTerminalIndex].layout(dimension);
 		}
+	}
+
+	public getActions(): IAction[] {
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL),
+				this.instantiationService.createInstance(CloseTerminalAction, CloseTerminalAction.ID, CloseTerminalAction.LABEL),
+				this.instantiationService.createInstance(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL),
+				this.instantiationService.createInstance(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL)
+			];
+
+			this.actions.forEach(a => {
+				this.toDispose.push(a);
+			});
+		}
+
+		return this.actions;
 	}
 
 	public create(parent: Builder): TPromise<void> {

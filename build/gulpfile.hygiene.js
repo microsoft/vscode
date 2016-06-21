@@ -75,6 +75,7 @@ var copyrightFilter = [
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
+	'!extensions/markdown/media/tomorrow.css'
 ];
 
 var tslintFilter = [

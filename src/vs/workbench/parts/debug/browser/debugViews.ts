@@ -75,7 +75,7 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
-			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
+			controller: new viewer.VariablesController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
 		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Debug Variables")));
 
 		const viewModel = this.debugService.getViewModel();
@@ -97,6 +97,21 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 			if(isMouseClick && isVariableType) {
 				this.telemetryService.publicLog('debug/variables/selected');
 			}
+		}));
+
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
+			if (!expression || !(expression instanceof Variable)) {
+				return;
+			}
+
+			this.tree.refresh(expression, false).then(() => {
+				this.tree.setHighlight(expression);
+				this.tree.addOneTimeDisposableListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+					if (!e.highlight) {
+						this.debugService.getViewModel().setSelectedExpression(null);
+					}
+				});
+			}).done(null, errors.onUnexpectedError);
 		}));
 	}
 

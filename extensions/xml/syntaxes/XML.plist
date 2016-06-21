@@ -22,7 +22,7 @@
 	<array>
 		<dict>
 			<key>begin</key>
-			<string>(&lt;\?)\s*([-_a-zA-Z0-9]+)</string>
+			<string>(&lt;\?)\s*([-_\p{L}\d]+)</string>
 			<key>captures</key>
 			<dict>
 				<key>1</key>
@@ -44,7 +44,7 @@
 			<array>
 				<dict>
 					<key>match</key>
-					<string> ([a-zA-Z-]+)</string>
+					<string> ([\p{L}-]+)</string>
 					<key>name</key>
 					<string>entity.other.attribute-name.xml</string>
 				</dict>
@@ -60,7 +60,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(&lt;!)(DOCTYPE)\s+([:a-zA-Z_][:a-zA-Z0-9_.-]*)</string>
+			<string>(&lt;!)(DOCTYPE)\s+([:\p{L}_][:\p{L}\d_.-]*)</string>
 			<key>captures</key>
 			<dict>
 				<key>1</key>
@@ -109,7 +109,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(&lt;)((?:([-_a-zA-Z0-9]+)((:)))?([-_a-zA-Z0-9:]+))(?=(\s[^&gt;]*)?&gt;&lt;/\2&gt;)</string>
+			<string>(&lt;)((?:([-_\p{L}\d]+)((:)))?([-_\p{L}\d:]+))(?=(\s[^&gt;]*)?&gt;&lt;/\2&gt;)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -139,7 +139,7 @@
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(&gt;(&lt;))/(?:([-_a-zA-Z0-9]+)((:)))?([-_a-zA-Z0-9:]+)(&gt;)</string>
+			<string>(&gt;(&lt;))/(?:([-_\p{L}\d]+)((:)))?([-_\p{L}\d:]+)(&gt;)</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
@@ -190,7 +190,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(&lt;/?)(?:([-_a-zA-Z0-9]+)((:)))?([-_a-zA-Z0-9:]+)</string>
+			<string>(&lt;/?)(?:([-_\p{L}\d]+)((:)))?([-_\p{L}\d:]+)</string>
 			<key>captures</key>
 			<dict>
 				<key>1</key>
@@ -333,7 +333,7 @@
 		<key>EntityDecl</key>
 		<dict>
 			<key>begin</key>
-			<string>(&lt;!)(ENTITY)\s+(%\s+)?([:a-zA-Z_][:a-zA-Z0-9_.-]*)(\s+(?:SYSTEM|PUBLIC)\s+)?</string>
+			<string>(&lt;!)(ENTITY)\s+(%\s+)?([:\p{L}_][:\p{L}\d_.-]*)(\s+(?:SYSTEM|PUBLIC)\s+)?</string>
 			<key>captures</key>
 			<dict>
 				<key>1</key>
@@ -435,7 +435,7 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(&amp;)([:a-zA-Z_][:a-zA-Z0-9_.-]*|#[0-9]+|#x[0-9a-fA-F]+)(;)</string>
+			<string>(&amp;)([:\p{L}_][:\p{L}\d_.-]*|#[\d]+|#x[\da-fA-F]+)(;)</string>
 			<key>name</key>
 			<string>constant.character.entity.xml</string>
 		</dict>
@@ -483,7 +483,7 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(%)([:a-zA-Z_][:a-zA-Z0-9_.-]*)(;)</string>
+			<string>(%)([:\p{L}_][:\p{L}\d_.-]*)(;)</string>
 			<key>name</key>
 			<string>constant.character.parameter-entity.xml</string>
 		</dict>
@@ -552,7 +552,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string> (?:([-_a-zA-Z0-9]+)((:)))?([-_a-zA-Z0-9]+)=</string>
+					<string> (?:([-_\p{L}\d]+)((:)))?([-_\p{L}\d]+)=</string>
 				</dict>
 				<dict>
 					<key>include</key>

@@ -14,7 +14,7 @@ import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {KeyMod} from 'vs/base/common/keyCodes';
-import {Mode, IEntryRunContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
+import {Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
@@ -63,7 +63,7 @@ export class QuickOpenHandler {
 	 * Indicates if the handler wishes the quick open widget to automatically select the first result entry or an entry
 	 * based on a specific prefix match.
 	 */
-	public getAutoFocus(searchValue: string, isQuickNavigating?: boolean): IAutoFocus {
+	public getAutoFocus(searchValue: string, quickNavigateConfiguration?: IQuickNavigateConfiguration): IAutoFocus {
 		return {};
 	}
 

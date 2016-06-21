@@ -18,9 +18,9 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private _styleSheet: HTMLStyleElement;
 	private _decorationOptionProviders: {[key:string]:IModelDecorationOptionsProvider};
 
-	constructor() {
+	constructor(styleSheet = dom.createStyleSheet()) {
 		super();
-		this._styleSheet = dom.createStyleSheet();
+		this._styleSheet = styleSheet;
 		this._decorationOptionProviders = Object.create(null);
 	}
 
@@ -141,6 +141,8 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public stickiness: TrackedRangeStickiness;
 
 	constructor(styleSheet: HTMLStyleElement, key:string, options:IDecorationRenderOptions) {
+		this.refCount = 0;
+
 		var themedOpts = getThemedRenderOptions(options);
 
 		this.className = DecorationRenderHelper.createCSSRules(
@@ -262,6 +264,7 @@ class DecorationRenderHelper {
 		letterSpacing: 'letter-spacing:{0};',
 
 		gutterIconPath: 'background:url(\'{0}\') center center no-repeat;',
+		gutterIconSize: 'background-size:{0};',
 
 		contentText: 'content:\'{0}\';',
 		contentIconPath: 'content:url(\'{0}\')',
@@ -321,7 +324,10 @@ class DecorationRenderHelper {
 		let cssTextArr = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.file(opts.gutterIconPath).toString()));
+			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.parse(opts.gutterIconPath).toString()));
+			if (typeof opts.gutterIconSize !== 'undefined') {
+				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconSize, opts.gutterIconSize));
+			}
 		}
 
 		return cssTextArr.join('');

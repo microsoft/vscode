@@ -739,6 +739,13 @@ declare namespace vscode {
 		gutterIconPath?: string;
 
 		/**
+		 * Specifies the size of the gutter icon.
+		 * Available values are 'auto', 'contain', 'cover' and any percentage value.
+		 * For further information: https://msdn.microsoft.com/en-us/library/jj127316(v=vs.85).aspx
+		 */
+		gutterIconSize?: string;
+
+		/**
 		 * The color of the decoration in the overview ruler. Use rgba() and define transparent colors to play well with other decorations.
 		 */
 		overviewRulerColor?: string;
@@ -2623,7 +2630,7 @@ declare namespace vscode {
 	/**
 	 * A diagnostics collection is a container that manages a set of
 	 * [diagnostics](#Diagnostic). Diagnostics are always scopes to a
-	 * a diagnostics collection and a resource.
+	 * diagnostics collection and a resource.
 	 *
 	 * To get an instance of a `DiagnosticCollection` use
 	 * [createDiagnosticCollection](#languages.createDiagnosticCollection).

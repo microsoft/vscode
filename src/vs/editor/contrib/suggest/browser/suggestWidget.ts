@@ -38,6 +38,8 @@ interface ISuggestionTemplateData {
 	disposables: IDisposable[];
 }
 
+const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
+
 class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	private triggerKeybindingLabel: string;
@@ -99,12 +101,15 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
 		}
 
-		if (suggestion.type === 'customcolor') {
-			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = suggestion.label;
-		} else {
-			data.icon.className = 'icon ' + suggestion.type;
-			data.colorspan.style.backgroundColor = '';
+		data.icon.className = 'icon ' + suggestion.type;
+		data.colorspan.style.backgroundColor = '';
+
+		if (suggestion.type === 'color') {
+			let color = suggestion.label.match(colorRegExp) && suggestion.label || suggestion.documentationLabel.match(colorRegExp) && suggestion.documentationLabel;
+			if (color) {
+				data.icon.className = 'icon customcolor';
+				data.colorspan.style.backgroundColor = color;
+			}
 		}
 
 		data.highlightedLabel.set(suggestion.label, (<CompletionItem>element).highlights);

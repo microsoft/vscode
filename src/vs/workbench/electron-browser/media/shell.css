@@ -169,7 +169,6 @@
 	outline: 0 !important; /* activity bar indicates focus custom */
 }
 
-.monaco-shell .part.editor .iframe-container,
 .monaco-shell .part.editor .binary-container {
 	outline: 0 !important;
 }

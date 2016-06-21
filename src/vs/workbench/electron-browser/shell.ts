@@ -20,7 +20,7 @@ import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ITelemetryAppenderChannel,TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
+import {ITelemetryAppenderChannel, TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
 import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
 import {IdleMonitor, UserStatus} from  'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
@@ -244,7 +244,7 @@ export class WorkbenchShell {
 				this.telemetryService.publicLog(status === UserStatus.Active
 					? TelemetryService.IDLE_STOP_EVENT_NAME
 					: TelemetryService.IDLE_START_EVENT_NAME
-			));
+				));
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
