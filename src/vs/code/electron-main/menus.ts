@@ -20,7 +20,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 
 export function generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string): string {
-	const osVersion = `${ os.type() } ${ os.arch() }`;
+	const osVersion = `${ os.type() } ${ os.arch() } ${ os.release() }`;
 	const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 	const body = encodeURIComponent(
 `- VSCode Version: ${name} ${version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
