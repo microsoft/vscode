@@ -16,6 +16,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionsModel, ExtensionState } from './extensionsModel';
 // import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 // import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import * as semver from 'semver';
 
 // const CloseAction = new Action('action.close', nls.localize('close', "Close"));
 
@@ -287,6 +288,76 @@ export class CombinedInstallAction extends Action {
 
 		return TPromise.as(null);
 	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class UpdateAction extends Action {
+
+	private static EnabledClass = 'extension-update-action octicon octicon-cloud-download';
+	private static DisabledClass = `${ UpdateAction.EnabledClass } disabled`;
+
+	private disposables: IDisposable[] = [];
+
+	constructor(private model: ExtensionsModel, private extension: IExtension) {
+		super('extensions.install', nls.localize('installAction', "Install"), UpdateAction.DisabledClass, false);
+
+		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
+		this.updateEnablement();
+	}
+
+	private updateEnablement(): void {
+		const canInstall = this.model.canInstall(this.extension);
+		const isInstalled = this.extension.state === ExtensionState.Installed;
+		const canUpdate = semver.gt(this.extension.latestVersion, this.extension.version);
+
+		console.log(this.extension.latestVersion, this.extension.version);
+
+		this.enabled = canInstall && isInstalled && canUpdate;
+		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
+	}
+
+	run(): TPromise<any> {
+		return this.model.install(this.extension);
+
+		// this.enabled = false;
+
+		// return this.extensionManagementService.getInstalled()
+		// 	.then(installed => installed.some(({ manifest }) => extensionEquals(manifest, extension)))
+		// 	.then(isUpdate => {
+		// 		return this.extensionManagementService
+		// 			.install(extension)
+		// 			.then(() => this.onSuccess(extension, isUpdate), err => this.onError(err, extension, isUpdate))
+		// 			.then(() => this.enabled = true)
+		// 			.then(() => null);
+		// 	});
+	}
+
+	// private onSuccess(extension: IGalleryExtension, isUpdate: boolean) {
+	// 	this.reportTelemetry(extension, isUpdate, true);
+	// 	this.messageService.show(Severity.Info, {
+	// 		message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName || extension.name),
+	// 		actions: [
+	// 			CloseAction,
+	// 			this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))
+	// 		]
+	// 	});
+	// }
+
+	// private onError(err: Error, extension: IGalleryExtension, isUpdate: boolean) {
+	// 	this.reportTelemetry(extension, isUpdate, false);
+	// 	this.messageService.show(Severity.Error, err);
+	// }
+
+	// private reportTelemetry(extension: IGalleryExtension, isUpdate: boolean, success: boolean) {
+	// 	const event = isUpdate ? 'extensionGallery:update' : 'extensionGallery:install';
+	// 	const data = assign(getTelemetryData(extension), { success });
+
+	// 	this.telemetryService.publicLog(event, data);
+	// }
 
 	dispose(): void {
 		super.dispose();

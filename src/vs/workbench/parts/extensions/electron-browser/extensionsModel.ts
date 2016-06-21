@@ -28,6 +28,7 @@ export interface IExtension {
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;
+	latestVersion: string;
 	description: string;
 	readmeUrl: string;
 	iconUrl: string;
@@ -78,6 +79,10 @@ class Extension implements IExtension {
 
 	get version(): string {
 		return this.local ? this.local.manifest.version : this.gallery.versions[0].version;
+	}
+
+	get latestVersion(): string {
+		return this.gallery ? this.gallery.versions[0].version : this.local.manifest.version;
 	}
 
 	get description(): string {
@@ -171,6 +176,7 @@ export class ExtensionsModel {
 				this.syncWithGallery(true);
 			}
 
+			this._onChange.fire();
 			return [...this.installed, ...installing];
 		});
 	}
@@ -187,6 +193,7 @@ export class ExtensionsModel {
 
 				if (installed) {
 					installed.gallery = gallery;
+					this._onChange.fire();
 					return installed;
 				}
 

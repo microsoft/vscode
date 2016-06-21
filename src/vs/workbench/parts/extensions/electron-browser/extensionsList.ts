@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IExtension, ExtensionsModel } from './extensionsModel';
-import { CombinedInstallAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction } from './extensionsActions';
 
 export interface ITemplateData {
 	extension: IExtension;
@@ -90,8 +90,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.actionbar.clear();
 
 		const installAction = new CombinedInstallAction(this.model, extension);
-		data.actionbar.push(installAction, actionOptions);
-		data.disposables.push(installAction);
+		const updateAction = new UpdateAction(this.model, extension);
+		data.actionbar.push([updateAction, installAction], actionOptions);
+		data.disposables.push(installAction, updateAction);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
