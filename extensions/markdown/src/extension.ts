@@ -30,9 +30,9 @@ export function activate(context: ExtensionContext) {
 		}
 	}).use(mdnh, {});
 
-	// Load user-defined packages
+	// Load user defined plugins
 	const userPlugins = <Array<Object>>vscode.workspace.getConfiguration('markdown')['plugins'];
-	if (userPlugins && Array.isArray(userPlugins)) {
+	if (userPlugins instanceof Array) {
 		userPlugins.forEach(value => {
 			if (!value.name) { return; }
 			try {
@@ -174,7 +174,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 
 	private computeCustomStyleSheetIncludes(uri: Uri): string[] {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
-		if (styles && Array.isArray(styles)) {
+		if (styles instanceof Array) {
 			return styles.map((style) => {
 				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			});
@@ -183,7 +183,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 	}
 
 	private computePluginStyleSheetIncludes() {
-		if (userStyles && Array.isArray(userStyles)) {
+		if (userStyles instanceof Array) {
 			return userStyles.map((style) => {
 				if (Uri.parse(style).scheme) {
 					return `<link rel="stylesheet" type="text/css" href="${style}" type="text/css" media="screen">`;
