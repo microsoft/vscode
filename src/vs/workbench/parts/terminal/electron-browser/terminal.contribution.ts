@@ -74,7 +74,7 @@ configurationRegistry.registerConfiguration({
 			'default': 0
 		},
 		'terminal.integrated.lineHeight': {
-			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to editor.lineHeight's value."),
+			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to normal."),
 			'type': 'number',
 			'default': 0
 		}

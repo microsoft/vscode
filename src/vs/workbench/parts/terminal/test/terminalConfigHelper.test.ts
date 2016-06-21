@@ -82,7 +82,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().fontSize, 2, 'terminal.integrated.fontSize should be selected over editor.fontSize');
+		assert.equal(configHelper.getFont().fontSize, '2px', 'terminal.integrated.fontSize should be selected over editor.fontSize');
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -97,7 +97,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().fontSize, 1, 'editor.fontSize should be the fallback when terminal.integrated.fontSize not set');
+		assert.equal(configHelper.getFont().fontSize, '1px', 'editor.fontSize should be the fallback when terminal.integrated.fontSize not set');
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -112,7 +112,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
+		assert.equal(configHelper.getFont().lineHeight, '2px', 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -127,7 +127,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be the fallback when terminal.integrated.lineHeight not set');
+		assert.equal(configHelper.getFont().lineHeight, 'normal', 'editor.lineHeight should be "normal" when terminal.integrated.lineHeight not set');
 	});
 
 	test('TerminalConfigHelper - getShell', function () {
