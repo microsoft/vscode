@@ -272,6 +272,15 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
+	// Do not allow left / right to expand and collapse groups #7848
+	protected onLeft(tree: ITree, event: IKeyboardEvent): boolean {
+		return true;
+	}
+
+	protected onRight(tree: ITree, event: IKeyboardEvent): boolean {
+		return true;
+	}
+
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
 		var element = tree.getFocus();
 

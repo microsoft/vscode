@@ -15,7 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import {IActionItem, ActionsOrientation, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
@@ -25,14 +25,11 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction,
-	MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction}
-from 'vs/workbench/browser/parts/editor/editorActions';
+import {CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export interface IToolbarActions {
@@ -62,14 +59,11 @@ export abstract class TitleControl {
 	protected pinEditorAction: KeepEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
-	protected showEditorsOfLeftGroup: QuickOpenAction;
-	protected showEditorsOfCenterGroup: QuickOpenAction;
-	protected showEditorsOfRightGroup: QuickOpenAction;
 	protected moveGroupLeftAction: MoveGroupLeftAction;
 	protected moveGroupRightAction: MoveGroupRightAction;
 	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
 	protected splitEditorAction: SplitEditorAction;
-	protected showAllEditorsAction: ShowAllEditorsAction;
+	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
 
 	private previewEditors: boolean;
 	private showTabs: boolean;
@@ -115,6 +109,13 @@ export abstract class TitleControl {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+	}
+
+	private onStacksChanged(e: IStacksModelChangeEvent): void {
+		if (e.structural) {
+			this.updateSplitActionEnablement();
+		}
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
@@ -122,37 +123,18 @@ export abstract class TitleControl {
 		this.showTabs = config.workbench.editor.showTabs;
 	}
 
-	private updateActionEnablement(): void {
+	private updateSplitActionEnablement(): void {
 		if (!this.context) {
 			return;
 		}
 
-		const group = this.context;
 		const groupCount = this.stacks.groups.length;
-
-		// Move group
-		switch (this.stacks.positionOfGroup(group)) {
-			case Position.LEFT:
-				this.moveGroupLeftAction.enabled = false;
-				this.moveGroupRightAction.enabled = this.stacks.groups.length > 1;
-				break;
-
-			case Position.CENTER:
-				this.moveGroupRightAction.enabled = this.stacks.groups.length > 2;
-				break;
-
-			case Position.RIGHT:
-				this.moveGroupRightAction.enabled = false;
-				break;
-		}
 
 		// Split editor
 		this.splitEditorAction.enabled = groupCount < 3;
 	}
 
 	private onSchedule(): void {
-		this.updateActionEnablement();
-
 		if (this.refreshScheduled) {
 			this.doRefresh();
 		} else {
@@ -206,15 +188,12 @@ export abstract class TitleControl {
 		this.closeRightEditorsAction = this.instantiationService.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
 		this.pinEditorAction = this.instantiationService.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepEditor', "Keep Editor"));
-		this.showAllEditorsAction = this.instantiationService.createInstance(ShowAllEditorsAction, ShowAllEditorsAction.ID, nls.localize('showEditors', "Show Editors"));
+		this.showEditorsInGroupAction = this.instantiationService.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, ShowEditorsInGroupAction.LABEL);
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 		this.moveGroupLeftAction = this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, nls.localize('moveLeft', "Move Left"));
 		this.moveGroupRightAction = this.instantiationService.createInstance(MoveGroupRightAction, MoveGroupRightAction.ID, nls.localize('moveRight', "Move Right"));
-		this.showEditorsOfLeftGroup = this.instantiationService.createInstance(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, nls.localize('showEditors', "Show Editors"));
-		this.showEditorsOfCenterGroup = this.instantiationService.createInstance(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, nls.localize('showEditors', "Show Editors"));
-		this.showEditorsOfRightGroup = this.instantiationService.createInstance(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 
-		[this.showEditorsOfLeftGroup, this.showEditorsOfCenterGroup, this.showEditorsOfRightGroup, this.showAllEditorsAction].forEach(a => a.class = 'show-group-editors-action');
+		this.showEditorsInGroupAction.class = 'show-group-editors-action';
 	}
 
 	protected doCreateToolbar(container: HTMLElement): ToolBar {
@@ -267,33 +246,35 @@ export abstract class TitleControl {
 
 		// Check Registry
 		if (!actionItem) {
-			let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
+			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
 			actionItem = actionBarRegistry.getActionItemForContext(Scope.EDITOR, { input: editor && editor.input, editor, position }, action);
 		}
 
 		return actionItem;
 	}
 
-	protected getEditorActions(group: IEditorGroup): IToolbarActions {
-		const position = this.stacks.positionOfGroup(group);
-		const isActive = this.stacks.isActive(group);
+	protected getEditorActions(identifier: IEditorIdentifier): IToolbarActions {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const editor = this.editorService.getVisibleEditors()[position];
 
-		if (isActive && editor instanceof BaseEditor) {
-			let editorActions = this.mapActionsToEditors[editor.getId()];
+		const {group} = identifier;
+		const position = this.stacks.positionOfGroup(group);
+
+		// Editor actions require the editor control to be there, so we retrieve it via service
+		const control = this.editorService.getVisibleEditors()[position];
+		if (this.stacks.isActive(group) && control instanceof BaseEditor && control.input && typeof control.position === 'number') {
+
+			// Editor Control Actions
+			let editorActions = this.mapActionsToEditors[control.getId()];
 			if (!editorActions) {
-				editorActions = this.getEditorActionsForContext(editor);
-				this.mapActionsToEditors[editor.getId()] = editorActions;
+				editorActions = this.getEditorActionsForContext(control);
+				this.mapActionsToEditors[control.getId()] = editorActions;
 			}
-
 			primary.push(...editorActions.primary);
 			secondary.push(...editorActions.secondary);
 
-			// Handle Editor Input Actions
-			let editorInputActions = this.getEditorActionsForContext({ input: editor.input, editor, position: editor.position });
-
+			// Editor Input Actions
+			const editorInputActions = this.getEditorActionsForContext({ input: control.input, editor: control, position: control.position });
 			primary.push(...editorInputActions.primary);
 			secondary.push(...editorInputActions.secondary);
 		}
@@ -304,8 +285,8 @@ export abstract class TitleControl {
 	private getEditorActionsForContext(context: BaseEditor): IToolbarActions;
 	private getEditorActionsForContext(context: IEditorInputActionContext): IToolbarActions;
 	private getEditorActionsForContext(context: any): IToolbarActions {
-		let primaryActions: IAction[] = [];
-		let secondaryActions: IAction[] = [];
+		const primaryActions: IAction[] = [];
+		const secondaryActions: IAction[] = [];
 
 		// From Editor
 		if (context instanceof BaseEditor) {
@@ -314,9 +295,11 @@ export abstract class TitleControl {
 		}
 
 		// From Contributions
-		let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
-		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.EDITOR, context));
-		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.EDITOR, context));
+		else {
+			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
+			primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.EDITOR, context));
+			secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.EDITOR, context));
+		}
 
 		return {
 			primary: primaryActions,
@@ -328,33 +311,28 @@ export abstract class TitleControl {
 		const editor = group.activeEditor;
 		const primary: IAction[] = [];
 
-		const groupCount = this.stacks.groups.length;
-
 		// Overflow
-		let overflowAction: Action;
-		if (groupCount === 1) {
-			overflowAction = this.showAllEditorsAction;
-		} else {
-			switch (this.stacks.positionOfGroup(group)) {
-				case Position.LEFT:
-					overflowAction = this.showEditorsOfLeftGroup;
-					break;
-
-				case Position.CENTER:
-					overflowAction = (groupCount === 2) ? this.showEditorsOfRightGroup : this.showEditorsOfCenterGroup;
-					break;
-
-				case Position.RIGHT:
-					overflowAction = this.showEditorsOfRightGroup;
-					break;
-			}
-		}
-
-		primary.push(overflowAction);
+		primary.push(this.showEditorsInGroupAction);
 
 		// Splitting
 		if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primary.push(this.splitEditorAction);
+		}
+
+		// Enablement
+		switch (this.stacks.positionOfGroup(group)) {
+			case Position.LEFT:
+				this.moveGroupLeftAction.enabled = false;
+				this.moveGroupRightAction.enabled = this.stacks.groups.length > 1;
+				break;
+
+			case Position.CENTER:
+				this.moveGroupRightAction.enabled = this.stacks.groups.length > 2;
+				break;
+
+			case Position.RIGHT:
+				this.moveGroupRightAction.enabled = false;
+				break;
 		}
 
 		// Return actions
@@ -423,10 +401,7 @@ export abstract class TitleControl {
 		// Actions
 		[
 			this.splitEditorAction,
-			this.showAllEditorsAction,
-			this.showEditorsOfLeftGroup,
-			this.showEditorsOfCenterGroup,
-			this.showEditorsOfRightGroup,
+			this.showEditorsInGroupAction,
 			this.closeEditorAction,
 			this.closeRightEditorsAction,
 			this.closeOtherEditorsAction,

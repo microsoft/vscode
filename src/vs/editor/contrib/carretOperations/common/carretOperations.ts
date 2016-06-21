@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
@@ -54,12 +53,10 @@ class MoveCarretRightAction extends MoveCarretAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveCarretLeftAction, MoveCarretLeftAction.ID, nls.localize('carret.moveLeft', "Move Carret Left"), {
 	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyCode.LeftArrow,
-	linux: { primary: KeyMod.Alt | KeyCode.LeftArrow }
+	primary: 0
 }, 'Move Carret Left'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveCarretRightAction, MoveCarretRightAction.ID, nls.localize('carret.moveRight', "Move Carret Right"), {
 	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyCode.RightArrow,
-	linux: { primary: KeyMod.Alt | KeyCode.LeftArrow }
+	primary: 0
 }, 'Move Carret Right'));

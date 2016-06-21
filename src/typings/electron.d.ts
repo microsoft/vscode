@@ -838,8 +838,9 @@ declare module Electron {
 		 * at the current mouse cursor position.
 		 * @param x Horizontal coordinate where the menu will be placed.
 		 * @param y Vertical coordinate where the menu will be placed.
+		 * @param positioningItem The item to select by default.
 		 */
-		popup(browserWindow: BrowserWindow, x?: number, y?: number): void;
+		popup(browserWindow: BrowserWindow, x?: number, y?: number, positioningItem?: number): void;
 		/**
 		 * Appends the menuItem to the menu.
 		 */

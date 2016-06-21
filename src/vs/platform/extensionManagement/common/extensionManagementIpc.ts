@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, IExtension, IExtensionManifest } from './extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent } from './extensionManagement';
 import Event from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
@@ -15,9 +15,9 @@ export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'event:onDidInstallExtension'): TPromise<void>;
 	call(command: 'event:onUninstallExtension'): TPromise<void>;
 	call(command: 'event:onDidUninstallExtension'): TPromise<void>;
-	call(command: 'install', extensionOrPath: IExtension | string): TPromise<IExtension>;
-	call(command: 'uninstall', extension: IExtension): TPromise<void>;
-	call(command: 'getInstalled', includeDuplicateVersions: boolean): TPromise<IExtension[]>;
+	call(command: 'install', extensionOrPath: ILocalExtension | string): TPromise<ILocalExtension>;
+	call(command: 'uninstall', extension: ILocalExtension): TPromise<void>;
+	call(command: 'getInstalled', includeDuplicateVersions: boolean): TPromise<ILocalExtension[]>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -44,29 +44,29 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	constructor(private channel: IExtensionManagementChannel) { }
 
-	private _onInstallExtension = eventFromCall(this.channel, 'event:onInstallExtension');
-	get onInstallExtension(): Event<IExtensionManifest> { return this._onInstallExtension; }
+	private _onInstallExtension = eventFromCall<InstallExtensionEvent>(this.channel, 'event:onInstallExtension');
+	get onInstallExtension(): Event<InstallExtensionEvent> { return this._onInstallExtension; }
 
-	private _onDidInstallExtension = eventFromCall(this.channel, 'event:onDidInstallExtension');
-	get onDidInstallExtension(): Event<{ extension: IExtension; error?: Error; }> { return this._onDidInstallExtension; }
+	private _onDidInstallExtension = eventFromCall<DidInstallExtensionEvent>(this.channel, 'event:onDidInstallExtension');
+	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return this._onDidInstallExtension; }
 
-	private _onUninstallExtension = eventFromCall(this.channel, 'event:onUninstallExtension');
-	get onUninstallExtension(): Event<IExtension> { return this._onUninstallExtension; }
+	private _onUninstallExtension = eventFromCall<string>(this.channel, 'event:onUninstallExtension');
+	get onUninstallExtension(): Event<string> { return this._onUninstallExtension; }
 
-	private _onDidUninstallExtension = eventFromCall(this.channel, 'event:onDidUninstallExtension');
-	get onDidUninstallExtension(): Event<IExtension> { return this._onDidUninstallExtension; }
+	private _onDidUninstallExtension = eventFromCall<string>(this.channel, 'event:onDidUninstallExtension');
+	get onDidUninstallExtension(): Event<string> { return this._onDidUninstallExtension; }
 
-	install(extension: IExtension): TPromise<IExtension>;
-	install(zipPath: string): TPromise<IExtension>;
-	install(arg: any): TPromise<IExtension> {
+	install(extension: IGalleryExtension): TPromise<void>;
+	install(zipPath: string): TPromise<void>;
+	install(arg: any): TPromise<void> {
 		return this.channel.call('install', arg);
 	}
 
-	uninstall(extension: IExtension): TPromise<void> {
+	uninstall(extension: ILocalExtension): TPromise<void> {
 		return this.channel.call('uninstall', extension);
 	}
 
-	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]> {
+	getInstalled(includeDuplicateVersions?: boolean): TPromise<ILocalExtension[]> {
 		return this.channel.call('getInstalled', includeDuplicateVersions);
 	}
 }

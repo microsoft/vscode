@@ -64,7 +64,6 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 
 		this.hide();
 		this.isBuilt = false;
-		this.onResize();
 	}
 
 	private registerListeners(): void {
@@ -82,10 +81,11 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
-		$(window).on(dom.EventType.RESIZE, () => this.onResize(), this.toDispose);
+		$(window).on(dom.EventType.RESIZE, () => this.setXCoordinate(), this.toDispose);
 
 		this.dragArea.on(dom.EventType.MOUSE_DOWN, event => {
 			const $window = $(window);
+			this.dragArea.addClass('dragged');
 
 			$window.on('mousemove', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
@@ -93,21 +93,24 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 			}).once('mouseup', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
+				this.dragArea.removeClass('dragged');
 				$window.off('mousemove');
 			});
 		});
 	}
 
-	private onResize(): void {
-		const x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '0.5')) * window.innerWidth;
-		this.setXCoordinate(x);
-	}
+	private setXCoordinate(x?: number): void {
+		if (!this.isVisible) {
+			return;
+		}
+		if (!x) {
+			x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '0.5')) * window.innerWidth;
+		}
 
-	private setXCoordinate(x: number): void {
 		const halfWidgetWidth = this.$el.getHTMLElement().clientWidth / 2;
 		x = x + halfWidgetWidth - 16; // take into account half the size of the widget
 		x = Math.max(148, x); // do not allow the widget to overflow on the left
-		x = Math.min(x, window.innerWidth - halfWidgetWidth); // do not allow the widget to overflow on the right
+		x = Math.min(x, window.innerWidth - halfWidgetWidth - 10); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
 	}
 
@@ -136,6 +139,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 
 		this.isVisible = true;
 		this.$el.show();
+		this.setXCoordinate();
 	}
 
 	private hide(): void {

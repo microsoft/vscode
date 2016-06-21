@@ -151,7 +151,14 @@ export abstract class ViewerViewlet extends Viewlet {
 /**
  * A viewlet descriptor is a leightweight descriptor of a viewlet in the workbench.
  */
-export class ViewletDescriptor extends CompositeDescriptor<Viewlet> { }
+export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
+	public isGlobal: boolean;
+
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, isGlobal?: boolean) {
+		super(moduleId, ctorName, id, name, cssClass, order);
+		this.isGlobal = isGlobal || false;
+	}
+}
 
 export const Extensions = {
 	Viewlets: 'workbench.contributions.viewlets'
@@ -171,14 +178,14 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	 * Returns the viewlet descriptor for the given id or null if none.
 	 */
 	public getViewlet(id: string): ViewletDescriptor {
-		return this.getComposite(id);
+		return this.getComposite(id) as ViewletDescriptor;
 	}
 
 	/**
 	 * Returns an array of registered viewlets known to the platform.
 	 */
 	public getViewlets(): ViewletDescriptor[] {
-		return this.getComposits();
+		return this.getComposits() as ViewletDescriptor[];
 	}
 
 	/**

@@ -9,6 +9,7 @@ import pkg from 'vs/platform/package';
 import { ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
+import { IPager } from 'vs/base/common/paging';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,8 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { IExtensionManagementService, IExtensionGalleryService, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,6 +33,10 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, eg: {0}", 'ms-vscode.csharp');
+
+function getId(manifest: IExtensionManifest): string {
+	return `${ manifest.publisher }.${ manifest.name }`;
+}
 
 class Main {
 
@@ -59,22 +63,22 @@ class Main {
 
 	private listExtensions(): TPromise<any> {
 		return this.extensionManagementService.getInstalled().then(extensions => {
-			extensions.forEach(e => console.log(getExtensionId(e)));
+			extensions.forEach(e => console.log(getId(e.manifest)));
 		});
 	}
 
 	private installExtension(ids: string[]): TPromise<any> {
 		return sequence(ids.map(id => () => {
 			return this.extensionManagementService.getInstalled().then(installed => {
-				const isInstalled = installed.some(e => getExtensionId(e) === id);
+				const isInstalled = installed.some(e => getId(e.manifest) === id);
 
 				if (isInstalled) {
 					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
 					return TPromise.as(null);
 				}
 
-				return this.extensionGalleryService.query({ ids: [id] })
-					.then<IQueryResult>(null, err => {
+				return this.extensionGalleryService.query({ names: [id] })
+					.then<IPager<IGalleryExtension>>(null, err => {
 						if (err.responseText) {
 							try {
 								const response = JSON.parse(err.responseText);
@@ -94,8 +98,8 @@ class Main {
 						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
 						console.log(localize('installing', "Installing..."));
 
-						return this.extensionManagementService.install(extension).then(extension => {
-							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+						return this.extensionManagementService.install(extension).then(() => {
+							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.versions[0].version));
 						});
 					});
 			});
@@ -105,7 +109,7 @@ class Main {
 	private uninstallExtension(ids: string[]): TPromise<any> {
 		return sequence(ids.map(id => () => {
 			return this.extensionManagementService.getInstalled().then(installed => {
-				const [extension] = installed.filter(e => getExtensionId(e) === id);
+				const [extension] = installed.filter(e => getId(e.manifest) === id);
 
 				if (!extension) {
 					return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);

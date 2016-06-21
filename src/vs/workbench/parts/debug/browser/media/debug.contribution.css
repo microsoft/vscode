@@ -135,10 +135,14 @@
 }
 
 .monaco-workbench .debug-actions-widget .drag-area {
-	cursor: -webkit-grabbing;
+	cursor: -webkit-grab;
 	height: 32px;
 	width: 10px;
 	background: url('drag.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-actions-widget .drag-area.dragged {
+	cursor: -webkit-grabbing;
 }
 
 .monaco-workbench  .debug-actions-widget .monaco-action-bar .action-label {

@@ -246,6 +246,7 @@
 
 .debug-viewlet .monaco-inputbox > .wrapper > .input {
 	padding: 0px;
+	color: initial;
 }
 
 .debug-viewlet .debug-action.add-watch-expression,

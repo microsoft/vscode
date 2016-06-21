@@ -8,5 +8,4 @@
 
 import 'vs/languages/handlebars/common/handlebars.contribution';
 import 'vs/languages/html/common/html.contribution';
-import 'vs/languages/markdown/common/markdown.contribution';
 import 'vs/languages/razor/common/razor.contribution';

@@ -5,19 +5,14 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import platform = require('vs/platform/platform');
 import { Promise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import wbaregistry = require('vs/workbench/common/actionRegistry');
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction, ListSuggestedExtensionsAction } from './extensionsActions';
-import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import {ipcRenderer as ipc} from 'electron';
 
 interface IInstallExtensionsRequest {
@@ -42,55 +37,8 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
 		}
 
-		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
-		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), 'Extensions: Show Installed Extensions', ExtensionsLabel);
-
-		(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-			new QuickOpenHandlerDescriptor(
-				'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-				'LocalExtensionsHandler',
-				'ext ',
-				nls.localize('localExtensionsCommands', "Show Local Extensions")
-			)
-		);
-
-		if (galleryService.isEnabled()) {
-
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), 'Extensions: Install Extension', ExtensionsLabel);
-
-			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-				new QuickOpenHandlerDescriptor(
-					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-					'GalleryExtensionsHandler',
-					'ext install ',
-					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions"),
-					true
-				)
-			);
-
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), 'Extensions: Show Outdated Extensions', ExtensionsLabel);
-
-			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-				new QuickOpenHandlerDescriptor(
-					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-					'OutdatedExtensionsHandler',
-					'ext update ',
-					nls.localize('outdatedExtensionsCommands', "Update Outdated Extensions")
-				)
-			);
-
-			// add extension tips services
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), 'Extensions: Show Extension Recommendations', ExtensionsLabel);
-
-			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-				new QuickOpenHandlerDescriptor(
-					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-					'SuggestedExtensionHandler',
-					'ext recommend ',
-					nls.localize('suggestedExtensionsCommands', "Show Extension Recommendations")
-				)
-			);
-		}
+		// const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
+		// actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), 'Extensions: Show Installed Extensions', ExtensionsLabel);
 	}
 
 	private registerListeners(): void {

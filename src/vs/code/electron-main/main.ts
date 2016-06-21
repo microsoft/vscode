@@ -109,7 +109,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	process.env['VSCODE_SHARED_IPC_HOOK'] = envService.sharedIPCHandle;
 
 	// Spawn shared process
-	const sharedProcess = instantiationService.invokeFunction(spawnSharedProcess);
+	const sharedProcess = spawnSharedProcess(!envService.isBuilt || envService.cliArgs.verboseLogging);
 
 	// Make sure we associate the program with the app user model id
 	// This will help Windows to associate the running program with
