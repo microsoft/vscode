@@ -79,7 +79,7 @@ export class TerminalPanel extends Panel {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
-		this.terminalService.initConfigHelper(this.parentDomElement);
+		this.terminalService.initConfigHelper(parent);
 		DOM.addClass(this.parentDomElement, 'integrated-terminal');
 		this.themeStyleElement = document.createElement('style');
 
@@ -88,7 +88,7 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(this.themeStyleElement);
 		this.parentDomElement.appendChild(this.terminalContainer);
 
-		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.parentDomElement);
+		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
 		this.toDispose.push(DOM.addDisposableListener(this.terminalContainer, 'wheel', (event: WheelEvent) => {
 			this.terminalInstances[this.terminalService.getActiveTerminalIndex()].dispatchEvent(new WheelEvent(event.type, event));
 		}));
@@ -148,10 +148,13 @@ export class TerminalPanel extends Panel {
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
 		let index = this.terminalInstances.indexOf(terminalInstance);
 		if (index !== -1) {
+			this.terminalInstances[index].dispose();
 			this.terminalInstances.splice(index, 1);
 		}
 		if (this.terminalInstances.length === 0) {
 			this.terminalService.toggle();
+		} else {
+			this.setActiveTerminal(this.terminalService.getActiveTerminalIndex());
 		}
 	}
 

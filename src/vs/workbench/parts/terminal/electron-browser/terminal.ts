@@ -8,6 +8,7 @@ import Event from 'vs/base/common/event';
 import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
+import {Builder} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
@@ -61,6 +62,6 @@ export interface ITerminalService {
 
 	getActiveTerminalIndex(): number;
 	getTerminalInstanceTitles(): string[];
-	initConfigHelper(panelElement: HTMLElement): void;
+	initConfigHelper(panelContainer: Builder): void;
 	killTerminalProcess(terminalProcess: ITerminalProcess): void;
 }

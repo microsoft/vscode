@@ -90,7 +90,7 @@ export class TerminalConfigHelper {
 	public constructor(
 		private platform: Platform,
 		private configurationService: IConfigurationService,
-		private parentDomElement: HTMLElement) {
+		private panelContainer: Builder) {
 	}
 
 	public getTheme(themeId: string): string[] {
@@ -101,7 +101,7 @@ export class TerminalConfigHelper {
 	private measureFont(fontFamily: string, fontSize: string, lineHeight: string): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this.charMeasureElement || !this.charMeasureElement.parentElement) {
-			this.charMeasureElement = new Builder(this.parentDomElement, true).div().build().getHTMLElement();
+			this.charMeasureElement = this.panelContainer.div().getHTMLElement();
 		}
 		let style = this.charMeasureElement.style;
 		style.display = 'inline';

@@ -9,6 +9,7 @@ import cp = require('child_process');
 import os = require('os');
 import path = require('path');
 import platform = require('vs/base/common/platform');
+import {Builder} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -41,7 +42,6 @@ export class TerminalService implements ITerminalService {
 		this._onInstanceTitleChanged = new Emitter<string>();
 	}
 
-	// TODO: Hook up
 	public get onActiveInstanceChanged(): Event<string> {
 		return this._onActiveInstanceChanged.event;
 	}
@@ -50,7 +50,6 @@ export class TerminalService implements ITerminalService {
 		return this._onInstancesChanged.event;
 	}
 
-	// TODO: Hook up
 	public get onInstanceTitleChanged(): Event<string> {
 		return this._onInstanceTitleChanged.event;
 	}
@@ -105,9 +104,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createNew(): TPromise<any> {
+		let self = this;
 		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
-			terminalPanel.createNewTerminalInstance(this.createTerminalProcess());
-			this._onInstancesChanged.fire();
+			this.initConfigHelper(terminalPanel.getContainer());
+			terminalPanel.createNewTerminalInstance(self.createTerminalProcess());
+			self._onInstancesChanged.fire();
 		});
 	}
 
@@ -138,7 +139,7 @@ export class TerminalService implements ITerminalService {
 		return this.terminalProcesses.map((process, index) => `${index + 1}: ${process.title}`);
 	}
 
-	public initConfigHelper(panelElement: HTMLElement): void {
+	public initConfigHelper(panelElement: Builder): void {
 		if (!this.configHelper) {
 			this.configHelper = new TerminalConfigHelper(platform.platform, this.configurationService, panelElement);
 		}
@@ -158,7 +159,7 @@ export class TerminalService implements ITerminalService {
 		let index = this.terminalProcesses.indexOf(terminalProcess);
 		let wasActiveTerminal = (index === this.getActiveTerminalIndex());
 		// Push active index back if the closed process was before the active process
-		if (this.getActiveTerminalIndex() > index) {
+		if (this.getActiveTerminalIndex() >= index) {
 			this.activeTerminalIndex--;
 		}
 		this.terminalProcesses.splice(index, 1);
@@ -169,6 +170,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private createTerminalProcess(): ITerminalProcess {
+		console.log('createTerminalProcess');
+		console.log('this', this);
+		console.log('this.configHelper', this.configHelper);
 		let env = this.cloneEnv();
 		let shell = this.configHelper.getShell();
 		env['PTYPID'] = process.pid.toString();

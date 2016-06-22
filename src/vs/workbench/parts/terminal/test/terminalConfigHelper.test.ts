@@ -7,6 +7,7 @@
 
 import * as assert from 'assert';
 import Event from 'vs/base/common/event';
+import {Builder} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IThemeData} from 'vs/workbench/services/themes/common/themeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
@@ -27,16 +28,15 @@ class MockConfigurationService implements IConfigurationService {
 }
 
 suite('Workbench - TerminalConfigHelper', () => {
-	let fixture: HTMLElement;
+	let fixture: Builder;
 	let fixtureId = 'terminal-config-helper-fixture';
+
 	setup(() => {
-		fixture = document.createElement('div');
-		fixture.id = fixtureId;
-		document.body.appendChild(fixture);
+		fixture = new Builder().id(fixtureId).appendTo(document.body);
 	});
 
 	teardown(() => {
-		document.body.removeChild(fixture);
+		document.body.removeChild(fixture.getHTMLElement());
 	});
 
 	test('TerminalConfigHelper - getFont', function () {
