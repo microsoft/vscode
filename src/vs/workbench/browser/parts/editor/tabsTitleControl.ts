@@ -14,10 +14,11 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {LcsDiff} from 'vs/base/common/diff/diff';
 import {CommonKeybindings as Kb} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -29,14 +30,118 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable/*, dispose */} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {extractResources} from 'vs/base/browser/dnd';
+import Event, {Emitter} from 'vs/base/common/event';
+
+interface ITabsContainer {
+	onInsert: Event<number>;
+	onDidInsert: Event<number>;
+	onRemove: Event<number>;
+	onDidRemove: Event<number>;
+	container: HTMLElement;
+	splice(index: number, deleteCount: number, ...insert: number[]): void;
+	getDOMElement(index: number);
+}
+
+class SimpleTabContainer implements ITabsContainer {
+	private parent: HTMLElement;
+	private tabsContainer: HTMLElement;
+	private tabs: HTMLElement[];
+
+	private _onInsert: Emitter<number>;
+	private _onDidInsert: Emitter<number>;
+	private _onRemove: Emitter<number>;
+	private _onDidRemove: Emitter<number>;
+
+	constructor(parent: HTMLElement) {
+		this.parent = parent;
+		this.tabs = [];
+
+		this._onInsert = new Emitter<number>();
+		this._onDidInsert = new Emitter<number>();
+		this._onRemove = new Emitter<number>();
+		this._onDidRemove = new Emitter<number>();
+
+		this.create();
+	}
+
+	public get onInsert(): Event<number> {
+		return this._onInsert.event;
+	}
+
+	public get onDidInsert(): Event<number> {
+		return this._onDidInsert.event;
+	}
+
+	public get onRemove(): Event<number> {
+		return this._onRemove.event;
+	}
+
+	public get onDidRemove(): Event<number> {
+		return this._onDidRemove.event;
+	}
+
+	public get container(): HTMLElement {
+		return this.tabsContainer;
+	}
+
+	private create(): void {
+		this.tabsContainer = document.createElement('div');
+		this.parent.appendChild(this.tabsContainer);
+	}
+
+	public splice(index: number, deleteCount: number, ...insert: number[]): void {
+		console.log('index', index, 'deleteCount', deleteCount, 'insert', insert);
+
+		// Delete
+		for (let i = 0; i < deleteCount; i++) {
+			const tabContainer = this.getDOMElement(index);
+			if (tabContainer) {
+				this._onRemove.fire(index);
+				this.tabs.splice(index, 1);
+				this.tabsContainer.removeChild(tabContainer);
+				this._onDidRemove.fire(index);
+			}
+		}
+
+		// Add
+		const referenceElement = this.getDOMElement(index);
+		for (let i = 0; i < insert.length; i++) {
+			const tabIndex = index + i;
+			const tabContainer = document.createElement('div');
+			this.tabs.splice(tabIndex, 0, tabContainer);
+			this._onInsert.fire(tabIndex);
+
+			if (referenceElement) {
+				this.tabsContainer.insertBefore(tabContainer, referenceElement);
+			} else {
+				this.tabsContainer.appendChild(tabContainer);
+			}
+
+			this._onDidInsert.fire(tabIndex);
+		}
+	}
+
+	public getDOMElement(index: number): HTMLElement {
+		return this.tabs[index];
+	}
+}
+
+interface IViewTab {
+	id: number;
+	editor: IEditorInput;
+}
 
 export class TabsTitleControl extends TitleControl {
+
+	private static ID_GENERATOR = 0;
+
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
+	private tabsWidget: ITabsContainer;
 	private activeTab: HTMLElement;
 	private scrollbar: ScrollableElement;
 
@@ -45,6 +150,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private currentPrimaryGroupActionIds: string[];
 	private currentSecondaryGroupActionIds: string[];
+
+	private viewModel: IViewTab[];
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -62,6 +169,7 @@ export class TabsTitleControl extends TitleControl {
 		this.currentSecondaryGroupActionIds = [];
 
 		this.tabDisposeables = [];
+		this.viewModel = [];
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -73,11 +181,11 @@ export class TabsTitleControl extends TitleControl {
 	public create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
-		// Tabs Container
-		this.tabsContainer = document.createElement('div');
+		// Tabs widget
+		this.tabsWidget = new SimpleTabContainer(parent);
+		this.tabsContainer = this.tabsWidget.container;
 		this.tabsContainer.setAttribute('role', 'tablist');
 		DOM.addClass(this.tabsContainer, 'tabs-container');
-
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
 				this.scrollbar.updateState({
@@ -85,6 +193,10 @@ export class TabsTitleControl extends TitleControl {
 				});
 			}
 		}));
+
+		// Eventing
+		this.toDispose.push(this.tabsWidget.onInsert(index => this.onTabInserted(index)));
+		this.toDispose.push(this.tabsWidget.onRemove(index => this.onTabRemoved(index)));
 
 		// Custom Scrollbar
 		this.scrollbar = new ScrollableElement(this.tabsContainer, {
@@ -171,6 +283,44 @@ export class TabsTitleControl extends TitleControl {
 		this.groupActionsToolbar = this.doCreateToolbar(groupActionsContainer);
 	}
 
+	private onTabInserted(index: number): void {
+		const tabContainer = this.tabsWidget.getDOMElement(index);
+		const group = this.context;
+		const editor = this.viewModel[index].editor;
+
+		tabContainer.draggable = true;
+		tabContainer.tabIndex = 0;
+		tabContainer.setAttribute('role', 'tab');
+		tabContainer.setAttribute('aria-label', editor.getName());
+		DOM.addClass(tabContainer, 'tab monaco-editor-background');
+
+		// Tab Label Container
+		const tabLabelContainer = document.createElement('div');
+		tabContainer.appendChild(tabLabelContainer);
+		DOM.addClass(tabLabelContainer, 'tab-label');
+
+		// Tab Label
+		const tabLabel = document.createElement('a');
+		tabLabel.innerText = editor.getName();
+		tabLabel.title = editor.getDescription(true) || '';
+		tabLabelContainer.appendChild(tabLabel);
+
+		// Tab Close
+		const tabCloseContainer = document.createElement('div');
+		DOM.addClass(tabCloseContainer, 'tab-close');
+		tabContainer.appendChild(tabCloseContainer);
+
+		const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
+		bar.push(this.closeEditorAction, { icon: true, label: false });
+
+		// Eventing
+		this.hookTabListeners(tabContainer, { editor, group });
+	}
+
+	private onTabRemoved(index: number): void {
+		// TODO
+	}
+
 	public allowDragging(element: HTMLElement): boolean {
 		return (element.className === 'tabs-container');
 	}
@@ -192,35 +342,33 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tab styles
 		this.context.getEditors().forEach((editor, index) => {
-			const tabContainer = this.tabsContainer.children[index];
-			if (tabContainer instanceof HTMLElement) {
-				const isPinned = group.isPinned(editor);
-				const isActive = group.isActive(editor);
-				const isDirty = editor.isDirty();
+			const tabContainer = this.tabsWidget.getDOMElement(index);
+			const isPinned = group.isPinned(editor);
+			const isActive = group.isActive(editor);
+			const isDirty = editor.isDirty();
 
-				// Pinned state
-				if (isPinned) {
-					DOM.addClass(tabContainer, 'pinned');
-				} else {
-					DOM.removeClass(tabContainer, 'pinned');
-				}
+			// Pinned state
+			if (isPinned) {
+				DOM.addClass(tabContainer, 'pinned');
+			} else {
+				DOM.removeClass(tabContainer, 'pinned');
+			}
 
-				// Active state
-				if (isActive) {
-					DOM.addClass(tabContainer, 'active');
-					tabContainer.setAttribute('aria-selected', 'true');
-					this.activeTab = tabContainer;
-				} else {
-					DOM.removeClass(tabContainer, 'active');
-					tabContainer.setAttribute('aria-selected', 'false');
-				}
+			// Active state
+			if (isActive) {
+				DOM.addClass(tabContainer, 'active');
+				tabContainer.setAttribute('aria-selected', 'true');
+				this.activeTab = tabContainer;
+			} else {
+				DOM.removeClass(tabContainer, 'active');
+				tabContainer.setAttribute('aria-selected', 'false');
+			}
 
-				// Dirty State
-				if (isDirty) {
-					DOM.addClass(tabContainer, 'dirty');
-				} else {
-					DOM.removeClass(tabContainer, 'dirty');
-				}
+			// Dirty State
+			if (isDirty) {
+				DOM.addClass(tabContainer, 'dirty');
+			} else {
+				DOM.removeClass(tabContainer, 'dirty');
 			}
 		});
 
@@ -232,7 +380,7 @@ export class TabsTitleControl extends TitleControl {
 		const group = this.context;
 		const editor = group && group.activeEditor;
 		if (!editor) {
-			this.clearTabs();
+			this.tabsWidget.splice(0, this.viewModel.length); // clear all tabs
 
 			this.groupActionsToolbar.setActions([], [])();
 
@@ -262,56 +410,67 @@ export class TabsTitleControl extends TitleControl {
 		this.doUpdate();
 	}
 
-	private clearTabs(): void {
-		DOM.clearNode(this.tabsContainer);
-		dispose(this.tabDisposeables);
-		this.tabDisposeables = [];
+	private computeNewViewModel(currentViewModel: IViewTab[]): IViewTab[] {
+		const newViewModel: IViewTab[] = [];
+
+		this.context.getEditors().forEach((editor, index) => {
+			let tabState: IViewTab;
+
+			for (let i = 0; i < currentViewModel.length; i++) {
+				const state = currentViewModel[i];
+				if (state.editor.matches(editor)) {
+					tabState = state;
+					break;
+				}
+			}
+
+			if (!tabState) {
+				tabState = {
+					id: TabsTitleControl.ID_GENERATOR++,
+					editor
+				};
+			}
+
+			newViewModel.push(tabState);
+		});
+
+		return newViewModel;
 	}
 
 	private refreshTabs(group: IEditorGroup): void {
 
-		// Empty container first
-		this.clearTabs();
+		// Compute a diff to our current view model
+		const oldViewModel = this.viewModel;
+		const newViewModel = this.computeNewViewModel(oldViewModel);
+		const diff = new LcsDiff({
+			getLength: () => oldViewModel.length,
+			getElementHash: (i: number) => String(oldViewModel[i].id)
+		}, {
+			getLength: () => newViewModel.length,
+			getElementHash: (i: number) => String(newViewModel[i].id)
+		}).ComputeDiff();
 
-		const tabContainers: HTMLElement[] = [];
+		// Update view model
+		this.viewModel = newViewModel;
 
-		// Add a tab for each opened editor
-		this.context.getEditors().forEach(editor => {
-			const tabContainer = document.createElement('div');
-			tabContainer.draggable = true;
-			tabContainer.tabIndex = 0;
-			tabContainer.setAttribute('role', 'tab');
-			tabContainer.setAttribute('aria-label', editor.getName());
-			DOM.addClass(tabContainer, 'tab monaco-editor-background');
-			tabContainers.push(tabContainer);
+		// Update tabs widget
+		diff.forEach(d =>  {
 
-			// Tab Label Container
-			const tabLabelContainer = document.createElement('div');
-			tabContainer.appendChild(tabLabelContainer);
-			DOM.addClass(tabLabelContainer, 'tab-label');
+			// Replace
+			if (d.modifiedLength && d.originalLength) {
+				this.tabsWidget.splice(d.originalStart, d.originalLength, ...new Array<number>(d.modifiedLength));
+			}
 
-			// Tab Label
-			const tabLabel = document.createElement('a');
-			tabLabel.innerText = editor.getName();
-			tabLabel.title = editor.getDescription(true) || '';
-			tabLabelContainer.appendChild(tabLabel);
+			// Add
+			else if (d.modifiedLength) {
+				this.tabsWidget.splice(d.modifiedStart, 0, ...new Array<number>(d.modifiedLength));
+			}
 
-			// Tab Close
-			const tabCloseContainer = document.createElement('div');
-			DOM.addClass(tabCloseContainer, 'tab-close');
-			tabContainer.appendChild(tabCloseContainer);
-
-			const bar = new ActionBar(tabCloseContainer, { context: { editor, group }, ariaLabel: nls.localize('araLabelTabActions', "Tab actions") });
-			bar.push(this.closeEditorAction, { icon: true, label: false });
-
-			this.tabDisposeables.push(bar);
-
-			// Eventing
-			this.hookTabListeners(tabContainer, { editor, group });
+			// Delete
+			else if (d.originalLength) {
+				this.tabsWidget.splice(d.originalStart, d.originalLength);
+			}
 		});
-
-		// Add to tabs container
-		tabContainers.forEach(tab => this.tabsContainer.appendChild(tab));
 	}
 
 	public layout(): void {
@@ -407,7 +566,7 @@ export class TabsTitleControl extends TitleControl {
 				if (target) {
 					handled = true;
 					this.editorService.openEditor(target, EditorOptions.create({ preserveFocus: true }), position).done(null, errors.onUnexpectedError);
-					(<HTMLElement>this.tabsContainer.childNodes[targetIndex]).focus();
+					this.tabsWidget.getDOMElement(targetIndex).focus();
 				}
 			}
 
@@ -425,7 +584,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu(identifier, e, tab)));
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e) => this.onContextMenu(identifier, e, tab)));
 
 		// Drag start
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
