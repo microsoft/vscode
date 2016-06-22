@@ -9,21 +9,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from 'vscode';
 
-const hljs = require('highlight.js');
-const mdnh = require('markdown-it-named-headers');
-const md = require('markdown-it')({
-	html: true,
-	highlight: function (str, lang) {
-		if (lang && hljs.getLanguage(lang)) {
-			try {
-				return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-			} catch (error) { }
-		}
-		return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-	}
-}).use(mdnh, {});
-
 export function activate(context: ExtensionContext) {
+
 	let provider = new MDDocumentContentProvider(context);
 	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
 
@@ -79,7 +66,7 @@ function showPreview(resource?: Uri, sideBySide: boolean = false) {
 		if (!vscode.window.activeTextEditor) {
 			// this is most likely toggling the preview
 			return vscode.commands.executeCommand('markdown.showSource');
- 		}
+		}
 		// nothing found that could be shown or toggled
 		return;
 	}
@@ -128,14 +115,38 @@ function showSource(mdUri: Uri) {
 	});
 }
 
+
+interface IRenderer {
+	render(text: string) : string;
+}
+
 class MDDocumentContentProvider implements TextDocumentContentProvider {
 	private _context: ExtensionContext;
 	private _onDidChange = new EventEmitter<Uri>();
 	private _waiting : boolean;
+	private _renderer : IRenderer;
 
 	constructor(context: ExtensionContext) {
 		this._context = context;
 		this._waiting = false;
+		this._renderer = this.createRenderer();
+	}
+
+	private createRenderer() : IRenderer {
+		const hljs = require('highlight.js');
+		const mdnh = require('markdown-it-named-headers');
+		const md = require('markdown-it')({
+			html: true,
+			highlight: function (str, lang) {
+				if (lang && hljs.getLanguage(lang)) {
+					try {
+						return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+					} catch (error) { }
+				}
+				return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
+			}
+		}).use(mdnh, {});
+		return md;
 	}
 
 	private getMediaPath(mediaFile) {
@@ -179,7 +190,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				'<body>'
 			).join('\n');
 
-			const body = md.render(document.getText());
+			const body = this._renderer.render(document.getText());
 
 			const tail = [
 				'</body>',
