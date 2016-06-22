@@ -8,8 +8,21 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from 'vscode';
+import TelemetryReporter from 'vscode-extension-telemetry';
+
+
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
+}
+
+var telemetryReporter: TelemetryReporter;
 
 export function activate(context: ExtensionContext) {
+
+	let packageInfo = getPackageInfo(context);
+	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	let provider = new MDDocumentContentProvider(context);
 	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
@@ -53,8 +66,9 @@ function getMarkdownUri(uri: Uri) {
 	return uri.with({ scheme: 'markdown', path: uri.path + '.rendered', query: uri.toString() });
 }
 
-function showPreview(resource?: Uri, sideBySide: boolean = false) {
+function showPreview(uri?: Uri, sideBySide: boolean = false) {
 
+	let resource = uri;
 	if (!(resource instanceof Uri)) {
 		if (vscode.window.activeTextEditor) {
 			// we are relaxed and don't check for markdown files
@@ -71,10 +85,17 @@ function showPreview(resource?: Uri, sideBySide: boolean = false) {
 		return;
 	}
 
-	return vscode.commands.executeCommand('vscode.previewHtml',
+	let thenable = vscode.commands.executeCommand('vscode.previewHtml',
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
 		`Preview '${path.basename(resource.fsPath)}'`);
+
+	telemetryReporter.sendTelemetryEvent('openPreview', {
+		where : sideBySide ? 'sideBySide' : 'inPlace',
+		how : (uri instanceof Uri) ? 'action' : 'pallete'
+	});
+
+	return thenable;
 }
 
 function getViewColumn(sideBySide): ViewColumn {
@@ -113,6 +134,18 @@ function showSource(mdUri: Uri) {
 	return vscode.workspace.openTextDocument(docUri).then(doc => {
 		return vscode.window.showTextDocument(doc);
 	});
+}
+
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	if (extensionPackage) {
+		return {
+			name: extensionPackage.name,
+			version: extensionPackage.version,
+			aiKey: extensionPackage.aiKey
+		};
+	}
+	return null;
 }
 
 
