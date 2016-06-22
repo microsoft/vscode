@@ -241,6 +241,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceStarted(resendModels: boolean): void {
+		if (this.storagePath) {
+			try {
+				fs.mkdirSync(this.storagePath);
+			} catch(error) {
+			}
+		}
 		this.execute('configure', {
 			autoBuild: this.storagePath ? true : false,
 			metaDataDirectory: this.storagePath
