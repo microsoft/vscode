@@ -418,6 +418,7 @@ export interface CodeAction {
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+ * @internal
  */
 export interface CodeActionProvider {
 	/**

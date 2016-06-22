@@ -3842,6 +3842,30 @@ declare module monaco.languages {
     export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
 
     /**
+     * Contains additional diagnostic information about the context in which
+     * a [code action](#CodeActionProvider.provideCodeActions) is run.
+     */
+    export interface CodeActionContext {
+        /**
+         * An array of diagnostics.
+         *
+         * @readonly
+         */
+        markers: editor.IMarkerData[];
+    }
+
+    /**
+     * The code action interface defines the contract between extensions and
+     * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+     */
+    export interface CodeActionProvider {
+        /**
+         * Provide commands for the given document and range.
+         */
+        provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+    }
+
+    /**
      * Completion item kinds.
      */
     export enum CompletionItemKind {
@@ -4173,17 +4197,6 @@ declare module monaco.languages {
     export interface CodeAction {
         command: Command;
         score: number;
-    }
-
-    /**
-     * The code action interface defines the contract between extensions and
-     * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
-     */
-    export interface CodeActionProvider {
-        /**
-         * Provide commands for the given document and range.
-         */
-        provideCodeActions(model: editor.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
     }
 
     /**
