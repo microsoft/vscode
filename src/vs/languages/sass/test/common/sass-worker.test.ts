@@ -11,7 +11,6 @@ import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
@@ -33,11 +32,7 @@ suite('SASS - Worker', () => {
 		var model = mm.createTestMirrorModelFromString(content, mockMode, url);
 		resourceService.insert(url, model);
 
-		let services = servicesUtil2.createMockEditorWorkerServices({
-			resourceService: resourceService,
-		});
-
-		var worker = new sassWorker.SassWorker('sass-mock-mode-id', services.resourceService, services.markerService);
+		var worker = new sassWorker.SassWorker('sass-mock-mode-id', resourceService, null);
 		return { worker: worker, model: model };
 	};
 

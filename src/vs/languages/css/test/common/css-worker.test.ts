@@ -13,7 +13,6 @@ import MarkerService = require('vs/platform/markers/common/markerService');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import cssErrors = require('vs/languages/css/common/parser/cssErrors');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
@@ -47,11 +46,7 @@ suite('Validation - CSS', () => {
 		var resourceService = new ResourceService.ResourceService();
 		resourceService.insert(url, mirrorModel);
 
-		let services = servicesUtil2.createMockEditorWorkerServices({
-			resourceService: resourceService,
-			markerService: markerService
-		});
-		var worker = new cssWorker.CSSWorker('css-mock-mode-id', services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('css-mock-mode-id', resourceService, markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
@@ -68,12 +63,7 @@ suite('Validation - CSS', () => {
 
 		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 
-		let services = servicesUtil2.createMockEditorWorkerServices({
-			resourceService: resourceService,
-			markerService: markerService
-		});
-
-		var worker = new cssWorker.CSSWorker('css-mock-mode-id', services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('css-mock-mode-id', resourceService, markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });

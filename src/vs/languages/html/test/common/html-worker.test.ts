@@ -12,7 +12,6 @@ import ResourceService = require('vs/editor/common/services/resourceServiceImpl'
 import MarkerService = require('vs/platform/markers/common/markerService');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {HTMLMode} from 'vs/languages/html/common/html';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -52,12 +51,7 @@ suite('HTML - worker', () => {
 
 		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 
-		let services = servicesUtil2.createMockEditorWorkerServices({
-			resourceService: resourceService,
-			markerService: markerService
-		});
-
-		var worker = new htmlWorker.HTMLWorker(mode.getId(), services.resourceService, services.markerService, services.contextService);
+		var worker = new htmlWorker.HTMLWorker(mode.getId(), resourceService, markerService, null);
 
 		return { worker: worker, model: model };
 	};

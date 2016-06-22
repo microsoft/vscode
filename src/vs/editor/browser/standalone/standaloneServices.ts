@@ -15,7 +15,6 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -120,10 +119,6 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	progressService?:IProgressService;
-	/**
-	 * @internal
-	 */
-	fileService?:IFileService;
 	/**
 	 * @internal
 	 */
