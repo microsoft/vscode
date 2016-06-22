@@ -14,6 +14,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'semver';
+import * as path from 'path';
+import URI from 'vs/base/common/uri';
 
 export enum ExtensionState {
 	Installing,
@@ -105,7 +107,7 @@ class Extension implements IExtension {
 
 	get iconUrl(): string {
 		if (this.local && this.local.manifest.icon) {
-			return `file://${ this.local.path }/${ this.local.manifest.icon }`;
+			return URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
 		}
 
 		if (this.gallery && this.gallery.versions[0].iconUrl) {
