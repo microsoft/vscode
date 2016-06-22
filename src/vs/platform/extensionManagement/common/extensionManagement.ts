@@ -8,6 +8,7 @@
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
+import { IPager } from 'vs/base/common/paging';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExtensionManifest {
@@ -18,70 +19,108 @@ export interface IExtensionManifest {
 	displayName?: string;
 	description?: string;
 	main?: string;
+	icon?: string;
 }
 
 export interface IGalleryVersion {
 	version: string;
 	date: string;
 	manifestUrl: string;
+	readmeUrl: string;
 	downloadUrl: string;
+	iconUrl: string;
 	downloadHeaders: { [key: string]: string; };
 }
 
-export interface IGalleryMetadata {
-	galleryApiUrl: string;
+export interface IExtensionIdentity {
+	name: string;
+	publisher: string;
+}
+
+export interface IGalleryExtension {
 	id: string;
+	name: string;
+	displayName: string;
 	publisherId: string;
+	publisher: string;
 	publisherDisplayName: string;
+	description: string;
 	installCount: number;
+	rating: number;
+	ratingCount: number;
 	versions: IGalleryVersion[];
 }
 
-export interface IExtension extends IExtensionManifest {
-	galleryInformation?: IGalleryMetadata;
-	path?: string;
+export interface IGalleryMetadata {
+	id: string;
+	publisherId: string;
+	publisherDisplayName: string;
+}
+
+export interface ILocalExtension {
+	id: string;
+	manifest: IExtensionManifest;
+	metadata: IGalleryMetadata;
+	path: string;
+	readmeUrl: string;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
+export enum SortBy {
+	NoneOrRelevance = 0,
+	LastUpdatedDate = 1,
+	Title = 2,
+	PublisherName = 3,
+	InstallCount = 4,
+	PublishedDate = 5,
+	AverageRating = 6
+}
+
+export enum SortOrder {
+	Default = 0,
+	Ascending = 1,
+	Descending = 2
+}
+
 export interface IQueryOptions {
 	text?: string;
 	ids?: string[];
+	names?: string[];
 	pageSize?: number;
-}
-
-export interface IQueryResult {
-	firstPage: IExtension[];
-	total: number;
-	pageSize: number;
-	getPage(pageNumber: number): TPromise<IExtension[]>;
+	sortBy?: SortBy;
+	sortOrder?: SortOrder;
 }
 
 export interface IExtensionGalleryService {
 	serviceId: ServiceIdentifier<any>;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions): TPromise<IQueryResult>;
+	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 }
+
+export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; };
+export type DidInstallExtensionEvent = { id: string; local?: ILocalExtension; error?: Error; };
 
 export interface IExtensionManagementService {
 	serviceId: ServiceIdentifier<any>;
-	onInstallExtension: Event<IExtensionManifest>;
-	onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }>;
-	onUninstallExtension: Event<IExtension>;
-	onDidUninstallExtension: Event<IExtension>;
 
-	install(extension: IExtension): TPromise<IExtension>;
-	install(zipPath: string): TPromise<IExtension>;
-	uninstall(extension: IExtension): TPromise<void>;
-	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
+	onInstallExtension: Event<InstallExtensionEvent>;
+	onDidInstallExtension: Event<DidInstallExtensionEvent>;
+	onUninstallExtension: Event<string>;
+	onDidUninstallExtension: Event<string>;
+
+	install(extension: IGalleryExtension): TPromise<void>;
+	install(zipPath: string): TPromise<void>;
+	uninstall(extension: ILocalExtension): TPromise<void>;
+	getInstalled(includeDuplicateVersions?: boolean): TPromise<ILocalExtension[]>;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
 	serviceId: ServiceIdentifier<IExtensionTipsService>;
-	getRecommendations(): TPromise<IExtension[]>;
+	getRecommendations(): TPromise<ILocalExtension[]>;
 }
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");

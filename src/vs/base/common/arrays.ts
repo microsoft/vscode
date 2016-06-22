@@ -216,10 +216,26 @@ export function flatten<T>(arr: T[][]): T[] {
 	return arr.reduce((r, v) => r.concat(v), []);
 }
 
+export function range(to: number, from = 0): number[] {
+	const result = [];
+
+	for (let i = from; i < to; i++) {
+		result.push(i);
+	}
+
+	return result;
+}
+
 export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
 	for (let i = 0; i < num; i++) {
 		arr[i] = valueFn();
 	}
 
 	return arr;
+}
+
+export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; } {
+	const result = Object.create(null);
+	array.forEach(t => result[indexer(t)] = t);
+	return result;
 }

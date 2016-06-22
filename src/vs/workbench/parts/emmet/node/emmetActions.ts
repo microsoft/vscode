@@ -15,13 +15,11 @@ import nls = require('vs/nls');
 
 export abstract class EmmetEditorAction extends EditorAction {
 
-	protected static editorAccessor: EditorAccessor;
+	protected editorAccessor: EditorAccessor;
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.TextFocus);
-		if (!EmmetEditorAction.editorAccessor) {
-			EmmetEditorAction.editorAccessor = new EditorAccessor(editor);
-		}
+		this.editorAccessor = new EditorAccessor(editor);
 	}
 
 	abstract runEmmetAction(_module: any);
@@ -30,15 +28,15 @@ export abstract class EmmetEditorAction extends EditorAction {
 		return new TPromise((c, e) => {
 			require(['emmet'], (_module) => {
 				try {
-					if (!EmmetEditorAction.editorAccessor.isEmmetEnabledMode()) {
-						EmmetEditorAction.editorAccessor.noExpansionOccurred();
+					if (!this.editorAccessor.isEmmetEnabledMode()) {
+						this.editorAccessor.noExpansionOccurred();
 						return;
 					}
 					this.runEmmetAction(_module);
 				} catch (err) {
 					//
 				} finally {
-					EmmetEditorAction.editorAccessor.flushCache();
+					this.editorAccessor.flushCache();
 				}
 			}, e);
 		});
@@ -53,8 +51,8 @@ export class ExpandAbbreviationAction extends EmmetEditorAction {
 	}
 
 	public runEmmetAction(_module) {
-		if (!_module.run('expand_abbreviation', EmmetEditorAction.editorAccessor)) {
-			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		if (!_module.run('expand_abbreviation', this.editorAccessor)) {
+			this.editorAccessor.noExpansionOccurred();
 		}
 	}
 }
@@ -67,8 +65,8 @@ export class RemoveTagAction extends EmmetEditorAction {
 	}
 
 	public runEmmetAction(_module) {
-		if (!_module.run('remove_tag', EmmetEditorAction.editorAccessor)) {
-			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		if (!_module.run('remove_tag', this.editorAccessor)) {
+			this.editorAccessor.noExpansionOccurred();
 		}
 	}
 }
@@ -91,8 +89,8 @@ export class UpdateTagAction extends EmmetEditorAction {
 	}
 
 	private wrapAbbreviation(_module: any, tag) {
-		if (!_module.run('update_tag', EmmetEditorAction.editorAccessor, tag)) {
-			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		if (!_module.run('update_tag', this.editorAccessor, tag)) {
+			this.editorAccessor.noExpansionOccurred();
 		}
 	}
 }
@@ -115,8 +113,8 @@ export class WrapWithAbbreviationAction extends EmmetEditorAction {
 	}
 
 	private wrapAbbreviation(_module: any, abbreviation) {
-		if (!_module.run('wrap_with_abbreviation', EmmetEditorAction.editorAccessor, abbreviation)) {
-			EmmetEditorAction.editorAccessor.noExpansionOccurred();
+		if (!_module.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
+			this.editorAccessor.noExpansionOccurred();
 		}
 	}
 }

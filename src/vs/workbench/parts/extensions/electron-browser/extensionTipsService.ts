@@ -8,7 +8,7 @@ import {forEach} from 'vs/base/common/collections';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {match} from 'vs/base/common/glob';
-import {IExtensionGalleryService, IExtensionTipsService, IExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
+import {IExtensionGalleryService, IExtensionTipsService, ILocalExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -62,10 +62,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		}
 	}
 
-	getRecommendations(): Promise<IExtension[]> {
-		const ids = Object.keys(this._recommendations);
+	getRecommendations(): Promise<ILocalExtension[]> {
+		const names = Object.keys(this._recommendations);
 
-		return this._galleryService.query({ ids, pageSize: ids.length })
+		return this._galleryService.query({ names, pageSize: names.length })
 			.then(result => result.firstPage, () => []);
 	}
 

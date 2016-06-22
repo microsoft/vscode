@@ -83,7 +83,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
-    "typescript": "^1.8.0",
+    "typescript": "^1.8.10",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",

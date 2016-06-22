@@ -231,10 +231,12 @@ registerCoreCommand(H.ScrollLineDown, {
 });
 
 registerCoreCommand(H.ScrollPageUp, {
-	primary: KeyMod.CtrlCmd | KeyCode.PageUp
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+	win: { primary: KeyMod.Alt | KeyCode.PageUp }
 });
 registerCoreCommand(H.ScrollPageDown, {
-	primary: KeyMod.CtrlCmd | KeyCode.PageDown
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+	win: { primary: KeyMod.Alt | KeyCode.PageDown }
 });
 
 registerCoreCommand(H.CursorColumnSelectLeft, {

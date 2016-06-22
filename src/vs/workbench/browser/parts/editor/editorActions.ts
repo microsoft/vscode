@@ -1014,10 +1014,7 @@ export class ShowAllEditorsAction extends QuickOpenAction {
 	}
 }
 
-export class OpenPreviousEditorInGroupAction extends Action {
-
-	public static ID = 'workbench.action.openPreviousEditorInGroup';
-	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous in Editor Group");
+export class BaseQuickOpenEditorInGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -1049,6 +1046,40 @@ export class OpenPreviousEditorInGroupAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
+
+	public static ID = 'workbench.action.openPreviousRecentlyUsedEditorInGroup';
+	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous Recently Used Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, quickOpenService, keybindingService, editorGroupService, editorService);
+	}
+}
+
+export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
+
+	public static ID = 'workbench.action.openNextRecentlyUsedEditorInGroup';
+	public static LABEL = nls.localize('openNextEditorInGroup', "Open Next Recently Used Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, quickOpenService, keybindingService, editorGroupService, editorService);
 	}
 }
 

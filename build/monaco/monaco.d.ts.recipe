@@ -69,7 +69,7 @@ export interface ICommandHandler {
 
 declare module monaco.languages {
 
-#includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.):
+#includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData):
 #include(vs/editor/common/modes/languageConfigurationRegistry): CommentRule, LanguageConfiguration
 #include(vs/editor/common/modes/supports/onEnter): IndentationRule, OnEnterRule
 #include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment

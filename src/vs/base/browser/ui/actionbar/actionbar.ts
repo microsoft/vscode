@@ -137,7 +137,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public onClick(event: Event): void {
 		DOM.EventHelper.stop(event, true);
-		
+
 		let context: any;
 		if (types.isUndefinedOrNull(this._context)) {
 			context = event;
@@ -388,6 +388,7 @@ export interface IActionBarOptions {
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
+	animated?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -439,6 +440,10 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
+
+		if (options.animated !== false) {
+			DOM.addClass(this.domNode, 'animated');
+		}
 
 		let isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
 		if (isVertical) {

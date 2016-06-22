@@ -492,7 +492,7 @@ export class DebugService implements debug.IDebugService {
 			name: variable.name,
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
-		}).then(response => variable.value = response.body.value);
+		}).then(response => variable.value = response.body.value, err => (<model.Variable>variable).errorMessage = err.message);
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -646,6 +646,11 @@ export class DebugService implements debug.IDebugService {
 					isBuiltin: this.configurationManager.adapter.extensionDescription.isBuiltin
 				});
 			}).then(undefined, (error: any) => {
+				if (error instanceof Error && error.message === 'Canceled') {
+					// Do not show 'canceled' error messages to the user #7906
+					return TPromise.as(null);
+				}
+
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 				this.setStateAndEmit(debug.State.Inactive);
 				if (this.session) {

@@ -5,48 +5,62 @@
 
 'use strict';
 
-import { IExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentity, ILocalExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
 
-export function getExtensionId(extension: IExtension): string {
-	return `${ extension.publisher }.${ extension.name }`;
-}
-
-export function extensionEquals(one: IExtension, other: IExtension): boolean {
+export function extensionEquals(one: IExtensionIdentity, other: IExtensionIdentity): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
-export function getTelemetryData(extension: IExtension): any {
-	return {
-		id: getExtensionId(extension),
-		name: extension.name,
-		galleryId: extension.galleryInformation ? extension.galleryInformation.id : null,
-		publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-		publisherName: extension.publisher,
-		publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
-	};
+export function getTelemetryData(extension: ILocalExtension | IGalleryExtension): any {
+	const local = extension as ILocalExtension;
+	const gallery = extension as IGalleryExtension;
+
+	if (local.path) {
+		return {
+			id: `${ local.manifest.publisher }.${ local.manifest.name }`,
+			name: local.manifest.name,
+			galleryId: local.metadata ? local.metadata.id : null,
+			publisherId: local.metadata ? local.metadata.publisherId : null,
+			publisherName: local.manifest.publisher,
+			publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
+		};
+	} else {
+		return {
+			id: `${ gallery.publisher }.${ gallery.name }`,
+			name: gallery.name,
+			galleryId: gallery.id,
+			publisherId: gallery.publisherId,
+			publisherName: gallery.publisher,
+			publisherDisplayName: gallery.publisherDisplayName
+		};
+	}
 }
 
-export function getOutdatedExtensions(extensionsService: IExtensionManagementService, galleryService: IExtensionGalleryService): TPromise<IExtension[]> {
+export function getOutdatedExtensions(extensionsService: IExtensionManagementService, galleryService: IExtensionGalleryService): TPromise<ILocalExtension[]> {
 	if (!galleryService.isEnabled()) {
 		return TPromise.as([]);
 	}
 
 	return extensionsService.getInstalled().then(installed => {
-		const ids = installed.map(getExtensionId);
+		const names = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
 
 		if (installed.length === 0) {
 			return TPromise.as([]);
 		}
 
-		return galleryService.query({ ids, pageSize: ids.length }).then(result => {
+		return galleryService.query({ names, pageSize: names.length }).then(result => {
 			const available = result.firstPage;
 
-			return available.filter(extension => {
-				const local = installed.filter(local => extensionEquals(local, extension))[0];
-				return local && semver.lt(local.version, extension.version);
-			});
+			return available.map(extension => {
+				const local = installed.filter(local => extensionEquals(local.manifest, extension))[0];
+				if (local && semver.lt(local.manifest.version, extension.versions[0].version)) {
+					return local;
+				} else {
+					return null;
+				}
+			}).filter(e => !!e);
 		});
 	});
 }

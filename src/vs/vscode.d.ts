@@ -2630,7 +2630,7 @@ declare namespace vscode {
 	/**
 	 * A diagnostics collection is a container that manages a set of
 	 * [diagnostics](#Diagnostic). Diagnostics are always scopes to a
-	 * a diagnostics collection and a resource.
+	 * diagnostics collection and a resource.
 	 *
 	 * To get an instance of a `DiagnosticCollection` use
 	 * [createDiagnosticCollection](#languages.createDiagnosticCollection).

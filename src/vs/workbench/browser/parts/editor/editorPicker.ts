@@ -11,7 +11,7 @@ import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import {IAutoFocus, Mode, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
@@ -178,8 +178,8 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditors', "List of opened editors is currently empty");
 	}
 
-	public getAutoFocus(searchValue: string, isQuickNavigating?: boolean): IAutoFocus {
-		if (searchValue || !isQuickNavigating) {
+	public getAutoFocus(searchValue: string, quickNavigateConfiguration: IQuickNavigateConfiguration): IAutoFocus {
+		if (searchValue || !quickNavigateConfiguration) {
 			return {
 				autoFocusFirstEntry: true
 			};
@@ -189,6 +189,13 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 		const group = stacks.groupAt(this.getPosition());
 		if (!group) {
 			return super.getAutoFocus(searchValue);
+		}
+
+		const isShiftNavigate = (quickNavigateConfiguration && quickNavigateConfiguration.keybindings.some(k => k.hasShift()));
+		if (isShiftNavigate) {
+			return {
+				autoFocusLastEntry: true
+			};
 		}
 
 		return {

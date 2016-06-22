@@ -65,9 +65,6 @@ exports.collectModules = function(args) {
 		.combine(worker)
 			.define('vs/languages/html/common/htmlWorker', ['vs/languages/lib/common/beautify-html']);
 
-	// ---- markdown -------------------------------
-	common.define('vs/languages/markdown/common/markdown', ['vs/languages/html/common/html']);
-
 	// ---- php -----------------------------------
 	common.define('vs/languages/php/common/php');
 
