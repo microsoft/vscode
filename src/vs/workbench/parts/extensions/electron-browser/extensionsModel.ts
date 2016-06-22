@@ -325,12 +325,12 @@ export class ExtensionsModel {
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		if (this.installed.some(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))) {
-			return ExtensionState.Installed;
-		}
-
 		if (extension.gallery && this.installing.some(e => e.extension.gallery.id === extension.gallery.id)) {
 			return ExtensionState.Installing;
+		}
+
+		if (this.installed.some(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))) {
+			return ExtensionState.Installed;
 		}
 
 		return ExtensionState.Uninstalled;
