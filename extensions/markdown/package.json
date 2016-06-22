@@ -4,7 +4,7 @@
 	"description": "Markdown for VS Code",
 	"version": "0.2.0",
 	"publisher": "Microsoft",
-	"aiKey":"AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "^1.0.0"
 	},
@@ -49,9 +49,15 @@
 				"icon": {
 					"light": "./media/Preview.svg",
 					"dark": "./media/Preview_inverse.svg"
-				},
-				"when": "resourceLangId == markdown",
-				"where": "editor/primary"
+				}
+			},
+			{
+				"command": "markdown.showPreviewToSide",
+				"title": "%markdown.previewMarkdownSide.title%",
+				"icon": {
+					"light": "./media/Preview.svg",
+					"dark": "./media/Preview_inverse.svg"
+				}
 			},
 			{
 				"command": "markdown.showSource",
@@ -60,17 +66,22 @@
 				"icon": {
 					"light": "./media/ViewSource.svg",
 					"dark": "./media/ViewSource_inverse.svg"
-				},
-				"when": "resourceScheme == markdown",
-				"where": "editor/primary"
-			},
-			{
-				"command": "markdown.showPreviewToSide",
-				"title": "%markdown.previewMarkdownSide.title%",
-				"when": "resourceLangId == markdown",
-				"where": "editor/secondary"
+				}
 			}
 		],
+		"menus": {
+			"editor/primary": [
+				{
+					"when": "resourceLangId == markdown",
+					"command": "markdown.showPreview",
+					"alt": "markdown.showPreviewToSide"
+				},
+				{
+					"when": "resourceLangId == markdown",
+					"command": "markdown.showSource"
+				}
+			]
+		},
 		"keybindings": [
 			{
 				"command": "markdown.showPreview",
@@ -83,17 +94,19 @@
 				"mac": "cmd+k v"
 			}
 		],
-		"snippets": [{
-			"language": "markdown",
-			"path": "./snippets/markdown.json"
-		}],
+		"snippets": [
+			{
+				"language": "markdown",
+				"path": "./snippets/markdown.json"
+			}
+		],
 		"configuration": {
 			"type": "object",
 			"title": "Markdown preview configuration",
 			"properties": {
 				"markdown.styles": {
 					"type": "array",
-					"default" : null,
+					"default": null,
 					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
 				}
 			}

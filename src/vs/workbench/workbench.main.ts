@@ -16,7 +16,7 @@ import 'vs/editor/browser/editor.all';
 // Languages
 import 'vs/languages/languages.main';
 
-// Extension Points
+// Menus/Actions
 import 'vs/platform/actions/common/menusExtensionPoint';
 
 // Workbench
