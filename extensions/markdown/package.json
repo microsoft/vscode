@@ -13,7 +13,8 @@
 	],
 	"activationEvents": [
 		"onCommand:markdown.showPreview",
-		"onCommand:markdown.showPreviewToSide"
+		"onCommand:markdown.showPreviewToSide",
+		"onCommand:markdown.showSource"
 	],
 	"contributes": {
 		"languages": [
@@ -60,7 +61,7 @@
 			},
 			{
 				"command": "markdown.showSource",
-				"title": "%markdown.previewMarkdown.title%",
+				"title": "%markdown.showSource.title%",
 				"category": "%markdown.category%",
 				"icon": {
 					"light": "./media/ViewSource.svg",
