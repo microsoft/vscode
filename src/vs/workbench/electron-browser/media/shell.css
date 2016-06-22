@@ -62,6 +62,21 @@
 	opacity: 1 !important;
 }
 
+.monaco-shell.vs input[type="search"]::-webkit-search-decoration,
+.monaco-shell.vs input[type="search"]::-webkit-search-results-button,
+.monaco-shell.vs input[type="search"]::-webkit-search-results-decoration {
+	display: none;
+}
+
+.monaco-shell.vs input[type="search"]::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+	height: 18px;
+	width: 18px;
+	background-image: url('clear.svg');
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
 .monaco-shell.vs-dark [tabindex="0"]:focus,
 .monaco-shell.vs-dark .synthetic-focus,
 .monaco-shell.vs-dark select:focus,

@@ -22,16 +22,6 @@
 	-webkit-appearance: textfield;
 }
 
-.extensions-viewlet > .header > .search-box::-webkit-search-decoration,
-.extensions-viewlet > .header > .search-box::-webkit-search-results-button,
-.extensions-viewlet > .header > .search-box::-webkit-search-results-decoration {
-	display: none;
-}
-
-.extensions-viewlet > .header > .search-box:focus {
-	outline: none;
-}
-
 .extensions-viewlet > .extensions {
 	height: calc(100% - 38px);
 }
