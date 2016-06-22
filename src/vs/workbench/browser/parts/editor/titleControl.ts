@@ -282,9 +282,7 @@ export abstract class TitleControl {
 		return { primary, secondary };
 	}
 
-	private getEditorActionsForContext(context: BaseEditor): IToolbarActions;
-	private getEditorActionsForContext(context: IEditorInputActionContext): IToolbarActions;
-	private getEditorActionsForContext(context: any): IToolbarActions {
+	private getEditorActionsForContext(context: BaseEditor | IEditorInputActionContext): IToolbarActions {
 		const primaryActions: IAction[] = [];
 		const secondaryActions: IAction[] = [];
 
