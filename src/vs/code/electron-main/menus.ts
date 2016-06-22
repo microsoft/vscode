@@ -528,22 +528,6 @@ export class VSCodeMenu {
 		let integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
 		let problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.actions.view.problems');
 
-		let viewsMenu = new Menu();
-		[
-			explorer,
-			search,
-			git,
-			debug,
-			__separator__(),
-			output,
-			problems,
-			debugConsole,
-			integratedTerminal
-		].forEach(item => viewsMenu.append(item));
-
-		let viewsItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miView', comment: ['&& denotes a mnemonic'] }, "&&Views")), submenu: viewsMenu, enabled: true });
-
-
 		let commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 
 		let fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
@@ -562,7 +546,15 @@ export class VSCodeMenu {
 		let resetZoom = this.createMenuItem(nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"), 'workbench.action.zoomReset');
 
 		arrays.coalesce([
-			viewsItem,
+			explorer,
+			search,
+			git,
+			debug,
+			__separator__(),
+			output,
+			problems,
+			debugConsole,
+			integratedTerminal,
 			__separator__(),
 			commands,
 			__separator__(),
