@@ -27,9 +27,8 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import PartService = require('vs/workbench/services/part/common/partService');
-import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {ITextFileService, EventType} from 'vs/workbench/parts/files/common/files';
-import {TestFileService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestTextFileService, TestFileService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/common/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {
@@ -39,7 +38,7 @@ function toResource(path) {
 let baseInstantiationService: IInstantiationService;
 let messageService: TestMessageService;
 let eventService: TestEventService;
-let textFileService: TextFileService;
+let textFileService: TestTextFileService;
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -64,7 +63,7 @@ suite('Files - TextFileEditorModel', () => {
 		services.set(IConfigurationService, new TestConfigurationService());
 
 		baseInstantiationService = new InstantiationService(services);
-		textFileService = <any>baseInstantiationService.createInstance(<any>TextFileService);
+		textFileService = <any>baseInstantiationService.createInstance(<any>TestTextFileService);
 		services.set(ITextFileService, textFileService);
 	});
 

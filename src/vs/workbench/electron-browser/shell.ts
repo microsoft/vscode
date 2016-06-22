@@ -27,7 +27,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
-import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
+import {WorkspaceStats} from 'vs/workbench/services/telemetry/common/workspaceStats';
 import {IWindowService, WindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {MessageService} from 'vs/workbench/services/message/electron-browser/messageService';
 import {RequestService} from 'vs/workbench/services/request/node/requestService';

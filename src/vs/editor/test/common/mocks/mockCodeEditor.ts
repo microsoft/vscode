@@ -80,7 +80,7 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 	services.set(ITelemetryService, telemetryService);
 	let instantiationService = new InstantiationService(services);
 
-	let model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+	let model = Model.createFromString(text.join('\n'));
 	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, keybindingService, telemetryService);
 	editor.setModel(model);
 

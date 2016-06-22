@@ -105,14 +105,18 @@ export class PagedModel<T> implements IPagedModel<T> {
 	}
 }
 
+export function singlePagePager<T>(elements: T[]): IPager<T> {
+	return {
+		firstPage: elements,
+		total: elements.length,
+		pageSize: elements.length,
+		getPage: null
+	};
+}
+
 export class SinglePagePagedModel<T> extends PagedModel<T> {
 	constructor(elements: T[]) {
-		super({
-			firstPage: elements,
-			total: elements.length,
-			pageSize: elements.length,
-			getPage: null
-		});
+		super(singlePagePager(elements));
 	}
 }
 

@@ -15,9 +15,12 @@
 
 .extensions-viewlet > .header > .search-box {
 	width: 100%;
-	height: 26px;
+	height: 28px;
+	line-height: 18px;
 	box-sizing: border-box;
-	padding: 0 3px;
+	padding: 4px;
+	border: 1px solid transparent;
+	-webkit-appearance: textfield;
 }
 
 .extensions-viewlet > .extensions {
@@ -80,7 +83,12 @@
 	padding-left: 6px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .monaco-action-bar .action-label {
+.extensions-viewlet > .extensions .extension > .details > .footer {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
 	margin-right: 0;
 	margin-left: 0.3em;
 }
@@ -90,7 +98,3 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
-
-/*.extensions-viewlet > .extensions .extension > .details {
-	width: 100%;
-}*/

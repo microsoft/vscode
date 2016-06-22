@@ -86,6 +86,11 @@
 	justify-content: flex-start;
 }
 
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	font-size: 18px;
+	font-weight: 600;
+}
+
 .extension-editor > .body {
 	flex: 1;
 	overflow-y: scroll;

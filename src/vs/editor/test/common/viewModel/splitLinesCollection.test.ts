@@ -11,7 +11,6 @@ import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {ILineMapping, IModel, SplitLine, SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {Model} from 'vs/editor/common/model/model';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -89,14 +88,14 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			config.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 		);
 
-		let model = new Model([
+		let model = Model.createFromString([
 			'int main() {',
 			'\tprintf("Hello world!");',
 			'}',
 			'int main() {',
 			'\tprintf("Hello world!");',
 			'}',
-		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		].join('\n'));
 
 		let linesCollection = new SplitLinesCollection(
 			model,

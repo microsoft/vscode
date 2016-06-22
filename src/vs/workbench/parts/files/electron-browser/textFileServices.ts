@@ -18,7 +18,7 @@ import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/fil
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileOperationResult, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IFileService} from 'vs/platform/files/common/files';
+import {IFileService, IStringStream} from 'vs/platform/files/common/files';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -29,13 +29,15 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {ModelBuilder, ModelBuilderResult} from 'vs/editor/node/model/modelBuilder';
 
 export class TextFileService extends AbstractTextFileService {
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService private fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -44,9 +46,10 @@ export class TextFileService extends AbstractTextFileService {
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IModelService private modelService: IModelService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService);
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService);
 
 		this.init();
 	}
@@ -109,6 +112,10 @@ export class TextFileService extends AbstractTextFileService {
 
 	private onShutdown(): void {
 		super.dispose();
+	}
+
+	protected stringStreamToRawText(stream:IStringStream): TPromise<ModelBuilderResult> {
+		return ModelBuilder.fromStringStream(stream, this.modelService.getCreationOptions());
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {

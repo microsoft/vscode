@@ -24,6 +24,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -52,6 +53,7 @@ export class TabsTitleControl extends TitleControl {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService
@@ -78,11 +80,22 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.setAttribute('role', 'tablist');
 		DOM.addClass(this.tabsContainer, 'tabs-container');
 
+		// Forward scrolling inside the container to our custom scrollbar
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
 				this.scrollbar.updateState({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
+			}
+		}));
+
+		// New file when double clicking on tabs container (but not tabs)
+		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DBLCLICK, e => {
+			const target = e.target;
+			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
+				DOM.EventHelper.stop(e);
+
+				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true })); // untitled are always pinned
 			}
 		}));
 
@@ -412,8 +425,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			if (handled) {
-				event.preventDefault();
-				event.stopPropagation();
+				DOM.EventHelper.stop(e, true);
 			}
 		}));
 

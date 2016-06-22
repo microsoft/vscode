@@ -206,20 +206,25 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
-		return this.send('initialize', args).then(response => {
+		return this.send('initialize', args).then(response => this.readCapabilities(response));
+	}
+
+	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
+		if (response.body) {
 			this.capabilities = response.body;
-			return response;
-		});
+		}
+
+		return response;
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
 		this.isAttach = false;
-		return this.send('launch', args);
+		return this.send('launch', args).then(response => this.readCapabilities(response));
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
 		this.isAttach = true;
-		return this.send('attach', args);
+		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {

@@ -24,9 +24,8 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestEditorGroupService, TestHistoryService, TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestTextFileService, TestEditorGroupService, TestHistoryService, TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -58,7 +57,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(IEditorGroupService, new TestEditorGroupService());
 		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
+		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 		let otherInput = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/otherfile.js'), 'text/javascript', void 0);
@@ -128,7 +127,7 @@ suite('Files - FileEditorInput', () => {
 
 		services.set(IEventService, eventService);
 		services.set(IWorkspaceContextService, contextService);
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
+		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let fileEditorInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
 		let contentEditorInput2 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
@@ -162,7 +161,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(ITelemetryService, telemetryService);
 		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
+		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let tracker = instantiationService.createInstance(FileTracker);
 
@@ -208,7 +207,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
 		services.set(IHistoryService, new TestHistoryService());
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
+		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let tracker = instantiationService.createInstance(FileTracker);
 

@@ -28,8 +28,7 @@ import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/common/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -218,6 +217,27 @@ suite('Workbench UI Services', () => {
 				});
 			},
 
+			resolveStreamContent: function (resource) {
+				return TPromise.as({
+					resource: resource,
+					value: {
+						on: (event:string, callback:Function): void => {
+							if (event === 'data') {
+								callback('Hello Html');
+							}
+							if (event === 'end') {
+								callback();
+							}
+						}
+					},
+					etag: 'index.txt',
+					mime: 'text/plain',
+					encoding: 'utf8',
+					mtime: new Date().getTime(),
+					name: paths.basename(resource.fsPath)
+				});
+			},
+
 			updateContent: function (res) {
 				return TPromise.timeout(1).then(() => {
 					return {
@@ -267,7 +287,7 @@ suite('Workbench UI Services', () => {
 		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IFileService, <any> TestFileService);
 
-		services.set(ITextFileService, <ITextFileService>inst.createInstance(<any>TextFileService));
+		services.set(ITextFileService, <ITextFileService>inst.createInstance(<any>TestTextFileService));
 		services['instantiationService'] = inst;
 
 		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
@@ -349,7 +369,7 @@ suite('Workbench UI Services', () => {
 		services.set(PartService.IPartService, new TestPartService());
 		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(ITextFileService, <ITextFileService> inst.createInstance(<any>TextFileService));
+		services.set(ITextFileService, <ITextFileService> inst.createInstance(<any>TestTextFileService));
 		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
 		let testEditorPart = new TestEditorPart();

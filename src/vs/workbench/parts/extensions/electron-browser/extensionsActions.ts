@@ -114,17 +114,20 @@ import { IExtension, ExtensionsModel, ExtensionState } from './extensionsModel';
 
 export class InstallAction extends Action {
 
+	private static InstallLabel = nls.localize('installAction', "Install");
+	private static InstallingLabel = nls.localize('installing', "Installing");
 	private disposables: IDisposable[] = [];
 
 	constructor(private model: ExtensionsModel, private extension: IExtension) {
-		super('extensions.install', nls.localize('installAction', "Install"), 'extension-action install', false);
+		super('extensions.install', InstallAction.InstallLabel, 'extension-action install', false);
 
-		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
-		this.updateEnablement();
+		this.disposables.push(this.model.onChange(() => this.update()));
+		this.update();
 	}
 
-	private updateEnablement(): void {
+	private update(): void {
 		this.enabled = this.model.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
+		this.label = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingLabel : InstallAction.InstallLabel;
 	}
 
 	run(): TPromise<any> {
@@ -256,6 +259,7 @@ export class CombinedInstallAction extends Action {
 		this.disposables.push(this.installAction, this.uninstallAction);
 
 		this.disposables.push(this.installAction.addListener2(Action.ENABLED, () => this.update()));
+		this.disposables.push(this.installAction.addListener2(Action.LABEL, () => this.update()));
 		this.disposables.push(this.uninstallAction.addListener2(Action.ENABLED, () => this.update()));
 		this.update();
 	}

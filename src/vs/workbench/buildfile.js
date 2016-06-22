@@ -35,6 +35,8 @@ exports.collectModules = function(excludes) {
 		createModuleDescription('vs/workbench/parts/debug/browser/repl', excludes),
 		createModuleDescription('vs/workbench/parts/debug/node/telemetryApp', []),
 
+		createModuleDescription('vs/workbench/parts/extensions/electron-browser/extensionsViewlet', excludes),
+
 		createModuleDescription('vs/workbench/parts/markers/browser/markersPanel', excludes),
 
 		createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes),

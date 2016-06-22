@@ -57,7 +57,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version.ellipsis'));
 		const author = append(header, $('span.author.ellipsis'));
 		const description = append(details, $('.description.ellipsis'));
-		const actionbar = new ActionBar(details, { animated: false });
+		const footer = append(details, $('.footer'));
+		const actionbar = new ActionBar(footer, { animated: false });
 		const disposables = [];
 
 		const result = { extension: null, element, icon, name, version, author, description, actionbar, disposables };

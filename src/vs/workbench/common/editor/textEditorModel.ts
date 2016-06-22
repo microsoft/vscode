@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EndOfLinePreference, IModel} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IModel, IRawText} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EditorModel} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
@@ -55,43 +55,53 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, mime (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string, resource?: URI, mime?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: string | IRawText, resource?: URI, mime?: string): TPromise<EditorModel> {
 		let firstLineText = this.getFirstLineText(value);
+		let mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
-		return TPromise.any<any>([TPromise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
-			let model = resource && this.modelService.getModel(resource);
-			let mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
-			if (!model) {
-				model = this.modelService.createModel(value, mode, resource);
-				this.createdEditorModel = true;
-			} else {
-				model.setValue(value);
-				model.setMode(mode);
-			}
-
-			this.textEditorModelHandle = model.uri;
-
-			return this;
+		return TPromise.any<any>([TPromise.timeout(50), mode]).then(() => {
+			return this._createTextEditorModelNow(value, mode, resource);
 		});
 	}
 
-	private getFirstLineText(value: string): string {
-		let firstLineText = value.substr(0, 100);
-
-		let crIndex = firstLineText.indexOf('\r');
-		if (crIndex < 0) {
-			crIndex = firstLineText.length;
+	private _createTextEditorModelNow(value: string | IRawText, mode: TPromise<IMode>, resource: URI): EditorModel {
+		let model = resource && this.modelService.getModel(resource);
+		if (!model) {
+			model = this.modelService.createModel(value, mode, resource);
+			this.createdEditorModel = true;
+		} else {
+			if (typeof value === 'string') {
+				model.setValue(value);
+			} else {
+				model.setValueFromRawText(value);
+			}
+			model.setMode(mode);
 		}
 
-		let lfIndex = firstLineText.indexOf('\n');
-		if (lfIndex < 0) {
-			lfIndex = firstLineText.length;
+		this.textEditorModelHandle = model.uri;
+
+		return this;
+	}
+
+	private getFirstLineText(value: string | IRawText): string {
+		if (typeof value === 'string') {
+			let firstLineText = value.substr(0, 100);
+
+			let crIndex = firstLineText.indexOf('\r');
+			if (crIndex < 0) {
+				crIndex = firstLineText.length;
+			}
+
+			let lfIndex = firstLineText.indexOf('\n');
+			if (lfIndex < 0) {
+				lfIndex = firstLineText.length;
+			}
+
+			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
+		} else {
+			return value.lines[0].substr(0, 100);
 		}
-
-		firstLineText = firstLineText.substr(0, Math.min(crIndex, lfIndex));
-
-		return firstLineText;
 	}
 
 	/**
@@ -106,12 +116,17 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string): void {
+	protected updateTextEditorModel(newValue: string | IRawText): void {
 		if (!this.textEditorModel) {
 			return;
 		}
 
-		let rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
+		let rawText: IRawText;
+		if (typeof newValue === 'string') {
+			rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
+		} else {
+			rawText = newValue;
+		}
 
 		// Return early if the text is already set in that form
 		if (this.textEditorModel.equals(rawText)) {

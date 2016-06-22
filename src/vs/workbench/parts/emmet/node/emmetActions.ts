@@ -36,7 +36,6 @@ export abstract class EmmetEditorAction extends EditorAction {
 				} catch (err) {
 					//
 				} finally {
-					this.editorAccessor.flushCache();
 				}
 			}, e);
 		});

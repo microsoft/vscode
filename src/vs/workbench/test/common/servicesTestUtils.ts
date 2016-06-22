@@ -9,7 +9,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {NullTelemetryService, ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import {EditorInputEvent} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -34,6 +34,11 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
+import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
+import {ModelBuilder, ModelBuilderResult} from 'vs/editor/node/model/modelBuilder';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IStringStream, IFileService} from 'vs/platform/files/common/files';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -123,6 +128,28 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 	public toResource(workspaceRelativePath: string): URI {
 		return URI.file(Paths.join('C:\\', workspaceRelativePath));
 	}
+}
+
+export abstract class TestTextFileService extends TextFileService {
+
+	constructor(
+		@WorkspaceContextService.IWorkspaceContextService contextService: WorkspaceContextService.IWorkspaceContextService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@WorkbenchEditorService.IWorkbenchEditorService editorService: WorkbenchEditorService.IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEventService eventService: IEventService,
+		@IFileService fileService: IFileService,
+		@IModelService private modelService: IModelService
+	) {
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService);
+	}
+
+	protected stringStreamToRawText(stream:IStringStream): TPromise<ModelBuilderResult> {
+		return ModelBuilder.fromStringStream(stream, this.modelService.getCreationOptions());
+	}
+
 }
 
 export class TestMessageService implements IMessageService {
@@ -520,6 +547,27 @@ export const TestFileService = {
 		return TPromise.as({
 			resource: resource,
 			value: 'Hello Html',
+			etag: 'index.txt',
+			mime: 'text/plain',
+			encoding: 'utf8',
+			mtime: new Date().getTime(),
+			name: Paths.basename(resource.fsPath)
+		});
+	},
+
+	resolveStreamContent: function (resource) {
+		return TPromise.as({
+			resource: resource,
+			value: {
+				on: (event:string, callback:Function): void => {
+					if (event === 'data') {
+						callback('Hello Html');
+					}
+					if (event === 'end') {
+						callback();
+					}
+				}
+			},
 			etag: 'index.txt',
 			mime: 'text/plain',
 			encoding: 'utf8',

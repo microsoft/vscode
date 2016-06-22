@@ -141,10 +141,18 @@ export class FileService implements files.IFileService {
 	}
 
 	public resolveContent(resource: uri, options?: files.IResolveContentOptions): TPromise<files.IContent> {
+		return this._resolveContent(resource, options, (resource, etag, enc) => this.resolveFileContent(resource, etag, enc));
+	}
+
+	public resolveStreamContent(resource: uri, options?: files.IResolveContentOptions): TPromise<files.IStreamContent> {
+		return this._resolveContent(resource, options, (resource, etag, enc) => this.resolveFileStreamContent(resource, etag, enc));
+	}
+
+	private _resolveContent<T extends files.IBaseStat>(resource: uri, options: files.IResolveContentOptions, contentResolver:(resource: uri, etag?: string, enc?: string) => TPromise<T>): TPromise<T> {
 		let absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) detect mimes
-		return nfcall(mime.detectMimesFromFile, absolutePath).then((detected: mime.IMimeAndEncoding) => {
+		return nfcall(mime.detectMimesFromFile, absolutePath).then((detected: mime.IMimeAndEncoding):TPromise<T> => {
 			let isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
 
 			// Return error early if client only accepts text and this is not text
@@ -173,7 +181,7 @@ export class FileService implements files.IFileService {
 			}
 
 			// 2.) get content
-			return this.resolveFileContent(resource, options && options.etag, preferredEncoding).then((content) => {
+			return contentResolver(resource, options && options.etag, preferredEncoding).then((content) => {
 
 				// set our knowledge about the mime on the content obj
 				content.mime = detected.mimes.join(', ');
@@ -421,11 +429,11 @@ export class FileService implements files.IFileService {
 		});
 	}
 
-	private resolveFileContent(resource: uri, etag?: string, enc?: string): TPromise<files.IContent> {
+	private resolveFileStreamContent(resource: uri, etag?: string, enc?: string): TPromise<files.IStreamContent> {
 		let absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) stat
-		return this.resolve(resource).then((model) => {
+		return this.resolve(resource).then((model): TPromise<files.IStreamContent> => {
 
 			// Return early if file not modified since
 			if (etag && etag === model.etag) {
@@ -441,29 +449,38 @@ export class FileService implements files.IFileService {
 				});
 			}
 
+			let fileEncoding = this.getEncoding(model.resource, enc);
+
+			const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
+
+			let content: files.IStreamContent = <any>model;
+			content.value = reader;
+			content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
+			return TPromise.as(content);
+		});
+	}
+
+	private resolveFileContent(resource: uri, etag?: string, enc?: string): TPromise<files.IContent> {
+		return this.resolveFileStreamContent(resource, etag, enc).then((streamContent) => {
 			// 2.) read contents
 			return new TPromise<files.IContent>((c, e) => {
 				let done = false;
-				let chunks: NodeBuffer[] = [];
-				let fileEncoding = this.getEncoding(model.resource, enc);
+				let chunks: string[] = [];
 
-				const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
-
-				reader.on('data', (buf) => {
+				streamContent.value.on('data', (buf) => {
 					chunks.push(buf);
 				});
 
-				reader.on('error', (error) => {
+				streamContent.value.on('error', (error) => {
 					if (!done) {
 						done = true;
 						e(error);
 					}
 				});
 
-				reader.on('end', () => {
-					let content: files.IContent = <any>model;
+				streamContent.value.on('end', () => {
+					let content: files.IContent = <any>streamContent;
 					content.value = chunks.join('');
-					content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
 
 					if (!done) {
 						done = true;

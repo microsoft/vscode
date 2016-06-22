@@ -52,7 +52,7 @@ suite('Editor Model - Model', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
+		thisModel = Model.createFromString(text);
 	});
 
 	teardown(() => {
@@ -358,7 +358,7 @@ suite('Editor Model - Model Line Separators', () => {
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
+		thisModel = Model.createFromString(text);
 	});
 
 	teardown(() => {
@@ -374,7 +374,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = new Model('Hello\rWorld!\r\nAnother line', Model.DEFAULT_CREATION_OPTIONS, null);
+		var model = Model.createFromString('Hello\rWorld!\r\nAnother line');
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
@@ -396,7 +396,7 @@ suite('Editor Model - bracket Matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, bracketMode);
+		thisModel = Model.createFromString(text, undefined, bracketMode);
 	});
 
 	teardown(() => {
@@ -461,7 +461,7 @@ suite('Editor Model - bracket Matching 2', () => {
 		var text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, bracketMode);
+		thisModel = Model.createFromString(text, undefined, bracketMode);
 	});
 
 	teardown(() => {
@@ -496,7 +496,7 @@ suite('Editor Model - Words', () => {
 
 	setup(() => {
 		var text = [ 'This text has some  words. ' ];
-		thisModel = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		thisModel = Model.createFromString(text.join('\n'));
 	});
 
 	teardown(() => {
@@ -532,7 +532,7 @@ suite('Editor Model - Find', () => {
 			'It is also interesting if it\'s part of a word like amazingFooBar',
 			'Again nothing interesting here'
 		];
-		thisModel = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		thisModel = Model.createFromString(text.join('\n'));
 	});
 
 	teardown(() => {
@@ -618,7 +618,7 @@ suite('Editor Model - Find', () => {
 			'',
 			'Again nothing interesting here'
 		];
-		var model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		var model = Model.createFromString(text.join('\n'));
 
 		var ranges = [
 			[2, 1, 2, 1],

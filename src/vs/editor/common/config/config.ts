@@ -232,11 +232,13 @@ registerCoreCommand(H.ScrollLineDown, {
 
 registerCoreCommand(H.ScrollPageUp, {
 	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
-	win: { primary: KeyMod.Alt | KeyCode.PageUp }
+	win: { primary: KeyMod.Alt | KeyCode.PageUp },
+	linux: { primary: KeyMod.Alt | KeyCode.PageUp }
 });
 registerCoreCommand(H.ScrollPageDown, {
 	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
-	win: { primary: KeyMod.Alt | KeyCode.PageDown }
+	win: { primary: KeyMod.Alt | KeyCode.PageDown },
+	linux: { primary: KeyMod.Alt | KeyCode.PageDown }
 });
 
 registerCoreCommand(H.CursorColumnSelectLeft, {

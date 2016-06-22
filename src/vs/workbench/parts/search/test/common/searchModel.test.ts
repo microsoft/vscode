@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
-import model = require('vs/editor/common/model/model');
+import {Model} from 'vs/editor/common/model/model';
 import {Emitter} from 'vs/base/common/event';
 import {IModel} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
@@ -30,7 +30,7 @@ suite('Search - Model', () => {
 	setup(() => {
 		let emitter = new Emitter<any>();
 
-		oneModel = new model.Model('line1\nline2\nline3', model.Model.DEFAULT_CREATION_OPTIONS, null, URI.parse('file:///folder/file.txt'));
+		oneModel = Model.createFromString('line1\nline2\nline3', undefined, undefined, URI.parse('file:///folder/file.txt'));
 		let services = new ServiceCollection();
 		services.set(IWorkspaceContextService, new TestContextService());
 		services.set(IRequestService, <any>{

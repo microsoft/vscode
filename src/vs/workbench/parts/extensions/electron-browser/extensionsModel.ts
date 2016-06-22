@@ -11,9 +11,11 @@ import { index } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IPager, mapPager } from 'vs/base/common/paging';
+import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'semver';
+import * as path from 'path';
+import URI from 'vs/base/common/uri';
 
 export enum ExtensionState {
 	Installing,
@@ -105,7 +107,7 @@ class Extension implements IExtension {
 
 	get iconUrl(): string {
 		if (this.local && this.local.manifest.icon) {
-			return `file://${ this.local.path }/${ this.local.manifest.icon }`;
+			return URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
 		}
 
 		if (this.gallery && this.gallery.versions[0].iconUrl) {
@@ -203,6 +205,13 @@ export class ExtensionsModel {
 
 				return new Extension(this.stateProvider, null, gallery);
 			});
+		})
+		.then(null, err => {
+			if (/No extension gallery service configured/.test(err.message)) {
+				return TPromise.as(singlePagePager([]));
+			}
+
+			return TPromise.wrapError(err);
 		});
 	}
 
@@ -316,12 +325,12 @@ export class ExtensionsModel {
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		if (this.installed.some(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))) {
-			return ExtensionState.Installed;
-		}
-
 		if (extension.gallery && this.installing.some(e => e.extension.gallery.id === extension.gallery.id)) {
 			return ExtensionState.Installing;
+		}
+
+		if (this.installed.some(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))) {
+			return ExtensionState.Installed;
 		}
 
 		return ExtensionState.Uninstalled;

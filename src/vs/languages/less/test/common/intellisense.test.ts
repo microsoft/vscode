@@ -12,7 +12,6 @@ import ResourceService = require('vs/editor/common/services/resourceServiceImpl'
 import WinJS = require('vs/base/common/winjs.base');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
@@ -36,11 +35,7 @@ suite('LESS - Intellisense', () => {
 		var url = URI.parse('test://1');
 		resourceService.insert(url,  mm.createTestMirrorModelFromString(value, mockMode, url));
 
-		let services = servicesUtil2.createMockEditorWorkerServices({
-			resourceService: resourceService,
-		});
-
-		var worker = new lessWorker.LessWorker('less-mock-mode-id', services.resourceService, services.markerService);
+		var worker = new lessWorker.LessWorker('less-mock-mode-id', resourceService, null);
 		var position: EditorCommon.IPosition;
 		if (stringBefore === null) {
 			position = { column: 1, lineNumber: 1 };
@@ -58,8 +53,8 @@ suite('LESS - Intellisense', () => {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label;
 		});
-		if (proposalsFound.length != 1) {
-			assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
+		if (proposalsFound.length !== 1) {
+			assert.fail('Suggestion not found: ' + label + ', has ' + completion.suggestions.map(s => s.label).join(', '));
 		}
 	};
 

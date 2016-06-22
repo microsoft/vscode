@@ -25,7 +25,7 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
+		model = Model.createFromString(text);
 	});
 
 	teardown(() => {
