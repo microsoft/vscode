@@ -9,6 +9,7 @@ import {Keybinding} from 'vs/base/common/keyCodes';
 import {TypeConstraint} from 'vs/base/common/types';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -441,6 +442,7 @@ export interface IKeybindingService {
 	serviceId: ServiceIdentifier<any>;
 	dispose(): void;
 
+	onDidChangeContext: Event<string[]>;
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
 	contextMatchesRules(rules: KbExpr): boolean;
 	getContextValue<T>(key: string): T;

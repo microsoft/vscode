@@ -22,6 +22,7 @@ import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -37,14 +38,17 @@ export class KeybindingContext {
 		this._value['_contextId'] = id;
 	}
 
-	public setValue(key: string, value: any): void {
-		//		console.log('SET ' + key + ' = ' + value + ' ON ' + this._id);
-		this._value[key] = value;
+	public setValue(key: string, value: any): boolean {
+		if (this._value[key] !== value) {
+			// console.log('SET ' + key + ' = ' + value + ' ON ' + this._id);
+			this._value[key] = value;
+			return true;
+		}
 	}
 
-	public removeValue(key: string): void {
-		//		console.log('REMOVE ' + key + ' FROM ' + this._id);
-		delete this._value[key];
+	public removeValue(key: string): boolean {
+		// console.log('REMOVE ' + key + ' FROM ' + this._id);
+		return delete this._value[key];
 	}
 
 	public fillInContext(bucket: any): void {
@@ -131,11 +135,15 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 
 export abstract class AbstractKeybindingService {
 	public serviceId = IKeybindingService;
+
+	protected _onDidChangeContext: Event<string[]>;
+	protected _onDidChangeContextKey: Emitter<string>;
 	protected _myContextId: number;
 	protected _instantiationService: IInstantiationService;
 
 	constructor(myContextId: number) {
 		this._myContextId = myContextId;
+		this._onDidChangeContextKey = new Emitter<string>();
 		this._instantiationService = null;
 	}
 
@@ -147,20 +155,38 @@ export abstract class AbstractKeybindingService {
 
 	public abstract getContextValue<T>(key: string): T;
 
+	public get onDidChangeContext(): Event<string[]> {
+		if (!this._onDidChangeContext) {
+			this._onDidChangeContext = debounceEvent(this._onDidChangeContextKey.event, (prev: string[], cur) => {
+				if (!prev) {
+					prev = [cur];
+				} else if (prev.indexOf(cur) < 0) {
+					prev.push(cur);
+				}
+				return prev;
+			}, 25);
+		}
+		return this._onDidChangeContext;
+	}
+
 	public setInstantiationService(instantiationService: IInstantiationService): void {
 		this._instantiationService = instantiationService;
 	}
 
 	public createScoped(domNode: IKeybindingScopeLocation): IKeybindingService {
-		return new ScopedKeybindingService(this, domNode);
+		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
 	}
 
 	public setContext(key: string, value: any): void {
-		this.getContext(this._myContextId).setValue(key, value);
+		if(this.getContext(this._myContextId).setValue(key, value)) {
+			this._onDidChangeContextKey.fire(key);
+		}
 	}
 
 	public removeContext(key: string): void {
-		this.getContext(this._myContextId).removeValue(key);
+		if(this.getContext(this._myContextId).removeValue(key)) {
+			this._onDidChangeContextKey.fire(key);
+		}
 	}
 
 	public hasCommand(commandId: string): boolean {
@@ -416,9 +442,10 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 	private _parent: AbstractKeybindingService;
 	private _domNode: IKeybindingScopeLocation;
 
-	constructor(parent: AbstractKeybindingService, domNode: IKeybindingScopeLocation) {
+	constructor(parent: AbstractKeybindingService, emitter: Emitter<string>, domNode: IKeybindingScopeLocation) {
 		super(parent.createChildContext());
 		this._parent = parent;
+		this._onDidChangeContextKey = emitter;
 		this._domNode = domNode;
 		this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
 	}
@@ -426,6 +453,10 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 	public dispose(): void {
 		this._parent.disposeContext(this._myContextId);
 		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+	}
+
+	public get onDidChangeContext(): Event<string[]> {
+		return this._parent.onDidChangeContext;
 	}
 
 	public contextMatchesRules(rules: KbExpr): boolean {
