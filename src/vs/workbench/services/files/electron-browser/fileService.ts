@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
 import timer = require('vs/base/common/timer');
-import {IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IImportResult, IResolveContentOptions, IUpdateContentOptions} from 'vs/platform/files/common/files';
+import {IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions} from 'vs/platform/files/common/files';
 import {FileService as NodeFileService, IFileServiceOptions, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -122,6 +122,17 @@ export class FileService implements IFileService {
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
 
 		return this.raw.resolveContent(resource, options).then((result) => {
+			timerEvent.stop();
+
+			return result;
+		});
+	}
+
+	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
+		let contentId = resource.toString();
+		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
+
+		return this.raw.resolveStreamContent(resource, options).then((result) => {
 			timerEvent.stop();
 
 			return result;

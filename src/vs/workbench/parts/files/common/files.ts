@@ -8,10 +8,10 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
+import {IModel, IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
-import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
@@ -246,8 +246,30 @@ export enum AutoSaveMode {
 
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
+export interface IRawTextContent extends IBaseStat {
+	/**
+	 * The line grouped content of a text file.
+	 */
+	value: IRawText;
+
+	/**
+	 * The line grouped logical hash of a text file.
+	 */
+	valueLogicalHash: string;
+
+	/**
+	 * The encoding of the content if known.
+	 */
+	encoding: string;
+}
+
 export interface ITextFileService extends IDisposable {
 	serviceId: ServiceIdentifier<any>;
+
+	/**
+	 * Resolve the contents of a file identified by the resource.
+	 */
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
 	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.

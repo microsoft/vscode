@@ -4,16 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IStringStream} from 'vs/platform/files/common/files';
 import * as crypto from 'crypto';
 import {DefaultEndOfLine, ITextModelCreationOptions, ITextModelResolvedOptions, IRawText} from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
-
-export interface IStringStream {
-	onData(listener: (chunk:string)=>void): IDisposable;
-	onEnd(listener: ()=>void): IDisposable;
-}
+import {TPromise} from 'vs/base/common/winjs.base';
 
 export class ModelBuilderResult {
 	rawText: IRawText;
@@ -110,6 +106,31 @@ export class ModelBuilder {
 	private totalCRCount: number;
 	private lineBasedBuilder: ModelLineBasedBuilder;
 	private totalLength: number;
+
+	public static fromStringStream(stream:IStringStream, options:ITextModelCreationOptions): TPromise<ModelBuilderResult> {
+		return new TPromise<ModelBuilderResult>((c, e, p) => {
+			let done = false;
+			let builder = new ModelBuilder();
+
+			stream.on('data', (chunk) => {
+				builder.acceptChunk(chunk);
+			});
+
+			stream.on('error', (error) => {
+				if (!done) {
+					done = true;
+					e(error);
+				}
+			});
+
+			stream.on('end', () => {
+				if (!done) {
+					done = true;
+					c(builder.finish(options));
+				}
+			});
+		});
+	}
 
 	constructor() {
 		this.leftoverPrevChunk = '';
