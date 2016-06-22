@@ -592,7 +592,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			carriageReturnCnt++;
 		}
 
-		// Split the text into liens
+		// Split the text into lines
 		var lines = rawText.split(/\r\n|\r|\n/);
 
 		// Remove the BOM (if present)
