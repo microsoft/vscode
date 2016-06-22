@@ -16,7 +16,7 @@ import {ILineEdit, ModelLine} from 'vs/editor/common/model/modelLine';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
 function testCommand(lines:string[], selection:Selection, edits:IIdentifiedSingleEditOperation[], expectedLines:string[], expectedSelection:Selection): void {
-	let model = new Model(lines.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+	let model = Model.createFromString(lines.join('\n'));
 	let config = new MockConfiguration(null);
 	let cursor = new Cursor(0, config, model, null, false);
 

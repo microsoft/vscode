@@ -705,7 +705,7 @@ suite('Colorizing - HTML', () => {
 	});
 
 	test('onEnter 1', function() {
-		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', Model.DEFAULT_CREATION_OPTIONS, _mode);
+		var model = Model.createFromString('<script type=\"text/javascript\">function f() { foo(); }', undefined, _mode);
 
 		var actual = onEnterSupport.onEnter(model, {
 			lineNumber: 1,
@@ -719,7 +719,7 @@ suite('Colorizing - HTML', () => {
 
 	test('onEnter 2', function() {
 		function onEnter(line:string, offset:number): Modes.EnterAction {
-			let model = new TextModelWithTokens([], TextModel.toRawText(line, Model.DEFAULT_CREATION_OPTIONS), false, _mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(line, TextModel.DEFAULT_CREATION_OPTIONS), false, _mode);
 			let result = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, 1, offset + 1);
 			model.dispose();
 			return result;

@@ -41,9 +41,9 @@ export interface IOnEnterAsserter {
 
 export function createOnEnterAsserter(modeId:string, conf: LanguageConfiguration): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
-		var model = new Model(
+		var model = Model.createFromString(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
-			Model.DEFAULT_CREATION_OPTIONS,
+			undefined,
 			new MockMode(modeId)
 		);
 		var richEditSupport = new RichEditSupport(modeId, null, conf);

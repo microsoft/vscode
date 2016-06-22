@@ -365,9 +365,14 @@ export class ModelServiceImpl implements IModelService {
 		return this._modeService.isCompatMode(model.getMode().getId());
 	}
 
-	private _createModelData(value: string, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ModelData {
+	private _createModelData(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ModelData {
 		// create & save the model
-		let model = new Model(value, this._modelCreationOptions, modeOrPromise, resource);
+		let model:Model;
+		if (typeof value === 'string') {
+			model = Model.createFromString(value, this._modelCreationOptions, modeOrPromise, resource);
+		} else {
+			model = new Model(value, modeOrPromise, resource);
+		}
 		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
@@ -381,7 +386,7 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public createModel(value: string, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
+	public createModel(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
 		let modelData = this._createModelData(value, modeOrPromise, resource);
 
 		// handle markers (marker service => model)

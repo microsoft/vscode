@@ -563,7 +563,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
 			this._previewContainer = div.hide();
-			this._previewNotAvailableMessage = new Model(nls.localize('missingPreviewMessage', "no preview available"), Model.DEFAULT_CREATION_OPTIONS, null);
+			this._previewNotAvailableMessage = Model.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 		});
 
 		// sash

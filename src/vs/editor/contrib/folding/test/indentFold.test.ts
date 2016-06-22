@@ -11,7 +11,7 @@ import {computeRanges, limitByIndent, computeIndentLevel} from 'vs/editor/contri
 
 suite('Indentation Folding', () => {
 	function assertRanges(lines: string[], tabSize: number, expected:IFoldingRange[]): void {
-		let model = new Model(lines.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		let model = Model.createFromString(lines.join('\n'));
 		let actual = computeRanges(model, tabSize);
 		actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 		assert.deepEqual(actual, expected);

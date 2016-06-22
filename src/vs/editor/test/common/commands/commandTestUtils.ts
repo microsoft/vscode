@@ -22,7 +22,7 @@ export function testCommand(
 	expectedSelection: Selection
 ): void {
 
-	let model = new Model(lines.join('\n'), Model.DEFAULT_CREATION_OPTIONS, mode);
+	let model = Model.createFromString(lines.join('\n'), undefined, mode);
 	let config = new MockConfiguration(null);
 	let cursor = new Cursor(0, config, model, null, false);
 

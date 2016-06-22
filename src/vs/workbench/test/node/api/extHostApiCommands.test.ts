@@ -28,13 +28,13 @@ import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = new EditorModel(
+const model: EditorCommon.IModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
-	EditorModel.DEFAULT_CREATION_OPTIONS,
+	undefined,
 	undefined,
 	URI.parse('far://testing/file.b'));
 
