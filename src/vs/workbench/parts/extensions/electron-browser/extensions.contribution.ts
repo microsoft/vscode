@@ -62,8 +62,7 @@ const viewletDescriptor = new ViewletDescriptor(
 	'workbench.viewlet.extensions',
 	localize('extensions', "Extensions"),
 	'extensions',
-	100,
-	true
+	100
 );
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
