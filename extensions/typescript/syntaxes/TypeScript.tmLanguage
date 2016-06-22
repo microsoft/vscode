@@ -695,6 +695,48 @@
 			<key>name</key>
 			<string>meta.indexer.parameter.ts</string>
 		</dict>
+		<key>known-type-parameters</key>
+		<dict>
+			<key>begin</key>
+			<string>(&lt;)</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>meta.brace.angle.ts</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(?=$)|(&gt;)</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>meta.brace.angle.ts</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>meta.known.type.parameters.ts</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>\b(extends)\b</string>
+					<key>name</key>
+					<string>keyword.other.ts</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#comment</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#type</string>
+				</dict>
+			</array>
+		</dict>
 		<key>literal</key>
 		<dict>
 			<key>name</key>
@@ -1023,7 +1065,7 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#type-parameters</string>
+					<string>#known-type-parameters</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -1571,7 +1613,7 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#type-parameters</string>
+					<string>#known-type-parameters</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -1630,7 +1672,7 @@
 		<key>type-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>\b(type)\b\s+([a-zA-Z_$][\w$]*)\s*</string>
+			<string>\b(type)\b\s+([a-zA-Z_$][\w$]*)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1652,7 +1694,7 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#type-parameters</string>
+					<string>#known-type-parameters</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -1763,7 +1805,7 @@
 		<key>type-parameters</key>
 		<dict>
 			<key>begin</key>
-			<string>([a-zA-Z_$][\w$]*)?(&lt;)</string>
+			<string>([a-zA-Z_$][\w$]*)?\s*(&lt;)(?=[^&lt;]*(&lt;[^&lt;&gt;]*&gt;)*&gt;\s*[(])</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
