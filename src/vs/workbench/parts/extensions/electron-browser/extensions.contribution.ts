@@ -5,10 +5,14 @@
 
 import 'vs/css!./media/extensions';
 import { localize } from 'vs/nls';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/platform';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsWorkbenchExtension';
@@ -16,10 +20,13 @@ import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workb
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
+import { VIEWLET_ID } from 'vs/workbench/parts/extensions/electron-browser/extensions';
 // import { EditorInput } from 'vs/workbench/common/editor';
 // import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // class ExtensionsInputFactory implements IEditorInputFactory {
 
@@ -59,7 +66,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 const viewletDescriptor = new ViewletDescriptor(
 	'vs/workbench/parts/extensions/electron-browser/extensionsViewlet',
 	'ExtensionsViewlet',
-	'workbench.viewlet.extensions',
+	VIEWLET_ID,
 	localize('extensions', "Extensions"),
 	'extensions',
 	100
@@ -67,3 +74,23 @@ const viewletDescriptor = new ViewletDescriptor(
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
+
+class OpenExtensionsViewletAction extends ToggleViewletAction {
+	public static ID = 'workbench.extensions.showViewlet';
+	public static LABEL = localize('toggleExtensionsViewlet', "Show Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService viewletService: IViewletService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, VIEWLET_ID, viewletService, editorService);
+	}
+}
+const openViewletKb: IKeybindings = {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X
+};
+// register action to open viewlet
+const registry = (<IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions));
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenExtensionsViewletAction, OpenExtensionsViewletAction.ID, OpenExtensionsViewletAction.LABEL, openViewletKb), 'View: Show Extensions', localize('view', "View"));
