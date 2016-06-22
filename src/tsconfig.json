@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
 		"module": "amd",
+		"moduleResolution": "classic",
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
