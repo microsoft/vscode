@@ -62,13 +62,13 @@
 	opacity: 1 !important;
 }
 
-.monaco-shell.vs input[type="search"]::-webkit-search-decoration,
-.monaco-shell.vs input[type="search"]::-webkit-search-results-button,
-.monaco-shell.vs input[type="search"]::-webkit-search-results-decoration {
+.monaco-shell input[type="search"]::-webkit-search-decoration,
+.monaco-shell input[type="search"]::-webkit-search-results-button,
+.monaco-shell input[type="search"]::-webkit-search-results-decoration {
 	display: none;
 }
 
-.monaco-shell.vs input[type="search"]::-webkit-search-cancel-button {
+.monaco-shell input[type="search"]::-webkit-search-cancel-button {
 	-webkit-appearance: none;
 	height: 18px;
 	width: 18px;
