@@ -15,9 +15,21 @@
 
 .extensions-viewlet > .header > .search-box {
 	width: 100%;
-	height: 26px;
+	height: 28px;
 	box-sizing: border-box;
-	padding: 0 3px;
+	padding: 4px;
+	border: 1px solid transparent;
+	-webkit-appearance: textfield;
+}
+
+.extensions-viewlet > .header > .search-box::-webkit-search-decoration,
+.extensions-viewlet > .header > .search-box::-webkit-search-results-button,
+.extensions-viewlet > .header > .search-box::-webkit-search-results-decoration {
+	display: none;
+}
+
+.extensions-viewlet > .header > .search-box:focus {
+	outline: none;
 }
 
 .extensions-viewlet > .extensions {
@@ -90,7 +102,3 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
-
-/*.extensions-viewlet > .extensions .extension > .details {
-	width: 100%;
-}*/
