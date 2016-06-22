@@ -11,7 +11,7 @@ import { index } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IPager, mapPager } from 'vs/base/common/paging';
+import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'semver';
 
@@ -203,6 +203,13 @@ export class ExtensionsModel {
 
 				return new Extension(this.stateProvider, null, gallery);
 			});
+		})
+		.then(null, err => {
+			if (/No extension gallery service configured/.test(err.message)) {
+				return TPromise.as(singlePagePager([]));
+			}
+
+			return TPromise.wrapError(err);
 		});
 	}
 
