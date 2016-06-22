@@ -83,7 +83,12 @@
 	padding-left: 6px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .monaco-action-bar .action-label {
+.extensions-viewlet > .extensions .extension > .details > .footer {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
 	margin-right: 0;
 	margin-left: 0.3em;
 }
