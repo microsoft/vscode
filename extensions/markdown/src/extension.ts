@@ -76,7 +76,11 @@ function showPreview(resource?: Uri, sideBySide: boolean = false) {
 	}
 
 	if (!(resource instanceof Uri)) {
-		// nothing found that could be shown
+		if (!vscode.window.activeTextEditor) {
+			// this is most likely toggling the preview
+			return vscode.commands.executeCommand('markdown.showSource');
+ 		}
+		// nothing found that could be shown or toggled
 		return;
 	}
 
@@ -107,6 +111,10 @@ function getViewColumn(sideBySide): ViewColumn {
 }
 
 function showSource(mdUri: Uri) {
+	if (!mdUri) {
+		return vscode.commands.executeCommand('workbench.action.navigateBack');
+	}
+
 	const docUri = Uri.parse(mdUri.query);
 
 	for (let editor of vscode.window.visibleTextEditors) {
