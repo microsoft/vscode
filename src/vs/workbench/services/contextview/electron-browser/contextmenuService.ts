@@ -10,7 +10,6 @@ import severity from 'vs/base/common/severity';
 import {IAction} from 'vs/base/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
-import {$} from 'vs/base/browser/builder';
 import {IContextMenuService, IContextMenuDelegate, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -41,12 +40,10 @@ export class ContextMenuService implements IContextMenuService {
 				let x: number, y: number;
 
 				if (dom.isHTMLElement(anchor)) {
-					const $anchor = $(<HTMLElement>anchor);
-					const elementPosition = $anchor.getPosition();
-					const elementSize = $anchor.getTotalSize();
+					let elementPosition = dom.getDomNodePagePosition(anchor);
 
 					x = elementPosition.left;
-					y = elementPosition.top + elementSize.height;
+					y = elementPosition.top + elementPosition.height;
 				} else {
 					const pos = <{ x: number; y: number; }>anchor;
 					x = pos.x;
