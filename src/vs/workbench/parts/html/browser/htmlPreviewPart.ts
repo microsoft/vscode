@@ -80,7 +80,7 @@ export class HtmlPreviewPart extends BaseEditor {
 				document.querySelector('.monaco-editor-background'),
 				uri => this._openerService.open(uri));
 
-			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString();
+			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 		}
 		return this._webview;
 	}
