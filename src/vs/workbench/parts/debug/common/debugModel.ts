@@ -27,9 +27,9 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 
 	return session.variables({ variablesReference: parent.reference }).then(response => {
 		return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-			v => new Variable(parent, v.variablesReference, v.name, v.value)
+			v => new Variable(parent, v.variablesReference, v.name, v.value, v.type)
 		);
-	}, (e: Error) => [new Variable(parent, 0, null, e.message, false)]);
+	}, (e: Error) => [new Variable(parent, 0, null, e.message, null, false)]);
 }
 
 function massageValue(value: string): string {
@@ -282,7 +282,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
 
-	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public available = true) {
+	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public type: string = null, public available = true) {
 		super(reference, `variable:${ parent.getId() }:${ name }`, true);
 		this.value = massageValue(value);
 	}
