@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import Event, { Emitter } from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
+import objects = require('vs/base/common/objects');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
@@ -720,7 +721,7 @@ export class Model implements debug.IModel {
 					// Only update the details if all the threads are stopped
 					// because we don't want to overwrite the details of other
 					// threads that have stopped for a different reason
-					this.threads[ref].stoppedDetails = data.stoppedDetails;
+					this.threads[ref].stoppedDetails = objects.clone(data.stoppedDetails);
 					this.threads[ref].stopped = true;
 					this.threads[ref].clearCallStack();
 				});
