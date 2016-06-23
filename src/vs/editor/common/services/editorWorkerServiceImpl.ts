@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IntervalTimer} from 'vs/base/common/async';
+import {IntervalTimer, ShallowCancelThenPromise} from 'vs/base/common/async';
 import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -16,6 +16,7 @@ import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/com
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorSimpleWorkerImpl} from 'vs/editor/common/services/editorSimpleWorker';
+import {logOnceWebWorkerWarning} from 'vs/base/common/worker/workerClient';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -211,31 +212,67 @@ class EditorModelManager extends Disposable {
 	}
 }
 
+interface IWorkerClient<T> {
+	getProxyObject(): TPromise<T>;
+	dispose(): void;
+}
+
+class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
+	private _instance: T;
+	private _proxyObj: TPromise<T>;
+
+	constructor(instance:T) {
+		this._instance = instance;
+		this._proxyObj = TPromise.as(this._instance);
+	}
+
+	public dispose(): void {
+		this._instance.dispose();
+		this._instance = null;
+		this._proxyObj = null;
+	}
+
+	public getProxyObject(): TPromise<T> {
+		return new ShallowCancelThenPromise(this._proxyObj);
+	}
+}
+
 export class EditorWorkerClient extends Disposable {
 
 	private _modelService: IModelService;
-	private _worker: SimpleWorkerClient<EditorSimpleWorkerImpl>;
+	private _worker: IWorkerClient<EditorSimpleWorkerImpl>;
+	private _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager;
 
 	constructor(modelService: IModelService) {
 		super();
 		this._modelService = modelService;
+		this._workerFactory = new DefaultWorkerFactory(/*do not use iframe*/false);
 		this._worker = null;
 		this._modelManager = null;
 	}
 
-	private _getOrCreateWorker(): SimpleWorkerClient<EditorSimpleWorkerImpl> {
+	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorkerImpl> {
 		if (!this._worker) {
-			this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorkerImpl>(
-				new DefaultWorkerFactory(),
-				'vs/editor/common/services/editorSimpleWorker'
-			));
+			try {
+				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorkerImpl>(
+					this._workerFactory,
+					'vs/editor/common/services/editorSimpleWorker'
+				));
+			} catch (err) {
+				logOnceWebWorkerWarning(err);
+				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+			}
 		}
 		return this._worker;
 	}
 
 	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
-		return this._getOrCreateWorker().getProxyObject();
+		return this._getOrCreateWorker().getProxyObject().then(null, (err) => {
+			logOnceWebWorkerWarning(err);
+			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+			return this._getOrCreateWorker().getProxyObject();
+		});
 	}
 
 	private _getOrCreateModelManager(proxy: EditorSimpleWorkerImpl): EditorModelManager {

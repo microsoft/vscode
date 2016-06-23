@@ -47,7 +47,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		this._contextService = contextService;
 		this._workerModuleId = workerModuleId;
 		this._defaultWorkerCount = defaultWorkerCount;
-		this._workerFactory = new DefaultWorkerFactory();
+		this._workerFactory = new DefaultWorkerFactory(true);
 
 		if (!this.isInMainThread) {
 			throw new Error('Incorrect Service usage: this service must be used only in the main thread');
@@ -105,15 +105,11 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		});
 	}
 
-	private _createWorker(): void {
-		this._workerPool.push(this._doCreateWorker());
-	}
-
 	private _shortName(major: string, minor: string): string {
 		return major.substring(major.length - 14) + '.' + minor.substr(0, 14);
 	}
 
-	private _doCreateWorker(): Worker.WorkerClient {
+	private _createWorker(isRetry:boolean = false): void {
 		let worker = new Worker.WorkerClient(
 			this._workerFactory,
 			this._workerModuleId,
@@ -131,9 +127,22 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 				configuration: this._contextService.getConfiguration(),
 				options: this._contextService.getOptions()
 			}
+		}).then(null, (err) => {
+			for (var i = 0; i < this._workerPool.length; i++) {
+				if (this._workerPool[i] === worker) {
+					this._workerPool.splice(i, 1);
+					break;
+				}
+			}
+			worker.dispose();
+			if (isRetry) {
+				console.warn('Creating the web worker already failed twice. Giving up!');
+			} else {
+				this._createWorker(true);
+			}
 		});
 
-		return worker;
+		this._workerPool.push(worker);
 	}
 
 	private _getWorkerIndex(obj: IThreadSynchronizableObject, affinity: ThreadAffinity): number {
