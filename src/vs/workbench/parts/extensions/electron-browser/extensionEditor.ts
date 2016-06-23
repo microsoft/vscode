@@ -18,14 +18,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
-import { IExtensionsWorkbenchService } from './extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID } from './extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
-import { IExtensionsViewlet } from './extensions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction } from './extensionsActions';
 
@@ -115,7 +114,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
 			this.rating.onclick = finalHandler(() => shell.openExternal(`${ extensionUrl }#review-details`));
 			this.publisher.onclick = finalHandler(() => {
-				this.viewletService.openViewlet('workbench.viewlet.extensions', true)
+				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
 					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`, true));
 			});

@@ -11,7 +11,6 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -21,33 +20,18 @@ import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
+import { OpenExtensionsViewletAction, ListOutdatedExtensionsAction } from './extensionsActions';
 import { ExtensionsInput } from './extensionsInput';
-// import { EditorInput } from 'vs/workbench/common/editor';
-// import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
-
-// class ExtensionsInputFactory implements IEditorInputFactory {
-
-// 	constructor() {}
-
-// 	public serialize(editorInput: EditorInput): string {
-// 		return '';
-// 	}
-
-// 	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): EditorInput {
-// 		return instantiationService.createInstance(ExtensionsInput);
-// 	}
-// }
-
+// Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
 
+// Workbench contributions
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ExtensionsWorkbenchExtension);
 
@@ -57,6 +41,16 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
 
+// Quickopen
+Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
+		'ExtensionsHandler',
+		'ext ',
+		localize('extensionsCommands', "Manage Extensions"),
+		true
+	)
+);
 
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
@@ -68,10 +62,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 	)
 );
 
-
-// Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-// 	.registerEditorInputFactory(ExtensionsInput.ID, ExtensionsInputFactory);
-
+// Editor
 const editorDescriptor = new EditorDescriptor(
 	ExtensionEditor.ID,
 	localize('extension', "Extension"),
@@ -82,6 +73,7 @@ const editorDescriptor = new EditorDescriptor(
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ExtensionsInput)]);
 
+// Viewlet
 const viewletDescriptor = new ViewletDescriptor(
 	'vs/workbench/parts/extensions/electron-browser/extensionsViewlet',
 	'ExtensionsViewlet',
@@ -94,22 +86,11 @@ const viewletDescriptor = new ViewletDescriptor(
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
 
-class OpenExtensionsViewletAction extends ToggleViewletAction {
-	public static ID = 'workbench.extensions.showViewlet';
-	public static LABEL = localize('toggleExtensionsViewlet', "Show Extensions");
+// Global actions
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService viewletService: IViewletService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
-	) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
-	}
-}
-const openViewletKb: IKeybindings = {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X
-};
+const openViewletActionDescriptor = new SyncActionDescriptor(OpenExtensionsViewletAction, OpenExtensionsViewletAction.ID, OpenExtensionsViewletAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X });
+actionRegistry.registerWorkbenchAction(openViewletActionDescriptor, 'View: Show Extensions', localize('view', "View"));
 
-const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenExtensionsViewletAction, OpenExtensionsViewletAction.ID, OpenExtensionsViewletAction.LABEL, openViewletKb), 'View: Show Extensions', localize('view', "View"));
+const listOutdatedActionDescriptor = new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL);
+actionRegistry.registerWorkbenchAction(listOutdatedActionDescriptor, 'Extensions: Show Outdated Extensions', ExtensionsLabel);

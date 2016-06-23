@@ -5,29 +5,24 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ThrottledDelayer } from 'vs/base/common/async';
 import { IAutoFocus, Mode, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsViewlet } from './extensions';
+import { IExtensionsViewlet, VIEWLET_ID } from './extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 
-class SearchExtensionEntry extends QuickOpenEntry {
+class SimpleEntry extends QuickOpenEntry {
 
-	constructor(
-		private text: string,
-		@IViewletService private viewletService: IViewletService
-	) {
+	constructor(private label: string, private action: Function) {
 		super();
 	}
 
 	getLabel(): string {
-		return nls.localize('searchFor', "Press Enter to search for '{0}' in the Marketplace.", this.text);
+		return this.label;
 	}
 
 	getAriaLabel(): string {
-		return this.getLabel();
+		return this.label;
 	}
 
 	run(mode:Mode):boolean {
@@ -35,33 +30,62 @@ class SearchExtensionEntry extends QuickOpenEntry {
 			return false;
 		}
 
-		this.viewletService.openViewlet('workbench.viewlet.extensions', true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
-			.done(viewlet => {
-				viewlet.search(this.text, true);
-				viewlet.focus();
-			});
+		this.action();
 
 		return true;
 	}
 }
 
+export class ExtensionsHandler extends QuickOpenHandler {
+
+	constructor(@IViewletService private viewletService: IViewletService) {
+		super();
+	}
+
+	getResults(text: string): TPromise<IModel<any>> {
+		const label = nls.localize('manage', "Press Enter to manage your extensions.");
+		const action = () => {
+			this.viewletService.openViewlet(VIEWLET_ID, true)
+				.then(viewlet => viewlet as IExtensionsViewlet)
+				.done(viewlet => {
+					viewlet.search('', true);
+					viewlet.focus();
+				});
+		};
+
+		return TPromise.as(new QuickOpenModel([new SimpleEntry(label, action)]));
+	}
+
+	getEmptyLabel(input: string): string {
+		return '';
+	}
+
+	getAutoFocus(searchValue: string): IAutoFocus {
+		return { autoFocusFirstEntry: true };
+	}
+}
+
 export class GalleryExtensionsHandler extends QuickOpenHandler {
 
-	private delayer: ThrottledDelayer<any>;
-
-	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
-	) {
+	constructor(@IViewletService private viewletService: IViewletService) {
 		super();
-		this.delayer = new ThrottledDelayer(500);
 	}
 
 	getResults(text: string): TPromise<IModel<any>> {
 		const entries = [];
 
 		if (text) {
-			entries.push(this.instantiationService.createInstance(SearchExtensionEntry, text));
+			const label = nls.localize('searchFor', "Press Enter to search for '{0}' in the Marketplace.", text);
+			const action = () => {
+				this.viewletService.openViewlet(VIEWLET_ID, true)
+					.then(viewlet => viewlet as IExtensionsViewlet)
+					.done(viewlet => {
+						viewlet.search(text, true);
+						viewlet.focus();
+					});
+			};
+
+			entries.push(new SimpleEntry(label, action));
 		}
 
 		return TPromise.as(new QuickOpenModel(entries));
