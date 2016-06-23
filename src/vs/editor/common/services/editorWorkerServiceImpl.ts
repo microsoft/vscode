@@ -268,11 +268,11 @@ export class EditorWorkerClient extends Disposable {
 	}
 
 	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
-		return this._getOrCreateWorker().getProxyObject().then(null, (err) => {
+		return new ShallowCancelThenPromise(this._getOrCreateWorker().getProxyObject().then(null, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
 			return this._getOrCreateWorker().getProxyObject();
-		});
+		}));
 	}
 
 	private _getOrCreateModelManager(proxy: EditorSimpleWorkerImpl): EditorModelManager {
