@@ -234,6 +234,7 @@ export interface IExtensionContext {
 	workspaceState: IExtensionMemento;
 	globalState: IExtensionMemento;
 	extensionPath: string;
+	storagePath: string;
 	asAbsolutePath(relativePath: string): string;
 }
 
@@ -244,17 +245,19 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	private _storage: ExtHostStorage;
 	private _proxy: MainProcessExtensionService;
 	private _telemetryService: ITelemetryService;
+	private _workspaceStoragePath: string;
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(threadService: IThreadService, telemetryService: ITelemetryService) {
+	constructor(threadService: IThreadService, telemetryService: ITelemetryService, args: { serviceId: any; workspaceStoragePath: string; }) {
 		super(false);
 		threadService.registerRemotableInstance(ExtHostExtensionService, this);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
 		this._proxy = this._threadService.getRemotable(MainProcessExtensionService);
 		this._telemetryService = telemetryService;
+		this._workspaceStoragePath = args.workspaceStoragePath;
 	}
 
 	public $localShowMessage(severity: Severity, msg: string): void {
@@ -323,6 +326,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 		let globalState = new ExtensionMemento(extensionDescription.id, true, this._storage);
 		let workspaceState = new ExtensionMemento(extensionDescription.id, false, this._storage);
+		let storagePath = this._workspaceStoragePath ? paths.normalize(paths.join(this._workspaceStoragePath, extensionDescription.id)): undefined;
 
 		return TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
 			return Object.freeze(<IExtensionContext>{
@@ -330,6 +334,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
+				storagePath: storagePath,
 				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(extensionDescription.extensionFolderPath, relativePath), true); }
 			});
 		});

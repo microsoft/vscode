@@ -2955,6 +2955,14 @@ declare namespace vscode {
 		 * @return The absolute path of the resource.
 		 */
 		asAbsolutePath(relativePath: string): string;
+
+		/**
+		 * The absolute file path of the workspace specific directory where the extension
+		 * can store proviate state on disk. The directory might not exist yet.
+		 *
+		 * Use `workspaceState` or `globalState` to store simple data.
+		 */
+		storagePath: string;
 	}
 
 	/**

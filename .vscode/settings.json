@@ -15,5 +15,6 @@
 		"extensions/**/out/**": true
 	},
 	"tslint.enable": true,
-	"tslint.rulesDirectory": "build/lib/tslint"
+	"tslint.rulesDirectory": "build/lib/tslint",
+	"typescript.tsdk": "P:\\mseng\\TypeScript\\built\\local"
 }
