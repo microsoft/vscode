@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IExtension } from './extensions';
-import { CombinedInstallAction, UpdateAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 
 export interface ITemplateData {
@@ -24,6 +24,7 @@ export interface ITemplateData {
 	installCount: HTMLElement;
 	ratings: HTMLElement;
 	author: HTMLElement;
+	needsRestart: HTMLElement;
 	description: HTMLElement;
 	actionbar: ActionBar;
 	disposables: IDisposable[];
@@ -38,12 +39,7 @@ const actionOptions = { icon: true, label: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
-	private _templates: ITemplateData[];
-	get templates(): ITemplateData[] { return this._templates; }
-
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		this._templates = [];
-	}
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {}
 
 	get templateId() { return 'extension'; }
 
@@ -59,12 +55,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
+		const needsRestart = append(footer, $('.needsRestart'));
 		const actionbar = new ActionBar(footer, { animated: false });
 		const disposables = [];
 
-		const result = { extension: null, element, icon, name, version, installCount, ratings, author, description, actionbar, disposables };
-		this._templates.push(result);
-		return result;
+		return {
+			extension: null, element, icon, name, version,
+			installCount, ratings, author, needsRestart, description,
+			actionbar, disposables
+		};
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
@@ -91,23 +90,20 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.description.textContent = extension.description;
 
 		const version = this.instantiationService.createInstance(Label, data.version, extension, e => e.version);
-		const ratings = this.instantiationService.createInstance(RatingsWidget, data.ratings, extension, { small: true });
 		const installCount = this.instantiationService.createInstance(InstallWidget, data.installCount, extension, { small: true });
+		const ratings = this.instantiationService.createInstance(RatingsWidget, data.ratings, extension, { small: true });
 
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
 		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
+		const restartAction = this.instantiationService.createInstance(EnableAction, extension);
 
 		data.actionbar.clear();
-		data.actionbar.push([updateAction, installAction], actionOptions);
+		data.actionbar.push([restartAction, updateAction, installAction], actionOptions);
 
-		data.disposables.push(version, installCount, ratings, installAction, updateAction);
+		data.disposables.push(version, installCount, ratings, installAction, updateAction, restartAction);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
-		const index = this._templates.indexOf(data);
-
-		if (index > -1) {
-			this._templates.splice(index, 1);
-		}
+		data.actionbar = dispose(data.actionbar);
 	}
 }
