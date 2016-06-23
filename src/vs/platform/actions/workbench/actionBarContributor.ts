@@ -6,6 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import {localize} from 'vs/nls';
 import {defaultGenerator} from 'vs/base/common/idGenerator';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -16,20 +17,25 @@ import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey'
 import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, ActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {isLightTheme} from 'vs/platform/theme/common/themes';
+import {domEvent} from 'vs/base/browser/event';
 
 export class ActionBarContributor {
 
+	private _scope: HTMLElement;
 	private _onDidUpdate = new Emitter<this>();
 	private _disposables: IDisposable[] = [];
 	private _menuItems: MenuItem[] = [];
 
 	constructor(
+		scope: HTMLElement,
 		location: MenuLocation,
 		@IMenuService private _menuService: IMenuService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IExtensionService private _extensionService: IExtensionService,
 		@IThemeService private _themeService: IThemeService
 	) {
+		this._scope = scope;
 		this._extensionService.onReady().then(() => {
 
 			let usesWhen = false;
@@ -66,9 +72,9 @@ export class ActionBarContributor {
 	getActions(): IAction[] {
 		const result: IAction[] = [];
 		for (let item of this._menuItems) {
-			if (this._keybindingService.contextMatchesRules(item.when)) {
+			if (this._keybindingService.contextMatchesRules(this._scope, item.when)) {
 				result.push(new MenuItemAction(item,
-					this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource),
+					this._keybindingService.getContextValue<URI>(this._scope, ResourceContextKey.Resource),
 					this._keybindingService));
 			}
 		}
@@ -78,7 +84,7 @@ export class ActionBarContributor {
 
 	getActionItem(action: IAction): BaseActionItem {
 		if (action instanceof MenuItemAction) {
-			return new MenuItemActionItem(action, this._themeService);
+			return new MenuItemActionItem(action, this._themeService, this._keybindingService);
 		}
 	}
 }
@@ -105,28 +111,75 @@ class MenuItemAction extends Action {
 		return this.command;
 	}
 
-	run() {
-		const {id} = this._item.command;
+	run(alt: boolean) {
+		const {id} = alt && this._item.alt || this._item.command;
 		return this._keybindingService.executeCommand(id, this._resource);
 	}
 }
 
 class MenuItemActionItem extends ActionItem {
 
+	private _altKeyDown: boolean = false;
+
 	constructor(
 		action: MenuItemAction,
-		@IThemeService private _themeService: IThemeService
+		@IThemeService private _themeService: IThemeService,
+		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super(undefined, action, { icon: true, label: false });
+
+		this._callOnDispose.push(this._themeService.onDidThemeChange(_ => this._updateClass()));
+	}
+
+	private get command() {
+		const {command, altCommand} = <MenuItemAction>this._action;
+		return this._altKeyDown && altCommand || command;
+	}
+
+	onClick(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+
+		(<MenuItemAction>this._action).run(this._altKeyDown).done(undefined, console.error);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+
+		this._callOnDispose.push(domEvent(container, 'mousemove')(e => {
+			if (this._altKeyDown !== e.altKey) {
+				this._altKeyDown = e.altKey;
+
+				this._updateLabel();
+				this._updateTooltip();
+				this._updateClass();
+			}
+		}));
+	}
+
+	_updateLabel(): void {
+		if (this.options.label) {
+			this.$e.text(this.command.title);
+		}
+	}
+
+	_updateTooltip(): void {
+		const element = this.$e.getHTMLElement();
+		const keybinding = this._keybindingService.lookupKeybindings(this.command.id)[0];
+		const keybindingLabel = keybinding && this._keybindingService.getLabelFor(keybinding);
+
+		element.title = keybindingLabel
+			? localize('titleAndKb', "{0} ({1})", this.command.title, keybindingLabel)
+			: this.command.title;
 	}
 
 	_updateClass(): void {
-		super._updateClass();
-
-		const element = this.$e.getHTMLElement();
-		const {darkThemeIcon} = (<MenuItemAction>this._action).command;
-		if (element.classList.contains('icon')) {
-			element.style.backgroundImage = `url("${darkThemeIcon}")`;
+		if (this.options.icon) {
+			const element = this.$e.getHTMLElement();
+			const {darkThemeIcon, lightThemeIcon} = this.command;
+			const themeId = this._themeService.getTheme();
+			element.classList.add('icon');
+			element.style.backgroundImage = `url("${isLightTheme(themeId) ? lightThemeIcon : darkThemeIcon}")`;
 		}
 	}
 }
