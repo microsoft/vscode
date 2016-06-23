@@ -5,7 +5,7 @@
 'use strict';
 
 import {TextDocument} from 'vscode-languageserver';
-import {Stylesheet} from './parser/cssNodes';
+import {Stylesheet} from 'vscode-css-languageservice';
 
 export interface StylesheetCache {
 	getStylesheet(document: TextDocument): Stylesheet;

@@ -170,8 +170,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/**/tsconfig.json',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
-			'!extensions/vscode-colorize-tests/**',
-			'!extensions/css/server/out/data/buildscripts/**'
+			'!extensions/vscode-colorize-tests/**'
 		], { base: '.' });
 
 		var sources = es.merge(src, extensions)
