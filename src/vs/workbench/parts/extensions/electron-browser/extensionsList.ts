@@ -11,7 +11,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IExtension, ExtensionsModel } from './extensionsModel';
+import { IExtension } from './extensions';
 import { CombinedInstallAction, UpdateAction } from './extensionsActions';
 import { Label } from './extensionsWidgets';
 
@@ -39,10 +39,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	private _templates: ITemplateData[];
 	get templates(): ITemplateData[] { return this._templates; }
 
-	constructor(
-		private model: ExtensionsModel,
-		@IInstantiationService private instantiationService: IInstantiationService
-	) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		this._templates = [];
 	}
 
@@ -89,9 +86,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 
-		const version = new Label(data.version, this.model, extension, e => e.version);
-		const installAction = new CombinedInstallAction(this.model, extension);
-		const updateAction = new UpdateAction(this.model, extension);
+		const version = this.instantiationService.createInstance(Label, data.version, extension, e => e.version);
+		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
+		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
 		data.actionbar.clear();
 		data.actionbar.push([updateAction, installAction], actionOptions);
 
