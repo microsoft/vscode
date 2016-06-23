@@ -39,6 +39,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		if (options.extensionsToInstall && options.extensionsToInstall.length) {
 			this.install(options.extensionsToInstall).done(null, onUnexpectedError);
 		}
+		//actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), 'Extensions: Install Extension', ExtensionsLabel);
 	}
 
 	private registerListeners(): void {
