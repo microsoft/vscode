@@ -26,16 +26,16 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions, getResource} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {extractResources} from 'vs/base/browser/dnd';
-import ResourceContextKey from 'vs/platform/actions/workbench/resourceContextKey';
 
 export enum Rochade {
 	NONE,
@@ -66,6 +66,7 @@ export interface ISideBySideEditorControl {
 
 	isDragging(): boolean;
 
+	getInstantiationService(position: Position): IInstantiationService;
 	getProgressBar(position: Position): ProgressBar;
 	updateProgress(position: Position, state: ProgressState): void;
 
@@ -93,6 +94,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private dimension: Dimension;
 	private dragging: boolean;
 
+	private instantiationServices: IInstantiationService[];
+
 	private containers: Builder[];
 	private containerWidth: number[];
 	private containerInitialRatios: number[];
@@ -117,8 +120,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private _onGroupFocusChanged: Emitter<void>;
 
-	private resourceContextKey: ResourceContextKey;
-
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -139,6 +140,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.parent = parent;
 		this.dimension = new Dimension(0, 0);
 
+		this.instantiationServices = [];
+
 		this.containers = [];
 		this.containerWidth = [];
 
@@ -152,8 +155,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.visibleEditorFocusTrackers = [];
 
 		this._onGroupFocusChanged = new Emitter<void>();
-
-		this.resourceContextKey = this.instantiationService.createInstance(ResourceContextKey);
 
 		this.toDispose = [];
 
@@ -188,17 +189,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private onExtensionsReady(): void {
 
-		// Up to date resource context
-		this.resourceContextKey.set(getResource(this.stacks.activeGroup.activeEditor));
-
 		// Up to date title areas
 		POSITIONS.forEach(position => this.titleAreaControl[position].refresh());
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
-
-		// Up to date resource context
-		this.resourceContextKey.set(getResource(e.group.activeEditor));
 
 		// Up to date context
 		POSITIONS.forEach(position => {
@@ -727,9 +722,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private create(parent: Builder): void {
 
-		// Set resource context
-		this.resourceContextKey.set(this.stacks.activeGroup && getResource(this.stacks.activeGroup.activeEditor));
-
 		// Allow to drop into container to open
 		this.enableDropTarget(parent.getHTMLElement());
 
@@ -757,6 +749,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Right Container
 		this.containers[Position.RIGHT] = $(parent).div({ class: 'one-editor-container editor-right monaco-editor-background' });
+
+		// InstantiationServices
+		POSITIONS.forEach(position => {
+			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
+				[IKeybindingService, this.keybindingService.createScoped(this.containers[position].getHTMLElement())]
+				// [IProgressService, ]
+			));
+		});
 
 		// Title containers
 		POSITIONS.forEach(position => {
@@ -1002,7 +1002,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private createTitleControl(position: Position): void {
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
-		this.titleAreaControl[position] = useTabs ? this.instantiationService.createInstance(TabsTitleControl) : this.instantiationService.createInstance(NoTabsTitleControl);
+		this.titleAreaControl[position] = this.instantiationServices[position].createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
 		this.titleAreaControl[position].create(this.titleContainer[position].getHTMLElement());
 		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
 		this.titleAreaControl[position].refresh();
@@ -1583,6 +1583,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (editorWidth && this.visibleEditors[position]) {
 			this.visibleEditors[position].layout(new Dimension(editorWidth, this.dimension.height - SideBySideEditorControl.EDITOR_TITLE_HEIGHT));
 		}
+	}
+
+	public getInstantiationService(position: Position): IInstantiationService {
+		return this.instantiationServices[position];
 	}
 
 	public getProgressBar(position: Position): ProgressBar {

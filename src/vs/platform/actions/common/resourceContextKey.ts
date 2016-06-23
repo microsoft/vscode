@@ -8,7 +8,11 @@ import URI from 'vs/base/common/uri';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
-export default class ResourceContextKey implements IKeybindingContextKey<URI> {
+export class ResourceContextKey implements IKeybindingContextKey<URI> {
+
+	static Scheme = 'resourceScheme';
+	static LangId = 'resourceLangId';
+	static Resource = 'resource';
 
 	private _resourceKey: IKeybindingContextKey<URI>;
 	private _schemeKey: IKeybindingContextKey<string>;
@@ -18,9 +22,9 @@ export default class ResourceContextKey implements IKeybindingContextKey<URI> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService private _modeService: IModeService
 	) {
-		this._schemeKey = keybindingService.createKey('resourceScheme', undefined);
-		this._langIdKey = keybindingService.createKey('resourceLangId', undefined);
-		this._resourceKey = keybindingService.createKey('resource', undefined);
+		this._schemeKey = keybindingService.createKey(ResourceContextKey.Scheme, undefined);
+		this._langIdKey = keybindingService.createKey(ResourceContextKey.LangId, undefined);
+		this._resourceKey = keybindingService.createKey(ResourceContextKey.Resource, undefined);
 	}
 
 	set(value: URI) {

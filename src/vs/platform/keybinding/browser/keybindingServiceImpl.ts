@@ -38,17 +38,14 @@ export class KeybindingContext {
 		this._value['_contextId'] = id;
 	}
 
-	public setValue(key: string, value: any): boolean {
-		if (this._value[key] !== value) {
-			// console.log('SET ' + key + ' = ' + value + ' ON ' + this._id);
-			this._value[key] = value;
-			return true;
-		}
+	public setValue(key: string, value: any): void {
+		// console.log('SET ' + key + ' = ' + value + ' ON ' + this._id);
+		this._value[key] = value;
 	}
 
-	public removeValue(key: string): boolean {
+	public removeValue(key: string): void {
 		// console.log('REMOVE ' + key + ' FROM ' + this._id);
-		return delete this._value[key];
+		delete this._value[key];
 	}
 
 	public fillInContext(bucket: any): void {
@@ -178,15 +175,13 @@ export abstract class AbstractKeybindingService {
 	}
 
 	public setContext(key: string, value: any): void {
-		if(this.getContext(this._myContextId).setValue(key, value)) {
-			this._onDidChangeContextKey.fire(key);
-		}
+		this.getContext(this._myContextId).setValue(key, value);
+		this._onDidChangeContextKey.fire(key);
 	}
 
 	public removeContext(key: string): void {
-		if(this.getContext(this._myContextId).removeValue(key)) {
-			this._onDidChangeContextKey.fire(key);
-		}
+		this.getContext(this._myContextId).removeValue(key);
+		this._onDidChangeContextKey.fire(key);
 	}
 
 	public hasCommand(commandId: string): boolean {

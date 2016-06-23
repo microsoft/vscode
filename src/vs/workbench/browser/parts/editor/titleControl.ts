@@ -15,7 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent, getResource} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import {IActionItem, ActionsOrientation, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
@@ -31,6 +31,9 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {ActionBarContributor} from 'vs/platform/actions/workbench/actionBarContributor';
+import {MenuLocation} from 'vs/platform/actions/common/actions';
+import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -72,6 +75,9 @@ export abstract class TitleControl {
 	private scheduler: RunOnceScheduler;
 	private refreshScheduled: boolean;
 
+	private resourceContext: ResourceContextKey;
+	private titleActionBarContributor: ActionBarContributor;
+
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -90,6 +96,10 @@ export abstract class TitleControl {
 
 		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
 		this.toDispose.push(this.scheduler);
+
+		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.titleActionBarContributor = instantiationService.createInstance(ActionBarContributor, MenuLocation.EditorPrimary);
+		this.toDispose.push(this.titleActionBarContributor);
 
 		this.initActions();
 		this.registerListeners();
@@ -110,6 +120,7 @@ export abstract class TitleControl {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+		this.toDispose.push(this.titleActionBarContributor.onDidUpdate(e => this.refresh()));
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
@@ -146,6 +157,7 @@ export abstract class TitleControl {
 
 	public setContext(group: IEditorGroup): void {
 		this.context = group;
+		this.resourceContext.set(group && getResource(group.activeEditor));
 	}
 
 	public update(instant?: boolean): void {
@@ -250,6 +262,11 @@ export abstract class TitleControl {
 			actionItem = actionBarRegistry.getActionItemForContext(Scope.EDITOR, { input: editor && editor.input, editor, position }, action);
 		}
 
+		// Check extensions
+		if (!actionItem) {
+			actionItem = this.titleActionBarContributor.getActionItem(action);
+		}
+
 		return actionItem;
 	}
 
@@ -277,6 +294,9 @@ export abstract class TitleControl {
 			const editorInputActions = this.getEditorActionsForContext({ input: control.input, editor: control, position: control.position });
 			primary.push(...editorInputActions.primary);
 			secondary.push(...editorInputActions.secondary);
+
+			// MenuItems
+			primary.push(...this.titleActionBarContributor.getActions());
 		}
 
 		return { primary, secondary };

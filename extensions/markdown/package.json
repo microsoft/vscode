@@ -77,7 +77,7 @@
 					"alt": "markdown.showPreviewToSide"
 				},
 				{
-					"when": "resourceLangId == markdown",
+					"when": "resourceScheme == markdown",
 					"command": "markdown.showSource"
 				}
 			]
