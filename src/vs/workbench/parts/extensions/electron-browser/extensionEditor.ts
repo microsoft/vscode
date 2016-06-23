@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/extensionEditor';
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -36,6 +37,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private icon: HTMLElement;
 	private name: HTMLAnchorElement;
+	private license: HTMLAnchorElement;
 	private publisher: HTMLAnchorElement;
 	private installCount: HTMLElement;
 	private rating: HTMLAnchorElement;
@@ -73,16 +75,19 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon = append(header, $('.icon'));
 
 		const details = append(header, $('.details'));
-		this.name = append(details, $<HTMLAnchorElement>('a.name'));
+		const title = append(details, $('.title'));
+		this.name = append(title, $<HTMLAnchorElement>('a.name'));
 		this.name.href = '#';
+
+		this.license = append(title, $<HTMLAnchorElement>('a.license'));
+		this.license.href = '#';
+		this.license.textContent = localize('license', 'License');
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
 		this.publisher.href = '#';
 
 		this.installCount = append(subtitle, $('span.install'));
-		// append(install, $('span.octicon.octicon-cloud-download'));
-		// this.installCount = append(install, $('span.count'));
 
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
@@ -110,8 +115,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		if (product.extensionsGallery) {
 			const extensionUrl = `${ product.extensionsGallery.itemUrl }?itemName=${ extension.publisher }.${ extension.name }`;
+			const licenseUrl = `${ product.extensionsGallery.itemUrl }/${ extension.publisher }.${ extension.name }/license`;
 
 			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
+			this.license.onclick = finalHandler(() => shell.openExternal(licenseUrl));
 			this.rating.onclick = finalHandler(() => shell.openExternal(`${ extensionUrl }#review-details`));
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
