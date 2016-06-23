@@ -30,7 +30,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
-import {IDisposable/*, dispose */} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {extractResources} from 'vs/base/browser/dnd';
@@ -42,7 +42,7 @@ interface ITabsContainer {
 	onRemove: Event<number>;
 	onDidRemove: Event<number>;
 	container: HTMLElement;
-	splice(index: number, deleteCount: number, ...insert: number[]): void;
+	splice(index: number, deleteCount: number, ...insert: number[]): HTMLElement[];
 	getDOMElement(index: number);
 }
 
@@ -93,21 +93,22 @@ class SimpleTabContainer implements ITabsContainer {
 		this.parent.appendChild(this.tabsContainer);
 	}
 
-	public splice(index: number, deleteCount: number, ...insert: number[]): void {
-		console.log('index', index, 'deleteCount', deleteCount, 'insert', insert);
+	public splice(index: number, deleteCount: number, ...insert: number[]): HTMLElement[] {
+		// console.log('index', index, 'deleteCount', deleteCount, 'insert', insert);
+		const deleted: HTMLElement[] = [];
 
-		// Delete
+		// Delete: Remove up to deleteCount at index
 		for (let i = 0; i < deleteCount; i++) {
 			const tabContainer = this.getDOMElement(index);
 			if (tabContainer) {
 				this._onRemove.fire(index);
-				this.tabs.splice(index, 1);
 				this.tabsContainer.removeChild(tabContainer);
 				this._onDidRemove.fire(index);
+				deleted.push(...this.tabs.splice(index, 1));
 			}
 		}
 
-		// Add
+		// Add: Insert all elements to the left of index
 		const referenceElement = this.getDOMElement(index);
 		for (let i = 0; i < insert.length; i++) {
 			const tabIndex = index + i;
@@ -123,6 +124,8 @@ class SimpleTabContainer implements ITabsContainer {
 
 			this._onDidInsert.fire(tabIndex);
 		}
+
+		return deleted;
 	}
 
 	public getDOMElement(index: number): HTMLElement {
@@ -130,7 +133,7 @@ class SimpleTabContainer implements ITabsContainer {
 	}
 }
 
-interface IViewTab {
+interface ITabViewItem {
 	id: number;
 	editor: IEditorInput;
 }
@@ -140,18 +143,17 @@ export class TabsTitleControl extends TitleControl {
 	private static ID_GENERATOR = 0;
 
 	private titleContainer: HTMLElement;
-	private tabsContainer: HTMLElement;
 	private tabsWidget: ITabsContainer;
 	private activeTab: HTMLElement;
 	private scrollbar: ScrollableElement;
 
 	private groupActionsToolbar: ToolBar;
-	private tabDisposeables: IDisposable[];
+	private tabDisposeables: { [id: string]: IDisposable };
 
 	private currentPrimaryGroupActionIds: string[];
 	private currentSecondaryGroupActionIds: string[];
 
-	private viewModel: IViewTab[];
+	private viewModel: ITabViewItem[];
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -168,7 +170,7 @@ export class TabsTitleControl extends TitleControl {
 		this.currentPrimaryGroupActionIds = [];
 		this.currentSecondaryGroupActionIds = [];
 
-		this.tabDisposeables = [];
+		this.tabDisposeables = Object.create(null);
 		this.viewModel = [];
 	}
 
@@ -183,13 +185,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tabs widget
 		this.tabsWidget = new SimpleTabContainer(parent);
-		this.tabsContainer = this.tabsWidget.container;
-		this.tabsContainer.setAttribute('role', 'tablist');
-		DOM.addClass(this.tabsContainer, 'tabs-container');
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
-			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
+		this.tabsWidget.container.setAttribute('role', 'tablist');
+		DOM.addClass(this.tabsWidget.container, 'tabs-container');
+		this.toDispose.push(DOM.addDisposableListener(this.tabsWidget.container, DOM.EventType.SCROLL, e => {
+			if (DOM.hasClass(this.tabsWidget.container, 'scroll')) {
 				this.scrollbar.updateState({
-					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
+					scrollLeft: this.tabsWidget.container.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
 			}
 		}));
@@ -199,7 +200,7 @@ export class TabsTitleControl extends TitleControl {
 		this.toDispose.push(this.tabsWidget.onRemove(index => this.onTabRemoved(index)));
 
 		// Custom Scrollbar
-		this.scrollbar = new ScrollableElement(this.tabsContainer, {
+		this.scrollbar = new ScrollableElement(this.tabsWidget.container, {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
@@ -209,37 +210,37 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		this.scrollbar.onScroll(e => {
-			this.tabsContainer.scrollLeft = e.scrollLeft;
+			this.tabsWidget.container.scrollLeft = e.scrollLeft;
 		});
 
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 
 		// Drag over
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			DOM.addClass(this.tabsContainer, 'scroll'); // enable support to scroll while dragging
+		this.toDispose.push(DOM.addDisposableListener(this.tabsWidget.container, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.addClass(this.tabsWidget.container, 'scroll'); // enable support to scroll while dragging
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				DOM.addClass(this.tabsContainer, 'dropfeedback');
+				DOM.addClass(this.tabsWidget.container, 'dropfeedback');
 			}
 		}));
 
 		// Drag leave
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			DOM.removeClass(this.tabsContainer, 'dropfeedback');
-			DOM.removeClass(this.tabsContainer, 'scroll');
+		this.toDispose.push(DOM.addDisposableListener(this.tabsWidget.container, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			DOM.removeClass(this.tabsWidget.container, 'dropfeedback');
+			DOM.removeClass(this.tabsWidget.container, 'scroll');
 		}));
 
 		// Drag end
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_END, (e: DragEvent) => {
-			DOM.removeClass(this.tabsContainer, 'dropfeedback');
-			DOM.removeClass(this.tabsContainer, 'scroll');
+		this.toDispose.push(DOM.addDisposableListener(this.tabsWidget.container, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			DOM.removeClass(this.tabsWidget.container, 'dropfeedback');
+			DOM.removeClass(this.tabsWidget.container, 'scroll');
 		}));
 
 		// Drop onto tabs container
-		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.removeClass(this.tabsContainer, 'dropfeedback');
-			DOM.removeClass(this.tabsContainer, 'scroll');
+		this.toDispose.push(DOM.addDisposableListener(this.tabsWidget.container, DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.removeClass(this.tabsWidget.container, 'dropfeedback');
+			DOM.removeClass(this.tabsWidget.container, 'scroll');
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
@@ -286,6 +287,7 @@ export class TabsTitleControl extends TitleControl {
 	private onTabInserted(index: number): void {
 		const tabContainer = this.tabsWidget.getDOMElement(index);
 		const group = this.context;
+		const id = this.viewModel[index].id;
 		const editor = this.viewModel[index].editor;
 
 		tabContainer.draggable = true;
@@ -314,11 +316,16 @@ export class TabsTitleControl extends TitleControl {
 		bar.push(this.closeEditorAction, { icon: true, label: false });
 
 		// Eventing
-		this.hookTabListeners(tabContainer, { editor, group });
+		const disposeables = this.hookTabListeners(tabContainer, { editor, group });
+
+		this.tabDisposeables[id] = { dispose: () => dispose(disposeables) };
 	}
 
 	private onTabRemoved(index: number): void {
-		// TODO
+		const id = this.viewModel[index].id;
+
+		dispose(this.tabDisposeables[id]);
+		this.tabDisposeables[id] = void 0;
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
@@ -381,6 +388,7 @@ export class TabsTitleControl extends TitleControl {
 		const editor = group && group.activeEditor;
 		if (!editor) {
 			this.tabsWidget.splice(0, this.viewModel.length); // clear all tabs
+			this.viewModel = [];
 
 			this.groupActionsToolbar.setActions([], [])();
 
@@ -410,11 +418,11 @@ export class TabsTitleControl extends TitleControl {
 		this.doUpdate();
 	}
 
-	private computeNewViewModel(currentViewModel: IViewTab[]): IViewTab[] {
-		const newViewModel: IViewTab[] = [];
+	private computeNewViewModel(currentViewModel: ITabViewItem[]): ITabViewItem[] {
+		const newViewModel: ITabViewItem[] = [];
 
-		this.context.getEditors().forEach((editor, index) => {
-			let tabState: IViewTab;
+		this.context.getEditors().forEach(editor => {
+			let tabState: ITabViewItem;
 
 			for (let i = 0; i < currentViewModel.length; i++) {
 				const state = currentViewModel[i];
@@ -454,16 +462,16 @@ export class TabsTitleControl extends TitleControl {
 		this.viewModel = newViewModel;
 
 		// Update tabs widget
-		diff.forEach(d =>  {
+		diff.forEach(d => {
 
 			// Replace
 			if (d.modifiedLength && d.originalLength) {
-				this.tabsWidget.splice(d.originalStart, d.originalLength, ...new Array<number>(d.modifiedLength));
+				this.tabsWidget.splice(d.originalStart, d.originalLength, ...new Array<number>(d.modifiedLength)); // TODO this needs to provide the width of each added tab
 			}
 
 			// Add
 			else if (d.modifiedLength) {
-				this.tabsWidget.splice(d.modifiedStart, 0, ...new Array<number>(d.modifiedLength));
+				this.tabsWidget.splice(d.modifiedStart, 0, ...new Array<number>(d.modifiedLength)); // TODO this needs to provide the width of each added tab
 			}
 
 			// Delete
@@ -478,8 +486,8 @@ export class TabsTitleControl extends TitleControl {
 			return;
 		}
 
-		const visibleContainerWidth = this.tabsContainer.offsetWidth;
-		const totalContainerWidth = this.tabsContainer.scrollWidth;
+		const visibleContainerWidth = this.tabsWidget.container.offsetWidth;
+		const totalContainerWidth = this.tabsWidget.container.scrollWidth;
 
 		// Update scrollbar
 		this.scrollbar.updateState({
@@ -488,7 +496,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Always reveal the active one
-		const containerScrollPosX = this.tabsContainer.scrollLeft;
+		const containerScrollPosX = this.tabsWidget.container.scrollLeft;
 		const activeTabPosX = this.activeTab.offsetLeft;
 		const activeTabWidth = this.activeTab.offsetWidth;
 		const activeTabFits = activeTabWidth <= visibleContainerWidth;
@@ -513,12 +521,13 @@ export class TabsTitleControl extends TitleControl {
 		this.showEditorsInGroupAction.enabled = isOverflowing;
 	}
 
-	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): void {
+	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): IDisposable[] {
+		const tabDisposeables = [];
 		const {editor, group} = identifier;
 		const position = this.stacks.positionOfGroup(group);
 
 		// Open on Click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			tab.blur();
 
 			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass(<any>e.target || e.srcElement, 'monaco-action-bar', 'tab')) {
@@ -527,7 +536,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Close on mouse middle click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 			tab.blur();
 
@@ -537,7 +546,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Keyboard accessibility
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
@@ -577,17 +586,17 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Pin on double click
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
 			this.editorGroupService.pinEditor(position, editor);
 		}));
 
 		// Context menu
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e) => this.onContextMenu(identifier, e, tab)));
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e) => this.onContextMenu(identifier, e, tab)));
 
 		// Drag start
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
 			this.onEditorDragStart({ editor, group });
 			e.dataTransfer.effectAllowed = 'copyMove';
 
@@ -599,24 +608,24 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Drag over
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
 			DOM.addClass(tab, 'dropfeedback');
 		}));
 
 		// Drag leave
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			DOM.removeClass(tab, 'dropfeedback');
 		}));
 
 		// Drag end
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			DOM.removeClass(tab, 'dropfeedback');
 
 			this.onEditorDragEnd();
 		}));
 
 		// Drop
-		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
+		tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.removeClass(tab, 'dropfeedback');
 
 			const targetPosition = this.stacks.positionOfGroup(group);
@@ -647,6 +656,8 @@ export class TabsTitleControl extends TitleControl {
 				this.handleExternalDrop(e, targetPosition, targetIndex);
 			}
 		}));
+
+		return tabDisposeables;
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
