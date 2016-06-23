@@ -57,7 +57,14 @@ export class Button extends EventEmitter {
 	}
 
 	public set label(value: string) {
+		if (!this.$el.hasClass('monaco-text-button')) {
+			this.$el.addClass('monaco-text-button');
+		}
 		this.$el.text(value);
+	}
+
+	public set icon(iconClassName: string) {
+		this.$el.addClass(iconClassName);
 	}
 
 	public set enabled(value: boolean) {
