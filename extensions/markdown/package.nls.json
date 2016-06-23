@@ -1,7 +1,6 @@
 {
 	"markdown.category" : "Markdown",
-	"markdown.openPreview" : "Open Preview",
-	"markdown.previewMarkdown.title" : "Show Preview",
-	"markdown.previewMarkdownSide.title" : "Open Preview to the Side",
+	"markdown.preview.title" : "Open Preview",
+	"markdown.previewSide.title" : "Open Preview to the Side",
 	"markdown.showSource.title" : "Show Source"
 }

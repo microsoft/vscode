@@ -44,7 +44,7 @@
 		"commands": [
 			{
 				"command": "markdown.showPreview",
-				"title": "%markdown.previewMarkdown.title%",
+				"title": "%markdown.preview.title%",
 				"category": "%markdown.category%",
 				"icon": {
 					"light": "./media/Preview.svg",
@@ -53,7 +53,7 @@
 			},
 			{
 				"command": "markdown.showPreviewToSide",
-				"title": "%markdown.previewMarkdownSide.title%",
+				"title": "%markdown.previewSide.title%",
 				"icon": {
 					"light": "./media/Preview.svg",
 					"dark": "./media/Preview_inverse.svg"
@@ -79,6 +79,12 @@
 				{
 					"when": "resourceScheme == markdown",
 					"command": "markdown.showSource"
+				}
+			],
+			"explorer/context": [
+				{
+					"when": "resourceLangId == markdown",
+					"command": "markdown.showPreview"
 				}
 			]
 		},
