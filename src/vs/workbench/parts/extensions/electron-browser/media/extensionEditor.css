@@ -38,11 +38,21 @@
 	overflow: hidden;
 }
 
-.extension-editor > .header > .details > .name {
+.extension-editor > .header > .details > .title {
+	display: flex;
+	align-items: baseline;
+}
+
+.extension-editor > .header > .details > .title > .name {
+	flex: 1;
 	font-size: 26px;
 	font-weight: 600;
 	line-height: normal;
 	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title > .license {
+	margin-left: 10px;
 }
 
 .extension-editor > .header > .details > .subtitle {
