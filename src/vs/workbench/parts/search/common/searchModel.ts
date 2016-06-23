@@ -68,20 +68,21 @@ export class EmptyMatch extends Match {
 	}
 }
 
-export class FileMatch implements lifecycle.IDisposable {
+export class FileMatch extends EventEmitter implements lifecycle.IDisposable {
 
 	private _parent: SearchResult;
 	private _resource: URI;
 	_matches: { [key: string]: Match };
 
 	constructor(parent: SearchResult, resource: URI) {
+		super();
 		this._resource = resource;
 		this._parent = parent;
 		this._matches = Object.create(null);
 	}
 
 	public dispose(): void {
-		// nothing
+		this.emit('disposed', this);
 	}
 
 	public id(): string {
@@ -160,6 +161,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		if (!this._isTextModelDisposed()) {
 			this._model.deltaDecorations(this._modelDecorations, []);
 		}
+		super.dispose();
 	}
 
 	private _updateMatches(): void {
