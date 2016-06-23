@@ -31,7 +31,7 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
-	padding: 0 19px 0 16px;
+	padding: 0 9px 0 16px;
 	overflow: hidden;
 	display: flex;
 }
@@ -64,23 +64,40 @@
 
 .extensions-viewlet > .extensions .extension > .details > .header {
 	display: flex;
+	align-items: baseline;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .name {
 	font-weight: bold;
+	min-width: fit-content;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .version {
 	opacity: 0.6;
 	font-size: 80%;
 	padding-left: 6px;
+	flex: 1;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header > .author {
-	flex: 1;
-	font-size: 90%;
+.extensions-viewlet > .extensions .extension > .details > .header > .install-count:not(:empty) {
+	opacity: 0.6;
+	font-size: 80%;
+	border: 1px solid rgba(173, 173, 173, 0.5);
+	border-radius: 3px;
+	display: inline-block;
+	line-height: 14px;
+	padding: 0 3px;
 	text-align: right;
-	padding-left: 6px;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header > .install-count > .octicon {
+	font-size: 100%;
+	margin-right: 2px;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header > .ratings {
+	margin-right: 6px;
+	text-align: right;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer {
@@ -88,6 +105,14 @@
 	justify-content: flex-end;
 	height: 18px;
 	overflow: hidden;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .author {
+	flex: 1;
+	font-size: 90%;
+	padding-right: 6px;
+	opacity: 0.6;
+	font-weight: 600;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container {

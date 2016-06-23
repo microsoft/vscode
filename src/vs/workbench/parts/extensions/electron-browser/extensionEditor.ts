@@ -21,7 +21,7 @@ import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsWorkbenchService } from './extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
-import { RatingsWidget, Label } from './extensionsWidgets';
+import { RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
@@ -81,9 +81,9 @@ export class ExtensionEditor extends BaseEditor {
 		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
 		this.publisher.href = '#';
 
-		const install = append(subtitle, $('span.install'));
-		append(install, $('span.octicon.octicon-cloud-download'));
-		this.installCount = append(install, $('span.count'));
+		this.installCount = append(subtitle, $('span.install'));
+		// append(install, $('span.octicon.octicon-cloud-download'));
+		// this.installCount = append(install, $('span.count'));
 
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
@@ -121,7 +121,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		}
 
-		const install = this.instantiationService.createInstance(Label, this.installCount, extension, e => `${ e.installCount }`);
+		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, extension, {});
 		this.transientDisposables.push(install);
 
 		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, extension, {});
