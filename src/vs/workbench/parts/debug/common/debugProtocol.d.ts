@@ -752,15 +752,11 @@ declare module DebugProtocol {
 	/** Properties of a breakpoint passed to the setBreakpoints request.
 	*/
 	export interface SourceBreakpoint {
-		/** The start line of the range covered by the breakpoint. */
+		/** The source line of the breakpoint. */
 		line: number;
-		/** The optional start column of the range covered by the breakpoint. */
+		/** An optional source column of the breakpoint. */
 		column?: number;
-		/** An optional end line of the range covered by the breakpoint. */
-		endLine?: number;
-		/** An optional end column of the range covered by the breakpoint. */
-		endColumn?: number;
-		/** An optional expression for conditional breakpoints. If no end line is given, then the end column is assumed to be in the start line. */
+		/** An optional expression for conditional breakpoints. */
 		condition?: string;
 	}
 
