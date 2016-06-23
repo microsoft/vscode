@@ -86,6 +86,12 @@
 .extensions-viewlet > .extensions .extension > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
+	height: 18px;
+	overflow: hidden;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container {
+	flex-wrap: wrap-reverse;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
