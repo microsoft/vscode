@@ -931,7 +931,7 @@ export class SearchViewlet extends Viewlet {
 			match= element;
 		}
 		if (element instanceof FileMatch && element.count() > 0) {
-			match= element.matches()[element.matches.length - 1];
+			match= element.matches()[element.matches().length - 1];
 		}
 		if (match) {
 			let range= match.range();
