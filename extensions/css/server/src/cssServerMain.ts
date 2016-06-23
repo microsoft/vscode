@@ -9,11 +9,8 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
 
-import {getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService} from './cssLanguageService';
+import {getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService} from 'vscode-css-languageservice';
 import {getStylesheetCache} from './stylesheetCache';
-
-import * as nls from 'vscode-nls';
-nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
@@ -123,10 +120,9 @@ function triggerValidation(textDocument: TextDocument): void {
 
 function validateTextDocument(textDocument: TextDocument): void {
 	let stylesheet = stylesheets.getStylesheet(textDocument);
-	getLanguageService(textDocument).doValidation(textDocument, stylesheet).then(diagnostics => {
-		// Send the computed diagnostics to VSCode.
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-	});
+	let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet);
+	// Send the computed diagnostics to VSCode.
+	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
 connection.onCompletion(textDocumentPosition => {
