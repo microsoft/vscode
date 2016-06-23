@@ -59,15 +59,15 @@ export class ActionBarContributor {
 					// keep menu items
 					this._menuItems.push(item);
 					fillInKbExprKeys(item.when, keysFilter);
-					}
+				}
 
 				this._keybindingService.onDidChangeContext(keys => {
 					for (let k of keys) {
 						if (keysFilter[k]) {
 							this._onDidUpdate.fire();
 							return;
-				}
-				}
+						}
+					}
 				}, undefined, this._disposables);
 			}
 			this._onDidUpdate.fire();
@@ -145,7 +145,7 @@ class MenuItemActionItem extends ActionItem {
 		action: MenuItemAction,
 		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
-		super(undefined, action, { icon: true, label: false });
+		super(undefined, action, { icon: !!action.command.iconClass, label: !action.command.iconClass });
 	}
 
 	private get command() {
