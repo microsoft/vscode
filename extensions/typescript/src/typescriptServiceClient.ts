@@ -281,10 +281,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let startService = true;
 			if (this.numberRestarts > 5) {
 				if (diff < 60 * 1000 /* 1 Minutes */) {
-					window.showWarningMessage(localize('serverDied','The Typescript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
+					window.showWarningMessage(localize('serverDied','The TypeScript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
-					window.showErrorMessage(localize('serverDiedAfterStart', 'The Typesrript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.'));
+					window.showErrorMessage(localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.'));
 					this.logTelemetry('serviceExited');
 				}
 			}
