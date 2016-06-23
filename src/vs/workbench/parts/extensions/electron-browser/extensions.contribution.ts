@@ -28,6 +28,8 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, To
 import { ExtensionEditor } from './extensionEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
+
 
 // class ExtensionsInputFactory implements IEditorInputFactory {
 
@@ -54,6 +56,18 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
+
+
+Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
+		'GalleryExtensionsHandler',
+		'ext install ',
+		localize('galleryExtensionsCommands', "Install Gallery Extensions"),
+		true
+	)
+);
+
 
 // Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 // 	.registerEditorInputFactory(ExtensionsInput.ID, ExtensionsInputFactory);
