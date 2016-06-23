@@ -19,6 +19,7 @@ export interface IExtensionsViewlet extends IViewlet {
 export enum ExtensionState {
 	Installing,
 	Installed,
+	NeedsRestart,
 	Uninstalled
 }
 

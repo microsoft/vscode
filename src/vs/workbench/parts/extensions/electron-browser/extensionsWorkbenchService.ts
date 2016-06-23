@@ -24,6 +24,8 @@ interface IExtensionStateProvider {
 
 class Extension implements IExtension {
 
+	public needsRestart = false;
+
 	constructor(
 		private stateProvider: IExtensionStateProvider,
 		public local: ILocalExtension,
@@ -276,6 +278,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		const extension = installing.extension;
 		extension.local = local;
+		extension.needsRestart = true;
 
 		this.installing = this.installing.filter(e => e.id !== id);
 
@@ -307,8 +310,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return ExtensionState.Installing;
 		}
 
-		if (this.installed.some(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))) {
-			return ExtensionState.Installed;
+		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && e.gallery.id === extension.gallery.id))[0];
+
+		if (local) {
+			return local.needsRestart ? ExtensionState.NeedsRestart : ExtensionState.Installed;
 		}
 
 		return ExtensionState.Uninstalled;
