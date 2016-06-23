@@ -17,7 +17,7 @@ import 'vs/editor/browser/editor.all';
 import 'vs/languages/languages.main';
 
 // Menus/Actions
-import 'vs/platform/actions/common/menusExtensionPoint';
+import 'vs/platform/actions/browser/menusExtensionPoint';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';

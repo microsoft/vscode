@@ -7,65 +7,41 @@
 
 import {values} from 'vs/base/common/collections';
 import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
-import {Menus, CommandAction, MenuItem, IMenuService} from './actions';
+import {MenuId, CommandAction, MenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 
-export type IUserFriendlyMenuLocation = 'editor/title';
-
-export interface IUserFriendlyMenuItem {
+export interface IDeclaredMenuItem {
 	command: string;
 	alt?: string;
 	when?: string;
 }
 
-export interface IUserFriendlyCommand {
-	command: string;
-	title: string;
-	category?: string;
-	icon?: string | { light: string; dark: string; };
-}
-
 export interface IMenuRegistry {
-	registerCommand(userCommand: IUserFriendlyCommand): boolean;
-	registerMenuItems(location: IUserFriendlyMenuLocation, items: IUserFriendlyMenuItem[]): boolean;
+	registerCommand(userCommand: CommandAction): boolean;
+	registerMenuItems(location: MenuId, items: IDeclaredMenuItem[]): void;
 }
 
 const _registry = new class {
 
 	private _commands: { [id: string]: CommandAction } = Object.create(null);
 
-	private _menuItems: { [loc: number]: IUserFriendlyMenuItem[] } = Object.create(null);
+	private _menuItems: { [loc: number]: IDeclaredMenuItem[] } = Object.create(null);
 
-	registerCommand(userCommand: IUserFriendlyCommand): boolean {
-		let {command, category, icon, title} = userCommand;
-		if (!icon) {
-			icon = '';
-		}
-		const old = this._commands[command];
-		this._commands[command] = {
-			id: command,
-			title,
-			category,
-			lightThemeIcon: typeof icon === 'string' ? icon : icon.light,
-			darkThemeIcon: typeof icon === 'string' ? icon : icon.dark
-		};
-
+	registerCommand(command: CommandAction): boolean {
+		const old = this._commands[command.id];
+		this._commands[command.id] = command;
 		return old !== void 0;
 	}
 
-	registerMenuItems(location: IUserFriendlyMenuLocation, items: IUserFriendlyMenuItem[]): boolean {
-		const loc = Menus.parse(location);
-		if (loc) {
-			let array = this._menuItems[loc];
-			if (!array) {
-				this._menuItems[loc] = items;
-			} else {
-				array.push(...items);
-			}
-			return true;
+	registerMenuItems(loc: MenuId, items: IDeclaredMenuItem[]): void {
+		let array = this._menuItems[loc];
+		if (!array) {
+			this._menuItems[loc] = items;
+		} else {
+			array.push(...items);
 		}
 	}
 
-	getMenuItems(loc: Menus): MenuItem[] {
+	getMenuItems(loc: MenuId): MenuItem[] {
 		const menuItems = this._menuItems[loc];
 		if (menuItems) {
 			return menuItems.map(item => {
@@ -88,7 +64,7 @@ export class MenuService implements IMenuService {
 
 	serviceId;
 
-	getMenuItems(loc: Menus): MenuItem[] {
+	getMenuItems(loc: MenuId): MenuItem[] {
 		return _registry.getMenuItems(loc);
 	}
 

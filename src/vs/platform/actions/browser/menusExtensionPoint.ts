@@ -4,18 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {createCSSRule} from 'vs/base/browser/dom';
 import {localize} from 'vs/nls';
 import {join} from 'vs/base/common/paths';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {forEach} from 'vs/base/common/collections';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IUserFriendlyCommand, IUserFriendlyMenuItem, IUserFriendlyMenuLocation, MenuRegistry} from './menusService';
+import {IDeclaredMenuItem, MenuRegistry} from './menusService';
+import {MenuId} from 'vs/platform/actions/common/actions';
+
 
 namespace schema {
 
 	// --- menus contribution point
 
-	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: IExtensionMessageCollector): boolean {
+
+	export function parseMenus(value: string): MenuId {
+		switch (value) {
+			case 'editor/title': return MenuId.EditorTitle;
+			case 'explorer/context': return MenuId.ExplorerContext;
+		}
+	}
+
+
+	export function isValidMenuItems(menu: IDeclaredMenuItem[], collector: IExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
 			collector.error(localize('requirearry', "menu items must be an arry"));
 			return false;
@@ -74,6 +87,15 @@ namespace schema {
 
 	// --- commands contribution point
 
+	export interface IUserFriendlyCommand {
+		command: string;
+		title: string;
+		category?: string;
+		icon?: IUserFriendlyIcon;
+	}
+
+	export type IUserFriendlyIcon = string | { light: string; dark: string; };
+
 	export function isValidCommand(command: IUserFriendlyCommand, collector: IExtensionMessageCollector): boolean {
 		if (!command) {
 			collector.error(localize('nonempty', "expected non-empty value."));
@@ -97,7 +119,7 @@ namespace schema {
 		return true;
 	}
 
-	function isValidIcon(icon: string | { light: string; dark: string;}, collector: IExtensionMessageCollector): boolean {
+	function isValidIcon(icon: IUserFriendlyIcon, collector: IExtensionMessageCollector): boolean {
 		if (typeof icon === 'undefined') {
 			return true;
 		}
@@ -159,7 +181,7 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
 	for (let extension of extensions) {
 		const {value, collector} = extension;
 
@@ -168,40 +190,50 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyMenuItem
 				return;
 			}
 
-			if (!MenuRegistry.registerMenuItems(<IUserFriendlyMenuLocation>entry.key, entry.value)) {
-				// ignored
+			const menu = schema.parseMenus(entry.key);
+			if (!menu) {
+				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
+				return;
 			}
+
+			MenuRegistry.registerMenuItems(menu, entry.value);
 		});
 	}
 });
 
-ExtensionsRegistry.registerExtensionPoint<IUserFriendlyCommand | IUserFriendlyCommand[]>('commands', schema.commandsContribution).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', schema.commandsContribution).setHandler(extensions => {
 
-	function handleCommand(command: IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
+	const ids = new IdGenerator('contrib-cmd-icon-');
 
-		if (!schema.isValidCommand(command, extension.collector)) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand , extension: IExtensionPointUser<any>) {
+
+		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
 		}
 
-		let {icon} = command;
-		if (!icon) {
-			// ignore
-		} else if (typeof icon === 'string') {
-			command.icon = join(extension.description.extensionFolderPath, icon);
-		} else {
-			const light = join(extension.description.extensionFolderPath, icon.light);
-			const dark = join(extension.description.extensionFolderPath, icon.dark);
-			command.icon = { light, dark };
+		let {icon, category, title, command} = userFriendlyCommand;
+		let iconClass: string;
+		if (icon) {
+			iconClass = ids.nextId();
+			if (typeof icon === 'string') {
+				const path = join(extension.description.extensionFolderPath, icon);
+				createCSSRule(`icon.${iconClass}`, `background-image: url("${path}")`);
+			} else {
+				const light = join(extension.description.extensionFolderPath, icon.light);
+				const dark = join(extension.description.extensionFolderPath, icon.dark);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${light}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, hc-black .icon.${iconClass}`, `background-image: url("${dark}")`);
+			}
 		}
 
-		if (MenuRegistry.registerCommand(command)) {
-			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", command.command));
+		if (MenuRegistry.registerCommand({ id: command, title, category, iconClass })) {
+			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
 	}
 
 	for (let extension of extensions) {
 		const {value} = extension;
-		if (Array.isArray<IUserFriendlyCommand>(value)) {
+		if (Array.isArray<schema.IUserFriendlyCommand>(value)) {
 			for (let command of value) {
 				handleCommand(command, extension);
 			}

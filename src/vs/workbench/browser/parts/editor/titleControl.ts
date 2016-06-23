@@ -31,8 +31,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ActionBarContributor} from 'vs/platform/actions/workbench/actionBarContributor';
-import {Menus} from 'vs/platform/actions/common/actions';
+import {ActionBarContributor} from 'vs/platform/actions/browser/actionBarContributor';
+import {MenuId} from 'vs/platform/actions/common/actions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 export interface IToolbarActions {
@@ -177,7 +177,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	public create(parent: HTMLElement): void {
-		this.titleActionBarContributor = this.instantiationService.createInstance(ActionBarContributor, parent, Menus.EditorTitle);
+		this.titleActionBarContributor = this.instantiationService.createInstance(ActionBarContributor, parent, MenuId.EditorTitle);
 		this.toDispose.push(this.titleActionBarContributor.onDidUpdate(e => this.refresh()));
 		this.toDispose.push(this.titleActionBarContributor);
 	}

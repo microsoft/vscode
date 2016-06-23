@@ -11,12 +11,10 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {Menus, MenuItem, IMenuService} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, ActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {isLightTheme} from 'vs/platform/theme/common/themes';
 import {domEvent} from 'vs/base/browser/event';
 
 export class ActionBarContributor {
@@ -28,11 +26,10 @@ export class ActionBarContributor {
 
 	constructor(
 		scope: HTMLElement,
-		location: Menus,
+		location: MenuId,
 		@IMenuService private _menuService: IMenuService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IExtensionService private _extensionService: IExtensionService,
-		@IThemeService private _themeService: IThemeService
+		@IExtensionService private _extensionService: IExtensionService
 	) {
 		this._scope = scope;
 		this._extensionService.onReady().then(() => {
@@ -82,7 +79,7 @@ export class ActionBarContributor {
 
 	getActionItem(action: IAction): BaseActionItem {
 		if (action instanceof MenuItemAction) {
-			return new MenuItemActionItem(action, this._themeService, this._keybindingService);
+			return new MenuItemActionItem(action, this._keybindingService);
 		}
 	}
 }
@@ -129,12 +126,9 @@ class MenuItemActionItem extends ActionItem {
 
 	constructor(
 		action: MenuItemAction,
-		@IThemeService private _themeService: IThemeService,
 		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super(undefined, action, { icon: true, label: false });
-
-		this._callOnDispose.push(this._themeService.onDidThemeChange(_ => this._updateClass()));
 	}
 
 	private get command() {
@@ -182,10 +176,8 @@ class MenuItemActionItem extends ActionItem {
 	_updateClass(): void {
 		if (this.options.icon) {
 			const element = this.$e.getHTMLElement();
-			const {darkThemeIcon, lightThemeIcon} = this.command;
-			const themeId = this._themeService.getTheme();
-			element.classList.add('icon');
-			element.style.backgroundImage = `url("${isLightTheme(themeId) ? lightThemeIcon : darkThemeIcon}")`;
+			const {iconClass} = this.command;
+			element.classList.add('icon', iconClass);
 		}
 	}
 }

@@ -13,13 +13,11 @@ import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/c
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
-
 export interface CommandAction {
 	id: string;
 	title: string;
-	category: string;
-	lightThemeIcon: string;
-	darkThemeIcon: string;
+	category?: string;
+	iconClass?: string;
 }
 
 export interface MenuItem {
@@ -28,18 +26,9 @@ export interface MenuItem {
 	when?: KbExpr;
 }
 
-export enum Menus {
+export enum MenuId {
 	EditorTitle = 1,
 	ExplorerContext = 2
-}
-
-export namespace Menus {
-	export function parse(value: string): Menus {
-		switch (value) {
-			case 'editor/title': return Menus.EditorTitle;
-			case 'explorer/context': return Menus.ExplorerContext;
-		}
-	}
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -48,7 +37,7 @@ export interface IMenuService {
 
 	serviceId: any;
 
-	getMenuItems(loc: Menus): MenuItem[];
+	getMenuItems(loc: MenuId): MenuItem[];
 
 	getCommandActions(): CommandAction[];
 }

@@ -46,8 +46,8 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {ActionBarContributor} from 'vs/platform/actions/workbench/actionBarContributor';
-import {Menus} from 'vs/platform/actions/common/actions';
+import {ActionBarContributor} from 'vs/platform/actions/browser/actionBarContributor';
+import {MenuId} from 'vs/platform/actions/common/actions';
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -468,7 +468,7 @@ export class FileController extends DefaultController {
 
 		if (!this.contextMenuActions) {
 			this.contextMenuActions = this.instantiationService.createInstance(ActionBarContributor,
-				tree.getHTMLElement(), Menus.ExplorerContext);
+				tree.getHTMLElement(), MenuId.ExplorerContext);
 		}
 
 		event.preventDefault();
