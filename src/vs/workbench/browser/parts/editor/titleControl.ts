@@ -50,7 +50,7 @@ export interface ITitleAreaControl {
 	dispose(): void;
 }
 
-export abstract class TitleControl {
+export abstract class TitleControl implements ITitleAreaControl {
 
 	private static draggedEditor: IEditorIdentifier;
 
@@ -98,8 +98,6 @@ export abstract class TitleControl {
 		this.toDispose.push(this.scheduler);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
-		this.titleActionBarContributor = instantiationService.createInstance(ActionBarContributor, MenuLocation.EditorPrimary);
-		this.toDispose.push(this.titleActionBarContributor);
 
 		this.initActions();
 		this.registerListeners();
@@ -120,7 +118,6 @@ export abstract class TitleControl {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-		this.toDispose.push(this.titleActionBarContributor.onDidUpdate(e => this.refresh()));
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
@@ -177,6 +174,12 @@ export abstract class TitleControl {
 		} else {
 			this.scheduler.schedule();
 		}
+	}
+
+	public create(parent: HTMLElement): void {
+		this.titleActionBarContributor = this.instantiationService.createInstance(ActionBarContributor, parent, MenuLocation.EditorPrimary);
+		this.toDispose.push(this.titleActionBarContributor.onDidUpdate(e => this.refresh()));
+		this.toDispose.push(this.titleActionBarContributor);
 	}
 
 	protected abstract doRefresh(): void;
