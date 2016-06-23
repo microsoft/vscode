@@ -3,18 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.search-viewlet .highlight {
-	color: black;
-	background-color: rgba(234, 92, 0, 0.3);
+.search-viewlet .search-widgets-container {
+	margin: 6px 17px 0 2px;
 }
 
-.search-viewlet .query-box {
-	margin: 6px 17px 0 17px;
+.search-viewlet .search-widget .toggle-replace-button {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 16px;
+	height: 100%;
+
+	-webkit-box-sizing: border-box;
+	-o-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-ms-box-sizing: border-box;
+	box-sizing: border-box;
+
+	background-position: center center;
+	background-repeat: no-repeat;
+	cursor: pointer;
 }
 
-.search-viewlet .query-box .monaco-findInput {
+.search-viewlet .search-widget .input-box {
+	margin-left: 17px;
+}
+
+.search-viewlet .search-widget .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
+}
+
+.search-viewlet .search-widget .replace-box {
+	margin-top: 6px;
+}
+
+.search-viewlet .search-widget .replace-box.disabled {
+	display: none;
 }
 
 .search-viewlet .query-clear {
@@ -29,14 +54,13 @@
 .search-viewlet .query-details {
 	min-height: 1em;
 	position: relative;
-	margin: 0 17px 6px 17px;
-	padding: 0 4px;
+	margin: 0 0 6px 17px;
 }
 
 .search-viewlet .query-details .more {
 	position: absolute;
-	right: 0;
 	margin-right: 0.5em;
+	right: 0;
 	cursor: pointer;
 	width: 16px;
 	height: 13px;
@@ -163,6 +187,24 @@
 	background: url("action-remove.svg") center center no-repeat;
 }
 
+.search-viewlet .action-replace {
+	background-image: url('replace.svg');
+}
+
+.search-viewlet .action-replace-all {
+	background-image: url('replace-all.svg');
+}
+
+.monaco-editor.hc-black .search-viewlet .action-replace,
+.monaco-editor.vs-dark .search-viewlet .action-replace {
+	background-image: url('replace-inverse.svg');
+}
+
+.monaco-editor.hc-black .search-viewlet .action-replace-all,
+.monaco-editor.vs-dark .search-viewlet .action-replace-all {
+	background-image: url('replace-all-inverse.svg');
+}
+
 .search-viewlet .label {
 	font-style: italic;
 }
@@ -248,8 +290,28 @@
 	box-sizing: border-box;
 }
 
+
+.search-viewlet .replaceMatch {
+	background-color: rgba(234, 92, 0, 0.45);
+}
+
+.search-viewlet .removeMatch {
+	text-decoration: line-through;
+}
+
+.hc-black .monaco-workbench .search-viewlet .replaceMatch,
+.monaco-editor.hc-black .replaceMatch {
+	border-color: #F44336;
+}
+
 /* Theming */
-.vs .search-viewlet .query-box,
+
+.search-viewlet .highlight {
+	color: black;
+	background-color: rgba(234, 92, 0, 0.3);
+}
+
+.vs .search-viewlet .input-box,
 .vs .search-viewlet .file-types .monaco-inputbox {
 	background-color: white;
 }
@@ -262,7 +324,15 @@
 	color: #FFF;
 }
 
-.vs-dark .search-viewlet .query-box,
+.vs .search-viewlet .search-widget .toggle-replace-button.collapse {
+	background-image: url('expando-collapsed.svg');
+}
+
+.vs .search-viewlet .search-widget .toggle-replace-button.expand {
+	background-image: url('expando-expanded.svg');
+}
+
+.vs-dark .search-viewlet .input-box,
 .vs-dark .search-viewlet .file-types .monaco-inputbox {
 	background-color: #3C3C3C;
 }
@@ -287,8 +357,18 @@
 	padding: 0;
 }
 
+.vs-dark .search-viewlet .search-widget .toggle-replace-button.expand,
+.hc-black .search-viewlet .search-widget .toggle-replace-button.expand {
+	background-image: url('expando-expanded-dark.svg');
+}
+
+.vs-dark .search-viewlet .search-widget .toggle-replace-button.collapse,
+.hc-black .search-viewlet .search-widget .toggle-replace-button.collapse {
+	background-image: url('expando-collapsed-dark.svg');
+}
+
 /* High Contrast Theming */
-.hc-black .monaco-workbench .search-viewlet .query-box,
+.hc-black .monaco-workbench .search-viewlet .input-box,
 .hc-black .monaco-workbench .search-viewlet .file-types .monaco-inputbox {
 	background-color: #000;
 }
@@ -331,11 +411,11 @@
 	width: 16px;
 }
 
-.hc-black .monaco-workbench .query-box {
+.hc-black .monaco-workbench .input-box {
 	border: 1px solid #6FC3DF;
 }
 
-.hc-black .monaco-workbench .query-box .monaco-inputbox.idle {
+.hc-black .monaco-workbench .input-box .monaco-inputbox.idle {
 	border: none;
 }
 
