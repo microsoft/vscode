@@ -71,6 +71,17 @@
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
+				"typescript.tsserver.trace": {
+					"type": "string",
+					"enum": ["off", "messages", "verbose"],
+					"default": "off",
+					"description": "%typescript.tsserver.trace%"
+				},
+				"typescript.tsserver.experimentalAutoBuild": {
+					"type": "boolean",
+					"default": false,
+					"description": "%typescript.tsserver.experimentalAutoBuild%"
+				},
 				"typescript.useCodeSnippetsOnMethodSuggest": {
 					"type": "boolean",
 					"default": false,
@@ -80,12 +91,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.validate.enable%"
-				},
-				"typescript.tsserver.trace": {
-					"type": "string",
-					"enum": ["off", "messages", "verbose"],
-					"default": "off",
-					"description": "%typescript.tsserver.trace%"
 				},
 				"typescript.format.insertSpaceAfterCommaDelimiter": {
 					"type": "boolean",

@@ -1,4 +1,5 @@
 {
+	"autoDiagnostics": true,
 	"compilerOptions": {
 		"module": "amd",
 		"moduleResolution": "classic",
@@ -7,6 +8,7 @@
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
+		"declaration": true
 	}
 }
