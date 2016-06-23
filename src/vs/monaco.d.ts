@@ -4725,12 +4725,14 @@ declare module monaco.worker {
     export interface IMirrorModel {
         uri: Uri;
         version: number;
-        getText(): string;
+        getValue(): string;
     }
 
-    /**
-     * Get all available mirror models in this worker.
-     */
-    export function getMirrorModels(): IMirrorModel[];
+    export interface IWorkerContext {
+        /**
+         * Get all available mirror models in this worker.
+         */
+        getMirrorModels(): IMirrorModel[];
+    }
 
 }

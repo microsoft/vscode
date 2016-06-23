@@ -106,8 +106,18 @@
 /* Action bar support */
 .monaco-inputbox .monaco-action-bar {
 	position: absolute;
-	right: 0px;
+	right: 2px;
 	top: 4px;
+}
+
+.monaco-inputbox .monaco-action-bar .action-item {
+	margin-left: 2px;
+}
+
+.monaco-inputbox .monaco-action-bar .action-item .icon {
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
 }
 
 /* Theming */

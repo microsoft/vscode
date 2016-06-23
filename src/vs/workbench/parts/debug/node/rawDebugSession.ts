@@ -9,6 +9,7 @@ import fs = require('fs');
 import net = require('net');
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
+import objects = require('vs/base/common/objects');
 import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -210,10 +211,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
-		if (response.body) {
-			this.capabilities = response.body;
-		}
-
+		this.capabilities = objects.mixin(this.capabilities, response.body);
 		return response;
 	}
 

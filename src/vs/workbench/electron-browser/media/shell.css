@@ -101,14 +101,14 @@
 	outline-offset: -1px;
 }
 
-.monaco-shell.vs .monaco-button:focus,
-.monaco-shell.vs-dark .monaco-button:focus,
+.monaco-shell.vs .monaco-text-button:focus,
+.monaco-shell.vs-dark .monaco-text-button:focus,
 .monaco-shell.vs .action-button:focus,
 .monaco-shell.vs-dark .action-button:focus {
 	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
 }
 
-.monaco-shell.vs .monaco-button:focus,
+.monaco-shell.vs .monaco-text-button:focus,
 .monaco-shell.vs .action-button:focus {
 	outline-offset: -2px; /* Inset outline so it stands out on light background. */
 }

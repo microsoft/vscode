@@ -50,6 +50,22 @@
 	background-color: #6DA770;
 }
 
-.monaco-action-bar .action-item.disabled .action-label.extension-action.update {
+
+.monaco-action-bar .action-item .action-label.extension-action.enable {
+	color: white;
+	background-color: #B78C4C;
+	border-color: #946E36;
+}
+
+.monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action.enable {
+	background-color: #A27C44;
+}
+
+.monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action.enable {
+	background-color: #966C2F;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.update,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.enable {
 	display: none;
 }

@@ -63,7 +63,7 @@ class DependentService implements IDependentService {
 	name = 'farboo';
 }
 
-class Target1Dep {
+class Service1Consumer {
 
 	constructor( @IService1 service1: IService1) {
 		assert.ok(service1);
@@ -162,7 +162,7 @@ suite('Instantiation Service', () => {
 		collection.set(IService2, new Service2());
 		collection.set(IService3, new Service3());
 
-		service.createInstance(Target1Dep);
+		service.createInstance(Service1Consumer);
 	});
 
 	test('@Param - fixed args', function () {
@@ -181,7 +181,7 @@ suite('Instantiation Service', () => {
 		collection.set(IService1, new Service1());
 
 		let service = new InstantiationService(collection);
-		service.createInstance(Target1Dep);
+		service.createInstance(Service1Consumer);
 
 		// no IService2
 		assert.throws(() => service.createInstance(Target2Dep));
@@ -359,5 +359,39 @@ suite('Instantiation Service', () => {
 		}
 
 		assert.throws(() => service.invokeFunction(test));
+	});
+
+	test('Create child', function () {
+
+		let serviceInstanceCount = 0;
+
+		const CtorCounter = class implements Service1 {
+			serviceId: any;
+			c = 1;
+			constructor() {
+				serviceInstanceCount += 1;
+			}
+		};
+
+		// creating the service instance BEFORE the child service
+		let service = new InstantiationService(new ServiceCollection([IService1, new SyncDescriptor(CtorCounter)]));
+		service.createInstance(Service1Consumer);
+
+		// second instance must be earlier ONE
+		let child = service.createChild(new ServiceCollection([IService2, new Service2()]));
+		child.createInstance(Service1Consumer);
+
+		assert.equal(serviceInstanceCount, 1);
+
+		// creating the service instance AFTER the child service
+		serviceInstanceCount = 0;
+		service = new InstantiationService(new ServiceCollection([IService1, new SyncDescriptor(CtorCounter)]));
+		child = service.createChild(new ServiceCollection([IService2, new Service2()]));
+
+		// second instance must be earlier ONE
+		service.createInstance(Service1Consumer);
+		child.createInstance(Service1Consumer);
+
+		assert.equal(serviceInstanceCount, 1);
 	});
 });

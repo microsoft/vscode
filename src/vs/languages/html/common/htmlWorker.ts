@@ -168,24 +168,6 @@ export class HTMLWorker {
 		});
 	}
 
-	public findColorDeclarations(resource:URI):winjs.TPromise<{range:editorCommon.IRange; value:string; }[]> {
-		return this._delegateToAllModes(resource, (models) => {
-			let allPromises: winjs.TPromise<IColorRange[]>[] = [];
-
-			allPromises = models
-				.filter((model) => (typeof model.getMode()['findColorDeclarations'] === 'function'))
-				.map((model) => model.getMode()['findColorDeclarations'](model.uri));
-
-			return winjs.TPromise.join(allPromises).then((results:IColorRange[][]) => {
-				let result:IColorRange[] = [];
-
-				results.forEach((oneResult) => result = result.concat(oneResult));
-
-				return result;
-			});
-		});
-	}
-
 	private findMatchingOpenTag(scanner: IHTMLScanner) : string {
 		let closedTags : { [name:string]: number } = {};
 		let tagClosed = false;

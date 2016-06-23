@@ -11,9 +11,9 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IExtension, ExtensionsModel } from './extensionsModel';
-import { CombinedInstallAction, UpdateAction } from './extensionsActions';
-import { Label } from './extensionsWidgets';
+import { IExtension } from './extensions';
+import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
+import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 
 export interface ITemplateData {
 	extension: IExtension;
@@ -21,7 +21,10 @@ export interface ITemplateData {
 	icon: HTMLElement;
 	name: HTMLElement;
 	version: HTMLElement;
+	installCount: HTMLElement;
+	ratings: HTMLElement;
 	author: HTMLElement;
+	needsRestart: HTMLElement;
 	description: HTMLElement;
 	actionbar: ActionBar;
 	disposables: IDisposable[];
@@ -36,15 +39,7 @@ const actionOptions = { icon: true, label: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
-	private _templates: ITemplateData[];
-	get templates(): ITemplateData[] { return this._templates; }
-
-	constructor(
-		private model: ExtensionsModel,
-		@IInstantiationService private instantiationService: IInstantiationService
-	) {
-		this._templates = [];
-	}
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {}
 
 	get templateId() { return 'extension'; }
 
@@ -53,17 +48,22 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const icon = append(element, $('.icon'));
 		const details = append(element, $('.details'));
 		const header = append(details, $('.header'));
-		const name = append(header, $('span.name.ellipsis'));
+		const name = append(header, $('span.name'));
 		const version = append(header, $('span.version.ellipsis'));
-		const author = append(header, $('span.author.ellipsis'));
+		const ratings = append(header, $('span.ratings'));
+		const installCount = append(header, $('span.install-count'));
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
+		const author = append(footer, $('.author.ellipsis'));
+		const needsRestart = append(footer, $('.needsRestart'));
 		const actionbar = new ActionBar(footer, { animated: false });
 		const disposables = [];
 
-		const result = { extension: null, element, icon, name, version, author, description, actionbar, disposables };
-		this._templates.push(result);
-		return result;
+		return {
+			extension: null, element, icon, name, version,
+			installCount, ratings, author, needsRestart, description,
+			actionbar, disposables
+		};
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
@@ -89,20 +89,21 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 
-		const version = new Label(data.version, this.model, extension, e => e.version);
-		const installAction = new CombinedInstallAction(this.model, extension);
-		const updateAction = new UpdateAction(this.model, extension);
-		data.actionbar.clear();
-		data.actionbar.push([updateAction, installAction], actionOptions);
+		const version = this.instantiationService.createInstance(Label, data.version, extension, e => e.version);
+		const installCount = this.instantiationService.createInstance(InstallWidget, data.installCount, extension, { small: true });
+		const ratings = this.instantiationService.createInstance(RatingsWidget, data.ratings, extension, { small: true });
 
-		data.disposables.push(version, installAction, updateAction);
+		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
+		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
+		const restartAction = this.instantiationService.createInstance(EnableAction, extension);
+
+		data.actionbar.clear();
+		data.actionbar.push([restartAction, updateAction, installAction], actionOptions);
+
+		data.disposables.push(version, installCount, ratings, installAction, updateAction, restartAction);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
-		const index = this._templates.indexOf(data);
-
-		if (index > -1) {
-			this._templates.splice(index, 1);
-		}
+		data.actionbar = dispose(data.actionbar);
 	}
 }

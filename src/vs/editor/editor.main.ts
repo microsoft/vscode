@@ -12,9 +12,6 @@ import 'vs/editor/contrib/quickOpen/browser/quickCommand.contribution';
 import 'vs/languages/languages.main';
 import 'vs/languages/php/common/php.contribution';
 import 'vs/languages/json/common/json.contribution';
-import 'vs/languages/less/common/less.contribution';
-import 'vs/languages/sass/common/sass.contribution';
-import 'vs/languages/css/common/css.contribution';
 
 import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 import {createMonacoEditorAPI} from 'vs/editor/browser/standalone/standaloneEditor';
