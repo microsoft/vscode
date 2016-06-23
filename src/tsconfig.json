@@ -1,5 +1,4 @@
 {
-	"autoDiagnostics": true,
 	"compilerOptions": {
 		"module": "amd",
 		"moduleResolution": "classic",
