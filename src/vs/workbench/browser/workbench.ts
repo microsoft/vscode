@@ -65,7 +65,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
-import {MenuService} from 'vs/platform/actions/browser/menusService';
+import {MenuService} from 'vs/platform/actions/browser/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 
 interface WorkbenchParams {

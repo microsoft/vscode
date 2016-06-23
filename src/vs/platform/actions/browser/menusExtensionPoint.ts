@@ -11,22 +11,19 @@ import {IdGenerator} from 'vs/base/common/idGenerator';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {forEach} from 'vs/base/common/collections';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IDeclaredMenuItem, MenuRegistry} from './menusService';
+import {IDeclaredMenuItem, MenuRegistry} from './menuService';
 import {MenuId} from 'vs/platform/actions/common/actions';
-
 
 namespace schema {
 
 	// --- menus contribution point
 
-
-	export function parseMenus(value: string): MenuId {
+	export function parseMenuId(value: string): MenuId {
 		switch (value) {
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'explorer/context': return MenuId.ExplorerContext;
 		}
 	}
-
 
 	export function isValidMenuItems(menu: IDeclaredMenuItem[], collector: IExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
@@ -190,7 +187,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }
 				return;
 			}
 
-			const menu = schema.parseMenus(entry.key);
+			const menu = schema.parseMenuId(entry.key);
 			if (!menu) {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
 				return;
