@@ -715,6 +715,10 @@ declare module DebugProtocol {
 		line: number;
 		/** The column within the line. If source is null or doesn't exist, column is 0 and must be ignored. */
 		column: number;
+		/** An optional end line of the range covered by the stack frame. */
+		endLine?: number;
+		/** An optional end column of the range covered by the stack frame. */
+		endColumn?: number;
 	}
 
 	/** A Scope is a named container for variables. */
@@ -748,11 +752,15 @@ declare module DebugProtocol {
 	/** Properties of a breakpoint passed to the setBreakpoints request.
 	*/
 	export interface SourceBreakpoint {
-		/** The source line of the breakpoint. */
+		/** The start line of the range covered by the breakpoint. */
 		line: number;
-		/** An optional source column of the breakpoint. */
+		/** The optional start column of the range covered by the breakpoint. */
 		column?: number;
-		/** An optional expression for conditional breakpoints. */
+		/** An optional end line of the range covered by the breakpoint. */
+		endLine?: number;
+		/** An optional end column of the range covered by the breakpoint. */
+		endColumn?: number;
+		/** An optional expression for conditional breakpoints. If no end line is given, then the end column is assumed to be in the start line. */
 		condition?: string;
 	}
 
@@ -776,9 +784,13 @@ declare module DebugProtocol {
 		message?: string;
 		/** The source where the breakpoint is located. */
 		source?: Source;
-		/** The actual line of the breakpoint. */
+		/** The start line of the actual range covered by the breakpoint. */
 		line?: number;
-		/** The actual column of the breakpoint. */
+		/** An optional start column of the actual range covered by the breakpoint. */
 		column?: number;
+		/** An optional end line of the actual range covered by the breakpoint. */
+		endLine?: number;
+		/**  An optional end column of the actual range covered by the breakpoint. If no end line is given, then the end column is assumed to be in the start line. */
+		endColumn?: number;
 	}
 }
