@@ -2958,7 +2958,8 @@ declare namespace vscode {
 
 		/**
 		 * The absolute file path of the workspace specific directory where the extension
-		 * can store proviate state on disk. The directory might not exist yet.
+		 * can store proviate state on disk. The directory itself might not exist yet. However
+		 * its parent directory will.
 		 *
 		 * Use `workspaceState` or `globalState` to store simple data.
 		 */
