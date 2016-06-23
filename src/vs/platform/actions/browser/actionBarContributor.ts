@@ -9,13 +9,26 @@ import URI from 'vs/base/common/uri';
 import {localize} from 'vs/nls';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {MenuId, MenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, ActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {domEvent} from 'vs/base/browser/event';
+
+
+function fillInKbExprKeys(exp: KbExpr, set: { [k: string]: boolean }): void {
+	if (exp) {
+		const parts = exp.serialize().split(' && ');
+		for (let part of parts) {
+			const m = /^\w+/.exec(part);
+			if (m) {
+				set[m[0]] = true;
+			}
+		}
+	}
+}
 
 export class ActionBarContributor {
 
@@ -34,24 +47,28 @@ export class ActionBarContributor {
 		this._scope = scope;
 		this._extensionService.onReady().then(() => {
 
-			let usesWhen = false;
 			let menuItems = this._menuService.getMenuItems(location);
 			if (menuItems) {
+				let keysFilter: { [key: string]: boolean } = Object.create(null);
 				for (let item of menuItems) {
 					if (!item.command) {
-						// warn!
+						//TODO@joh, warn? default command?
 						continue;
 					}
-					if (item.when) {
-						//TODO@joh - extract keys for better eventing
-						usesWhen = true;
-					}
-					// we want this
+
+					// keep menu items
 					this._menuItems.push(item);
+					fillInKbExprKeys(item.when, keysFilter);
+					}
+
+				this._keybindingService.onDidChangeContext(keys => {
+					for (let k of keys) {
+						if (keysFilter[k]) {
+							this._onDidUpdate.fire();
+							return;
 				}
-				if (usesWhen) {
-					this._keybindingService.onDidChangeContext(keys => this._onDidUpdate.fire(), undefined, this._disposables);
 				}
+				}, undefined, this._disposables);
 			}
 			this._onDidUpdate.fire();
 		});
