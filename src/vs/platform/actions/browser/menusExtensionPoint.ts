@@ -217,7 +217,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			iconClass = ids.nextId();
 			if (typeof icon === 'string') {
 				const path = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(`icon.${iconClass}`, `background-image: url("${path}")`);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${path}")`);
 			} else {
 				const light = join(extension.description.extensionFolderPath, icon.light);
 				const dark = join(extension.description.extensionFolderPath, icon.dark);
