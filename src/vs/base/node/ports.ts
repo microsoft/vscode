@@ -49,7 +49,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
 	});
 
-	server.listen(startPort, 'localhost');
+	server.listen(startPort, null);
 }
 
 function dispose(server: net.Server): void {
