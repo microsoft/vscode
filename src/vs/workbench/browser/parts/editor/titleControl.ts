@@ -157,7 +157,6 @@ export abstract class TitleControl {
 
 	public setContext(group: IEditorGroup): void {
 		this.context = group;
-		this.resourceContext.set(group && getResource(group.activeEditor));
 	}
 
 	public update(instant?: boolean): void {
@@ -276,6 +275,9 @@ export abstract class TitleControl {
 
 		const {group} = identifier;
 		const position = this.stacks.positionOfGroup(group);
+
+		// Update the resource context
+		this.resourceContext.set(group && getResource(group.activeEditor));
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const control = this.editorService.getVisibleEditors()[position];
