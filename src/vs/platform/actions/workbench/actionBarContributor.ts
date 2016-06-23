@@ -7,7 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 import {localize} from 'vs/nls';
-import {defaultGenerator} from 'vs/base/common/idGenerator';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -78,7 +77,6 @@ export class ActionBarContributor {
 					this._keybindingService));
 			}
 		}
-		console.log('ACTIONS', result.map(r => r.id));
 		return result;
 	}
 
@@ -91,12 +89,20 @@ export class ActionBarContributor {
 
 class MenuItemAction extends Action {
 
+	private static _getMenuItemId(item: MenuItem): string {
+		let result = item.command.id;
+		if (item.alt) {
+			result += `||${item.alt.id}`;
+		}
+		return result;
+	}
+
 	constructor(
 		private _item: MenuItem,
 		private _resource: URI,
 		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
-		super(defaultGenerator.nextId(), _item.command.title);
+		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 	}
 
 	get command() {
