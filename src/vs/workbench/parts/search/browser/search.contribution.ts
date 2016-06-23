@@ -27,11 +27,9 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {OpenSearchViewletAction} from 'vs/workbench/parts/search/browser/searchActions';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { ReplaceService } from 'vs/workbench/parts/search/browser/replaceService';
+import { registerContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 
-registerSingleton(IReplaceService, ReplaceService);
+registerContributions();
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',

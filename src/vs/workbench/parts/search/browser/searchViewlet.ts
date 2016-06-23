@@ -8,8 +8,7 @@
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import {TPromise, PPromise} from 'vs/base/common/winjs.base';
-import {Delayer} from 'vs/base/common/async';
-import {EditorType} from 'vs/editor/common/editorCommon';
+import {EditorType, IEditor} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -62,7 +61,6 @@ export class SearchViewlet extends Viewlet {
 	private toDispose: lifecycle.IDisposable[];
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
-	private delayedRefresh: Delayer<void>;
 	private loading: boolean;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchResult;
@@ -104,7 +102,6 @@ export class SearchViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.toDispose = [];
-		this.delayedRefresh = new Delayer<void>(200);
 		this.viewletVisible = keybindingService.createKey<boolean>('searchViewletVisible', true);
 		this.callOnModelChange = [];
 
@@ -287,6 +284,7 @@ export class SearchViewlet extends Viewlet {
 			if (this.viewModel) {
 				this.viewModel.replaceText= this.searchWidget.getReplaceValue();
 			}
+			this.refreshInputs();
 			this.tree.refresh();
 		});
 
@@ -298,6 +296,14 @@ export class SearchViewlet extends Viewlet {
 			}
 		});
 		this.searchWidget.onReplaceAll(() => this.replaceAll());
+	}
+
+	private refreshInputs(): void {
+		if (this.viewModel) {
+			this.viewModel.matches().forEach((fileMatch) => {
+				this.replaceService.refreshInput(fileMatch, this.viewModel.replaceText);
+			});
+		}
 	}
 
 	private replaceAll(): void {
@@ -829,8 +835,11 @@ export class SearchViewlet extends Viewlet {
 					this.tree.setInput(this.viewModel).then(() => {
 						autoExpand(false);
 						this.callOnModelChange.push(this.viewModel.addListener2('changed', (e: any) => {
-							if (this.replacingAll) {
-								this.delayedRefresh.trigger(() => this.tree.refresh(e, true));
+							if (!this.replacingAll) {
+								this.tree.refresh(e, true);
+								if (e instanceof FileMatch) {
+									this.replaceService.refreshInput(e, this.viewModel.replaceText, true);
+								}
 							}
 						}));
 					}).done(null, errors.onUnexpectedError);
@@ -880,6 +889,7 @@ export class SearchViewlet extends Viewlet {
 			}
 		}, 200);
 
+		this.replaceService.disposeAllInputs();
 		this.currentRequest = this.searchService.search(query);
 		this.currentRequest.then(onComplete, onError, onProgress);
 	}
@@ -892,6 +902,7 @@ export class SearchViewlet extends Viewlet {
 		this.actionRegistry['clearSearchResults'].enabled = false;
 
 		// clean up ui
+		this.replaceService.disposeAllInputs();
 		this.messages.hide();
 		this.tree.setInput(this.instantiationService.createInstance(SearchResult, null)).done(null, errors.onUnexpectedError);
 		this.results.show();
@@ -905,7 +916,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return this.viewModel.isReplaceActive() ? this.openReplaceEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
@@ -914,11 +925,22 @@ export class SearchViewlet extends Viewlet {
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
-				preserveFocus,
-				pinned,
+				preserveFocus: preserveFocus,
+				pinned: pinned,
 				selection: selection
 			}
 		}, sideBySide);
+	}
+
+	private openReplaceEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		return this.replaceService.getInput(element instanceof Match ? element.parent() : element, this.viewModel.replaceText).then((editorInput) => {
+			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned: pinned}).then((editor) => {
+				let editorControl= (<IEditor>editor.getControl());
+				if (element instanceof Match) {
+					editorControl.revealLineInCenter(element.range().startLineNumber);
+				}
+			});
+		});
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
