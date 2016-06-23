@@ -123,6 +123,8 @@ export class FileMatch implements lifecycle.IDisposable {
 	}
 }
 
+export type FileMatchOrMatch = FileMatch | Match;
+
 export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 
 	private static DecorationOption: IModelDecorationOptions = {
@@ -199,12 +201,21 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 	private _isTextModelDisposed(): boolean {
 		return !this._model || (<ITextModel>this._model).isDisposed();
 	}
+
+	public remove(match: Match): void {
+		super.remove(match);
+		if (this.count() === 0) {
+			this.add(new EmptyMatch(this));
+		}
+	}
+
 }
 
 export class SearchResult extends EventEmitter {
 
 	private _modelService: IModelService;
 	private _query: Search.IPatternInfo;
+	private _replace: string= null;
 	private _disposables: lifecycle.IDisposable[] = [];
 	private _matches: { [key: string]: FileMatch; } = Object.create(null);
 
@@ -219,6 +230,26 @@ export class SearchResult extends EventEmitter {
 			this._modelService.onModelAdded(this._onModelAdded, this, this._disposables);
 			this._modelService.onModelRemoved(this._onModelRemoved, this, this._disposables);
 		}
+	}
+
+	/**
+	 * Return true if replace is enabled otherwise false
+	 */
+	public isReplaceActive():boolean {
+		return this.replaceText !== null && this.replaceText !== void 0;
+	}
+
+	/**
+	 * Returns the text to replace.
+	 * Can be null if replace is not enabled. Use replace() before.
+	 * Can be empty.
+	 */
+	public get replaceText(): string {
+		return this._replace;
+	}
+
+	public set replaceText(replace: string) {
+		this._replace= replace;
 	}
 
 	private _onModelAdded(model: IModel): void {
