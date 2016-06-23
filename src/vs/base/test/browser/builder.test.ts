@@ -957,9 +957,6 @@ suite('Builder', () => {
 	test('Builder.select() and .matches()', function () {
 		var b = Build.withElementById(fixtureId);
 
-		assert(b.getPosition());
-		assert(b.getPositionRelativeTo(window.document.body));
-		assert(b.getPositionRelativeTo($(window.document.body)));
 		assert(b.getTotalSize());
 		assert(b.getContentSize());
 	});

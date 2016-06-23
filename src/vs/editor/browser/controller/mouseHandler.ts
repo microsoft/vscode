@@ -7,33 +7,30 @@
 import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import {GlobalMouseMoveMonitor} from 'vs/base/browser/globalMouseMoveMonitor';
-import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {Position} from 'vs/editor/common/core/position';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {MouseTargetFactory, ISimplifiedMouseEvent} from 'vs/editor/browser/controller/mouseTarget';
+import {MouseTargetFactory} from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {TimeoutTimer} from 'vs/base/common/async';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {VisibleRange} from 'vs/editor/common/view/renderingContext';
+import {EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent} from 'vs/editor/browser/editorDom';
 
 /**
  * Merges mouse events when mouse move events are throttled
  */
 function createMouseMoveEventMerger(mouseTargetFactory:MouseTargetFactory) {
-	return function(lastEvent:IMouseEvent, currentEvent:MouseEvent): IMouseEvent {
-		let r = new StandardMouseEvent(currentEvent);
+	return function(lastEvent:EditorMouseEvent, currentEvent:EditorMouseEvent): EditorMouseEvent {
 		let targetIsWidget = false;
 		if (mouseTargetFactory) {
-			targetIsWidget = mouseTargetFactory.mouseTargetIsWidget(r);
+			targetIsWidget = mouseTargetFactory.mouseTargetIsWidget(currentEvent);
 		}
 		if (!targetIsWidget) {
-			r.preventDefault();
+			currentEvent.preventDefault();
 		}
-		return r;
+		return currentEvent;
 	};
 }
 
@@ -127,7 +124,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	private _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime:number;
 
-	private _mouseMoveEventHandler: EventGateKeeper<IMouseEvent>;
+	private _mouseMoveEventHandler: EventGateKeeper<EditorMouseEvent>;
 
 	constructor(context:ViewContext, viewController:editorBrowser.IViewController, viewHelper:IPointerHandlerHelper) {
 		super();
@@ -150,23 +147,21 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 		this.lastMouseLeaveTime = -1;
 
-		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.viewDomNode, 'contextmenu',
-			(e: MouseEvent) => this._onContextMenu(e, true)));
+		let mouseEvents = new EditorMouseEventFactory(this.viewHelper.viewDomNode);
 
-		this._mouseMoveEventHandler = new EventGateKeeper<IMouseEvent>((e) => this._onMouseMove(e), () => !this.viewHelper.isDirty());
+		this.listenersToRemove.push(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
+
+		this._mouseMoveEventHandler = new EventGateKeeper<EditorMouseEvent>((e) => this._onMouseMove(e), () => !this.viewHelper.isDirty());
 		this.toDispose.push(this._mouseMoveEventHandler);
-		this.listenersToRemove.push(dom.addDisposableThrottledListener(this.viewHelper.viewDomNode, 'mousemove',
+		this.listenersToRemove.push(mouseEvents.onMouseMoveThrottled(this.viewHelper.viewDomNode,
 			this._mouseMoveEventHandler.handler,
 			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
 
-		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mouseup',
-			(e: MouseEvent) => this._onMouseUp(e)));
+		this.listenersToRemove.push(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
-		this.listenersToRemove.push(dom.addDisposableNonBubblingMouseOutListener(this.viewHelper.viewDomNode,
-			(e:MouseEvent) => this._onMouseLeave(e)));
+		this.listenersToRemove.push(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
 
-		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mousedown',
-			(e: MouseEvent) => this._onMouseDown(e)));
+		this.listenersToRemove.push(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
 
 		this._context.addEventHandler(this);
 	}
@@ -194,27 +189,22 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 	// --- end event handlers
 
-	protected _createMouseTarget(e:ISimplifiedMouseEvent, testEventTarget:boolean): editorBrowser.IMouseTarget {
-		let editorContent = dom.getDomNodePosition(this.viewHelper.viewDomNode);
-		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, editorContent, e, testEventTarget);
+	protected _createMouseTarget(e:EditorMouseEvent, testEventTarget:boolean): editorBrowser.IMouseTarget {
+		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, e, testEventTarget);
 	}
 
-	private _getMouseColumn(e:ISimplifiedMouseEvent): number {
-		let editorContent = dom.getDomNodePosition(this.viewHelper.viewDomNode);
-		return this.mouseTargetFactory.getMouseColumn(this._layoutInfo, editorContent, e);
+	private _getMouseColumn(e:EditorMouseEvent): number {
+		return this.mouseTargetFactory.getMouseColumn(this._layoutInfo, e);
 	}
 
-	protected _onContextMenu(rawEvent: MouseEvent, testEventTarget:boolean): void {
-		let e = new StandardMouseEvent(rawEvent);
-		let t = this._createMouseTarget(e, testEventTarget);
-		let mouseEvent: editorBrowser.IEditorMouseEvent = {
+	protected _onContextMenu(e: EditorMouseEvent, testEventTarget:boolean): void {
+		this.viewController.emitContextMenu({
 			event: e,
-			target: t
-		};
-		this.viewController.emitContextMenu(mouseEvent);
+			target: this._createMouseTarget(e, testEventTarget)
+		});
 	}
 
-	private _onMouseMove(e: IMouseEvent): void {
+	private _onMouseMove(e: EditorMouseEvent): void {
 		if (this._mouseDownOperation.isActive()) {
 			// In selection/drag operation
 			return;
@@ -225,36 +215,28 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 			return;
 		}
 
-		let t = this._createMouseTarget(e, true);
-		let mouseEvent: editorBrowser.IEditorMouseEvent = {
+		this.viewController.emitMouseMove({
 			event: e,
-			target: t
-		};
-		this.viewController.emitMouseMove(mouseEvent);
+			target: this._createMouseTarget(e, true)
+		});
 	}
 
-	private _onMouseLeave(rawEvent: MouseEvent): void {
+	private _onMouseLeave(e: EditorMouseEvent): void {
 		this.lastMouseLeaveTime = (new Date()).getTime();
-		let mouseEvent: editorBrowser.IEditorMouseEvent = {
-			event: new StandardMouseEvent(rawEvent),
-			target: null
-		};
-		this.viewController.emitMouseLeave(mouseEvent);
-	}
-
-	public _onMouseUp(rawEvent: MouseEvent): void {
-		let e = new StandardMouseEvent(rawEvent);
-		let t = this._createMouseTarget(e, true);
-
-		let mouseEvent: editorBrowser.IEditorMouseEvent = {
+		this.viewController.emitMouseLeave({
 			event: e,
-			target: t
-		};
-		this.viewController.emitMouseUp(mouseEvent);
+			target: null
+		});
 	}
 
-	public _onMouseDown(rawEvent: MouseEvent): void {
-		let e = new StandardMouseEvent(rawEvent);
+	public _onMouseUp(e: EditorMouseEvent): void {
+		this.viewController.emitMouseUp({
+			event: e,
+			target: this._createMouseTarget(e, true)
+		});
+	}
+
+	public _onMouseDown(e: EditorMouseEvent): void {
 		let t = this._createMouseTarget(e, true);
 
 		let targetIsContent = (t.type === editorCommon.MouseTargetType.CONTENT_TEXT || t.type === editorCommon.MouseTargetType.CONTENT_EMPTY);
@@ -297,11 +279,10 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 			}
 		}
 
-		let mouseEvent: editorBrowser.IEditorMouseEvent = {
+		this.viewController.emitMouseDown({
 			event: e,
 			target: t
-		};
-		this.viewController.emitMouseDown(mouseEvent);
+		});
 	}
 }
 
@@ -310,11 +291,11 @@ class MouseDownOperation extends Disposable {
 	private _context:ViewContext;
 	private _viewController:editorBrowser.IViewController;
 	private _viewHelper:IPointerHandlerHelper;
-	private _createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget;
-	private _getMouseColumn:(e:ISimplifiedMouseEvent)=>number;
+	private _createMouseTarget:(e:EditorMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget;
+	private _getMouseColumn:(e:EditorMouseEvent)=>number;
 
-	private _mouseMoveMonitor:GlobalMouseMoveMonitor<IMouseEvent>;
-	private _mouseDownThenMoveEventHandler: EventGateKeeper<IMouseEvent>;
+	private _mouseMoveMonitor: GlobalEditorMouseMoveMonitor;
+	private _mouseDownThenMoveEventHandler: EventGateKeeper<EditorMouseEvent>;
 
 	private _currentSelection: Selection;
 	private _mouseState: MouseDownState;
@@ -322,14 +303,14 @@ class MouseDownOperation extends Disposable {
 	private _onScrollTimeout: TimeoutTimer;
 	private _isActive: boolean;
 
-	private _lastMouseEvent: IMouseEvent;
+	private _lastMouseEvent: EditorMouseEvent;
 
 	constructor(
 		context:ViewContext,
 		viewController:editorBrowser.IViewController,
 		viewHelper:IPointerHandlerHelper,
-		createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget,
-		getMouseColumn:(e:ISimplifiedMouseEvent)=>number
+		createMouseTarget:(e:EditorMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget,
+		getMouseColumn:(e:EditorMouseEvent)=>number
 	) {
 		super();
 		this._context = context;
@@ -346,9 +327,9 @@ class MouseDownOperation extends Disposable {
 
 		this._lastMouseEvent = null;
 
-		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IMouseEvent>());
+		this._mouseMoveMonitor = this._register(new GlobalEditorMouseMoveMonitor(this._viewHelper.viewDomNode));
 		this._mouseDownThenMoveEventHandler = this._register(
-			new EventGateKeeper<IMouseEvent>(
+			new EventGateKeeper<EditorMouseEvent>(
 				(e) => this._onMouseDownThenMove(e),
 				() => !this._viewHelper.isDirty()
 			)
@@ -363,7 +344,7 @@ class MouseDownOperation extends Disposable {
 		return this._isActive;
 	}
 
-	private _onMouseDownThenMove(e:IMouseEvent): void {
+	private _onMouseDownThenMove(e:EditorMouseEvent): void {
 		this._lastMouseEvent = e;
 		this._mouseState.setModifiers(e);
 
@@ -376,7 +357,7 @@ class MouseDownOperation extends Disposable {
 		this._dispatchMouse(position, true);
 	}
 
-	public start(targetType:editorCommon.MouseTargetType, e:IMouseEvent): void {
+	public start(targetType:editorCommon.MouseTargetType, e:EditorMouseEvent): void {
 		this._lastMouseEvent = e;
 
 		this._mouseState.setStartedOnLineNumbers(targetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
@@ -428,10 +409,9 @@ class MouseDownOperation extends Disposable {
 		this._currentSelection = e.selection;
 	}
 
-	// private _getMouseColumn(e: ISimplifiedMouseEvent)
+	private _getPositionOutsideEditor(e:EditorMouseEvent): MousePosition {
+		const editorContent = e.editorPos;
 
-	private _getPositionOutsideEditor(e: ISimplifiedMouseEvent): MousePosition {
-		let editorContent = dom.getDomNodePosition(this._viewHelper.viewDomNode);
 		let mouseColumn = this._getMouseColumn(e);
 
 		if (e.posy < editorContent.top) {
@@ -457,7 +437,7 @@ class MouseDownOperation extends Disposable {
 		return null;
 	}
 
-	private _findMousePosition(e:ISimplifiedMouseEvent, testEventTarget:boolean): MousePosition {
+	private _findMousePosition(e:EditorMouseEvent, testEventTarget:boolean): MousePosition {
 		let positionOutsideEditor = this._getPositionOutsideEditor(e);
 		if (positionOutsideEditor) {
 			return positionOutsideEditor;
@@ -544,7 +524,7 @@ class MouseDownState {
 		return this._lastMouseDownCount;
 	}
 
-	public setModifiers(source:IMouseEvent) {
+	public setModifiers(source:EditorMouseEvent) {
 		this._altKey = source.altKey;
 		this._ctrlKey = source.ctrlKey;
 		this._metaKey = source.metaKey;
