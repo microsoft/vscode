@@ -20,6 +20,8 @@ export interface ITypescriptServiceClient {
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string });
 
+	experimentalAutoBuild: boolean;
+
 	execute(command:'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken):Promise<Proto.ConfigureResponse>;
 	execute(command:'open', args: Proto.OpenRequestArgs, expectedResult:boolean, token?: CancellationToken):Promise<any>;
 	execute(command:'close', args: Proto.FileRequestArgs, expectedResult:boolean, token?: CancellationToken):Promise<any>;

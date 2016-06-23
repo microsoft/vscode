@@ -214,24 +214,14 @@ export default class BufferSyncSupport {
 	}
 
 	public requestDiagnostic(file: string): void {
-		if (!!true) {
+		if (!this._validate || this.client.experimentalAutoBuild) {
 			return;
 		}
-		if (!this._validate) {
-			return;
-		}
-		if (!this.projectValidationRequested) {
-			this.client.execute('geterrForProject' , {
-				file: file,
-				delay: -1,
-				watch: true
-			}, false);
-			this.projectValidationRequested = true;
-		}
-		// this.pendingDiagnostics[file] = Date.now();
-		// this.diagnosticDelayer.trigger(() => {
-		// 	this.sendPendingDiagnostics();
-		// });
+
+		this.pendingDiagnostics[file] = Date.now();
+		this.diagnosticDelayer.trigger(() => {
+			this.sendPendingDiagnostics();
+		});
 	}
 
 	private sendPendingDiagnostics(): void {

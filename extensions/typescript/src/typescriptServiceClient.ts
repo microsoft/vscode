@@ -73,6 +73,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private tsdk: string;
+	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
 	private output: OutputChannel;
 	private servicePromise: Promise<cp.ChildProcess>;
@@ -111,7 +112,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.requestQueue = [];
 		this.pendingResponses = 0;
 		this.callbacks = Object.create(null);
-		this.tsdk = workspace.getConfiguration().get<string>('typescript.tsdk', null);
+		const configuration = workspace.getConfiguration();
+		this.tsdk = configuration.get<string>('typescript.tsdk', null);
+		this._experimentalAutoBuild = configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
@@ -136,6 +139,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.output = window.createOutputChannel(localize('channelName', 'TypeScript'));
 		}
 		return result;
+	}
+
+	public get experimentalAutoBuild(): boolean {
+		return this._experimentalAutoBuild;
 	}
 
 	public onReady(): Promise<void> {
@@ -241,16 +248,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceStarted(resendModels: boolean): void {
-		if (this.storagePath) {
+		if (this._experimentalAutoBuild && this.storagePath) {
 			try {
 				fs.mkdirSync(this.storagePath);
 			} catch(error) {
 			}
+			this.execute('configure', {
+				autoBuild: true,
+				metaDataDirectory: this.storagePath
+			});
 		}
-		this.execute('configure', {
-			autoBuild: this.storagePath ? true : false,
-			metaDataDirectory: this.storagePath
-		});
 		if (resendModels) {
 			this.host.populateService();
 		}
