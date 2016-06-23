@@ -12,7 +12,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {MenuLocation, MenuItem, IMenuService} from 'vs/platform/actions/common/actions';
+import {Menus, MenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, ActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -29,7 +29,7 @@ export class ActionBarContributor {
 
 	constructor(
 		scope: HTMLElement,
-		location: MenuLocation,
+		location: Menus,
 		@IMenuService private _menuService: IMenuService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IExtensionService private _extensionService: IExtensionService,

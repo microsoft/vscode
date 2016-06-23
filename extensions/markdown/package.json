@@ -70,7 +70,7 @@
 			}
 		],
 		"menus": {
-			"editor/primary": [
+			"editor/title": [
 				{
 					"when": "resourceLangId == markdown",
 					"command": "markdown.showPreview",

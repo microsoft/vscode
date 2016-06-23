@@ -7,9 +7,9 @@
 
 import {values} from 'vs/base/common/collections';
 import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
-import {MenuLocation, CommandAction, MenuItem, IMenuService} from './actions';
+import {Menus, CommandAction, MenuItem, IMenuService} from './actions';
 
-export type IUserFriendlyMenuLocation = 'editor/primary' | 'editor/secondary';
+export type IUserFriendlyMenuLocation = 'editor/title';
 
 export interface IUserFriendlyMenuItem {
 	command: string;
@@ -53,7 +53,7 @@ const _registry = new class {
 	}
 
 	registerMenuItems(location: IUserFriendlyMenuLocation, items: IUserFriendlyMenuItem[]): boolean {
-		const loc = MenuLocation.parse(location);
+		const loc = Menus.parse(location);
 		if (loc) {
 			let array = this._menuItems[loc];
 			if (!array) {
@@ -65,7 +65,7 @@ const _registry = new class {
 		}
 	}
 
-	getMenuItems(loc: MenuLocation): MenuItem[] {
+	getMenuItems(loc: Menus): MenuItem[] {
 		const menuItems = this._menuItems[loc];
 		if (menuItems) {
 			return menuItems.map(item => {
@@ -88,7 +88,7 @@ export class MenuService implements IMenuService {
 
 	serviceId;
 
-	getMenuItems(loc: MenuLocation): MenuItem[] {
+	getMenuItems(loc: Menus): MenuItem[] {
 		return _registry.getMenuItems(loc);
 	}
 

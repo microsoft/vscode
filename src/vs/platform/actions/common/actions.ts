@@ -28,16 +28,14 @@ export interface MenuItem {
 	when?: KbExpr;
 }
 
-export enum MenuLocation {
-	EditorPrimary = 1,
-	EditorSecondary = 2
+export enum Menus {
+	EditorTitle = 1,
 }
 
-export namespace MenuLocation {
-	export function parse(value: string): MenuLocation {
+export namespace Menus {
+	export function parse(value: string): Menus {
 		switch (value) {
-			case 'editor/primary': return MenuLocation.EditorPrimary;
-			case 'editor/secondary': return MenuLocation.EditorSecondary;
+			case 'editor/title': return Menus.EditorTitle;
 		}
 	}
 }
@@ -48,7 +46,7 @@ export interface IMenuService {
 
 	serviceId: any;
 
-	getMenuItems(loc: MenuLocation): MenuItem[];
+	getMenuItems(loc: Menus): MenuItem[];
 
 	getCommandActions(): CommandAction[];
 }

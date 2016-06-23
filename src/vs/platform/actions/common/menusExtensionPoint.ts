@@ -61,7 +61,7 @@ namespace schema {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to predefined locations"),
 		type: 'object',
 		properties: {
-			'editor/primary': {
+			'editor/title': {
 				type: 'array',
 				items: menuItem
 			}
