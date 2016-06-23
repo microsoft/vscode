@@ -37,37 +37,27 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		return clb(0);
 	}
 
-	const client = new net.Socket();
+	const server = net.createServer(() => {});
 
-	// If we can connect to the port it means the port is already taken so we continue searching
-	client.once('connect', () => {
-		dispose(client);
-
-		return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
+	server.once('listening', () => {
+		dispose(server);
+		clb(startPort);
 	});
 
-	client.once('error', (err) => {
-		dispose(client);
-
-		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect
-		if (err.code !== 'ECONNREFUSED') {
-			return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
-		}
-
-		// Otherwise it means the port is free to use!
-		return clb(startPort);
+	server.once('error', () => {
+		dispose(server);
+		doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
 	});
 
-	client.connect(startPort);
+	server.listen(startPort, null);
 }
 
-function dispose(socket: net.Socket): void {
+function dispose(server: net.Server): void {
 	try {
-		socket.removeAllListeners('connect');
-		socket.removeAllListeners('error');
-		socket.end();
-		socket.destroy();
-		socket.unref();
+		server.removeAllListeners('listening');
+		server.removeAllListeners('error');
+		server.close();
+		server.unref();
 	} catch (error) {
 		console.error(error); // otherwise this error would get lost in the callback chain
 	}
