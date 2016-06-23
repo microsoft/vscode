@@ -66,6 +66,8 @@ export class MockCodeEditor extends CommonCodeEditor {
 export class MockScopeLocation implements IKeybindingScopeLocation {
 	setAttribute(attr:string, value:string): void { }
 	removeAttribute(attr:string): void { }
+	hasAttribute(attr: string): boolean { return false; }
+	getAttribute(attr: string): string { return; }
 }
 
 export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:MockCodeEditor, cursor:Cursor)=>void): void {

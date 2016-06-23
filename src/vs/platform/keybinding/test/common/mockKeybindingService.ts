@@ -40,13 +40,13 @@ export class MockKeybindingService implements IKeybindingService {
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
 		return new MockKeybindingContextKey(key, defaultValue);
 	}
-	public contextMatchesRules(rules: KbExpr): boolean {
+	public contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean {
 		return false;
 	}
 	public get onDidChangeContext(): Event<string[]> {
 		return Event.None;
 	}
-	public getContextValue(key: string) {
+	public getContextValue(domNode: HTMLElement, key: string) {
 		return;
 	}
 

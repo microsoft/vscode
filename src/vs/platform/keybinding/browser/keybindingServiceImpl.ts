@@ -148,9 +148,9 @@ export abstract class AbstractKeybindingService {
 		return new KeybindingContextKey(this, key, defaultValue);
 	}
 
-	public abstract contextMatchesRules(rules: KbExpr): boolean;
+	public abstract contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean;
 
-	public abstract getContextValue<T>(key: string): T;
+	public abstract getContextValue<T>(domNode: HTMLElement, key: string): T;
 
 	public get onDidChangeContext(): Event<string[]> {
 		if (!this._onDidChangeContext) {
@@ -252,19 +252,19 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public contextMatchesRules(rules: KbExpr): boolean {
+	public contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean {
 		const ctx = Object.create(null);
-		this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(ctx);
+		this.getContext(this._findContextAttr(domNode)).fillInContext(ctx);
 		this._configurationContext.fillInContext(ctx);
 		// console.log(JSON.stringify(contextValue, null, '\t'));
 		return KeybindingResolver.contextMatchesRules(ctx, rules);
 	}
 
-	public getContextValue<T>(key: string): T {
+	public getContextValue<T>(domNode: HTMLElement, key: string): T {
 		const ctx = Object.create(null);
-		this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(ctx);
+		this.getContext(this._findContextAttr(domNode)).fillInContext(ctx);
 		this._configurationContext.fillInContext(ctx);
-		return <T> ctx[key];
+		return <T>ctx[key];
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
@@ -454,12 +454,12 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 		return this._parent.onDidChangeContext;
 	}
 
-	public contextMatchesRules(rules: KbExpr): boolean {
-		return this._parent.contextMatchesRules(rules);
+	public contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean {
+		return this._parent.contextMatchesRules(domNode, rules);
 	}
 
-	public getContextValue<T>(key: string): T {
-		return this._parent.getContextValue<T>(key);
+	public getContextValue<T>(domNode: HTMLElement, key: string): T {
+		return this._parent.getContextValue<T>(domNode, key);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
