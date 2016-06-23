@@ -87,8 +87,8 @@
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	font-size: 18px;
 	font-weight: 600;
+	padding: 1px 6px;
 }
 
 .extension-editor > .body {
