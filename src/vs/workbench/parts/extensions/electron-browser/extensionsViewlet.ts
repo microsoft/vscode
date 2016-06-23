@@ -22,10 +22,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { ExtensionsModel, IExtension } from './extensionsModel';
+import { IExtensionsWorkbenchService, IExtension } from './extensions';
 import { IExtensionsViewlet } from './extensions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionsInput } from '../common/extensionsInput';
+import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -37,7 +37,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
-	private model: ExtensionsModel;
 	private list: PagedList<IExtension>;
 	private disposables: IDisposable[] = [];
 
@@ -47,11 +46,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(ExtensionsViewlet.ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
-		this.model = instantiationService.createInstance(ExtensionsModel);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -67,7 +66,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.extensionsBox = append(this.root, $('.extensions'));
 
 		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(Renderer, this.model);
+		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
 		const onRawKeyDown = domEvent(this.searchBox, 'keydown');
@@ -77,10 +76,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const onUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow);
 		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
 
-		onEnter(() => this.onEnter(), null, this.disposables);
-		onEscape(() => this.onEscape(), null, this.disposables);
-		onUpArrow(() => this.onUpArrow(), null, this.disposables);
-		onDownArrow(() => this.onDownArrow(), null, this.disposables);
+		onEnter(this.onEnter, this, this.disposables);
+		onEscape(this.onEscape, this, this.disposables);
+		onUpArrow(this.onUpArrow, this, this.disposables);
+		onDownArrow(this.onDownArrow, this, this.disposables);
 
 		const onInput = domEvent(this.searchBox, 'input');
 		onInput(() => this.triggerSearch(), null, this.disposables);
@@ -94,7 +93,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				return;
 			}
 
-			return this.editorService.openEditor(new ExtensionsInput(this.model, extension));
+			return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension));
 		}, null, this.disposables);
 
 		return TPromise.as(null);
@@ -135,17 +134,17 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		let promise: TPromise<PagedModel<IExtension>>;
 
 		if (!text) {
-			promise = this.model.getLocal()
+			promise = this.extensionsWorkbenchService.queryLocal()
 				.then(result => new SinglePagePagedModel(result));
 		} else if (/@outdated/i.test(text)) {
-			promise = this.model.getLocal()
+			promise = this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.filter(e => e.outdated))
 				.then(result => new SinglePagePagedModel(result));
 		} else if (/@popular/i.test(text)) {
-			promise = this.model.queryGallery({ sortBy: SortBy.InstallCount })
+			promise = this.extensionsWorkbenchService.queryGallery({ sortBy: SortBy.InstallCount })
 				.then(result => new PagedModel(result));
 		} else {
-			promise = this.model.queryGallery({ text })
+			promise = this.extensionsWorkbenchService.queryGallery({ text })
 				.then(result => new PagedModel(result));
 		}
 

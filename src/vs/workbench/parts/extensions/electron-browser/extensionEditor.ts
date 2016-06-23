@@ -17,7 +17,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionsInput } from '../common/extensionsInput';
+import { ExtensionsInput } from './extensionsInput';
+import { IExtensionsWorkbenchService } from './extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, Label } from './extensionsWidgets';
@@ -55,7 +56,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IRequestService private requestService: IRequestService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -119,14 +121,14 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		}
 
-		const install = new Label(this.installCount, input.model, extension, e => `${ e.installCount }`);
+		const install = this.instantiationService.createInstance(Label, this.installCount, extension, e => `${ e.installCount }`);
 		this.transientDisposables.push(install);
 
-		const ratings = new RatingsWidget(this.rating, input.model, extension);
+		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, extension, {});
 		this.transientDisposables.push(ratings);
 
-		const installAction = new CombinedInstallAction(input.model, extension);
-		const updateAction = new UpdateAction(input.model, extension);
+		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
+		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
 		this.actionBar.clear();
 		this.actionBar.push([updateAction, installAction], actionOptions);
 		this.transientDisposables.push(updateAction, installAction);

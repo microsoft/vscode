@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionsModel } from './extensionsModel';
+import { IExtension, IExtensionsWorkbenchService } from './extensions';
 import { append, emmet as $, addClass } from 'vs/base/browser/dom';
 
 export interface IOptions {
@@ -20,13 +20,13 @@ export class Label implements IDisposable {
 
 	constructor(
 		element: HTMLElement,
-		model: ExtensionsModel,
 		extension: IExtension,
-		fn: (extension: IExtension) => string
+		fn: (extension: IExtension) => string,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		const render = () => element.textContent = fn(extension);
 		render();
-		this.listener = model.onChange(render);
+		this.listener = extensionsWorkbenchService.onChange(render);
 	}
 
 	dispose(): void {
@@ -42,11 +42,11 @@ export class RatingsWidget implements IDisposable {
 
 	constructor(
 		private container: HTMLElement,
-		private model: ExtensionsModel,
 		private extension: IExtension,
-		options: IOptions = {}
+		options: IOptions,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		this.disposables.push(this.model.onChange(() => this.render()));
+		this.disposables.push(extensionsWorkbenchService.onChange(() => this.render()));
 		addClass(container, 'extension-ratings');
 
 		if (options.small) {

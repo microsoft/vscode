@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { localize } from 'vs/nls';
 import { Promise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IExtensionsWorkbenchService, ExtensionState, VIEWLET_ID } from './extensions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import {ipcRenderer as ipc} from 'electron';
+import { ipcRenderer as ipc } from 'electron';
 
 interface IInstallExtensionsRequest {
 	extensionsToInstall: string[];
@@ -32,19 +35,16 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		this.registerListeners();
 
 		const options = contextService.getOptions();
-		// Extensions to install
-		if (options.extensionsToInstall && options.extensionsToInstall.length) {
-			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
-		}
 
-		// const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
-		// actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), 'Extensions: Show Installed Extensions', ExtensionsLabel);
+		if (options.extensionsToInstall && options.extensionsToInstall.length) {
+			this.install(options.extensionsToInstall).done(null, onUnexpectedError);
+		}
 	}
 
 	private registerListeners(): void {
 		ipc.on('vscode:installExtensions', (event, request: IInstallExtensionsRequest) => {
 			if (request.extensionsToInstall) {
-				this.install(request.extensionsToInstall).done(null, errors.onUnexpectedError);
+				this.install(request.extensionsToInstall).done(null, onUnexpectedError);
 			}
 		});
 	}
@@ -55,9 +55,9 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 				this.messageService.show(
 					Severity.Info,
 					{
-						message: extensions.length > 1 ? nls.localize('success', "Extensions were successfully installed. Restart to enable them.")
-							: nls.localize('successSingle', "{0} was successfully installed. Restart to enable it.", extensions[0].displayName),
-						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('reloadNow', "Restart Now"))]
+						message: extensions.length > 1 ? localize('success', "Extensions were successfully installed. Restart to enable them.")
+							: localize('successSingle', "{0} was successfully installed. Restart to enable it.", extensions[0].displayName),
+						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Restart Now"))]
 					}
 				);
 			});
@@ -65,5 +65,41 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	public getId(): string {
 		return 'vs.extensions.workbenchextension';
+	}
+}
+
+export class StatusUpdater implements IWorkbenchContribution {
+
+	private disposables: IDisposable[];
+
+	constructor(
+		@IActivityService private activityService: IActivityService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
+	}
+
+	getId(): string {
+		return 'vs.extensions.statusupdater';
+	}
+
+	private onServiceChange(): void {
+		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
+			this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			return;
+		}
+
+		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
+
+		if (outdated > 0) {
+			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+		} else {
+			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+		}
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

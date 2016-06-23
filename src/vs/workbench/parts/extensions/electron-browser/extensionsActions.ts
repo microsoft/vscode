@@ -14,7 +14,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 // import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 // import { IMessageService } from 'vs/platform/message/common/message';
 // import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionsModel, ExtensionState } from './extensionsModel';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService } from './extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 // import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 // import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
@@ -118,20 +119,23 @@ export class InstallAction extends Action {
 	private static InstallingLabel = nls.localize('installing', "Installing");
 	private disposables: IDisposable[] = [];
 
-	constructor(private model: ExtensionsModel, private extension: IExtension) {
+	constructor(
+		private extension: IExtension,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
 		super('extensions.install', InstallAction.InstallLabel, 'extension-action install', false);
 
-		this.disposables.push(this.model.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
 	private update(): void {
-		this.enabled = this.model.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
+		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
 		this.label = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingLabel : InstallAction.InstallLabel;
 	}
 
 	run(): TPromise<any> {
-		return this.model.install(this.extension);
+		return this.extensionsWorkbenchService.install(this.extension);
 
 		// this.enabled = false;
 
@@ -179,10 +183,13 @@ export class UninstallAction extends Action {
 
 	private disposables: IDisposable[] = [];
 
-	constructor(private model: ExtensionsModel, private extension: IExtension) {
+	constructor(
+		private extension: IExtension,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
 		super('extensions.uninstall', nls.localize('uninstall', "Uninstall"), 'extension-action uninstall', false);
 
-		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.updateEnablement()));
 		this.updateEnablement();
 	}
 
@@ -197,7 +204,7 @@ export class UninstallAction extends Action {
 			return TPromise.as(null);
 		}
 
-		return this.model.uninstall(this.extension);
+		return this.extensionsWorkbenchService.uninstall(this.extension);
 
 		// this.enabled = false;
 
@@ -251,11 +258,14 @@ export class CombinedInstallAction extends Action {
 	private uninstallAction: UninstallAction;
 	private disposables: IDisposable[] = [];
 
-	constructor(private model: ExtensionsModel, private extension: IExtension) {
+	constructor(
+		private extension: IExtension,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		super('extensions.combinedInstall', '', '', false);
 
-		this.installAction = new InstallAction(model, extension);
-		this.uninstallAction = new UninstallAction(model, extension);
+		this.installAction = instantiationService.createInstance(InstallAction, extension);
+		this.uninstallAction = instantiationService.createInstance(UninstallAction, extension);
 		this.disposables.push(this.installAction, this.uninstallAction);
 
 		this.disposables.push(this.installAction.addListener2(Action.ENABLED, () => this.update()));
@@ -305,15 +315,18 @@ export class UpdateAction extends Action {
 
 	private disposables: IDisposable[] = [];
 
-	constructor(private model: ExtensionsModel, private extension: IExtension) {
+	constructor(
+		private extension: IExtension,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
 		super('extensions.update', nls.localize('updateAction', "Update"), UpdateAction.DisabledClass, false);
 
-		this.disposables.push(this.model.onChange(() => this.updateEnablement()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.updateEnablement()));
 		this.updateEnablement();
 	}
 
 	private updateEnablement(): void {
-		const canInstall = this.model.canInstall(this.extension);
+		const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed;
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
@@ -321,7 +334,7 @@ export class UpdateAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return this.model.install(this.extension);
+		return this.extensionsWorkbenchService.install(this.extension);
 
 		// this.enabled = false;
 

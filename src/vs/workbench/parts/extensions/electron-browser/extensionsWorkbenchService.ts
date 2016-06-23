@@ -16,30 +16,7 @@ import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
-
-export enum ExtensionState {
-	Installing,
-	Installed,
-	// Uninstalling,
-	Uninstalled
-}
-
-export interface IExtension {
-	state: ExtensionState;
-	name: string;
-	displayName: string;
-	publisher: string;
-	publisherDisplayName: string;
-	version: string;
-	latestVersion: string;
-	description: string;
-	readmeUrl: string;
-	iconUrl: string;
-	installCount: number;
-	rating: number;
-	ratingCount: number;
-	outdated: boolean;
-}
+import { IExtension, ExtensionState, IExtensionsWorkbenchService } from './extensions';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -138,14 +115,14 @@ class Extension implements IExtension {
 	}
 }
 
-export class ExtensionsModel {
+export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private static SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
+	serviceId = IExtensionsWorkbenchService;
 	private stateProvider: IExtensionStateProvider;
 	private installing: { id: string; extension: Extension; }[] = [];
 	private installed: Extension[] = [];
-	private didTriggerSync: boolean = false;
 	private syncDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
@@ -162,10 +139,20 @@ export class ExtensionsModel {
 		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
 		this.disposables.push(extensionService.onUninstallExtension((id) => this.onUninstallExtension(id)));
 
-		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsModel.SyncPeriod);
+		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
+
+		this.queryLocal().done(() => this.syncWithGallery(true));
 	}
 
-	getLocal(): TPromise<IExtension[]> {
+	get local(): IExtension[] {
+		const installing = this.installing
+			.filter(e => !this.installed.some(installed => installed.local.id === e.id))
+			.map(e => e.extension);
+
+		return [...this.installed, ...installing];
+	}
+
+	queryLocal(): TPromise<IExtension[]> {
 		return this.extensionService.getInstalled().then(result => {
 			const installedById = index(this.installed, e => e.local.id);
 
@@ -175,17 +162,8 @@ export class ExtensionsModel {
 				return extension;
 			});
 
-			const installing = this.installing
-				.filter(e => !this.installed.some(installed => installed.local.id === e.id))
-				.map(e => e.extension);
-
-			if (!this.didTriggerSync) {
-				this.didTriggerSync = true;
-				this.syncWithGallery(true);
-			}
-
 			this._onChange.fire();
-			return [...this.installed, ...installing];
+			return this.local;
 		});
 	}
 
@@ -217,7 +195,7 @@ export class ExtensionsModel {
 
 	private syncWithGallery(immediate = false): void {
 		const loop = () => this.doSyncWithGallery().then(() => this.syncWithGallery());
-		const delay = immediate ? 0 : ExtensionsModel.SyncPeriod;
+		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
 		this.syncDelayer.trigger(loop, delay);
 	}

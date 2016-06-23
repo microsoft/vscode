@@ -7,17 +7,14 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
-
-// TODO@joao: layer breaker
-import { IExtension, ExtensionsModel } from '../electron-browser/extensionsModel';
+import { IExtension } from './extensions';
 
 export class ExtensionsInput extends EditorInput {
 
 	static get ID()  { return 'workbench.extensions.input2'; }
-	get model(): ExtensionsModel { return this._model; }
 	get extension(): IExtension { return this._extension; }
 
-	constructor(private _model: ExtensionsModel, private _extension: IExtension) {
+	constructor(private _extension: IExtension) {
 		super();
 	}
 
