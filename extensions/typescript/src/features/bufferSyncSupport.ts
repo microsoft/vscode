@@ -85,6 +85,8 @@ export default class BufferSyncSupport {
 	private syncedBuffers: Map<SyncedBuffer>;
 	private closedFiles: Map<boolean>;
 
+	private projectValidationRequested: boolean;
+
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
 
@@ -95,6 +97,8 @@ export default class BufferSyncSupport {
 		this.diagnostics = diagnostics;
 		this.extensions = extensions;
 		this._validate = validate;
+
+		this.projectValidationRequested = false;
 
 		this.pendingDiagnostics = Object.create(null);
 		this.diagnosticDelayer = new Delayer<any>(100);
@@ -210,9 +214,10 @@ export default class BufferSyncSupport {
 	}
 
 	public requestDiagnostic(file: string): void {
-		if (!this._validate) {
+		if (!this._validate || this.client.experimentalAutoBuild) {
 			return;
 		}
+
 		this.pendingDiagnostics[file] = Date.now();
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();

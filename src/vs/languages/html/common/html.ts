@@ -512,8 +512,4 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
-	static $findColorDeclarations = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:URI):winjs.TPromise<{range:editorCommon.IRange; value:string; }[]> {
-		return this._worker((w) => w.findColorDeclarations(resource));
-	}
 }

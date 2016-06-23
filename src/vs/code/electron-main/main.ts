@@ -309,10 +309,16 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 				return e(new Error('Failed to get environment'));
 			}
 
-			const raw = Buffer.concat(buffers).toString('utf8');
+			const raw = Buffer
+				.concat(buffers)
+				.toString('utf8')
+				// remove regular ANSI escape sequences
+				.replace(ansiregex(), '')
+				// remove OSC ANSI escape sequences
+				.replace(/\u001b\].*?(\u0007|\u001b\\)/g, '');
 
 			try {
-				const env = JSON.parse(raw.replace(ansiregex(), ''));
+				const env = JSON.parse(raw);
 
 				if (runAsNode) {
 					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;

@@ -28,10 +28,12 @@
 					".jshintrc",
 					".jscsrc",
 					".eslintrc",
-					".babelrc"
+					".babelrc",
+					".webmanifest"
 				],
 				"mimetypes": [
-					"application/json"
+					"application/json",
+					"application/manifest+json"
 				],
 				"configuration": "./json.configuration.json"
 			}

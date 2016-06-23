@@ -17,12 +17,21 @@ export interface IWorker {
 	dispose():void;
 }
 
+let webWorkerWarningLogged = false;
+export function logOnceWebWorkerWarning(err:any): void {
+	if (!webWorkerWarningLogged) {
+		webWorkerWarningLogged = true;
+		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/Microsoft/monaco-editor#faq');
+	}
+	console.warn(err.message);
+}
+
 export interface IWorkerCallback {
 	(message:string):void;
 }
 
 export interface IWorkerFactory {
-	create(moduleId:string, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
+	create(moduleId:string, callback:IWorkerCallback, onErrorCallback:(err:any)=>void):IWorker;
 }
 
 interface IActiveRequest {
@@ -59,7 +68,15 @@ export class WorkerClient {
 		this._waitingForWorkerReply = false;
 		this._lastTimerEvent = null;
 
-		this._worker = workerFactory.create('vs/base/common/worker/workerServer', (msg) => this._onSerializedMessage(msg));
+		this._worker = workerFactory.create(
+			'vs/base/common/worker/workerServer',
+			(msg) => this._onSerializedMessage(msg),
+			(err) => {
+				// reject the onModuleLoaded promise, this signals that things are bad
+				let promiseEntry:IActiveRequest = this._promises[1];
+				delete this._promises[1];
+				promiseEntry.error(err);
+			});
 
 		let loaderConfiguration:any = null;
 
@@ -80,7 +97,6 @@ export class WorkerClient {
 			loaderConfiguration: loaderConfiguration,
 			GlobalEnvironment: GlobalEnvironment
 		});
-		this.onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
 
 		this._remoteCom = new workerProtocol.RemoteCom(this);
 	}

@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import Event, { Emitter } from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
+import objects = require('vs/base/common/objects');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
@@ -26,9 +27,9 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 
 	return session.variables({ variablesReference: parent.reference }).then(response => {
 		return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-			v => new Variable(parent, v.variablesReference, v.name, v.value)
+			v => new Variable(parent, v.variablesReference, v.name, v.value, v.type)
 		);
-	}, (e: Error) => [new Variable(parent, 0, null, e.message, false)]);
+	}, (e: Error) => [new Variable(parent, 0, null, e.message, null, false)]);
 }
 
 function massageValue(value: string): string {
@@ -281,7 +282,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
 
-	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public available = true) {
+	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public type: string = null, public available = true) {
 		super(reference, `variable:${ parent.getId() }:${ name }`, true);
 		this.value = massageValue(value);
 	}
@@ -720,7 +721,7 @@ export class Model implements debug.IModel {
 					// Only update the details if all the threads are stopped
 					// because we don't want to overwrite the details of other
 					// threads that have stopped for a different reason
-					this.threads[ref].stoppedDetails = data.stoppedDetails;
+					this.threads[ref].stoppedDetails = objects.clone(data.stoppedDetails);
 					this.threads[ref].stopped = true;
 					this.threads[ref].clearCallStack();
 				});

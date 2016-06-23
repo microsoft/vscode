@@ -17,7 +17,6 @@ import URI from 'vs/base/common/uri';
 export function createMonacoBaseAPI(): typeof monaco {
 	return {
 		editor: undefined,
-		worker: undefined,
 		languages: undefined,
 		CancellationTokenSource: CancellationTokenSource,
 		Emitter: Emitter,

@@ -485,6 +485,19 @@ export interface ConfigureRequestArguments {
     hostInfo?: string;
 
     /**
+     * Sets a folder that can be used by the tsserver to store
+     * meta data information.
+     */
+    metaDataDirectory?: string;
+
+    /**
+     * Turns the tsserver into auto diagnostice mode. When in
+     * auto diagnostic mode the server will automatically generate
+     * diagnostics and send them to the client without requests
+     */
+    autoDiagnostics?: boolean;
+
+    /**
       * If present, tab settings apply only to this file.
       */
     file?: string;
@@ -996,6 +1009,11 @@ export interface DiagnosticEventBody {
       * An array of diagnostic information items.
       */
     diagnostics: Diagnostic[];
+
+    /**
+     * Information about the current length of the build queue.
+     */
+    queueLength?: number;
 }
 
 /**
