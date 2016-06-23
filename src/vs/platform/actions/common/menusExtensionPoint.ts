@@ -64,6 +64,10 @@ namespace schema {
 			'editor/title': {
 				type: 'array',
 				items: menuItem
+			},
+			'explorer/context': {
+				type: 'array',
+				items: menuItem
 			}
 		}
 	};

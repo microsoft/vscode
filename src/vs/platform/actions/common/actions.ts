@@ -30,12 +30,14 @@ export interface MenuItem {
 
 export enum Menus {
 	EditorTitle = 1,
+	ExplorerContext = 2
 }
 
 export namespace Menus {
 	export function parse(value: string): Menus {
 		switch (value) {
 			case 'editor/title': return Menus.EditorTitle;
+			case 'explorer/context': return Menus.ExplorerContext;
 		}
 	}
 }
