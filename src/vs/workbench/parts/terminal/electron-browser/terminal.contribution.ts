@@ -11,7 +11,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
-import {KillTerminalAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {KillTerminalAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
@@ -100,6 +100,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTermina
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), FocusTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), KillTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), KillTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), RunSelectedTextInTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
