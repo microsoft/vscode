@@ -54,6 +54,17 @@ export class TerminalService implements ITerminalService {
 		return this._onInstanceTitleChanged.event;
 	}
 
+	public setActiveTerminal(index: number): TPromise<any> {
+		return this.focus().then(() => {
+			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+				this.activeTerminalIndex = index;
+				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
+				terminalPanel.focus();
+				this._onActiveInstanceChanged.fire();
+			});
+		});
+	}
+
 	public focus(): TPromise<any> {
 		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
 	}
