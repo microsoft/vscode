@@ -135,6 +135,7 @@ export class TerminalPanel extends Panel {
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
+			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateCursorBlink.bind(this)));
 			resolve(terminalInstance);
 		});
 	}
@@ -192,6 +193,12 @@ export class TerminalPanel extends Panel {
 		}
 		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].setFont(this.configurationHelper.getFont());
 		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
+	}
+
+	private updateCursorBlink(): void {
+		this.terminalInstances.forEach((instance) => {
+			instance.setCursorBlink(this.configurationHelper.getCursorBlink());
+		});
 	}
 
 	public focus(): void {
