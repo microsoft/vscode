@@ -113,6 +113,23 @@ export class FocusPreviousTerminalAction extends Action {
 	}
 }
 
+export class RunSelectedTextInTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.runSelectedText';
+	public static LABEL = nls.localize('workbench.action.terminal.runSelectedText', "Terminal: Run Selected Text In Active Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.runSelectedText();
+	}
+}
+
 export class SwitchTerminalInstanceAction extends Action {
 
 	public static ID = 'workbench.action.terminal.switchTerminalInstance';
