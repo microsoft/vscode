@@ -12,14 +12,6 @@ import arrays = require('vs/base/common/arrays');
 import {IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 
 export class NoTabsTitleControl extends TitleControl {
@@ -30,24 +22,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private editorActionsToolbar: ToolBar;
 
-	private currentPrimaryEditorActionIds: string[];
-	private currentSecondaryEditorActionIds: string[];
+	private currentPrimaryEditorActionIds: string[] = [];
+	private currentSecondaryEditorActionIds: string[] = [];
 
-	constructor(
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService
-	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService);
-
-		this.currentPrimaryEditorActionIds = [];
-		this.currentSecondaryEditorActionIds = [];
-	}
 
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
