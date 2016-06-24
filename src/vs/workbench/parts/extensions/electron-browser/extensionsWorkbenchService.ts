@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
@@ -136,7 +136,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	constructor(
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IExtensionTipsService private tipsService: IExtensionTipsService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -173,29 +174,38 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		return this.galleryService.query(options).then(result => {
-			const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
-
-			return mapPager(result, gallery => {
-				const id = gallery.id;
-				const installed = installedByGalleryId[id];
-
-				if (installed) {
-					installed.gallery = gallery;
-					this._onChange.fire();
-					return installed;
+		return this.galleryService.query(options)
+			.then(result => mapPager(result, gallery => this.fromGallery(gallery)))
+			.then(null, err => {
+				if (/No extension gallery service configured/.test(err.message)) {
+					return TPromise.as(singlePagePager([]));
 				}
 
-				return new Extension(this.stateProvider, null, gallery);
+				return TPromise.wrapError(err);
 			});
-		})
-		.then(null, err => {
-			if (/No extension gallery service configured/.test(err.message)) {
-				return TPromise.as(singlePagePager([]));
-			}
+	}
 
-			return TPromise.wrapError(err);
-		});
+	getRecommendations(): TPromise<IExtension[]> {
+		return this.tipsService.getRecommendations()
+			.then(r => {
+				console.log(r);
+				return r;
+			})
+			.then(ext => ext.map(gallery => this.fromGallery(gallery)));
+	}
+
+	private fromGallery(gallery: IGalleryExtension): Extension {
+		const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
+		const id = gallery.id;
+		const installed = installedByGalleryId[id];
+
+		if (installed) {
+			installed.gallery = gallery;
+			this._onChange.fire();
+			return installed;
+		}
+
+		return new Extension(this.stateProvider, null, gallery);
 	}
 
 	private syncWithGallery(immediate = false): void {

@@ -50,6 +50,7 @@ export interface IExtensionsWorkbenchService {
 	local: IExtension[];
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
+	getRecommendations(): TPromise<IExtension[]>;
 	canInstall(extension: IExtension): boolean;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
