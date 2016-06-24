@@ -11,6 +11,7 @@ import {ClassNames, IMouseTarget, IViewZoneData} from 'vs/editor/browser/editorB
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 import {EditorMouseEvent} from 'vs/editor/browser/editorDom';
+import * as dom from 'vs/base/browser/dom';
 
 interface IHitTestResult {
 	position: IPosition;
@@ -357,7 +358,7 @@ export class MouseTargetFactory {
 			adjustedPosy = e.editorPos.top + this._context.configuration.editor.layoutInfo.height - 1;
 		}
 
-		let r = this._actualDoHitTestWithCaretRangeFromPoint(e.viewportx, adjustedPosy - window.scrollY);
+		let r = this._actualDoHitTestWithCaretRangeFromPoint(e.viewportx, adjustedPosy - dom.StandardWindow.scrollY);
 		if (r.position) {
 			return r;
 		}

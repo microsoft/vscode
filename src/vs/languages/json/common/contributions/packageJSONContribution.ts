@@ -139,12 +139,12 @@ export class PackageJSONContribution implements JSONWorker.IJSONWorkerContributi
 		return null;
 	}
 
-	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
+	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.MarkedString[]> {
 		if (this.isPackageJSONFile(resource) && (location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			var pack = location.getSegments()[location.getSegments().length - 1];
 
-			var htmlContent : HtmlContent.IHTMLContentElement[] = [];
-			htmlContent.push({className: 'type', text: nls.localize('json.npm.package.hover', '{0}', pack) });
+			var htmlContent : HtmlContent.MarkedString[] = [];
+			htmlContent.push(nls.localize('json.npm.package.hover', '{0}', pack));
 
 			var queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack) + '/latest';
 
@@ -155,10 +155,10 @@ export class PackageJSONContribution implements JSONWorker.IJSONWorkerContributi
 					var obj = JSON.parse(success.responseText);
 					if (obj) {
 						if (obj.description) {
-							htmlContent.push({className: 'documentation', text: obj.description });
+							htmlContent.push(obj.description);
 						}
 						if (obj.version) {
-							htmlContent.push({className: 'documentation', text: nls.localize('json.npm.version.hover', 'Latest version: {0}', obj.version) });
+							htmlContent.push(nls.localize('json.npm.version.hover', 'Latest version: {0}', obj.version));
 						}
 					}
 				} catch (e) {

@@ -29,6 +29,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -42,10 +43,10 @@ export class TabsTitleControl extends TitleControl {
 	private scrollbar: ScrollableElement;
 
 	private groupActionsToolbar: ToolBar;
-	private tabDisposeables: IDisposable[];
+	private tabDisposeables: IDisposable[] = [];
 
-	private currentPrimaryGroupActionIds: string[];
-	private currentSecondaryGroupActionIds: string[];
+	private currentPrimaryGroupActionIds: string[] = [];
+	private currentSecondaryGroupActionIds: string[] = [];
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -56,9 +57,10 @@ export class TabsTitleControl extends TitleControl {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IMenuService menuService: IMenuService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService);
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService);
 
 		this.currentPrimaryGroupActionIds = [];
 		this.currentSecondaryGroupActionIds = [];

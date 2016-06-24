@@ -49,5 +49,9 @@ module.exports = function () {
 		});
 	};
 
+	result.hasErrors = function() {
+		return errors.length > 0;
+	}
+
 	return result;
 };

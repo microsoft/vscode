@@ -57,14 +57,15 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
-import {IActionsService} from 'vs/platform/actions/common/actions';
-import ActionsService from 'vs/platform/actions/workbench/actionsService';
+import {IMenuService} from 'vs/platform/actions/common/actions';
+import {MenuService} from 'vs/platform/actions/browser/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 
 interface WorkbenchParams {
@@ -346,8 +347,8 @@ export class Workbench implements IPartService {
 		// Context Menu
 		serviceCollection.set(IContextMenuService, this.instantiationService.createInstance(ContextMenuService));
 
-		// Actions
-		serviceCollection.set(IActionsService, this.instantiationService.createInstance(ActionsService));
+		// Menus/Actions
+		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
 
 		// Viewlet service (sidebar part)
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);

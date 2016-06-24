@@ -102,7 +102,6 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 export class OpenSymbolHandler extends QuickOpenHandler {
 
-	private static SUPPORTED_OPEN_TYPES = ['class', 'interface', 'enum', 'function', 'method'];
 	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
@@ -158,9 +157,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 		// Convert to Entries
 		types.forEach(element => {
-			if (!OpenSymbolHandler.SUPPORTED_OPEN_TYPES.some((type: string) => element.type === type)) {
-				return;
-			}
 
 			// Find Highlights
 			let highlights = filters.matchesFuzzy(searchValue, element.name);
@@ -212,9 +208,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		if (elementAName === elementBName) {
 			let elementAType = elementA.getType();
 			let elementBType = elementB.getType();
-			if (elementAType !== elementBType) {
-				return OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementAType) < OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementBType) ? -1 : 1;
-			}
+			return elementAType.localeCompare(elementBType);
 		}
 
 		return QuickOpenEntry.compare(elementA, elementB, searchValue);

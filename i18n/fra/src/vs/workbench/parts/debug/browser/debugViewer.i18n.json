@@ -13,6 +13,7 @@
 	"paused": "en pause",
 	"running": "en cours d'exécution",
 	"stackFrameAriaLabel": "Frame de pile {0}, ligne {1} {2}, pile des appels, débogage",
+	"thread": "Thread",
 	"threadAriaLabel": "Thread {0}, pile des appels, débogage",
 	"variableAriaLabel": "{0} valeur {1}, variables, débogage",
 	"variableScopeAriaLabel": "Portée {0}, variables, débogage",

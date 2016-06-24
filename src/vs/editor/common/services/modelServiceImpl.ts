@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {EmitterEvent} from 'vs/base/common/eventEmitter';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -127,7 +127,7 @@ class ModelMarkerHandler {
 		let className: string;
 		let color: string;
 		let darkColor: string;
-		let htmlMessage: IHTMLContentElement[] = null;
+		let htmlMessage: MarkedString[] = null;
 
 		switch (marker.severity) {
 			case Severity.Ignore:
@@ -148,21 +148,21 @@ class ModelMarkerHandler {
 		}
 
 		if (typeof marker.message === 'string') {
-			htmlMessage = [{ isText: true, text: marker.message }];
+			htmlMessage = [ textToMarkedString(marker.message) ];
 		} else if (Array.isArray(marker.message)) {
-			htmlMessage = <IHTMLContentElement[]><any>marker.message;
+			htmlMessage = <MarkedString[]><any>marker.message;
 		} else if (marker.message) {
-			htmlMessage = [marker.message];
+			htmlMessage = [ marker.message ];
 		}
 
 		if (htmlMessage && marker.source) {
-			htmlMessage.unshift({ isText: true, text: `[${marker.source}] ` });
+			htmlMessage.unshift(`[${marker.source}] `);
 		}
 
 		return {
 			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
-			htmlMessage: htmlMessage,
+			hoverMessage: htmlMessage,
 			overviewRuler: {
 				color,
 				darkColor,

@@ -109,11 +109,11 @@ export class BowerJSONContribution implements JSONWorker.IJSONWorkerContribution
 		return null;
 	}
 
-	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
+	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.MarkedString[]> {
 		if (this.isBowerFile(resource) && (location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			var pack = location.getSegments()[location.getSegments().length - 1];
-			var htmlContent : HtmlContent.IHTMLContentElement[] = [];
-			htmlContent.push({className: 'type', text: nls.localize('json.bower.package.hover', '{0}', pack) });
+			var htmlContent : HtmlContent.MarkedString[] = [];
+			htmlContent.push(nls.localize('json.bower.package.hover', '{0}', pack));
 
 			var queryUrl = 'https://bower.herokuapp.com/packages/' + encodeURIComponent(pack);
 
@@ -130,7 +130,7 @@ export class BowerJSONContribution implements JSONWorker.IJSONWorkerContribution
 						if (Strings.endsWith(url, '.git')) {
 							url = url.substring(0, url.length - 4);
 						}
-						htmlContent.push({className: 'documentation', text: url });
+						htmlContent.push(url);
 					}
 				} catch (e) {
 					// ignore

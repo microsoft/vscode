@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -321,7 +321,7 @@ export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
-	htmlContent: IHTMLContentElement[];
+	contents: MarkedString[];
 
 	/**
 	 * The range to which this hover applies. When missing, the
