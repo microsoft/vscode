@@ -32,9 +32,9 @@ export class TerminalService implements ITerminalService {
 	private _onInstanceTitleChanged: Emitter<string>;
 
 	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IPanelService private panelService: IPanelService,
 		@IPartService private partService: IPartService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this._onActiveInstanceChanged = new Emitter<string>();
@@ -99,6 +99,18 @@ export class TerminalService implements ITerminalService {
 				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
 				terminalPanel.focus();
 				this._onActiveInstanceChanged.fire();
+			});
+		});
+	}
+
+	public runSelectedText(): TPromise<any> {
+		return this.focus().then(() => {
+			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+				// TODO: Pull selected text from editor (and possibly window.getSelection()?), and add a new line to the end if necessary
+				this.terminalProcesses[this.activeTerminalIndex].process.send({
+					event: 'input',
+					data: 'test\n'
+				});
 			});
 		});
 	}
