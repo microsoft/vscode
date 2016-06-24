@@ -2099,11 +2099,6 @@ declare module monaco.editor {
      */
     export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
         /**
-         * @deprecated Please use `onDidChangeContent` instead.
-         * An event emitted when the contents of the model have changed.
-         */
-        onDidChangeRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
-        /**
          * An event emitted when the contents of the model have changed.
          */
         onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
@@ -2225,32 +2220,6 @@ declare module monaco.editor {
     }
 
     /**
-     * An event describing a change in the text of a model.
-     */
-    export interface IModelContentChangedEvent {
-        /**
-         * The event type. It can be used to detect the actual event type:
-         * 		EditorCommon.EventType.ModelContentChangedFlush => IModelContentChangedFlushEvent
-         * 		EditorCommon.EventType.ModelContentChangedLinesDeleted => IModelContentChangedLineChangedEvent
-         * 		EditorCommon.EventType.ModelContentChangedLinesInserted => IModelContentChangedLinesDeletedEvent
-         * 		EditorCommon.EventType.ModelContentChangedLineChanged => IModelContentChangedLinesInsertedEvent
-         */
-        changeType: string;
-        /**
-         * The new version id the model has transitioned to.
-         */
-        versionId: number;
-        /**
-         * Flag that indicates that this event was generated while undoing.
-         */
-        isUndoing: boolean;
-        /**
-         * Flag that indicates that this event was generated while redoing.
-         */
-        isRedoing: boolean;
-    }
-
-    /**
      * The raw text backing a model.
      */
     export interface IRawText {
@@ -2274,62 +2243,6 @@ declare module monaco.editor {
          * The options associated with this text.
          */
         options: ITextModelResolvedOptions;
-    }
-
-    /**
-     * An event describing that a model has been reset to a new value.
-     */
-    export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
-        /**
-         * The new text content of the model.
-         */
-        detail: IRawText;
-    }
-
-    /**
-     * An event describing that a line has changed in a model.
-     */
-    export interface IModelContentChangedLineChangedEvent extends IModelContentChangedEvent {
-        /**
-         * The line that has changed.
-         */
-        lineNumber: number;
-        /**
-         * The new value of the line.
-         */
-        detail: string;
-    }
-
-    /**
-     * An event describing that line(s) have been deleted in a model.
-     */
-    export interface IModelContentChangedLinesDeletedEvent extends IModelContentChangedEvent {
-        /**
-         * At what line the deletion began (inclusive).
-         */
-        fromLineNumber: number;
-        /**
-         * At what line the deletion stopped (inclusive).
-         */
-        toLineNumber: number;
-    }
-
-    /**
-     * An event describing that line(s) have been inserted in a model.
-     */
-    export interface IModelContentChangedLinesInsertedEvent extends IModelContentChangedEvent {
-        /**
-         * Before what line did the insertion begin
-         */
-        fromLineNumber: number;
-        /**
-         * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
-         */
-        toLineNumber: number;
-        /**
-         * The text that was inserted
-         */
-        detail: string;
     }
 
     /**
@@ -2898,11 +2811,6 @@ declare module monaco.editor {
      * An editor.
      */
     export interface IEditor {
-        /**
-         * @deprecated. Please use `onDidChangeModelContent` instead.
-         * An event emitted when the content of the current model has changed.
-         */
-        onDidChangeModelRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the content of the current model has changed.
          */

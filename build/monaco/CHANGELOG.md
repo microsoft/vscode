@@ -7,6 +7,7 @@
 - the `CodeActionProvider.provideCodeActions` now gets passed in a `CodeActionContext` that contains the markers at the relevant range.
 - the `hoverMessage` of a decoration is now a `MarkedString | MarkedString[]`
 - the `contents` of a `Hover` returned by a `HoverProvider` is now a `MarkedString | MarkedString[]`
+- removed deprecated `IEditor.onDidChangeModelRawContent`, `IModel.onDidChangeRawContent`
 
 ### Notable fixes
 - Broken configurations (loading from `file://` or misconfigured cross-domain loading) now load the web worker code in the UI thread. This caused a breaking change in the behaviour of `monaco.editor.createWebWorker`
