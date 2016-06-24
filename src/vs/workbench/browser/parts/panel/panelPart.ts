@@ -120,7 +120,7 @@ class ClosePanelAction extends Action {
 		name: string,
 		@IPartService private partService: IPartService
 	) {
-		super(id, name, 'close-editor-action');
+		super(id, name, 'hide-panel-action');
 	}
 
 	public run(): TPromise<boolean> {
