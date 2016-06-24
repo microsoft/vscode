@@ -32,11 +32,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 	let fixtureId = 'terminal-config-helper-fixture';
 
 	setup(() => {
-		fixture = new Builder().id(fixtureId).appendTo(document.body);
-	});
-
-	teardown(() => {
-		document.body.removeChild(fixture.getHTMLElement());
+		fixture = new Builder(document.body, false).id(fixtureId);
 	});
 
 	test('TerminalConfigHelper - getFont', function () {
