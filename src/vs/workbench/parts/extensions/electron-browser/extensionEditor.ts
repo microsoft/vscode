@@ -18,6 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID } from './extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -28,8 +29,18 @@ import { shell } from 'electron';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction } from './extensionsActions';
+import WebView from 'vs/workbench/parts/html/browser/webview';
 
-const actionOptions = { icon: true, label: true };
+function renderBody(body: string): string {
+	return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css') }" >
+			</head>
+			<body>${ body }</body>
+		</html>`;
+}
 
 export class ExtensionEditor extends BaseEditor {
 
@@ -58,7 +69,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IRequestService private requestService: IRequestService,
 		@IViewletService private viewletService: IViewletService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -96,14 +108,13 @@ export class ExtensionEditor extends BaseEditor {
 
 		const actions = append(details, $('.actions'));
 		this.actionBar = new ActionBar(actions, { animated: false });
+		this.disposables.push(this.actionBar);
 
 		this.body = append(root, $('.body'));
 	}
 
 	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
 		this.transientDisposables = dispose(this.transientDisposables);
-
-		this.body.innerHTML = '';
 
 		let promise = TPromise.as(null);
 		const extension = input.extension;
@@ -136,9 +147,10 @@ export class ExtensionEditor extends BaseEditor {
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
 		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
 		this.actionBar.clear();
-		this.actionBar.push([updateAction, installAction], actionOptions);
+		this.actionBar.push([updateAction, installAction], { icon: true, label: true });
 		this.transientDisposables.push(updateAction, installAction);
 
+		this.body.innerHTML = '';
 		addClass(this.body, 'loading');
 
 		if (extension.readmeUrl) {
@@ -146,7 +158,19 @@ export class ExtensionEditor extends BaseEditor {
 				.then(() => this.requestService.makeRequest({ url: extension.readmeUrl }))
 				.then(response => response.responseText)
 				.then(marked.parse)
-				.then<void>(html => this.body.innerHTML = html)
+				.then<void>(body => {
+					const webview = new WebView(
+						this.body,
+						document.querySelector('.monaco-editor-background'),
+						link => shell.openExternal(link.toString())
+					);
+
+					webview.style(this.themeService.getTheme());
+					webview.contents = [renderBody(body)];
+
+					const listener = this.themeService.onDidThemeChange(themeId => webview.style(themeId));
+					this.transientDisposables.push(webview, listener);
+				})
 				.then(null, () => null)
 				.then(() => removeClass(this.body, 'loading'));
 		}
