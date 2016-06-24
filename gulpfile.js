@@ -129,10 +129,10 @@ function monacodtsTask(out, isWatch) {
 			clearTimeout(timer);
 			timer = -1;
 		}
-		if (reporter.hasErrors()) {
-			monacodts.complainErrors();
-			return;
-		}
+		// if (reporter.hasErrors()) {
+		// 	monacodts.complainErrors();
+		// 	return;
+		// }
 		var result = monacodts.run(out);
 		if (!result.isTheSame) {
 			if (isWatch) {

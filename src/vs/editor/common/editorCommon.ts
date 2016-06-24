@@ -2085,6 +2085,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
+	 * @internal
 	 */
 	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	/**
@@ -2273,6 +2274,7 @@ export interface IModelContentChangedEvent2 {
 }
 /**
  * An event describing a change in the text of a model.
+ * @internal
  */
 export interface IModelContentChangedEvent {
 	/**
@@ -2325,6 +2327,7 @@ export interface IRawText {
 
 /**
  * An event describing that a model has been reset to a new value.
+ * @internal
  */
 export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
 	/**
@@ -2334,6 +2337,7 @@ export interface IModelContentChangedFlushEvent extends IModelContentChangedEven
 }
 /**
  * An event describing that a line has changed in a model.
+ * @internal
  */
 export interface IModelContentChangedLineChangedEvent extends IModelContentChangedEvent {
 	/**
@@ -2347,6 +2351,7 @@ export interface IModelContentChangedLineChangedEvent extends IModelContentChang
 }
 /**
  * An event describing that line(s) have been deleted in a model.
+ * @internal
  */
 export interface IModelContentChangedLinesDeletedEvent extends IModelContentChangedEvent {
 	/**
@@ -2360,6 +2365,7 @@ export interface IModelContentChangedLinesDeletedEvent extends IModelContentChan
 }
 /**
  * An event describing that line(s) have been inserted in a model.
+ * @internal
  */
 export interface IModelContentChangedLinesInsertedEvent extends IModelContentChangedEvent {
 	/**
@@ -3396,6 +3402,7 @@ export interface IEditor {
 	/**
 	 * @deprecated. Please use `onDidChangeModelContent` instead.
 	 * An event emitted when the content of the current model has changed.
+	 * @internal
 	 */
 	onDidChangeModelRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	/**
