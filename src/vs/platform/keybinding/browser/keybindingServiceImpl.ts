@@ -261,7 +261,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		const ctx = Object.create(null);
 		this.getContext(this._findContextAttr(domNode)).fillInContext(ctx);
 		this._configurationContext.fillInContext(ctx);
-		// console.log(JSON.stringify(contextValue, null, '\t'));
+		// console.log(JSON.stringify(ctx, null, '\t'));
 		return KeybindingResolver.contextMatchesRules(ctx, rules);
 	}
 
