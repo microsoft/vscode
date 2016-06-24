@@ -20,7 +20,7 @@ import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
-import { OpenExtensionsViewletAction, ListOutdatedExtensionsAction } from './extensionsActions';
+import { OpenExtensionsViewletAction, ListOutdatedExtensionsAction, ShowExtensionRecommendationsAction, ShowPopularExtensionsAction } from './extensionsActions';
 import { ExtensionsInput } from './extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
@@ -94,3 +94,9 @@ actionRegistry.registerWorkbenchAction(openViewletActionDescriptor, 'View: Show 
 
 const listOutdatedActionDescriptor = new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(listOutdatedActionDescriptor, 'Extensions: Show Outdated Extensions', ExtensionsLabel);
+
+const recommendationsActionDescriptor = new SyncActionDescriptor(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL);
+actionRegistry.registerWorkbenchAction(recommendationsActionDescriptor, `Extensions: ${ ShowExtensionRecommendationsAction.LABEL }`, ExtensionsLabel);
+
+const popularActionDescriptor = new SyncActionDescriptor(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL);
+actionRegistry.registerWorkbenchAction(popularActionDescriptor, `Extensions: ${ ShowPopularExtensionsAction.LABEL }`, ExtensionsLabel);

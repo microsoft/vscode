@@ -251,3 +251,57 @@ export class ListOutdatedExtensionsAction extends Action {
 		return true;
 	}
 }
+
+export class ShowPopularExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showPopularExtensions';
+	static LABEL = localize('showPopularExtensions', "Show Popular Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, 'show-popular-extensions octicon octicon-flame', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@popular', true);
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class ShowExtensionRecommendationsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showExtensionRecommendations';
+	static LABEL = localize('showExtensionRecommendations', "Show Extension Recommendations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, 'show-extension-recommendations octicon octicon-gift', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended', true);
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}

@@ -13,6 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mapEvent, filterEvent } from 'vs/base/common/event';
+import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -25,6 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension } from './extensions';
 import { IExtensionsViewlet } from './extensions';
+import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -111,6 +113,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	layout({ height }: Dimension):void {
 		this.list.layout(height - 38);
+	}
+
+	getActions(): IAction[] {
+		return [
+			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
+			this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL)
+		];
 	}
 
 	search(text: string, immediate = false): void {
