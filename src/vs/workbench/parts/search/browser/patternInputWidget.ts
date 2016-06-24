@@ -11,6 +11,9 @@ import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { MessageType, InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import CommonEvent, { Emitter } from 'vs/base/common/event';
 
 export interface IOptions {
 	placeholder?: string;
@@ -30,10 +33,13 @@ export class PatternInputWidget extends Widget {
 
 	private toDispose: any[];
 	private pattern: Checkbox;
-	
+
 	private domNode: HTMLElement;
 	private inputNode: HTMLInputElement;
 	private inputBox: InputBox;
+
+	private _onSubmit = this._register(new Emitter<boolean>());
+	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null)) {
 		super();
@@ -154,6 +160,8 @@ export class PatternInputWidget extends Widget {
 			}
 		});
 
+		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
+
 		this.pattern = new Checkbox({
 			actionClassName: 'pattern',
 			title: nls.localize('patternDescription', "Use Glob Patterns"),
@@ -200,5 +208,15 @@ export class PatternInputWidget extends Widget {
 				"The pattern to match. e.g. **\\*\\*/*.js** to match all JavaScript files or **myFolder/\\*\\*** to match that folder with all children.\n\n**Reference**:\n**\\*** matches 0 or more characters\n**?** matches 1 character\n**\\*\\*** matches zero or more directories\n**[a-z]** matches a range of characters\n**{a,b}** matches any of the patterns)"
 			)
 		}, true);
+	}
+
+	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
+		switch (keyboardEvent.keyCode) {
+			case KeyCode.Enter:
+				this._onSubmit.fire();
+				return;
+			default:
+				return;
+		}
 	}
 }

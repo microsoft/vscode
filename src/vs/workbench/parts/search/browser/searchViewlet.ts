@@ -191,6 +191,8 @@ export class SearchViewlet extends Viewlet {
 					}).on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
+
+					this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
 			});
 
 			//pattern exclusion list
@@ -220,6 +222,8 @@ export class SearchViewlet extends Viewlet {
 					}).on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
+
+					this.inputPatternExclusions.onSubmit(() => this.onQueryChanged(true));
 			});
 
 			// add hint if we have global exclusion
