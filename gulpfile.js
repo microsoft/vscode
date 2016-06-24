@@ -106,11 +106,6 @@ function watchTask(out, build) {
 
 function monacodtsTask(out, isWatch) {
 
-	var filesToWatchMap = {};
-	monacodts.getFilesToWatch(out).forEach(function(filePath) {
-		filesToWatchMap[path.normalize(filePath)] = true;
-	});
-
 	var timer = -1;
 
 	var runSoon = function(howSoon) {
@@ -144,23 +139,32 @@ function monacodtsTask(out, isWatch) {
 	};
 
 	if (isWatch) {
+
+		var filesToWatchMap = {};
+		monacodts.getFilesToWatch(out).forEach(function(filePath) {
+			filesToWatchMap[path.normalize(filePath)] = true;
+		});
+
 		watch('build/monaco/*').pipe(es.through(function() {
-			runSoon(500);
-		}));
-	}
-
-	var resultStream = es.through(function(data) {
-		var filePath = path.normalize(data.path);
-		if (isWatch && filesToWatchMap[filePath]) {
 			runSoon(5000);
-		}
-		this.emit('data', data);
-	}, function(end) {
-		runNow();
-		this.emit('end');
-	});
+		}));
 
-	return resultStream;
+		return es.through(function(data) {
+			var filePath = path.normalize(data.path);
+			if (filesToWatchMap[filePath]) {
+				runSoon(5000);
+			}
+			this.emit('data', data);
+		});
+
+	} else {
+
+		return es.through(null, function(end) {
+			runNow();
+			this.emit('end');
+		});
+
+	}
 }
 
 // Fast compile for development time
