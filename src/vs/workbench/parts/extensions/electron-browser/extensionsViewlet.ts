@@ -24,8 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionsWorkbenchService, IExtension } from './extensions';
-import { IExtensionsViewlet } from './extensions';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
 import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
@@ -33,8 +32,6 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
-
-	static ID: string = 'workbench.viewlet.extensions';
 
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
@@ -52,7 +49,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(ExtensionsViewlet.ID, telemetryService);
+		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
 	}
 

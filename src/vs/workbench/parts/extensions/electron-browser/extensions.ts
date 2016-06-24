@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
 import { IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-export const VIEWLET_ID = 'workbench.viewlet.extensions';
+export const VIEWLET_ID = 'workbench.view.extensions';
 
 export interface IExtensionsViewlet extends IViewlet {
 	search(text: string, immediate?: boolean): void;

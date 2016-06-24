@@ -211,7 +211,7 @@ export class EnableAction extends Action {
 
 export class OpenExtensionsViewletAction extends ToggleViewletAction {
 
-	static ID = 'workbench.extensions.showViewlet';
+	static ID = VIEWLET_ID;
 	static LABEL = localize('toggleExtensionsViewlet', "Show Extensions");
 
 	constructor(
