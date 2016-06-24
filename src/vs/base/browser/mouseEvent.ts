@@ -51,46 +51,24 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
 
-		this.target = e.target || (<any>e).targetNode || e.srcElement;
+		this.target = <HTMLElement>e.target;
 
 		this.detail = e.detail || 1;
 		if (e.type === 'dblclick') {
 			this.detail = 2;
 		}
-		this.posx = 0;
-		this.posy = 0;
 		this.ctrlKey = e.ctrlKey;
 		this.shiftKey = e.shiftKey;
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
 
-		let readClientCoords = () => {
-			if (e.clientX || e.clientY) {
-				this.posx = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
-				this.posy = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
-				return true;
-			}
-			return false;
-		};
-
-		let readPageCoords = () => {
-			if (e.pageX || e.pageY) {
-				this.posx = e.pageX;
-				this.posy = e.pageY;
-				return true;
-			}
-			return false;
-		};
-
-		let test1 = readPageCoords, test2 = readClientCoords;
-		if (browser.isIE10) {
-			// The if A elseif B logic here is inversed in IE10 due to an IE10 issue
-			test1 = readClientCoords;
-			test2 = readPageCoords;
-		}
-
-		if (!test1()) {
-			test2();
+		if (typeof e.pageX === 'number') {
+			this.posx = e.pageX;
+			this.posy = e.pageY;
+		} else {
+			// Probably hit by MSGestureEvent
+			this.posx = e.clientX + window.scrollX;
+			this.posy = e.clientY + window.scrollY;
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.

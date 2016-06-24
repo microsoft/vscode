@@ -370,14 +370,13 @@ declare module monaco {
     }
 
     export interface IKeyboardEvent {
-        browserEvent: Event;
+        browserEvent: KeyboardEvent;
         target: HTMLElement;
         ctrlKey: boolean;
         shiftKey: boolean;
         altKey: boolean;
         metaKey: boolean;
         keyCode: KeyCode;
-        clone(): IKeyboardEvent;
         asKeybinding(): number;
         equals(keybinding: number): boolean;
         preventDefault(): void;

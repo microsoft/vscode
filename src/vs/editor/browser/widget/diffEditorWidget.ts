@@ -658,7 +658,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	//------------ begin layouting methods
 
 	private _measureDomElement(forceDoLayoutCall:boolean, dimensions?:editorCommon.IDimension): void {
-		dimensions = dimensions || dom.getDomNodePosition(this._containerDomElement);
+		dimensions = dimensions || {
+			width: this._containerDomElement.clientWidth,
+			height: this._containerDomElement.clientHeight
+		};
 
 		if (dimensions.width <= 0) {
 			this._width = 0;

@@ -245,17 +245,17 @@ export class ViewContentWidgets extends ViewPart {
 			return null;
 		}
 
-		let aboveTop = visibleRange.top - height,
-			belowTop = visibleRange.top + this._lineHeight,
-			left = left0 + this._contentLeft;
+		let aboveTop = visibleRange.top - height;
+		let belowTop = visibleRange.top + this._lineHeight;
+		let left = left0 + this._contentLeft;
 
-		let domNodePosition = dom.getDomNodePosition(this._viewDomNode);
-		let absoluteAboveTop = domNodePosition.top + aboveTop - document.body.scrollTop - document.documentElement.scrollTop,
-			absoluteBelowTop = domNodePosition.top + belowTop - document.body.scrollTop - document.documentElement.scrollTop,
-			absoluteLeft = domNodePosition.left + left - document.body.scrollLeft - document.documentElement.scrollLeft;
+		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode);
+		let absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
+		let absoluteBelowTop = domNodePosition.top + belowTop - window.scrollY;
+		let absoluteLeft = domNodePosition.left + left - window.scrollX;
 
-		let INNER_WIDTH = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth,
-			INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+		let INNER_WIDTH = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+		let INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
 
 		// Leave some clearance to the bottom
 		let BOTTOM_PADDING = 22;

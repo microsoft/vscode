@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/extensionEditor';
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -18,14 +19,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
-import { IExtensionsWorkbenchService } from './extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID } from './extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
-import { IExtensionsViewlet } from './extensions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction } from './extensionsActions';
 
@@ -37,6 +37,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private icon: HTMLElement;
 	private name: HTMLAnchorElement;
+	private license: HTMLAnchorElement;
 	private publisher: HTMLAnchorElement;
 	private installCount: HTMLElement;
 	private rating: HTMLAnchorElement;
@@ -74,16 +75,19 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon = append(header, $('.icon'));
 
 		const details = append(header, $('.details'));
-		this.name = append(details, $<HTMLAnchorElement>('a.name'));
+		const title = append(details, $('.title'));
+		this.name = append(title, $<HTMLAnchorElement>('a.name'));
 		this.name.href = '#';
+
+		this.license = append(title, $<HTMLAnchorElement>('a.license'));
+		this.license.href = '#';
+		this.license.textContent = localize('license', 'License');
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
 		this.publisher.href = '#';
 
 		this.installCount = append(subtitle, $('span.install'));
-		// append(install, $('span.octicon.octicon-cloud-download'));
-		// this.installCount = append(install, $('span.count'));
 
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
@@ -111,11 +115,13 @@ export class ExtensionEditor extends BaseEditor {
 
 		if (product.extensionsGallery) {
 			const extensionUrl = `${ product.extensionsGallery.itemUrl }?itemName=${ extension.publisher }.${ extension.name }`;
+			const licenseUrl = `${ product.extensionsGallery.itemUrl }/${ extension.publisher }.${ extension.name }/license`;
 
 			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
+			this.license.onclick = finalHandler(() => shell.openExternal(licenseUrl));
 			this.rating.onclick = finalHandler(() => shell.openExternal(`${ extensionUrl }#review-details`));
 			this.publisher.onclick = finalHandler(() => {
-				this.viewletService.openViewlet('workbench.viewlet.extensions', true)
+				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
 					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`, true));
 			});

@@ -589,20 +589,23 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 	};
 }
 
-export interface IDomNodePosition {
+export interface IDomNodePagePosition {
 	left: number;
 	top: number;
 	width: number;
 	height: number;
 }
 
-export function getDomNodePosition(domNode: HTMLElement): IDomNodePosition {
-	let r = getTopLeftOffset(domNode);
+/**
+ * Returns the position of a dom node relative to the entire page.
+ */
+export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
+	let bb = domNode.getBoundingClientRect();
 	return {
-		left: r.left,
-		top: r.top,
-		width: domNode.clientWidth,
-		height: domNode.clientHeight
+		left: bb.left + window.scrollX,
+		top: bb.top + window.scrollY,
+		width: bb.width,
+		height: bb.height
 	};
 }
 
@@ -637,7 +640,7 @@ export function getTotalHeight(element: HTMLElement): number {
 }
 
 // Gets the left coordinate of the specified element relative to the specified parent.
-export function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
+function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 	if (element === null) {
 		return 0;
 	}
@@ -645,17 +648,6 @@ export function getRelativeLeft(element: HTMLElement, parent: HTMLElement): numb
 	let elementPosition = getTopLeftOffset(element);
 	let parentPosition = getTopLeftOffset(parent);
 	return elementPosition.left - parentPosition.left;
-}
-
-// Gets the top coordinate of the element relative to the specified parent.
-export function getRelativeTop(element: HTMLElement, parent: HTMLElement): number {
-	if (element === null) {
-		return 0;
-	}
-
-	let elementPosition = getTopLeftOffset(element);
-	let parentPosition = getTopLeftOffset(parent);
-	return parentPosition.top - elementPosition.top;
 }
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
