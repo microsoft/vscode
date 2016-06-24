@@ -7,10 +7,36 @@
 
 import {localize} from 'vs/nls';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {MenuItemAction} from 'vs/platform/actions/common/actions';
+import {IMenu, MenuItemAction} from 'vs/platform/actions/common/actions';
 import {IAction} from 'vs/base/common/actions';
-import {ActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {domEvent} from 'vs/base/browser/event';
+
+
+export function fillInActions(menu: IMenu, target: IAction[] | { primary: IAction[]; secondary: IAction[];}): void {
+	const actions = menu.getActions();
+	if (actions.length === 0) {
+		return;
+	}
+
+	for (let tuple of actions) {
+		let [group, actions] = tuple;
+		if (group === 'navigation') {
+			if (Array.isArray<IAction>(target)) {
+				target.unshift(...actions);
+			} else {
+				target.primary.unshift(...actions);
+			}
+		} else {
+			if (Array.isArray<IAction>(target)) {
+				target.push(new Separator(), ...actions);
+			} else {
+				target.secondary.push(new Separator(), ...actions);
+			}
+		}
+	}
+}
+
 
 export function createActionItem(action: IAction, keybindingService: IKeybindingService): ActionItem {
 	if (action instanceof MenuItemAction) {

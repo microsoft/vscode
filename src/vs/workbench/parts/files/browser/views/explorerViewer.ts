@@ -48,6 +48,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
+import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -484,8 +485,8 @@ export class FileController extends DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => {
 				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
-					// TODO@joh sorting,grouping
-					return [...this.contributedContextMenu.getActions(), ...actions];
+					fillInActions(this.contributedContextMenu, actions);
+					return actions;
 				});
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),

@@ -24,13 +24,14 @@ export interface CommandAction {
 
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(): Actions.IAction[];
+	getActions(): [string, Actions.IAction[]][];
 }
 
 export interface IMenuItem {
 	command: CommandAction;
 	alt?: CommandAction;
 	when?: KbExpr;
+	group?: string;
 }
 
 export enum MenuId {
