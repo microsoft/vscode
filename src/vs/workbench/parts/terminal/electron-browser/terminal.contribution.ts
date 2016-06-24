@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/terminal.contribution';
+import 'vs/css!./media/terminal';
+import 'vs/css!./media/tabs';
+import 'vs/css!./media/xterm';
 import nls = require('vs/nls');
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -72,7 +74,7 @@ configurationRegistry.registerConfiguration({
 			'default': 0
 		},
 		'terminal.integrated.lineHeight': {
-			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to editor.lineHeight's value."),
+			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to normal."),
 			'type': 'number',
 			'default': 0
 		}
