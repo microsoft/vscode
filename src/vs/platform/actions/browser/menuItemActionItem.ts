@@ -95,10 +95,19 @@ class MenuItemActionItem extends ActionItem {
 		super.render(container);
 
 		let altSubscription: IDisposable;
-		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => dispose(altSubscription)));
+		let mouseOver: boolean;
+		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
+			if (!this._altKeyDown) {
+				dispose(altSubscription);
+			}
+			mouseOver = false;
+		}));
 		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
+			mouseOver = true;
 			altSubscription = _altKey.event(value => {
-
+				if (!mouseOver) {
+					dispose(altSubscription);
+				}
 				this._altKeyDown = value;
 				this._updateLabel();
 				this._updateTooltip();
