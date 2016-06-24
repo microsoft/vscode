@@ -41,18 +41,31 @@ var tsOptions = {
 	sourceRoot: util.toFileUri(rootDir)
 };
 
+function createFastFilter(filterFn) {
+	var result = es.through(function(data) {
+		if (filterFn(data)) {
+			this.emit('data', data);
+		} else {
+			result.restore.push(data);
+		}
+	});
+	result.restore = es.through();
+	return result;
+}
+
 function createCompile(build, emitError) {
 	var opts = _.clone(tsOptions);
 	opts.inlineSources = !!build;
+	opts.noFilesystemLookup = true;
 
 	var ts = tsb.create(opts, null, null, quiet ? null : function (err) {
 		reporter(err.toString());
 	});
 
 	return function (token) {
-		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
-		var tsFilter = filter(['**/*.ts'], { restore: true });
-		var noDeclarationsFilter = filter(['**/*', '!**/*.d.ts'], { restore: true });
+		var utf8Filter = createFastFilter(function(data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
+		var tsFilter = createFastFilter(function(data) { return /\.ts$/.test(data.path); });
+		var noDeclarationsFilter = createFastFilter(function(data) { return !(/\.d\.ts$/.test(data.path)); });
 
 		var input = es.through();
 		var output = input
@@ -81,7 +94,10 @@ function compileTask(out, build) {
 	var compile = createCompile(build, true);
 
 	return function () {
-		var src = gulp.src('src/**', { base: 'src' });
+		var src = es.merge(
+			gulp.src('src/**', { base: 'src' }),
+			gulp.src('node_modules/typescript/lib/lib.d.ts')
+		);
 
 		return src
 			.pipe(compile())
@@ -94,7 +110,10 @@ function watchTask(out, build) {
 	var compile = createCompile(build);
 
 	return function () {
-		var src = gulp.src('src/**', { base: 'src' });
+		var src = es.merge(
+			gulp.src('src/**', { base: 'src' }),
+			gulp.src('node_modules/typescript/lib/lib.d.ts')
+		);
 		var watchSrc = watch('src/**', { base: 'src' });
 
 		return watchSrc
@@ -138,6 +157,8 @@ function monacodtsTask(out, isWatch) {
 		}
 	};
 
+	var resultStream;
+
 	if (isWatch) {
 
 		var filesToWatchMap = {};
@@ -149,7 +170,7 @@ function monacodtsTask(out, isWatch) {
 			runSoon(5000);
 		}));
 
-		return es.through(function(data) {
+		resultStream = es.through(function(data) {
 			var filePath = path.normalize(data.path);
 			if (filesToWatchMap[filePath]) {
 				runSoon(5000);
@@ -159,12 +180,14 @@ function monacodtsTask(out, isWatch) {
 
 	} else {
 
-		return es.through(null, function(end) {
+		resultStream = es.through(null, function(end) {
 			runNow();
 			this.emit('end');
 		});
 
 	}
+
+	return resultStream;
 }
 
 // Fast compile for development time

@@ -24,7 +24,7 @@ var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 var compilations = glob.sync('**/tsconfig.json', {
 	cwd: extensionsPath,
-	ignore: '**/out/**'
+	ignore: ['**/out/**', '**/node_modules/**']
 });
 
 var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
