@@ -121,6 +121,13 @@ export class TerminalInstance {
 		this.terminalDomElement.style.fontSize = this.font.fontSize;
 	}
 
+	public setCursorBlink(blink: boolean): void {
+		if (this.xterm && this.xterm.cursorBlink !== blink) {
+			this.xterm.cursorBlink = blink;
+			this.xterm.refresh(0, this.xterm.rows - 1);
+		}
+	}
+
 	public focus(force?: boolean): void {
 		if (!this.xterm) {
 			return;

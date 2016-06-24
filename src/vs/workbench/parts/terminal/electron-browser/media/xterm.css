@@ -36,6 +36,43 @@
 	outline-offset: -1px;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
+
+@keyframes blink-cursor {
+	0% {
+		background-color: #333;
+		color: #CCC;
+	}
+	50% {
+		background-color: transparent;
+		color: #333;
+	}
+}
+
+@keyframes blink-cursor-dark {
+	0% {
+		background-color: #CCC;
+		color: #1e1e1e;
+	}
+	50% {
+		background-color: transparent;
+		color: #CCC;
+	}
+}
+
+@keyframes blink-cursor-hc-black {
+	0% {
+		background-color: #fff;
+		color: #000;
+	}
+	50% {
+		background-color: transparent;
+		color: #FFF;
+	}
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {
 	font-weight: bold;
 }

@@ -137,6 +137,11 @@ export class TerminalConfigHelper {
 		return this.measureFont(fontFamily, fontSize + 'px', lineHeight === 0 ? 'normal' : lineHeight + 'px');
 	}
 
+	public getCursorBlink(): boolean {
+		let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
+		return editorConfig.editor.cursorBlinking === 'blink';
+	}
+
 	public getShell(): IShell {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		let shell: IShell = {
