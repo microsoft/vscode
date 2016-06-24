@@ -31,8 +31,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ActionBarContributor} from 'vs/platform/actions/browser/actionBarContributor';
-import {MenuId} from 'vs/platform/actions/common/actions';
+import {createActionItem} from 'vs/platform/actions/browser/menuItemActionItem';
+import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 export interface IToolbarActions {
@@ -76,7 +76,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private refreshScheduled: boolean;
 
 	private resourceContext: ResourceContextKey;
-	private titleActionBarContributor: ActionBarContributor;
+
+	private contributedTitleBarMenu: IMenu;
 
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -86,7 +87,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IMessageService protected messageService: IMessageService
+		@IMessageService protected messageService: IMessageService,
+		@IMenuService protected menuService: IMenuService
 	) {
 		this.toDispose = [];
 		this.stacks = editorGroupService.getStacksModel();
@@ -177,9 +179,9 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	public create(parent: HTMLElement): void {
-		this.titleActionBarContributor = this.instantiationService.createInstance(ActionBarContributor, parent, MenuId.EditorTitle);
-		this.toDispose.push(this.titleActionBarContributor.onDidUpdate(e => this.refresh()));
-		this.toDispose.push(this.titleActionBarContributor);
+		this.contributedTitleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, parent);
+		this.toDispose.push(this.contributedTitleBarMenu);
+		this.toDispose.push(this.contributedTitleBarMenu.onDidChange(e => this.refresh()));
 	}
 
 	protected abstract doRefresh(): void;
@@ -266,7 +268,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		// Check extensions
 		if (!actionItem) {
-			actionItem = this.titleActionBarContributor.getActionItem(action);
+			actionItem = createActionItem(action, this.keybindingService);
 		}
 
 		return actionItem;
@@ -301,7 +303,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			secondary.push(...editorInputActions.secondary);
 
 			// MenuItems
-			primary.push(...this.titleActionBarContributor.getActions());
+			primary.push(...this.contributedTitleBarMenu.getActions());
 		}
 
 		return { primary, secondary };

@@ -46,8 +46,7 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {ActionBarContributor} from 'vs/platform/actions/browser/actionBarContributor';
-import {MenuId} from 'vs/platform/actions/common/actions';
+import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -356,7 +355,7 @@ export class FileController extends DefaultController {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
 
-	private contextMenuActions: ActionBarContributor;
+	private contributedContextMenu: IMenu;
 
 	private workspace: IWorkspace;
 
@@ -367,7 +366,8 @@ export class FileController extends DefaultController {
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMenuService private menuService: IMenuService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
@@ -466,9 +466,8 @@ export class FileController extends DefaultController {
 			return false;
 		}
 
-		if (!this.contextMenuActions) {
-			this.contextMenuActions = this.instantiationService.createInstance(ActionBarContributor,
-				tree.getHTMLElement(), MenuId.ExplorerContext);
+		if (!this.contributedContextMenu) {
+			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.getHTMLElement());
 		}
 
 		event.preventDefault();
@@ -486,7 +485,7 @@ export class FileController extends DefaultController {
 			getActions: () => {
 				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
 					// TODO@joh sorting,grouping
-					return [...this.contextMenuActions.getActions(), ...actions];
+					return [...this.contributedContextMenu.getActions(), ...actions];
 				});
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
