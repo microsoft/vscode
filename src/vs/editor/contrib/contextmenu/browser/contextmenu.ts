@@ -21,6 +21,7 @@ import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, Mou
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 
 interface IPosition {
 	x: number;
@@ -124,12 +125,6 @@ class ContextMenuController implements IEditorContribution {
 
 	private _getMenuActions(): IAction[] {
 
-		// const actions = this._contextMenu.getActions();
-		// if (actions.length > 0) {
-		// 	console.log(actions);
-		// 	return actions;
-		// }
-
 		const editorModel = this._editor.getModel();
 		if (!editorModel) {
 			return [];
@@ -141,7 +136,9 @@ class ContextMenuController implements IEditorContribution {
 			}
 		});
 
-		return ContextMenuController._prepareActions(contributedActions);
+		const actions = ContextMenuController._prepareActions(contributedActions);
+		fillInActions(this._contextMenu, actions);
+		return actions;
 	}
 
 	private static _prepareActions(actions: EditorAction[]): IAction[] {
