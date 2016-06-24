@@ -54,15 +54,11 @@ var BUNDLED_FILE_HEADER = [
 	''
 ].join('\n');
 
-function editorLoaderConfig(removeAllOSS) {
+function editorLoaderConfig() {
 	var result = common.loaderConfig();
 
 	// never ship octicons in editor
 	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
-
-	if (removeAllOSS) {
-		result.paths['vs/languages/lib/common/beautify-html'] = 'out-build/vs/languages/lib/common/beautify-html.mock';
-	}
 
 	result['vs/css'] = { inlineResources: true };
 
@@ -74,7 +70,7 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
-	loaderConfig: editorLoaderConfig(false),
+	loaderConfig: editorLoaderConfig(),
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
 	out: 'out-editor'
