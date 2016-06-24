@@ -148,7 +148,7 @@ class Menu implements IMenu {
 		if (exp) {
 			const parts = exp.serialize().split(' && ');
 			for (let part of parts) {
-				const m = /^\w+/.exec(part);
+				const m = /^\S+/.exec(part);
 				if (m) {
 					set[m[0]] = true;
 				}
