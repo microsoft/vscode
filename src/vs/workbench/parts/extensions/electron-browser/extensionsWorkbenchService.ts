@@ -187,11 +187,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	getRecommendations(): TPromise<IExtension[]> {
 		return this.tipsService.getRecommendations()
-			.then(r => {
-				console.log(r);
-				return r;
-			})
-			.then(ext => ext.map(gallery => this.fromGallery(gallery)));
+			.then(result => result
+				.map(gallery => this.fromGallery(gallery))
+				.filter(extension => extension.state === ExtensionState.Uninstalled)
+			);
 	}
 
 	private fromGallery(gallery: IGalleryExtension): Extension {
