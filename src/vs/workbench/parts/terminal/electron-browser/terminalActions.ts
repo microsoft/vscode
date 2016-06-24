@@ -26,17 +26,17 @@ export class ToggleTerminalAction extends Action {
 	}
 }
 
-export class CloseTerminalAction extends Action {
+export class KillTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.close';
-	public static LABEL = nls.localize('workbench.action.terminal.close', "Terminal: Close the current terminal");
+	public static ID = 'workbench.action.terminal.kill';
+	public static LABEL = nls.localize('workbench.action.terminal.kill', "Terminal: Kill the Active Terminal Instance");
 
 	constructor(
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
-		this.class = 'terminal-action close';
+		this.class = 'terminal-action kill';
 	}
 
 	public run(event?: any): TPromise<any> {

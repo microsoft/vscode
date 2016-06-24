@@ -34,10 +34,10 @@
 /* Terminal actions */
 
 /* Light theme */
-.monaco-workbench .terminal-action.close { background: url('close.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.kill { background: url('kill.svg') center center no-repeat; }
 .monaco-workbench .terminal-action.new { background: url('new.svg') center center no-repeat; }
 /* Dark theme */
-.vs-dark .monaco-workbench .terminal-action.close { background: url('close-inverse.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.kill { background: url('kill-inverse.svg') center center no-repeat; }
 .vs-dark .monaco-workbench .terminal-action.new { background: url('new-inverse.svg') center center no-repeat; }
 /* High contrast black theme */
 .hc-black .monaco-workbench .terminal-action { background: none; }
@@ -48,5 +48,5 @@
 	height: 16px;
 	width: 16px;
 }
-.hc-black .monaco-workbench .terminal-action.close:before { content: url('close-inverse.svg'); }
+.hc-black .monaco-workbench .terminal-action.kill:before { content: url('kill-inverse.svg'); }
 .hc-black .monaco-workbench .terminal-action.new:before { content: url('new-inverse.svg'); }
