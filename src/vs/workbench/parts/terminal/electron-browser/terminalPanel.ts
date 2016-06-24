@@ -166,7 +166,6 @@ export class TerminalPanel extends Panel {
 
 		let css = '';
 		theme.forEach((color: string, index: number) => {
-			// TODO: The classes could probably be reduced, it's so long to beat the specificity of the general rule.
 			let rgba = this.convertHexCssColorToRgba(color, 0.996);
 			css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
 				`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }` +
