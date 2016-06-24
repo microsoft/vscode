@@ -101,6 +101,10 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 
+		this.contributedTitleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, this.keybindingService);
+		this.toDispose.push(this.contributedTitleBarMenu);
+		this.toDispose.push(this.contributedTitleBarMenu.onDidChange(e => this.refresh()));
+
 		this.initActions();
 		this.registerListeners();
 	}
@@ -178,11 +182,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 		}
 	}
 
-	public create(parent: HTMLElement): void {
-		this.contributedTitleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, parent);
-		this.toDispose.push(this.contributedTitleBarMenu);
-		this.toDispose.push(this.contributedTitleBarMenu.onDidChange(e => this.refresh()));
-	}
+	public abstract create(parent: HTMLElement): void;
+
 
 	protected abstract doRefresh(): void;
 

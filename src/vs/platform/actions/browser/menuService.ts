@@ -10,7 +10,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {values} from 'vs/base/common/collections';
-import {KbExpr, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {MenuId, CommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
@@ -67,14 +67,13 @@ export class MenuService implements IMenuService {
 	serviceId = IMenuService;
 
 	constructor(
-		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IExtensionService private _extensionService: IExtensionService
 	) {
 		//
 	}
 
-	createMenu(id: MenuId, scope: IKeybindingScopeLocation): IMenu {
-		return new Menu(scope, id, this._keybindingService, this._extensionService);
+	createMenu(id: MenuId, keybindingService: IKeybindingService): IMenu {
+		return new Menu(id, keybindingService, this._extensionService);
 	}
 
 	getCommandActions(): CommandAction[] {
@@ -84,18 +83,15 @@ export class MenuService implements IMenuService {
 
 class Menu implements IMenu {
 
-	private _scope: IKeybindingScopeLocation;
 	private _menuItems: IMenuItem[] = [];
 	private _disposables: IDisposable[] = [];
 	private _onDidChange = new Emitter<IMenu>();
 
 	constructor(
-		scope: IKeybindingScopeLocation,
 		id: MenuId,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IExtensionService private _extensionService: IExtensionService
 	) {
-		this._scope = scope;
 		this._extensionService.onReady().then(_ => {
 
 			let menuItems = _registry.getMenuItems(id);
@@ -139,9 +135,9 @@ class Menu implements IMenu {
 	getActions(): IAction[] {
 		const result: IAction[] = [];
 		for (let item of this._menuItems) {
-			if (this._keybindingService.contextMatchesRules(this._scope, item.when)) {
+			if (this._keybindingService.contextMatchesRules(item.when)) {
 				result.push(new MenuItemAction(item,
-					this._keybindingService.getContextValue<URI>(this._scope, ResourceContextKey.Resource),
+					this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource),
 					this._keybindingService));
 			}
 		}

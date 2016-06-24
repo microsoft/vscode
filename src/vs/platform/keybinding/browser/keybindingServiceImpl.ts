@@ -27,9 +27,9 @@ import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
 export class KeybindingContext {
-	private _parent: KeybindingContext;
-	private _value: any;
-	private _id: number;
+	protected _parent: KeybindingContext;
+	protected _value: any;
+	protected _id: number;
 
 	constructor(id: number, parent: KeybindingContext) {
 		this._id = id;
@@ -51,6 +51,14 @@ export class KeybindingContext {
 		return delete this._value[key];
 	}
 
+	public getValue<T>(key: string): T {
+		const ret = this._value[key];
+		if (typeof ret === 'undefined' && this._parent) {
+			return this._parent.getValue<T>(key);
+		}
+		return ret;
+	}
+
 	public fillInContext(bucket: any): void {
 		if (this._parent) {
 			this._parent.fillInContext(bucket);
@@ -61,12 +69,15 @@ export class KeybindingContext {
 	}
 }
 
-export class ConfigurationContext {
+class ConfigAwareKeybindingContext extends KeybindingContext {
 
+	private _emitter: Emitter<string>;
 	private _subscription: IDisposable;
-	private _values: any;
 
-	constructor(configurationService: IConfigurationService) {
+	constructor(id: number, configurationService: IConfigurationService, emitter:Emitter<string>) {
+		super(id, null);
+
+		this._emitter = emitter;
 		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(e.config));
 		this._updateConfigurationContext(configurationService.getConfiguration());
 	}
@@ -76,14 +87,24 @@ export class ConfigurationContext {
 	}
 
 	private _updateConfigurationContext(config: any) {
-		this._values = Object.create(null);
+
+		// remove old config.xyz values
+		for (let key in this._value) {
+			if (key.indexOf('config.') === 0) {
+				delete this._value[key];
+			}
+		}
+
+		// add new value from config
 		const walk = (obj: any, keys: string[]) => {
 			for (let key in obj) {
 				if (Object.prototype.hasOwnProperty.call(obj, key)) {
 					keys.push(key);
 					let value = obj[key];
 					if (typeof value === 'boolean') {
-						this._values[keys.join('.')] = value;
+						const configKey = keys.join('.');
+						this._value[configKey] = value;
+						this._emitter.fire(configKey);
 					} else if (typeof value === 'object') {
 						walk(value, keys);
 					}
@@ -92,15 +113,6 @@ export class ConfigurationContext {
 			}
 		};
 		walk(config, ['config']);
-	}
-
-
-	public fillInContext(bucket: any): void {
-		if (this._values) {
-			for (let key in this._values) {
-				bucket[key] = this._values[key];
-			}
-		}
 	}
 }
 
@@ -151,10 +163,6 @@ export abstract class AbstractKeybindingService {
 		return new KeybindingContextKey(this, key, defaultValue);
 	}
 
-	public abstract contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean;
-
-	public abstract getContextValue<T>(domNode: HTMLElement, key: string): T;
-
 	public get onDidChangeContext(): Event<string[]> {
 		if (!this._onDidChangeContext) {
 			this._onDidChangeContext = debounceEvent(this._onDidChangeContextKey.event, (prev: string[], cur) => {
@@ -175,6 +183,17 @@ export abstract class AbstractKeybindingService {
 
 	public createScoped(domNode: IKeybindingScopeLocation): IKeybindingService {
 		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
+	}
+
+	public contextMatchesRules(rules: KbExpr): boolean {
+		const ctx = Object.create(null);
+		this.getContext(this._myContextId).fillInContext(ctx);
+		// console.log(JSON.stringify(ctx, null, '\t'));
+		return KeybindingResolver.contextMatchesRules(ctx, rules);
+	}
+
+	public getContextValue<T>(key: string): T {
+		return this.getContext(this._myContextId).getValue<T>(key);
 	}
 
 	public setContext(key: string, value: any): void {
@@ -215,7 +234,6 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	};
 
 	private _toDispose: IDisposable[] = [];
-	private _configurationContext: ConfigurationContext;
 	private _cachedResolver: KeybindingResolver;
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
@@ -227,13 +245,15 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
-		this._contexts[String(this._myContextId)] = new KeybindingContext(this._myContextId, null);
+
+		const myContext = new ConfigAwareKeybindingContext(this._myContextId, configurationService, this._onDidChangeContextKey);
+		this._contexts[String(this._myContextId)] = myContext;
+		this._toDispose.push(myContext);
+
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
-		this._configurationContext = new ConfigurationContext(configurationService);
-		this._toDispose.push(this._configurationContext);
 		this._statusService = statusService;
 		this._messageService = messageService;
 	}
@@ -255,21 +275,6 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
-	}
-
-	public contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean {
-		const ctx = Object.create(null);
-		this.getContext(this._findContextAttr(domNode)).fillInContext(ctx);
-		this._configurationContext.fillInContext(ctx);
-		// console.log(JSON.stringify(ctx, null, '\t'));
-		return KeybindingResolver.contextMatchesRules(ctx, rules);
-	}
-
-	public getContextValue<T>(domNode: HTMLElement, key: string): T {
-		const ctx = Object.create(null);
-		this.getContext(this._findContextAttr(domNode)).fillInContext(ctx);
-		this._configurationContext.fillInContext(ctx);
-		return <T>ctx[key];
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
@@ -344,7 +349,6 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 		let contextValue = Object.create(null);
 		this.getContext(this._findContextAttr(e.target)).fillInContext(contextValue);
-		this._configurationContext.fillInContext(contextValue);
 		// console.log(JSON.stringify(contextValue, null, '\t'));
 
 		let resolveResult = this._getResolver().resolve(contextValue, this._currentChord, e.asKeybinding());
@@ -457,14 +461,6 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 
 	public get onDidChangeContext(): Event<string[]> {
 		return this._parent.onDidChangeContext;
-	}
-
-	public contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean {
-		return this._parent.contextMatchesRules(domNode, rules);
-	}
-
-	public getContextValue<T>(domNode: HTMLElement, key: string): T {
-		return this._parent.getContextValue<T>(domNode, key);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {

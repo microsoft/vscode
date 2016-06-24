@@ -38,6 +38,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -367,9 +368,12 @@ export class FileController extends DefaultController {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
+
+		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, keybindingService);
 
 		this.workspace = contextService.getWorkspace();
 
@@ -464,10 +468,6 @@ export class FileController extends DefaultController {
 	public onContextMenu(tree: ITree, stat: FileStat, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
-		}
-
-		if (!this.contributedContextMenu) {
-			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.getHTMLElement());
 		}
 
 		event.preventDefault();
