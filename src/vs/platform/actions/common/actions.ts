@@ -28,7 +28,8 @@ export interface MenuItem {
 
 export enum MenuId {
 	EditorTitle = 1,
-	ExplorerContext = 2
+	EditorContext = 2,
+	ExplorerContext = 3
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
