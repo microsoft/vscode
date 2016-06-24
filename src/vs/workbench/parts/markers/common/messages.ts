@@ -57,4 +57,6 @@ export default class Messages {
 									: nls.localize('problems.tree.aria.label.marker.nosource', "Problem: {0} at line {1} and column {2}", marker.message, marker.startLineNumber, marker.startColumn);
 		}
 	}
+
+	public static SHOW_ERRORS_WARNINGS_ACTION_LABEL:string= nls.localize('errors.warnings.show.label', "Errors and Warnings");
 }

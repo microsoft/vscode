@@ -38,11 +38,14 @@ export function registerContributions(): void {
 		'markersPanel'
 	));
 
-	<IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions).registerWorkbenchAction(new SyncActionDescriptor(
-		problemsPanelActions.ToggleProblemsPanelAction, problemsPanelActions.ToggleProblemsPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
+	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
+
+	registry.registerWorkbenchAction(new SyncActionDescriptor(problemsPanelActions.ToggleProblemsPanelAction, problemsPanelActions.ToggleProblemsPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
 		primary: null,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M }
 	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
+
+	registry.registerWorkbenchAction(new SyncActionDescriptor(problemsPanelActions.ToggleErrorsAndWarningsAction, problemsPanelActions.ToggleErrorsAndWarningsAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL), Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL);
 }
