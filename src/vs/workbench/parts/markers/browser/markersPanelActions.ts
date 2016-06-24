@@ -19,7 +19,7 @@ import Constants from 'vs/workbench/parts/markers/common/constants';
 import { FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';	
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -28,6 +28,28 @@ import Tree = require('vs/base/parts/tree/browser/tree');
 export class ToggleProblemsPanelAction extends TogglePanelAction {
 
 	public static ID:string = 'workbench.actions.view.problems';
+
+	constructor(id: string, label: string,
+		@IPartService private partService: IPartService,
+		@IPanelService panelService: IPanelService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, editorService);
+	}
+
+	public run(): TPromise<any> {
+		let promise= super.run();
+		if (this.isPanelFocussed()) {
+			this.telemetryService.publicLog('problems.used');
+		}
+		return promise;
+	}
+}
+
+export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
+
+	public static ID:string = 'workbench.action.showErrorsWarnings';
 
 	constructor(id: string, label: string,
 		@IPartService private partService: IPartService,
