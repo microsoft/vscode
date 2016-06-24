@@ -250,9 +250,9 @@ export class ViewContentWidgets extends ViewPart {
 		let left = left0 + this._contentLeft;
 
 		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode);
-		let absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
-		let absoluteBelowTop = domNodePosition.top + belowTop - window.scrollY;
-		let absoluteLeft = domNodePosition.left + left - window.scrollX;
+		let absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
+		let absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
+		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
 
 		let INNER_WIDTH = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
 		let INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
