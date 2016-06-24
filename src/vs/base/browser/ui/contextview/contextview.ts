@@ -210,8 +210,8 @@ export class ContextView extends EventEmitter {
 		}
 
 		let viewport = {
-			top: window.scrollY,
-			left: window.scrollX,
+			top: DOM.StandardWindow.scrollY,
+			left: DOM.StandardWindow.scrollX,
 			height: window.innerHeight,
 			width: window.innerWidth
 		};

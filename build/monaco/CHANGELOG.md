@@ -1,5 +1,9 @@
 # Monaco Editor Change log
 
+## [0.5.1]
+
+- Fixed mouse handling in IE
+
 ## [0.5.0]
 
 ### Breaking changes
