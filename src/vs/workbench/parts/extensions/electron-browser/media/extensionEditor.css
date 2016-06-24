@@ -5,7 +5,7 @@
 
 .extension-editor {
 	height: 100%;
-	overflow-y: scroll;
+	overflow: hidden;
 	display: flex;
 	flex-direction: column;
 }
