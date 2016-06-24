@@ -4,13 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 var fs = require('fs');
+var os = require('os');
+var path = require('path');
 var ptyJs = require('pty.js');
 
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38
 
+var name;
+if (os.platform() === 'win32') {
+	name = path.basename(process.env.PTYSHELL);
+} else {
+	name = fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm';
+}
+
 var ptyProcess = ptyJs.fork(process.env.PTYSHELL, getArgs(), {
-	name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
+	name: name,
 	cwd: process.env.PTYCWD
 });
 var currentTitle = '';
