@@ -10,7 +10,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import Assert = require('vs/base/common/assert');
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {KbExpr, IKeybindings, IKeybindingService, IKeybindingScopeLocation} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
@@ -45,7 +45,7 @@ export interface IMenuService {
 
 	serviceId: any;
 
-	createMenu(id: MenuId, scope: IKeybindingScopeLocation): IMenu;
+	createMenu(id: MenuId, scopedKeybindingService: IKeybindingService): IMenu;
 
 	getCommandActions(): CommandAction[];
 }

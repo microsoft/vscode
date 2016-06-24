@@ -31,10 +31,10 @@ class ContextMenuController implements IEditorContribution {
 
 	public static ID = 'editor.contrib.contextmenu';
 
+	private _toDispose: IDisposable[] = [];
+	private _contextMenuIsBeingShownCount: number = 0;
 	private _editor: ICodeEditor;
 	private _contextMenu: IMenu;
-	private _toDispose: IDisposable[];
-	private _contextMenuIsBeingShownCount: number;
 
 	constructor(
 		editor: ICodeEditor,
@@ -45,8 +45,8 @@ class ContextMenuController implements IEditorContribution {
 	) {
 		this._editor = editor;
 
-		this._toDispose = [];
-		this._contextMenuIsBeingShownCount = 0;
+		this._contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._keybindingService);
+		this._toDispose.push(this._contextMenu);
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
 		this._toDispose.push(this._editor.onKeyDown((e: IKeyboardEvent) => {
@@ -77,12 +77,6 @@ class ContextMenuController implements IEditorContribution {
 
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
 			return; // only support mouse click into text or native context menu key for now
-		}
-
-		// Ensure menu is there
-		if (!this._contextMenu) {
-			this._contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._editor.getDomNode());
-			this._toDispose.push(this._contextMenu);
 		}
 
 		// Ensure the editor gets focus if it hasn't, so the right events are being sent to other contributions

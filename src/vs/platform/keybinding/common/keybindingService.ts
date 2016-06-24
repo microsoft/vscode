@@ -436,8 +436,6 @@ export let IKeybindingService = createDecorator<IKeybindingService>('keybindingS
 export interface IKeybindingScopeLocation {
 	setAttribute(attr: string, value: string): void;
 	removeAttribute(attr: string): void;
-	hasAttribute(attr: string): boolean;
-	getAttribute(attr: string): string;
 }
 
 export interface IKeybindingService {
@@ -446,8 +444,8 @@ export interface IKeybindingService {
 
 	onDidChangeContext: Event<string[]>;
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
-	contextMatchesRules(domNode: IKeybindingScopeLocation, rules: KbExpr): boolean;
-	getContextValue<T>(domNode: IKeybindingScopeLocation, key: string): T;
+	contextMatchesRules(rules: KbExpr): boolean;
+	getContextValue<T>(key: string): T;
 
 	createScoped(domNode: IKeybindingScopeLocation): IKeybindingService;
 
