@@ -30,12 +30,12 @@ export class ToggleProblemsPanelAction extends TogglePanelAction {
 	public static ID:string = 'workbench.actions.view.problems';
 
 	constructor(id: string, label: string,
-		@IPartService private partService: IPartService,
+		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, editorService);
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService, editorService);
 	}
 
 	public run(): TPromise<any> {
@@ -52,12 +52,12 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 	public static ID:string = 'workbench.action.showErrorsWarnings';
 
 	constructor(id: string, label: string,
-		@IPartService private partService: IPartService,
+		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, editorService);
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService, editorService);
 	}
 
 	public run(): TPromise<any> {
