@@ -157,16 +157,12 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public killTerminalProcess(terminalProcess: ITerminalProcess): void {
-		console.log('killTerminalProcess');
 		if (!terminalProcess.process.connected) {
-			console.log('  !connected');
 			return;
 		}
 		terminalProcess.process.disconnect();
-		console.log('  terminalProcess.process.kill()');
 		terminalProcess.process.kill();
 
-		console.log('  Remove processes, fire, etc.');
 		let index = this.terminalProcesses.indexOf(terminalProcess);
 		let wasActiveTerminal = (index === this.getActiveTerminalIndex());
 		// Push active index back if the closed process was before the active process
@@ -181,9 +177,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private createTerminalProcess(): ITerminalProcess {
-		console.log('createTerminalProcess');
-		console.log('this', this);
-		console.log('this.configHelper', this.configHelper);
 		let env = this.cloneEnv();
 		let shell = this.configHelper.getShell();
 		env['PTYPID'] = process.pid.toString();
