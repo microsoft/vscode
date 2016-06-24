@@ -31,7 +31,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {createActionItem} from 'vs/platform/actions/browser/menuItemActionItem';
+import {createActionItem, fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
@@ -304,7 +304,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			secondary.push(...editorInputActions.secondary);
 
 			// MenuItems
-			primary.push(...this.contributedTitleBarMenu.getActions());
+			fillInActions(this.contributedTitleBarMenu, { primary, secondary });
 		}
 
 		return { primary, secondary };

@@ -74,17 +74,20 @@
 				{
 					"when": "resourceLangId == markdown",
 					"command": "markdown.showPreview",
-					"alt": "markdown.showPreviewToSide"
+					"alt": "markdown.showPreviewToSide",
+					"group": "navigation"
 				},
 				{
 					"when": "resourceScheme == markdown",
-					"command": "markdown.showSource"
+					"command": "markdown.showSource",
+					"group": "navigation"
 				}
 			],
 			"explorer/context": [
 				{
 					"when": "resourceLangId == markdown",
-					"command": "markdown.showPreview"
+					"command": "markdown.showPreview",
+					"group": "navigation"
 				}
 			]
 		},

@@ -20,6 +20,7 @@ export interface IDeclaredMenuItem {
 	command: string;
 	alt?: string;
 	when?: string;
+	group?: string;
 }
 
 export interface IMenuRegistry {
@@ -48,15 +49,21 @@ const _registry = new class {
 		}
 	}
 	getMenuItems(loc: MenuId): IMenuItem[] {
+		const result: IMenuItem[] = [];
 		const menuItems = this.menuItems[loc];
 		if (menuItems) {
-			return menuItems.map(item => {
-				const when = KbExpr.deserialize(item.when);
+			for (let item of menuItems) {
 				const command = this.commands[item.command];
+				if (!command) {
+					// warn?
+					continue;
+				}
+				const when = KbExpr.deserialize(item.when);
 				const alt = this.commands[item.alt];
-				return { when, command, alt };
-			});
+				result.push({ when, command, alt, group: item.group });
+			}
 		}
+		return result;
 	}
 };
 
@@ -81,9 +88,11 @@ export class MenuService implements IMenuService {
 	}
 }
 
+type MenuItemGroup = [string, IMenuItem[]];
+
 class Menu implements IMenu {
 
-	private _menuItems: IMenuItem[] = [];
+	private _menuGroups: MenuItemGroup[] = [];
 	private _disposables: IDisposable[] = [];
 	private _onDidChange = new Emitter<IMenu>();
 
@@ -94,22 +103,26 @@ class Menu implements IMenu {
 	) {
 		this._extensionService.onReady().then(_ => {
 
-			let menuItems = _registry.getMenuItems(id);
-			if (!menuItems) {
-				return;
-			}
-			let keysFilter: { [key: string]: boolean } = Object.create(null);
-			for (let item of menuItems) {
-				if (!item.command) {
-					//TODO@joh, warn? default command?
-					continue;
-				}
+			const menuItems = _registry.getMenuItems(id);
+			const keysFilter: { [key: string]: boolean } = Object.create(null);
 
-				// keep menu item
-				this._menuItems.push(item);
+			let group: MenuItemGroup;
+			menuItems.sort(Menu._compareMenuItems);
+
+			for (let item of menuItems) {
+				// group by groupId
+				const groupName = Menu._group(item.group);
+				if (!group || group[0] !== groupName) {
+					group = [groupName, []];
+					this._menuGroups.push(group);
+				}
+				group[1].push(item);
+
+				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
 			}
 
+			// subscribe to context changes
 			this._disposables.push(this._keybindingService.onDidChangeContext(keys => {
 				for (let k of keys) {
 					if (keysFilter[k]) {
@@ -132,13 +145,20 @@ class Menu implements IMenu {
 		return this._onDidChange.event;
 	}
 
-	getActions(): IAction[] {
-		const result: IAction[] = [];
-		for (let item of this._menuItems) {
-			if (this._keybindingService.contextMatchesRules(item.when)) {
-				result.push(new MenuItemAction(item,
-					this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource),
-					this._keybindingService));
+	getActions(): [string, IAction[]][] {
+		const result: [string, IAction[]][] = [];
+		for (let group of this._menuGroups) {
+			const [id, items] = group;
+			const actions: IAction[] = [];
+			for (let item of items) {
+				if (this._keybindingService.contextMatchesRules(item.when)) {
+					actions.push(new MenuItemAction(item,
+						this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource),
+						this._keybindingService));
+				}
+			}
+			if (actions.length > 0) {
+				result.push([id, actions]);
 			}
 		}
 		return result;
@@ -154,5 +174,29 @@ class Menu implements IMenu {
 				}
 			}
 		}
+	}
+
+	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
+		let ret: number;
+		if (a.group && b.group) {
+			ret = Menu._compareGroupId(a.group, b.group);
+		}
+		if (!ret) {
+			ret = a.command.title.localeCompare(b.command.title);
+		}
+		return ret;
+	}
+
+	private static _compareGroupId(a: string, b: string): number {
+		const a_boost = Number(a.substr(a.lastIndexOf('@') + 1));
+		const b_boost = Number(b.substr(b.lastIndexOf('@') + 1));
+		if (a_boost !== b_boost && !isNaN(a_boost) && !isNaN(b_boost)) {
+			return a_boost < b_boost ? -1 : 1;
+		}
+		return a.localeCompare(b);
+	}
+
+	private static _group(a: string): string {
+		return a && (a.substr(0, a.lastIndexOf('@')) || a);
 	}
 }

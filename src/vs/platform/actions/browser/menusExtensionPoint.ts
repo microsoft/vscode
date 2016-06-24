@@ -45,6 +45,10 @@ namespace schema {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
 				return false;
 			}
+			if (item.group && typeof item.group !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'group'));
+				return false;
+			}
 		}
 
 		return true;
@@ -63,6 +67,10 @@ namespace schema {
 			},
 			when: {
 				description: localize('vscode.extension.contributes.menuItem.when', 'Condition which must be true to show this item'),
+				type: 'string'
+			},
+			group: {
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs'),
 				type: 'string'
 			}
 		}
