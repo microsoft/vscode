@@ -7,7 +7,8 @@
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import Event from 'vs/base/common/event';
+import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 
 class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 	private _key: string;
@@ -38,6 +39,15 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
 		return new MockKeybindingContextKey(key, defaultValue);
+	}
+	public contextMatchesRules(domNode: HTMLElement, rules: KbExpr): boolean {
+		return false;
+	}
+	public get onDidChangeContext(): Event<string[]> {
+		return Event.None;
+	}
+	public getContextValue(domNode: HTMLElement, key: string) {
+		return;
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {

@@ -7,18 +7,54 @@
 import Actions = require('vs/base/common/actions');
 import WinJS = require('vs/base/common/winjs.base');
 import Assert = require('vs/base/common/assert');
-
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
-export let IActionsService = createDecorator<IActionsService>('actionsService');
+export interface CommandAction {
+	id: string;
+	title: string;
+	category?: string;
+	iconClass?: string;
+}
 
-export interface IActionsService {
-	serviceId: ServiceIdentifier<any>;
-	getActions(): Actions.IAction[];
+export interface MenuItem {
+	command: CommandAction;
+	alt?: CommandAction;
+	when?: KbExpr;
+}
+
+export enum MenuId {
+	EditorTitle = 1,
+	ExplorerContext = 2
+}
+
+export const IMenuService = createDecorator<IMenuService>('menuService');
+
+export interface IMenuService {
+
+	serviceId: any;
+
+	getMenuItems(loc: MenuId): MenuItem[];
+
+	getCommandActions(): CommandAction[];
+}
+
+export class ExecuteCommandAction extends Actions.Action {
+
+	constructor(
+		id: string,
+		label: string,
+		@IKeybindingService private _keybindingService: IKeybindingService) {
+
+		super(id, label);
+	}
+
+	run(...args: any[]): WinJS.TPromise<any> {
+		return this._keybindingService.executeCommand(this.id, ...args);
+	}
 }
 
 export class SyncActionDescriptor {

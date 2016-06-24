@@ -372,7 +372,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Otherwise instantiate
 		let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
-		let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
+		let editorInstantiationService = this.sideBySideControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
 		const onInstantiate = (arg: BaseEditor | Error): TPromise<BaseEditor | Error> => {

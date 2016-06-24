@@ -56,6 +56,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	public create(parent: HTMLElement): void {
+		super.create(parent);
 		this.titleContainer = parent;
 
 		// Pin on double click

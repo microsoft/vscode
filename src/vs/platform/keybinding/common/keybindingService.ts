@@ -9,6 +9,7 @@ import {Keybinding} from 'vs/base/common/keyCodes';
 import {TypeConstraint} from 'vs/base/common/types';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -435,13 +436,18 @@ export let IKeybindingService = createDecorator<IKeybindingService>('keybindingS
 export interface IKeybindingScopeLocation {
 	setAttribute(attr: string, value: string): void;
 	removeAttribute(attr: string): void;
+	hasAttribute(attr: string): boolean;
+	getAttribute(attr: string): string;
 }
 
 export interface IKeybindingService {
 	serviceId: ServiceIdentifier<any>;
 	dispose(): void;
 
+	onDidChangeContext: Event<string[]>;
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	contextMatchesRules(domNode: IKeybindingScopeLocation, rules: KbExpr): boolean;
+	getContextValue<T>(domNode: IKeybindingScopeLocation, key: string): T;
 
 	createScoped(domNode: IKeybindingScopeLocation): IKeybindingService;
 

@@ -4,7 +4,7 @@
 	"description": "Markdown for VS Code",
 	"version": "0.2.0",
 	"publisher": "Microsoft",
-	"aiKey":"AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "^1.0.0"
 	},
@@ -44,21 +44,20 @@
 		"commands": [
 			{
 				"command": "markdown.showPreview",
-				"title": "%markdown.openPreview%",
-				"category": "%markdown.category%",
-				"where": ["explorer/context"],
-				"when": "markdown"
-			},
-			{
-				"command": "markdown.showPreview",
-				"title": "%markdown.previewMarkdown.title%",
+				"title": "%markdown.preview.title%",
 				"category": "%markdown.category%",
 				"icon": {
 					"light": "./media/Preview.svg",
 					"dark": "./media/Preview_inverse.svg"
-				},
-				"where": ["editor/primary"],
-				"when": "markdown"
+				}
+			},
+			{
+				"command": "markdown.showPreviewToSide",
+				"title": "%markdown.previewSide.title%",
+				"icon": {
+					"light": "./media/Preview.svg",
+					"dark": "./media/Preview_inverse.svg"
+				}
 			},
 			{
 				"command": "markdown.showSource",
@@ -67,17 +66,28 @@
 				"icon": {
 					"light": "./media/ViewSource.svg",
 					"dark": "./media/ViewSource_inverse.svg"
-				},
-				"where": ["editor/primary"],
-				"when": { "scheme": "markdown" }
-			},
-			{
-				"command": "markdown.showPreviewToSide",
-				"title": "%markdown.previewMarkdownSide.title%",
-				"where": "editor/secondary",
-				"when": "markdown"
+				}
 			}
 		],
+		"menus": {
+			"editor/title": [
+				{
+					"when": "resourceLangId == markdown",
+					"command": "markdown.showPreview",
+					"alt": "markdown.showPreviewToSide"
+				},
+				{
+					"when": "resourceScheme == markdown",
+					"command": "markdown.showSource"
+				}
+			],
+			"explorer/context": [
+				{
+					"when": "resourceLangId == markdown",
+					"command": "markdown.showPreview"
+				}
+			]
+		},
 		"keybindings": [
 			{
 				"command": "markdown.showPreview",
@@ -90,17 +100,19 @@
 				"mac": "cmd+k v"
 			}
 		],
-		"snippets": [{
-			"language": "markdown",
-			"path": "./snippets/markdown.json"
-		}],
+		"snippets": [
+			{
+				"language": "markdown",
+				"path": "./snippets/markdown.json"
+			}
+		],
 		"configuration": {
 			"type": "object",
 			"title": "Markdown preview configuration",
 			"properties": {
 				"markdown.styles": {
 					"type": "array",
-					"default" : null,
+					"default": null,
 					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
 				}
 			}
