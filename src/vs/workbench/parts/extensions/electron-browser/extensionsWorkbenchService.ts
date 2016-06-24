@@ -8,10 +8,12 @@
 import 'vs/css!./media/extensionsViewlet';
 import Event, { Emitter } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
+import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'semver';
 import * as path from 'path';
@@ -133,13 +135,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	constructor(
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
 		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
 		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
-		this.disposables.push(extensionService.onUninstallExtension((id) => this.onUninstallExtension(id)));
+		this.disposables.push(extensionService.onUninstallExtension(id => this.onUninstallExtension(id)));
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
 
@@ -284,24 +287,30 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		const galleryId = local.metadata && local.metadata.id;
 		const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
+		let eventName: string;
 
 		if (galleryId && installed) {
+			eventName = 'extensionGallery:update';
 			installed.local = local;
 		} else {
+			eventName = 'extensionGallery:install';
 			this.installed.push(extension);
 		}
 
+		this.reportTelemetry(extension, eventName, !error);
 		this._onChange.fire();
 	}
 
 	private onUninstallExtension(id: string): void {
 		const previousLength = this.installed.length;
+		const extension = this.installed.filter(e => e.local.id === id)[0];
 		this.installed = this.installed.filter(e => e.local.id !== id);
 
 		if (previousLength === this.installed.length) {
 			return;
 		}
 
+		this.reportTelemetry(extension, 'extensionGallery:uninstall', true);
 		this._onChange.fire();
 	}
 
@@ -317,6 +326,38 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return ExtensionState.Uninstalled;
+	}
+
+	private reportTelemetry(extension: Extension, eventName: string, success: boolean): void {
+		if (!extension) {
+			return;
+		}
+
+		const local = extension.local;
+		const gallery = extension.gallery;
+		let data = null;
+
+		if (gallery) {
+			data = {
+				id: `${ gallery.publisher }.${ gallery.name }`,
+				name: gallery.name,
+				galleryId: gallery.id,
+				publisherId: gallery.publisherId,
+				publisherName: gallery.publisher,
+				publisherDisplayName: gallery.publisherDisplayName
+			};
+		} else {
+			data = {
+				id: `${ local.manifest.publisher }.${ local.manifest.name }`,
+				name: local.manifest.name,
+				galleryId: local.metadata ? local.metadata.id : null,
+				publisherId: local.metadata ? local.metadata.publisherId : null,
+				publisherName: local.manifest.publisher,
+				publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
+			};
+		}
+
+		this.telemetryService.publicLog(eventName, assign(data, { success }));
 	}
 
 	dispose(): void {
