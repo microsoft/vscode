@@ -106,16 +106,14 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public runSelectedText(): TPromise<any> {
-		return this.focus().then(() => {
-			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
-				let editor = this.codeEditorService.getFocusedCodeEditor();
-				let selection = editor.getModel().getValueInRange(editor.getSelection());
-				// Add a new line if one doesn't already exist so the text is executed
-				let text = selection + (selection[selection.length - 1] === '\n' ? '' : '\n');
-				this.terminalProcesses[this.activeTerminalIndex].process.send({
-					event: 'input',
-					data: text
-				});
+		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+			let editor = this.codeEditorService.getFocusedCodeEditor();
+			let selection = editor.getModel().getValueInRange(editor.getSelection());
+			// Add a new line if one doesn't already exist so the text is executed
+			let text = selection + (selection[selection.length - 1] === '\n' ? '' : '\n');
+			this.terminalProcesses[this.activeTerminalIndex].process.send({
+				event: 'input',
+				data: text
 			});
 		});
 	}
