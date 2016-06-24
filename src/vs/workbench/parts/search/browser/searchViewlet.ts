@@ -8,7 +8,7 @@
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import {TPromise, PPromise} from 'vs/base/common/winjs.base';
-import {EditorType, IEditor} from 'vs/editor/common/editorCommon';
+import {EditorType, IEditor, IDiffEditorOptions} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -920,7 +920,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return this.viewModel.isReplaceActive() ? this.openReplaceEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return this.viewModel.isReplaceActive() ? this.openReplacePreviewEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
@@ -936,10 +936,11 @@ export class SearchViewlet extends Viewlet {
 		}, sideBySide);
 	}
 
-	private openReplaceEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	private openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		return this.replaceService.getInput(element instanceof Match ? element.parent() : element, this.viewModel.replaceText).then((editorInput) => {
 			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned: pinned}).then((editor) => {
 				let editorControl= (<IEditor>editor.getControl());
+				editorControl.updateOptions(<IDiffEditorOptions>{originalEditable: true});
 				if (element instanceof Match) {
 					editorControl.revealLineInCenter(element.range().startLineNumber);
 				}
