@@ -57,8 +57,6 @@ var BUNDLED_FILE_HEADER = [
 function editorLoaderConfig(removeAllOSS) {
 	var result = common.loaderConfig();
 
-	// never ship marked in editor
-	result.paths['vs/base/common/marked/marked'] = 'out-build/vs/base/common/marked/marked.mock';
 	// never ship octicons in editor
 	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
 
