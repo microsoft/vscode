@@ -6,10 +6,12 @@
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import * as network from 'vs/base/common/network';
 import * as Map from 'vs/base/common/map';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, IEditorInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEventService } from 'vs/platform/event/common/event';
@@ -22,7 +24,8 @@ class EditorInputCache {
 
 	private cache: Map.SimpleMap<URI, TPromise<DiffEditorInput>>;
 
-	constructor(private replaceService: ReplaceService, private editorService, private modelService: IModelService) {
+	constructor(private replaceService: ReplaceService, private editorService: IWorkbenchEditorService,
+					private modelService: IModelService) {
 		this.cache= new Map.SimpleMap<URI, TPromise<DiffEditorInput>>();
 	}
 
@@ -32,10 +35,8 @@ class EditorInputCache {
 			editorInputPromise= this.createInput(fileMatch);
 			this.cache.set(fileMatch.resource(), editorInputPromise);
 			this.refreshInput(fileMatch, text, true);
+			fileMatch.addListener2('disposed', fileMatch => this.disposeInput(fileMatch));
 		}
-
-		fileMatch.addListener2('disposed', fileMatch => this.disposeInput(fileMatch));
-
 		return editorInputPromise;
 	}
 
@@ -66,8 +67,7 @@ class EditorInputCache {
 			let editorInputPromise= this.cache.get(resourceUri);
 			if (editorInputPromise) {
 				editorInputPromise.done((diffInput) => {
-					diffInput.dispose();
-					this.modelService.destroyModel(this.getReplaceResource(resourceUri));
+					this.disposeReplaceInput(this.getReplaceResource(resourceUri), diffInput);
 					this.cache.delete(resourceUri);
 				});
 			}
@@ -82,7 +82,8 @@ class EditorInputCache {
 		return TPromise.join([this.createLeftInput(fileMatch),
 							this.createRightInput(fileMatch)]).then(inputs => {
 			const [left, right] = inputs;
-			return new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (after)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
+			let editorInput= new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
+			return editorInput;
 		});
 	}
 
@@ -101,10 +102,14 @@ class EditorInputCache {
 		});
 	}
 
-	private getReplaceResource(resource: URI): URI {
-		return resource.with({scheme: 'private'});
+	private disposeReplaceInput(replaceUri: URI, diffInput: EditorInput):void {
+		diffInput.dispose();
+		this.modelService.destroyModel(replaceUri);
 	}
 
+	private getReplaceResource(resource: URI): URI {
+		return resource.with({scheme: network.Schemas.internal, fragment: 'preview'});
+	}
 }
 
 export class ReplaceService implements IReplaceService {

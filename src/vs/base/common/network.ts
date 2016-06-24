@@ -14,6 +14,16 @@ export namespace Schemas {
 	 */
 	export var inMemory:string = 'inmemory';
 
+	/**
+	 * A schema that is used for setting files
+	 */
+	export var vscode:string = 'vscode';
+
+	/**
+	 * A schema that is used for internal private files
+	 */
+	export var internal:string = 'private';
+
 	export var http:string = 'http';
 
 	export var https:string = 'https';
