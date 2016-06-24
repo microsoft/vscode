@@ -8,7 +8,8 @@
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import {TPromise, PPromise} from 'vs/base/common/winjs.base';
-import {EditorType, IEditor, IDiffEditorOptions} from 'vs/editor/common/editorCommon';
+import {EditorType, IDiffEditorOptions} from 'vs/editor/common/editorCommon';
+import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -939,10 +940,15 @@ export class SearchViewlet extends Viewlet {
 	private openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		return this.replaceService.getInput(element instanceof Match ? element.parent() : element, this.viewModel.replaceText).then((editorInput) => {
 			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned: pinned}).then((editor) => {
-				let editorControl= (<IEditor>editor.getControl());
+				let editorControl= (<IDiffEditor>editor.getControl());
 				editorControl.updateOptions(<IDiffEditorOptions>{originalEditable: true});
 				if (element instanceof Match) {
-					editorControl.revealLineInCenter(element.range().startLineNumber);
+					let range= element.range();
+					editorControl.revealLineInCenter(range.startLineNumber);
+					editorControl.getOriginalEditor().setPosition({lineNumber: range.startLineNumber, column: range.startColumn});
+				}
+				if (!preserveFocus) {
+					editorControl.getOriginalEditor().focus();
 				}
 			});
 		});
