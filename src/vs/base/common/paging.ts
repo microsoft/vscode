@@ -7,6 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ArraySet } from 'vs/base/common/set';
+import { isArray } from 'vs/base/common/types';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.
@@ -35,16 +36,28 @@ export interface IPagedModel<T> {
 	resolve(index: number): TPromise<T>;
 }
 
+export function singlePagePager<T>(elements: T[]): IPager<T> {
+	return {
+		firstPage: elements,
+		total: elements.length,
+		pageSize: elements.length,
+		getPage: null
+	};
+}
+
 export class PagedModel<T> implements IPagedModel<T> {
 
+	private pager: IPager<T>;
 	private pages: IPage<T>[] = [];
 
 	get length(): number { return this.pager.total; }
 
-	constructor(private pager: IPager<T>, private pageTimeout: number = 500) {
-		this.pages = [{ isResolved: true, promise: null, promiseIndexes: new ArraySet<number>(), elements: pager.firstPage.slice() }];
+	constructor(private arg: IPager<T> | T[], private pageTimeout: number = 500) {
+		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
 
-		const totalPages = Math.ceil(pager.total / pager.pageSize);
+		this.pages = [{ isResolved: true, promise: null, promiseIndexes: new ArraySet<number>(), elements: this.pager.firstPage.slice() }];
+
+		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
 		for (let i = 0, len = totalPages - 1; i < len; i++) {
 			this.pages.push({ isResolved: false, promise: null, promiseIndexes: new ArraySet<number>(), elements: [] });
@@ -102,21 +115,6 @@ export class PagedModel<T> implements IPagedModel<T> {
 				page.promise.cancel();
 			}
 		});
-	}
-}
-
-export function singlePagePager<T>(elements: T[]): IPager<T> {
-	return {
-		firstPage: elements,
-		total: elements.length,
-		pageSize: elements.length,
-		getPage: null
-	};
-}
-
-export class SinglePagePagedModel<T> extends PagedModel<T> {
-	constructor(elements: T[]) {
-		super(singlePagePager(elements));
 	}
 }
 

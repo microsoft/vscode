@@ -18,7 +18,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, emmet as $ } from 'vs/base/browser/dom';
-import { PagedModel, SinglePagePagedModel } from 'vs/base/common/paging';
+import { IPager, PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -100,7 +100,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.searchBox.setSelectionRange(0,this.searchBox.value.length);
 				this.triggerSearch(true, true);
 			} else {
-				this.list.model = new SinglePagePagedModel([]);
+				this.list.model = new PagedModel([]);
 			}
 		});
 	}
@@ -125,7 +125,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private doSearch(text: string = '', suggestPopular = false): TPromise<any> {
 		const progressRunner = this.progressService.show(true);
-		let promise: TPromise<PagedModel<IExtension>>;
+		let promise: TPromise<IPager<IExtension> | IExtension[]>;
 
 		if (!text) {
 			promise = this.extensionsWorkbenchService.queryLocal()
@@ -134,21 +134,21 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 						this.search('@popular', true);
 					}
 
-					return new SinglePagePagedModel(result);
+					return result;
 				});
 		} else if (/@outdated/i.test(text)) {
 			promise = this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.outdated))
-				.then(result => new SinglePagePagedModel(result));
+				.then(result => result.filter(e => e.outdated));
 		} else if (/@popular/i.test(text)) {
-			promise = this.extensionsWorkbenchService.queryGallery({ sortBy: SortBy.InstallCount })
-				.then(result => new PagedModel(result));
+			promise = this.extensionsWorkbenchService.queryGallery({ sortBy: SortBy.InstallCount });
+		} else if (/@recommended/i.test(text)) {
+			promise = this.extensionsWorkbenchService.getRecommendations();
 		} else {
-			promise = this.extensionsWorkbenchService.queryGallery({ text })
-				.then(result => new PagedModel(result));
+			promise = this.extensionsWorkbenchService.queryGallery({ text });
 		}
 
 		return always(promise, () => progressRunner.done())
+			.then(result => new PagedModel<IExtension>(result))
 			.then(model => this.list.model = model);
 	}
 
