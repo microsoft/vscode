@@ -67,6 +67,8 @@ export class MenuItemAction extends Actions.Action {
 		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
+
+		this.order = 100000; //TODO@Ben order is menu item property, not an action property
 	}
 
 	get command() {
