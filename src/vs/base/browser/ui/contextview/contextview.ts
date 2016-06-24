@@ -56,32 +56,49 @@ export interface ISize {
 
 export interface IView extends IPosition, ISize { }
 
-export function layout(view: ISize, around: IView, inside: IView, anchorPosition: AnchorPosition, anchorAlignment: AnchorAlignment): IPosition {
-	let top: number, left: number;
+function layout(view: ISize, around: IView, viewport: IView, anchorPosition: AnchorPosition, anchorAlignment: AnchorAlignment): IPosition {
 
-	if (anchorPosition === AnchorPosition.BELOW) {
-		top = around.top + around.height - inside.top;
-		if (inside.top + top + view.height > inside.height && around.top - inside.top > view.height) {
-			top = around.top - view.height - inside.top;
+	let chooseBiased = (a:number, aIsGood:boolean, b:number, bIsGood:boolean) => {
+		if (aIsGood) {
+			return a;
 		}
-	} else {
-		top = around.top - view.height - inside.top;
-		if (top + inside.top < 0 && around.top + around.height + view.height - inside.top < inside.height) {
-			top = around.top + around.height - inside.top;
+		if (bIsGood) {
+			return b;
 		}
-	}
+		return a;
+	};
 
-	if (anchorAlignment === AnchorAlignment.LEFT) {
-		left = around.left - inside.left;
-		if (inside.left + left + view.width > inside.width) {
-			left -= view.width - around.width;
+	let chooseOne = (a:number, aIsGood:boolean, b:number, bIsGood:boolean, aIsPreferred:boolean) => {
+		if (aIsPreferred) {
+			return chooseBiased(a, aIsGood, b, bIsGood);
+		} else {
+			return chooseBiased(b, bIsGood, a, aIsGood);
 		}
-	} else {
-		left = around.left + around.width - view.width - inside.left;
-		if (left + inside.left < 0 && around.left + view.width < inside.width) {
-			left = around.left - inside.left;
-		}
-	}
+	};
+
+	let top = (() => {
+		// Compute both options (putting the segment above and below)
+		let posAbove = around.top - view.height;
+		let posBelow = around.top + around.height;
+
+		// Check for both options if they are good
+		let aboveIsGood = (posAbove >= viewport.top && posAbove + view.height <= viewport.top + viewport.height);
+		let belowIsGood = (posBelow >= viewport.top && posBelow + view.height <= viewport.top + viewport.height);
+
+		return chooseOne(posAbove, aboveIsGood, posBelow, belowIsGood, anchorPosition === AnchorPosition.ABOVE);
+	})();
+
+	let left = (() => {
+		// Compute both options (aligning left and right)
+		let posLeft = around.left;
+		let posRight = around.left + around.width - view.width;
+
+		// Check for both options if they are good
+		let leftIsGood = (posLeft >= viewport.left && posLeft + view.width <= viewport.left + viewport.width);
+		let rightIsGood = (posRight >= viewport.left && posRight + view.width <= viewport.left + viewport.width);
+
+		return chooseOne(posLeft, leftIsGood, posRight, rightIsGood, anchorAlignment === AnchorAlignment.LEFT);
+	})();
 
 	return { top: top, left: left };
 }
@@ -173,15 +190,13 @@ export class ContextView extends EventEmitter {
 
 		// Get the element's position and size (to anchor the view)
 		if (DOM.isHTMLElement(anchor)) {
-			let $anchor = $(<HTMLElement>anchor);
-			let elementPosition = $anchor.getPosition();
-			let elementSize = $anchor.getTotalSize();
+			let elementPosition = DOM.getDomNodePagePosition(anchor);
 
 			around = {
 				top: elementPosition.top,
 				left: elementPosition.left,
-				width: elementSize.width,
-				height: elementSize.height
+				width: elementPosition.width,
+				height: elementPosition.height
 			};
 		} else {
 			let realAnchor = <IAnchor>anchor;
@@ -194,11 +209,9 @@ export class ContextView extends EventEmitter {
 			};
 		}
 
-		// Get the container's position
-		let insidePosition = this.$container.getPosition();
-		let inside = {
-			top: insidePosition.top,
-			left: insidePosition.left,
+		let viewport = {
+			top: window.scrollY,
+			left: window.scrollX,
 			height: window.innerHeight,
 			width: window.innerWidth
 		};
@@ -210,7 +223,11 @@ export class ContextView extends EventEmitter {
 		let anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
 		let anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
 
-		let result = layout(view, around, inside, anchorPosition, anchorAlignment);
+		let result = layout(view, around, viewport, anchorPosition, anchorAlignment);
+
+		let containerPosition = DOM.getDomNodePagePosition(this.$container.getHTMLElement());
+		result.top -= containerPosition.top;
+		result.left -= containerPosition.left;
 
 		this.$view.removeClass('top', 'bottom', 'left', 'right');
 		this.$view.addClass(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');

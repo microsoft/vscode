@@ -192,7 +192,7 @@ class ContextMenuController implements IEditorContribution {
 			var cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
 
 			// Translate to absolute editor position
-			var editorCoords = dom.getDomNodePosition(this._editor.getDomNode());
+			var editorCoords = dom.getDomNodePagePosition(this._editor.getDomNode());
 			var posx = editorCoords.left + cursorCoords.left;
 			var posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
 

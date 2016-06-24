@@ -13,10 +13,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 // import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 // import { IMessageService } from 'vs/platform/message/common/message';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 // import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 // import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // const CloseAction = new Action('action.close', localize('close', "Close"));
 
@@ -414,5 +417,48 @@ export class EnableAction extends Action {
 	dispose(): void {
 		super.dispose();
 		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class OpenExtensionsViewletAction extends ToggleViewletAction {
+
+	static ID = 'workbench.extensions.showViewlet';
+	static LABEL = localize('toggleExtensionsViewlet', "Show Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService viewletService: IViewletService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, VIEWLET_ID, viewletService, editorService);
+	}
+}
+
+export class ListOutdatedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.listOutdatedExtensions';
+	static LABEL = localize('showOutdatedExtensions', "Show Outdated Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@outdated', true);
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
 	}
 }
