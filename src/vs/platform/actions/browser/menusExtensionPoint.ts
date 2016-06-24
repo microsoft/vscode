@@ -21,6 +21,7 @@ namespace schema {
 	export function parseMenuId(value: string): MenuId {
 		switch (value) {
 			case 'editor/title': return MenuId.EditorTitle;
+			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
 		}
 	}
@@ -76,6 +77,10 @@ namespace schema {
 				items: menuItem
 			},
 			'explorer/context': {
+				type: 'array',
+				items: menuItem
+			},
+			'editor/context': {
 				type: 'array',
 				items: menuItem
 			}
