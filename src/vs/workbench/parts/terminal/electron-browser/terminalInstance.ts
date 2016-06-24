@@ -3,33 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import cp = require('child_process');
-import xterm = require('xterm');
-import lifecycle = require('vs/base/common/lifecycle');
-import os = require('os');
-import path = require('path');
-import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
+import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
+import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
-import {IStringDictionary} from 'vs/base/common/collections';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {IShell, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance {
+	private isExiting: boolean = false;
 
 	private toDispose: lifecycle.IDisposable[];
-	private ptyProcess: cp.ChildProcess;
-	private terminal;
+	private xterm;
 	private terminalDomElement: HTMLDivElement;
 	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
 
 	public constructor(
-		private shell: IShell,
+		private terminalProcess: ITerminalProcess,
 		private parentDomElement: HTMLElement,
 		private contextService: IWorkspaceContextService,
 		private terminalService: ITerminalService,
@@ -37,34 +32,38 @@ export class TerminalInstance {
 	) {
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
-		this.wrapperElement.classList.add('terminal-wrapper');
-		this.ptyProcess = this.createTerminalProcess();
+		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.terminalDomElement = document.createElement('div');
-		this.parentDomElement.classList.add('integrated-terminal');
 		let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
 			canUseTranslate3d: false,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto
 		});
 		this.toDispose.push(terminalScrollbar);
-		this.terminal = xterm();
+		this.xterm = xterm();
 
-		this.ptyProcess.on('message', (data) => {
-			this.terminal.write(data);
+		this.terminalProcess.process.on('message', (message) => {
+			if (message.type === 'data') {
+				this.xterm.write(message.content);
+			}
 		});
-		this.terminal.on('data', (data) => {
-			this.ptyProcess.send({
+		this.xterm.on('data', (data) => {
+			this.terminalProcess.process.send({
 				event: 'input',
 				data: data
 			});
 			return false;
 		});
-		this.ptyProcess.on('exit', (exitCode) => {
-			this.dispose();
-			if (exitCode) {
-				console.error('Integrated terminal exited with code ' + exitCode);
+		this.terminalProcess.process.on('exit', (exitCode) => {
+			// Prevent dispose functions being triggered multiple times
+			if (!this.isExiting) {
+				this.isExiting = true;
+				this.dispose();
+				if (exitCode) {
+					console.error('Integrated terminal exited with code ' + exitCode);
+				}
+				this.onExitCallback(this);
 			}
-			this.onExitCallback(this);
 		});
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mousedown', (event) => {
 			// Drop selection and focus terminal on Linux to enable middle button paste when click
@@ -85,7 +84,7 @@ export class TerminalInstance {
 			}
 		}));
 
-		this.terminal.open(this.terminalDomElement);
+		this.xterm.open(this.terminalDomElement);
 		this.wrapperElement.appendChild(terminalScrollbar.getDomNode());
 		this.parentDomElement.appendChild(this.wrapperElement);
 	}
@@ -99,11 +98,11 @@ export class TerminalInstance {
 		}
 		let cols = Math.floor(dimension.width / this.font.charWidth);
 		let rows = Math.floor(dimension.height / this.font.charHeight);
-		if (this.terminal) {
-			this.terminal.resize(cols, rows);
+		if (this.xterm) {
+			this.xterm.resize(cols, rows);
 		}
-		if (this.ptyProcess.connected) {
-			this.ptyProcess.send({
+		if (this.terminalProcess.process.connected) {
+			this.terminalProcess.process.send({
 				event: 'resize',
 				cols: cols,
 				rows: rows
@@ -111,51 +110,29 @@ export class TerminalInstance {
 		}
 	}
 
-	private cloneEnv(): IStringDictionary<string> {
-		let newEnv: IStringDictionary<string> = Object.create(null);
-		Object.keys(process.env).forEach((key) => {
-			newEnv[key] = process.env[key];
-		});
-		return newEnv;
-	}
-
-	private createTerminalProcess(): cp.ChildProcess {
-		let env = this.cloneEnv();
-		env['PTYPID'] = process.pid.toString();
-		env['PTYSHELL'] = this.shell.executable;
-		this.shell.args.forEach((arg, i) => {
-			env[`PTYSHELLARG${i}`] = arg;
-		});
-		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
-		return cp.fork('./terminalProcess', [], {
-			env: env,
-			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
-		});
-	}
-
 	public toggleVisibility(visible: boolean) {
-		this.wrapperElement.classList.toggle('active', visible);
+		DOM.toggleClass(this.wrapperElement, 'active', visible);
 	}
 
 	public setFont(font: ITerminalFont): void {
 		this.font = font;
 		this.terminalDomElement.style.fontFamily = this.font.fontFamily;
-		this.terminalDomElement.style.lineHeight = this.font.lineHeight + 'px';
-		this.terminalDomElement.style.fontSize = this.font.fontSize + 'px';
+		this.terminalDomElement.style.lineHeight = this.font.lineHeight;
+		this.terminalDomElement.style.fontSize = this.font.fontSize;
 	}
 
 	public focus(force?: boolean): void {
-		if (!this.terminal) {
+		if (!this.xterm) {
 			return;
 		}
 		let text = window.getSelection().toString();
 		if (!text || force) {
-			this.terminal.focus();
+			this.xterm.focus();
 		}
 	}
 
 	public dispatchEvent(event: Event) {
-		this.terminal.element.dispatchEvent(event);
+		this.xterm.element.dispatchEvent(event);
 	}
 
 	public dispose(): void {
@@ -163,8 +140,14 @@ export class TerminalInstance {
 			this.parentDomElement.removeChild(this.wrapperElement);
 			this.wrapperElement = null;
 		}
+		if (this.xterm) {
+			this.xterm.destroy();
+			this.xterm = null;
+		}
+		if (this.terminalProcess) {
+			this.terminalService.killTerminalProcess(this.terminalProcess);
+			this.terminalProcess = null;
+		}
 		this.toDispose = lifecycle.dispose(this.toDispose);
-		this.terminal.destroy();
-		this.ptyProcess.kill();
 	}
 }

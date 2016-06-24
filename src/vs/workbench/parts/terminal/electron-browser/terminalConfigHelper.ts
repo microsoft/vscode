@@ -8,7 +8,6 @@ import {Platform} from 'vs/base/common/platform';
 import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITerminalConfiguration} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import {Builder} from 'vs/base/browser/builder';
 
 const DEFAULT_ANSI_COLORS = {
@@ -70,8 +69,8 @@ const DEFAULT_ANSI_COLORS = {
 
 export interface ITerminalFont {
 	fontFamily: string;
-	fontSize: number;
-	lineHeight: number;
+	fontSize: string;
+	lineHeight: string;
 	charWidth: number;
 	charHeight: number;
 }
@@ -91,7 +90,7 @@ export class TerminalConfigHelper {
 	public constructor(
 		private platform: Platform,
 		private configurationService: IConfigurationService,
-		private parentDomElement: HTMLElement) {
+		private panelContainer: Builder) {
 	}
 
 	public getTheme(themeId: string): string[] {
@@ -99,16 +98,16 @@ export class TerminalConfigHelper {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
-	private measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+	private measureFont(fontFamily: string, fontSize: string, lineHeight: string): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this.charMeasureElement || !this.charMeasureElement.parentElement) {
-			this.charMeasureElement = new Builder(this.parentDomElement, true).div().build().getHTMLElement();
+			this.charMeasureElement = this.panelContainer.div().getHTMLElement();
 		}
 		let style = this.charMeasureElement.style;
 		style.display = 'inline';
 		style.fontFamily = fontFamily;
-		style.fontSize = fontSize + 'px';
-		style.lineHeight = lineHeight + 'px';
+		style.fontSize = fontSize;
+		style.lineHeight = lineHeight;
 		this.charMeasureElement.innerText = 'X';
 		let rect = this.charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
@@ -133,13 +132,9 @@ export class TerminalConfigHelper {
 
 		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
 		let fontSize = this.toInteger(terminalConfig.fontSize, 0) || editorConfig.editor.fontSize;
-		let lineHeight = this.toInteger(terminalConfig.lineHeight, 0) || editorConfig.editor.lineHeight;
+		let lineHeight = this.toInteger(terminalConfig.lineHeight, 0);
 
-		if (lineHeight === 0) {
-			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
-		}
-
-		return this.measureFont(fontFamily, fontSize, lineHeight);
+		return this.measureFont(fontFamily, fontSize + 'px', lineHeight === 0 ? 'normal' : lineHeight + 'px');
 	}
 
 	public getShell(): IShell {
