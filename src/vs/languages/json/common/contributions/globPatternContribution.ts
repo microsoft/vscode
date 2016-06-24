@@ -60,7 +60,7 @@ export class GlobPatternContribution implements JSONWorker.IJSONWorkerContributi
 		return null;
 	}
 
-	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
+	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.MarkedString[]> {
 		return null;
 	}
 }

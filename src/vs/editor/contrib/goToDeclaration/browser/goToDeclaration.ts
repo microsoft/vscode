@@ -9,7 +9,7 @@ import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
 import {Throttler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -25,7 +25,6 @@ import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
-import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
@@ -365,15 +364,17 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			return;
 		}
 
-		let htmlMessage: IHTMLContentElement = {
-			tagName: 'div',
-			className: 'goto-definition-link-hover',
-			style: `tab-size: ${model.getOptions().tabSize}`
-		};
-
+		let htmlMessage: MarkedString = void 0;;
 		if (text && text.trim().length > 0) {
-			// not whitespace only
-			htmlMessage.children = [isCode ? tokenizeToHtmlContent(text, model.getMode()) : { tagName: 'span', text }];
+			if (isCode) {
+				htmlMessage = {
+					language: model.getMode().getId(),
+					value: text
+				};
+				console.log(htmlMessage);
+			} else {
+				htmlMessage = textToMarkedString(text);
+			}
 		}
 
 		let newDecorations = {

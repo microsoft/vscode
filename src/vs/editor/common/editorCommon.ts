@@ -6,7 +6,7 @@
 
 import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -1022,13 +1022,14 @@ export interface IModelDecorationOptions {
 	 */
 	className?:string;
 	/**
-	 * Message to be rendered when hovering over the decoration.
+	 * Message to be rendered when hovering over the glyph margin decoration.
+	 * @internal
 	 */
-	hoverMessage?:string;
+	glyphMarginHoverMessage?:string;
 	/**
-	 * Array of IHTMLContentElements to render as the decoration message.
+	 * Array of MarkedString to render as the decoration message.
 	 */
-	htmlMessage?:IHTMLContentElement[];
+	hoverMessage?:MarkedString | MarkedString[];
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
@@ -3768,7 +3769,7 @@ export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstan
  */
 export interface IDecorationOptions {
 	range: IRange;
-	hoverMessage?: IHTMLContentElement[];
+	hoverMessage?: MarkedString | MarkedString[];
 	renderOptions? : IDecorationInstanceRenderOptions;
 }
 

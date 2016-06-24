@@ -8,7 +8,7 @@ import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
+import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
 import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {Range} from 'vs/editor/common/core/range';
@@ -20,6 +20,7 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {getHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
+import {textToMarkedString, MarkedString} from 'vs/base/common/htmlContent';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -63,22 +64,27 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			return result;
 		}
 
+		var hasHoverContent = (contents: MarkedString | MarkedString[]) => {
+			return contents && (!Array.isArray(contents) || (<MarkedString[]> contents).length > 0);
+		};
+
 		var lineDecorations = this._editor.getLineDecorations(lineNumber);
 		var maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
 		lineDecorations.forEach((d) => {
 			var startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			var endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			if (startColumn <= this._range.startColumn && this._range.endColumn <= endColumn && (d.options.hoverMessage || (d.options.htmlMessage && d.options.htmlMessage.length > 0))) {
+			if (startColumn <= this._range.startColumn && this._range.endColumn <= endColumn && hasHoverContent(d.options.hoverMessage)) {
 				var obj:Hover = {
-					htmlContent: [],
+					contents: [],
 					range: new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn)
 				};
 				if (d.options.hoverMessage) {
-					obj.htmlContent.push({ text: d.options.hoverMessage });
-				}
-				if (d.options.htmlMessage) {
-					obj.htmlContent = obj.htmlContent.concat(d.options.htmlMessage);
+					if (Array.isArray(d.options.hoverMessage)) {
+						obj.contents = obj.contents.concat(<MarkedString[]> d.options.hoverMessage);
+					} else {
+						obj.contents.push(<MarkedString> d.options.hoverMessage);
+					}
 				}
 				result.push(obj);
 			}
@@ -106,13 +112,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 	private _getLoadingMessage(): Hover {
 		return {
 			range: this._range,
-			htmlContent: [{
-				tagName: 'div',
-				className: '',
-				children: [{
-					text: nls.localize('modesContentHover.loading', "Loading...")
-				}]
-			}]
+			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
 }
@@ -241,25 +241,23 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			var row:HTMLElement = document.createElement('div');
 			var container = row;
 
-			if (msg.htmlContent && msg.htmlContent.length > 0) {
-				msg.htmlContent.forEach((content) => {
-					container.appendChild(renderHtml(content, {
-						actionCallback: (content) => {
-							this._openerService.open(URI.parse(content));
-						},
-						codeBlockRenderer: (modeId, value): string | TPromise<string> => {
+			if (msg.contents && msg.contents.length > 0) {
+				container.appendChild(renderMarkedString(msg.contents, {
+					actionCallback: (content) => {
+						this._openerService.open(URI.parse(content));
+					},
+					codeBlockRenderer: (modeId, value): string | TPromise<string> => {
 
-							let mode = this._modeService.getMode(modeId);
-							if (mode) {
-								return tokenizeToString(value, mode);
-							}
-
-							return this._modeService.getOrCreateMode(modeId).then(
-								mode => tokenizeToString(value, mode),
-								err => tokenizeToString(value, null));
+						let mode = this._modeService.getMode(modeId);
+						if (mode) {
+							return tokenizeToString(value, mode);
 						}
-					}));
-				});
+
+						return this._modeService.getOrCreateMode(modeId).then(
+							mode => tokenizeToString(value, mode),
+							err => tokenizeToString(value, null));
+					}
+				}));
 			}
 
 			fragment.appendChild(row);
