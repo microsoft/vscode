@@ -11,6 +11,7 @@ import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { mapEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -86,15 +87,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		this.list.onDOMFocus(() => this.searchBox.focus(), null, this.disposables);
 
-		this.list.onSelectionChange(e => {
-			const [extension] = e.elements;
-
-			if (!extension) {
-				return;
-			}
-
-			return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension));
-		}, null, this.disposables);
+		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
+		onSelectedExtension(this.onExtensionSelected, this, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -104,7 +98,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			if (visible) {
 				this.searchBox.focus();
 				this.searchBox.setSelectionRange(0,this.searchBox.value.length);
-				this.triggerSearch(true);
+				this.triggerSearch(true, true);
 			} else {
 				this.list.model = new SinglePagePagedModel([]);
 			}
@@ -124,18 +118,24 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.triggerSearch(immediate);
 	}
 
-	private triggerSearch(immediate = false): void {
+	private triggerSearch(immediate = false, suggestPopular = false): void {
 		const text = this.searchBox.value;
-		this.searchDelayer.trigger(() => this.doSearch(text), immediate || !text ? 0 : 500);
+		this.searchDelayer.trigger(() => this.doSearch(text, suggestPopular), immediate || !text ? 0 : 500);
 	}
 
-	private doSearch(text: string = ''): TPromise<any> {
+	private doSearch(text: string = '', suggestPopular = false): TPromise<any> {
 		const progressRunner = this.progressService.show(true);
 		let promise: TPromise<PagedModel<IExtension>>;
 
 		if (!text) {
 			promise = this.extensionsWorkbenchService.queryLocal()
-				.then(result => new SinglePagePagedModel(result));
+				.then(result => {
+					if (result.length === 0 && suggestPopular) {
+						this.search('@popular', true);
+					}
+
+					return new SinglePagePagedModel(result);
+				});
 		} else if (/@outdated/i.test(text)) {
 			promise = this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.filter(e => e.outdated))
@@ -150,6 +150,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		return always(promise, () => progressRunner.done())
 			.then(model => this.list.model = model);
+	}
+
+	private onExtensionSelected(extension: IExtension): void {
+		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
+			.done(null, onUnexpectedError);
 	}
 
 	private onEnter(): void {
