@@ -46,6 +46,8 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {ActionBarContributor} from 'vs/platform/actions/browser/actionBarContributor';
+import {MenuId} from 'vs/platform/actions/common/actions';
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -354,6 +356,8 @@ export class FileController extends DefaultController {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
 
+	private contextMenuActions: ActionBarContributor;
+
 	private workspace: IWorkspace;
 
 	constructor(state: FileViewletState,
@@ -462,6 +466,11 @@ export class FileController extends DefaultController {
 			return false;
 		}
 
+		if (!this.contextMenuActions) {
+			this.contextMenuActions = this.instantiationService.createInstance(ActionBarContributor,
+				tree.getHTMLElement(), MenuId.ExplorerContext);
+		}
+
 		event.preventDefault();
 		event.stopPropagation();
 
@@ -474,7 +483,12 @@ export class FileController extends DefaultController {
 		let anchor = { x: event.posx + 1, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this.state.actionProvider.getSecondaryActions(tree, stat),
+			getActions: () => {
+				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
+					// TODO@joh sorting,grouping
+					return [...this.contextMenuActions.getActions(), ...actions];
+				});
+			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
 			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
 			getActionsContext: () => {

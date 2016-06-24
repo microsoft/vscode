@@ -16,7 +16,7 @@ import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
+import {SyncActionDescriptor, ExecuteCommandAction, IMenuService} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {QuickOpenHandler, QuickOpenAction} from 'vs/workbench/browser/quickopen';
@@ -229,7 +229,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IActionsService private actionsService: IActionsService
+		@IMenuService private menuService: IMenuService
 	) {
 		super();
 	}
@@ -260,7 +260,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		let otherActions = this.actionsService.getActions();
+		let otherActions = this.menuService.getCommandActions().map(command => new ExecuteCommandAction(command.id, command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title, this.keybindingService));
 		let otherEntries = this.otherActionsToEntries(otherActions, searchValue);
 
 		// Concat
