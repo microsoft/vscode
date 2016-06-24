@@ -85,6 +85,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 		// other assets
 		es.merge(
 			gulp.src('build/monaco/LICENSE'),
+			gulp.src('build/monaco/CHANGELOG.md'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
 		).pipe(gulp.dest('out-monaco-editor-core')),
