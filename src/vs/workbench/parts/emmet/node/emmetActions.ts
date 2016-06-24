@@ -5,7 +5,6 @@
 /// <reference path="emmet.d.ts" />
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {EditorAction} from 'vs/editor/common/editorAction';
@@ -13,78 +12,49 @@ import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {EditorAccessor} from './editorAccessor';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {assign} from 'vs/base/common/objects';
 import nls = require('vs/nls');
+
+interface IEmmetConfiguration {
+	emmet: {
+		preferences: any;
+		syntaxProfiles: any;
+		triggerExpansionOnTab: boolean
+	};
+}
 
 export abstract class EmmetEditorAction extends EditorAction {
 
 	protected editorAccessor: EditorAccessor;
+	private configurationService:IConfigurationService = null;
 
-	private disposables: IDisposable[];
-	private emmetDefaultPreferences: {} = {};
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService private configurationService: IConfigurationService) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, configurationService: IConfigurationService) {
 		super(descriptor, editor, Behaviour.TextFocus);
-		this.disposables = [];
 		this.editorAccessor = new EditorAccessor(editor);
-
-		require(['emmet'], (_module) => {
-			this.backupDefaultPreferences(_module);
-
-			const disposable = configurationService.onDidUpdateConfiguration(e => this.updateEmmetConfig(_module, e.config));
-			this.disposables.push(disposable);
-		});
+		this.configurationService = configurationService;
 	}
 
-	private backupDefaultPreferences(_module: any) {
-		const preferences = _module.preferences.list();
-		for (let index = 0; index < preferences.length; index++) {
-			const key = preferences[index];
-			this.emmetDefaultPreferences[key.name] = key.value;
-		}
-	}
-
-	private updateEmmetConfig(_module: any, config: any) {
-		const editorPreferences = config.emmet.preferences;
-		this.updateEmmetPreferences(_module, editorPreferences);
-
-		const editorSyntaxProfiles = config.emmet.syntaxProfiles;
-		this.updateEmmetSyntaxPofiles(_module, editorSyntaxProfiles);
-	}
-
-	private updateEmmetPreferences(_module: any, editorPreferences: {}) {
-		const emmetPreferences = _module.preferences.list();
-		for (let index = 0; index < emmetPreferences.length; index++) {
-			const key = emmetPreferences[index];
-			emmetPreferences[key.name] = key.value;
-			delete emmetPreferences[index];
-		}
-
-		const allPreferences = assign({}, emmetPreferences, editorPreferences);
-		for (let key in allPreferences) {
-			const inEmmetDefault = this.emmetDefaultPreferences.hasOwnProperty(key);
-			const inEmmet = emmetPreferences.hasOwnProperty(key);
-			const inEditor = editorPreferences.hasOwnProperty(key);
-			if (!inEmmetDefault && !inEditor) {
-				_module.preferences.remove(key);
-				continue;
+	private updateEmmetPreferences(_module: any) {
+		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
+		for (let key in preferences) {
+			try {
+				_module.preferences.set(key, preferences[key]);
+			} catch(err) {
+				_module.preferences.define(key, preferences[key]);
 			}
-			if (inEmmet && !inEditor) {
-				_module.preferences.set(key, this.emmetDefaultPreferences[key]);
-				continue;
-			}
-			if (!inEmmet && inEditor) {
-				_module.preferences.define(key, editorPreferences[key]);
-				continue;
-			}
-
-			_module.preferences.set(key, editorPreferences[key]);
 		}
-	}
-
-	private updateEmmetSyntaxPofiles(_module: any, editorSyntaxProfiles: {}) {
+		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
 		_module.profile.reset();
-		_module.loadProfiles(editorSyntaxProfiles);
+		_module.loadProfiles(syntaxProfile);
+	}
+
+	private resetEmmetPreferences(_module: any) {
+		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
+		for (let key in preferences) {
+			try {
+				_module.preferences.remove(key);
+			} catch(err) {
+			}
+		}
 	}
 
 	abstract runEmmetAction(_module: any);
@@ -97,17 +67,15 @@ export abstract class EmmetEditorAction extends EditorAction {
 						this.editorAccessor.noExpansionOccurred();
 						return;
 					}
+					this.updateEmmetPreferences(_module);
 					this.runEmmetAction(_module);
+					this.resetEmmetPreferences(_module);
 				} catch (err) {
 					//
 				} finally {
 				}
 			}, e);
 		});
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
 
