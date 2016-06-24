@@ -8,7 +8,7 @@
 import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString} from 'vs/base/common/htmlContent';
 import {CommonKeybindings, KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -175,27 +175,21 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 		data.forEach((item) => {
-			let msg:IHTMLContentElement[];
+			let msg:MarkedString[];
 			let className: string;
 			let inlineClassName: string;
 			let overviewRulerColor: string;
 
 			if (!item.label) {
 				// this is the error case
-				msg = [{
-					tagName: 'span',
-					text: NLS_KB_LAYOUT_ERROR_MESSAGE
-				}];
+				msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
 				className = 'keybindingError';
 				inlineClassName = 'inlineKeybindingError';
 				overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
 			} else {
 				// this is the info case
-				msg = [{
-					tagName: 'span',
-					text: NLS_KB_LAYOUT_INFO_MESSAGE
-				}];
-				msg = msg.concat(this._keybindingService.getHTMLLabelFor(item.keybinding));
+				msg = [NLS_KB_LAYOUT_INFO_MESSAGE];
+				msg = msg.concat(this._keybindingService.getLabelFor(item.keybinding));
 				className = 'keybindingInfo';
 				inlineClassName = 'inlineKeybindingInfo';
 				overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
@@ -216,7 +210,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 				options: {
 					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 					className: className,
-					htmlMessage: msg,
+					hoverMessage: msg,
 					overviewRuler: {
 						color: overviewRulerColor,
 						darkColor: overviewRulerColor,

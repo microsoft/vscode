@@ -148,12 +148,12 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 		return null;
 	}
 
-	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.IHTMLContentElement[]> {
+	public getInfoContribution(resource: URI, location: JSONLocation): WinJS.TPromise<HtmlContent.MarkedString[]> {
 		if (this.isProjectJSONFile(resource) && (location.matches(['dependencies', '*']) || location.matches(['frameworks', '*', 'dependencies', '*']) || location.matches(['frameworks', '*', 'frameworkAssemblies', '*']))) {
 			var pack = location.getSegments()[location.getSegments().length - 1];
 
-			var htmlContent : HtmlContent.IHTMLContentElement[] = [];
-			htmlContent.push({className: 'type', text: nls.localize('json.nugget.package.hover', '{0}', pack) });
+			var htmlContent : HtmlContent.MarkedString[] = [];
+			htmlContent.push(nls.localize('json.nugget.package.hover', '{0}', pack));
 
 			var queryUrl = 'https://www.myget.org/F/aspnetrelease/api/v2/Packages?'
 				+ '$filter=Id%20eq%20\''
@@ -171,10 +171,10 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 						if (obj.d && obj.d[0]) {
 							var res = obj.d[0];
 							if (res.Description) {
-								htmlContent.push({className: 'documentation', text: res.Description });
+								htmlContent.push(res.Description);
 							}
 							if (res.Version) {
-								htmlContent.push({className: 'documentation', text: nls.localize('json.nugget.version.hover', 'Latest version: {0}', res.Version) });
+								htmlContent.push(nls.localize('json.nugget.version.hover', 'Latest version: {0}', res.Version));
 							}
 						}
 					} catch (e) {

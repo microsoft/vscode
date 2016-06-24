@@ -284,13 +284,13 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		if (result && breakpoint.message) {
 			result = objects.clone(result);
-			result.hoverMessage = breakpoint.message;
+			result.glyphMarginHoverMessage = breakpoint.message;
 		}
 
 		return result ? result :
 			!session || session.configuration.capabilities.supportsConditionalBreakpoints ? {
 				glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
-				hoverMessage: breakpoint.condition,
+				glyphMarginHoverMessage: breakpoint.condition,
 				stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 			} : DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 	}
@@ -299,31 +299,31 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static BREAKPOINT_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph',
-		hoverMessage: nls.localize('breakpointHover', "Breakpoint"),
+		glyphMarginHoverMessage: nls.localize('breakpointHover', "Breakpoint"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	private static BREAKPOINT_DISABLED_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-disabled-glyph',
-		hoverMessage: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
+		glyphMarginHoverMessage: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	private static BREAKPOINT_UNVERIFIED_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
-		hoverMessage: nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint"),
+		glyphMarginHoverMessage: nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	private static BREAKPOINT_DIRTY_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
-		hoverMessage: nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session."),
+		glyphMarginHoverMessage: nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session."),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	private static BREAKPOINT_UNSUPPORTED_DECORATION: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unsupported-glyph',
-		hoverMessage: nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
+		glyphMarginHoverMessage: nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 

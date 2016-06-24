@@ -383,8 +383,8 @@ suite('ExtHostLanguageFeatures', function() {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value;
-				assert.equal(first.htmlContent[0].markdown, 'registered second');
-				assert.equal(second.htmlContent[0].markdown, 'registered first');
+				assert.equal(first.contents[0], 'registered second');
+				assert.equal(second.contents[0], 'registered first');
 			});
 		});
 	});

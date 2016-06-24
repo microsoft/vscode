@@ -347,27 +347,15 @@ declare module monaco {
         static WinCtrl: number;
         static chord(firstPart: number, secondPart: number): number;
     }
-    export interface IHTMLContentElementCode {
+    /**
+     * MarkedString can be used to render human readable text. It is either a markdown string
+     * or a code-block that provides a language and a code snippet. Note that
+     * markdown strings will be sanitized - that means html will be escaped.
+     */
+    export type MarkedString = string | {
         language: string;
         value: string;
-    }
-
-    export interface IHTMLContentElement {
-        /**
-         * supports **bold**, __italics__, and [[actions]]
-         */
-        formattedText?: string;
-        text?: string;
-        className?: string;
-        style?: string;
-        customStyle?: any;
-        tagName?: string;
-        children?: IHTMLContentElement[];
-        isText?: boolean;
-        role?: string;
-        markdown?: string;
-        code?: IHTMLContentElementCode;
-    }
+    };
 
     export interface IKeyboardEvent {
         browserEvent: KeyboardEvent;
@@ -1498,13 +1486,9 @@ declare module monaco.editor {
          */
         className?: string;
         /**
-         * Message to be rendered when hovering over the decoration.
+         * Array of MarkedString to render as the decoration message.
          */
-        hoverMessage?: string;
-        /**
-         * Array of IHTMLContentElements to render as the decoration message.
-         */
-        htmlMessage?: IHTMLContentElement[];
+        hoverMessage?: MarkedString | MarkedString[];
         /**
          * Should the decoration expand to encompass a whole line.
          */
@@ -4168,7 +4152,7 @@ declare module monaco.languages {
         /**
          * The contents of this hover.
          */
-        htmlContent: IHTMLContentElement[];
+        contents: MarkedString[];
         /**
          * The range to which this hover applies. When missing, the
          * editor will use the range at the current position or the
