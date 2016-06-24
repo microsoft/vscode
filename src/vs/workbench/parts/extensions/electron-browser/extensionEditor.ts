@@ -28,7 +28,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 
 function renderBody(body: string): string {
@@ -146,9 +146,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
 		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
+		const enableAction = this.instantiationService.createInstance(EnableAction, extension);
 		this.actionBar.clear();
-		this.actionBar.push([updateAction, installAction], { icon: true, label: true });
-		this.transientDisposables.push(updateAction, installAction);
+		this.actionBar.push([enableAction, updateAction, installAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, installAction);
 
 		this.body.innerHTML = '';
 		addClass(this.body, 'loading');
