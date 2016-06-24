@@ -129,6 +129,10 @@ function monacodtsTask(out, isWatch) {
 			clearTimeout(timer);
 			timer = -1;
 		}
+		if (reporter.hasErrors()) {
+			monacodts.complainErrors();
+			return;
+		}
 		var result = monacodts.run(out);
 		if (!result.isTheSame) {
 			if (isWatch) {
@@ -147,7 +151,7 @@ function monacodtsTask(out, isWatch) {
 
 	var resultStream = es.through(function(data) {
 		var filePath = path.normalize(data.path);
-		if (filesToWatchMap[filePath]) {
+		if (isWatch && filesToWatchMap[filePath]) {
 			runSoon(5000);
 		}
 		this.emit('data', data);
