@@ -344,7 +344,7 @@ export class WorkbenchShell {
 	}
 
 	private writeTimers(): void {
-		let timers = (<any>window).GlobalEnvironment.timers;
+		let timers = (<any>window).MonacoEnvironment.timers;
 		if (timers) {
 			let events: timer.IExistingTimerEvent[] = [];
 

@@ -14,8 +14,8 @@ export const standaloneEditorTelemetryEndpoint: string = environment('telemetryE
 export const getCrossOriginWorkerScriptUrl: (workerId: string, label: string) => string = environment('getWorkerUrl', null);
 
 function environment(name: string, fallback: any = false): any {
-	if (globals.GlobalEnvironment && globals.GlobalEnvironment.hasOwnProperty(name)) {
-		return globals.GlobalEnvironment[name];
+	if (globals.MonacoEnvironment && globals.MonacoEnvironment.hasOwnProperty(name)) {
+		return globals.MonacoEnvironment[name];
 	}
 
 	return fallback;
