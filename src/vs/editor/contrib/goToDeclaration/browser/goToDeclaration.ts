@@ -371,7 +371,6 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					language: model.getMode().getId(),
 					value: text
 				};
-				console.log(htmlMessage);
 			} else {
 				htmlMessage = textToMarkedString(text);
 			}
