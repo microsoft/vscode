@@ -6,8 +6,6 @@
 .extension-editor {
 	height: 100%;
 	overflow: hidden;
-	display: flex;
-	flex-direction: column;
 }
 
 .extension-editor a {
@@ -104,14 +102,8 @@
 }
 
 .extension-editor > .body {
-	flex: 1;
-	overflow-y: scroll;
-	overflow-x: hidden;
-	padding: 20px;
-}
-
-.extension-editor > .body img {
-	max-width: 100%;
+	height: calc(100% - 168px);
+	overflow: hidden;
 }
 
 .extension-editor > .body.loading {
