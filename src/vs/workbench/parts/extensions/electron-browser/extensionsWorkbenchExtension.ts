@@ -22,6 +22,7 @@ interface IInstallExtensionsRequest {
 	extensionsToInstall: string[];
 }
 
+// TODO@Joao retire this beast
 export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	constructor(
