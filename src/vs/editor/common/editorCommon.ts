@@ -6,7 +6,7 @@
 
 import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -1022,13 +1022,14 @@ export interface IModelDecorationOptions {
 	 */
 	className?:string;
 	/**
-	 * Message to be rendered when hovering over the decoration.
+	 * Message to be rendered when hovering over the glyph margin decoration.
+	 * @internal
 	 */
-	hoverMessage?:string;
+	glyphMarginHoverMessage?:string;
 	/**
-	 * Array of IHTMLContentElements to render as the decoration message.
+	 * Array of MarkedString to render as the decoration message.
 	 */
-	htmlMessage?:IHTMLContentElement[];
+	hoverMessage?:MarkedString | MarkedString[];
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
@@ -2084,6 +2085,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
+	 * @internal
 	 */
 	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	/**
@@ -2272,6 +2274,7 @@ export interface IModelContentChangedEvent2 {
 }
 /**
  * An event describing a change in the text of a model.
+ * @internal
  */
 export interface IModelContentChangedEvent {
 	/**
@@ -2324,6 +2327,7 @@ export interface IRawText {
 
 /**
  * An event describing that a model has been reset to a new value.
+ * @internal
  */
 export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
 	/**
@@ -2333,6 +2337,7 @@ export interface IModelContentChangedFlushEvent extends IModelContentChangedEven
 }
 /**
  * An event describing that a line has changed in a model.
+ * @internal
  */
 export interface IModelContentChangedLineChangedEvent extends IModelContentChangedEvent {
 	/**
@@ -2346,6 +2351,7 @@ export interface IModelContentChangedLineChangedEvent extends IModelContentChang
 }
 /**
  * An event describing that line(s) have been deleted in a model.
+ * @internal
  */
 export interface IModelContentChangedLinesDeletedEvent extends IModelContentChangedEvent {
 	/**
@@ -2359,6 +2365,7 @@ export interface IModelContentChangedLinesDeletedEvent extends IModelContentChan
 }
 /**
  * An event describing that line(s) have been inserted in a model.
+ * @internal
  */
 export interface IModelContentChangedLinesInsertedEvent extends IModelContentChangedEvent {
 	/**
@@ -3395,6 +3402,7 @@ export interface IEditor {
 	/**
 	 * @deprecated. Please use `onDidChangeModelContent` instead.
 	 * An event emitted when the content of the current model has changed.
+	 * @internal
 	 */
 	onDidChangeModelRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	/**
@@ -3768,7 +3776,7 @@ export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstan
  */
 export interface IDecorationOptions {
 	range: IRange;
-	hoverMessage?: IHTMLContentElement[];
+	hoverMessage?: MarkedString | MarkedString[];
 	renderOptions? : IDecorationInstanceRenderOptions;
 }
 

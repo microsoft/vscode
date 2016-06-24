@@ -8,7 +8,9 @@
 	"error.closeBracketExpected": "Eine schließende Klammer wurde erwartet.",
 	"error.colonExpected": "Ein Doppelpunkt wurde erwartet.",
 	"error.commaExpected": "Ein Komma wurde erwartet.",
+	"error.endOfFileExpected": "Das Dateiende wurde erwartet.",
 	"error.invalidNumberFormat": "Ungültiges Zahlenformat.",
+	"error.invalidSymbol": "Ungültiges Symbol",
 	"error.propertyNameExpected": "Ein Eigenschaftenname wurde erwartet.",
 	"error.valueExpected": "Ein Wert wurde erwartet."
 }

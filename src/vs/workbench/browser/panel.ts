@@ -11,6 +11,7 @@ import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/br
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -74,6 +75,7 @@ export abstract class TogglePanelAction extends Action {
 		label: string,
 		panelId: string,
 		protected panelService: IPanelService,
+		private partService: IPartService,
 		private editorService: IWorkbenchEditorService
 	) {
 		super(id, name);
@@ -81,18 +83,13 @@ export abstract class TogglePanelAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		// Pass focus to panel if not showing or not focussed
-		if (!this.isPanelShowing() || !this.isPanelFocussed()) {
-			return this.panelService.openPanel(this.panelId, true);
+
+		if (this.isPanelShowing()) {
+			this.partService.setPanelHidden(true);
+			return TPromise.as(true);
 		}
 
-		// Otherwise pass focus to editor if possible
-		let editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
-
-		return TPromise.as(true);
+		return this.panelService.openPanel(this.panelId, true);
 	}
 
 	private isPanelShowing(): boolean {

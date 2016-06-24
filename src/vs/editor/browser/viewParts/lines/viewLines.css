@@ -44,3 +44,10 @@
 	position: absolute;
 	top: 0;
 }
+
+/* bootstrap fix */
+.monaco-editor .view-line > span > span {
+	float: none;
+	min-height: inherit;
+	margin-left: inherit;
+}

@@ -399,3 +399,7 @@ export function run(out:string): IMonacoDeclarationResult {
 		isTheSame: currentContent === result
 	};
 }
+
+export function complainErrors() {
+	logErr('Not running monaco.d.ts generation due to compile errors');
+}

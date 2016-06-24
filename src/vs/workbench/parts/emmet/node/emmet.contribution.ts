@@ -61,6 +61,16 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('triggerExpansionOnTab', "When enabled, emmet abbreviations are expanded when pressing TAB.")
+		},
+		'emmet.preferences': {
+			'type': 'object',
+			'default': {},
+			'description': nls.localize('emmetPreferences', 'Preferences used to modify behavior of some actions and resolvers of Emmet.')
+		},
+		'emmet.syntaxProfiles': {
+			'type': 'object',
+			'default': {},
+			'description': nls.localize('emmetSyntaxProfiles', 'Define profile for specified syntax or use your own profile with specific rules.')
 		}
 	}
 });

@@ -576,9 +576,7 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				htmlMessage: [{
-					markdown: 'hello1'
-				}]
+				hoverMessage: ['hello1']
 			}
 		}]);
 
@@ -590,15 +588,13 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				htmlMessage: [{
-					markdown: 'hello2'
-				}]
+				hoverMessage: ['hello2']
 			}
 		}]);
 
 		let actualDecoration = model.getDecorationOptions(ids[0]);
 
-		assert.equal(actualDecoration.htmlMessage[0].markdown, 'hello2');
+		assert.equal(actualDecoration.hoverMessage[0], 'hello2');
 
 		model.dispose();
 	});

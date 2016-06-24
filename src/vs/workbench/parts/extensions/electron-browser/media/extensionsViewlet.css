@@ -82,12 +82,7 @@
 .extensions-viewlet > .extensions .extension > .details > .header > .install-count:not(:empty) {
 	opacity: 0.6;
 	font-size: 80%;
-	border: 1px solid rgba(173, 173, 173, 0.5);
-	border-radius: 3px;
-	display: inline-block;
-	line-height: 14px;
-	padding: 0 3px;
-	text-align: right;
+	margin-right: 6px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .install-count > .octicon {
@@ -96,7 +91,6 @@
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .ratings {
-	margin-right: 6px;
 	text-align: right;
 }
 
@@ -122,6 +116,7 @@
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
 	margin-right: 0;
 	margin-left: 0.3em;
+	line-height: 15px;
 }
 
 .extensions-viewlet > .extensions .extension .ellipsis {
@@ -139,3 +134,9 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 }
+
+/*.show-extension-recommendations.octicon {
+	font-size: 16px;
+	line-height: 35px;
+	text-align: center;
+}*/

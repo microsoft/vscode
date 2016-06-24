@@ -28,8 +28,8 @@ export class EditorMouseEvent extends StandardMouseEvent {
 		super(e);
 		this.editorPos = dom.getDomNodePagePosition(editorViewDomNode);
 
-		this.viewportx = this.posx - window.scrollX;
-		this.viewporty = this.posy - window.scrollY;
+		this.viewportx = this.posx - dom.StandardWindow.scrollX;
+		this.viewporty = this.posy - dom.StandardWindow.scrollY;
 	}
 }
 

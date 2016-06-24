@@ -8,7 +8,8 @@
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import {TPromise, PPromise} from 'vs/base/common/winjs.base';
-import {EditorType, IEditor} from 'vs/editor/common/editorCommon';
+import {EditorType, IDiffEditorOptions} from 'vs/editor/common/editorCommon';
+import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -191,6 +192,8 @@ export class SearchViewlet extends Viewlet {
 					}).on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
+
+					this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
 			});
 
 			//pattern exclusion list
@@ -220,6 +223,8 @@ export class SearchViewlet extends Viewlet {
 					}).on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
+
+					this.inputPatternExclusions.onSubmit(() => this.onQueryChanged(true));
 			});
 
 			// add hint if we have global exclusion
@@ -916,7 +921,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return this.viewModel.isReplaceActive() ? this.openReplaceEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return this.viewModel.isReplaceActive() ? this.openReplacePreviewEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
@@ -932,12 +937,18 @@ export class SearchViewlet extends Viewlet {
 		}, sideBySide);
 	}
 
-	private openReplaceEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	private openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		return this.replaceService.getInput(element instanceof Match ? element.parent() : element, this.viewModel.replaceText).then((editorInput) => {
 			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned: pinned}).then((editor) => {
-				let editorControl= (<IEditor>editor.getControl());
+				let editorControl= (<IDiffEditor>editor.getControl());
+				editorControl.updateOptions(<IDiffEditorOptions>{originalEditable: true});
 				if (element instanceof Match) {
-					editorControl.revealLineInCenter(element.range().startLineNumber);
+					let range= element.range();
+					editorControl.revealLineInCenter(range.startLineNumber);
+					editorControl.getOriginalEditor().setPosition({lineNumber: range.startLineNumber, column: range.startColumn});
+				}
+				if (!preserveFocus) {
+					editorControl.getOriginalEditor().focus();
 				}
 			});
 		});

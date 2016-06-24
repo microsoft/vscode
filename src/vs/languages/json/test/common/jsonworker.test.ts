@@ -603,35 +603,23 @@ suite('JSON - Worker', () => {
 		};
 		WinJS.Promise.join([
 			testComputeInfo(content, schema, {lineNumber:1, column:1}).then((result) => {
-				assert.deepEqual(result.htmlContent, [
-					{
-						className: 'documentation',
-						text: 'a very special object'
-					}
+				assert.deepEqual(result.contents, [
+					'a very special object'
 				]);
 			}),
 			testComputeInfo(content, schema, {lineNumber: 1, column: 2}).then((result) => {
-				assert.deepEqual(result.htmlContent, [
-					{
-						className: 'documentation',
-						text: 'A'
-					}
+				assert.deepEqual(result.contents, [
+					'A'
 				]);
 			}),
 			testComputeInfo(content, schema, {lineNumber:1, column:33}).then((result) => {
-				assert.deepEqual(result.htmlContent, [
-					{
-						className: 'documentation',
-						text: 'C'
-					}
+				assert.deepEqual(result.contents, [
+					'C'
 				]);
 			}),
 			testComputeInfo(content, schema, {lineNumber:1, column:8}).then((result) => {
-				assert.deepEqual(result.htmlContent, [
-					{
-						className: 'documentation',
-						text: 'A'
-					}
+				assert.deepEqual(result.contents, [
+					'A'
 				]);
 			})
 		]).done(() => testDone(), (errors:any[]) => {
@@ -662,19 +650,13 @@ suite('JSON - Worker', () => {
 		};
 		WinJS.Promise.join([
 			testComputeInfo(content, schema, {lineNumber:1, column:10}).then((result) => {
-				assert.deepEqual(result.htmlContent, [
-					{
-						className: 'documentation',
-						text: 'a very special object'
-					}
+				assert.deepEqual(result.contents, [
+					'a very special object'
 				]);
 			}),
 			testComputeInfo(content, schema, {lineNumber:1, column:2}).then((result) => {
-				assert.deepEqual(result.htmlContent, [
-					{
-						className: 'documentation',
-						text: 'A'
-					}
+				assert.deepEqual(result.contents, [
+					'A'
 				]);
 			})
 		]).done(() => testDone(), (errors:any[]) => {

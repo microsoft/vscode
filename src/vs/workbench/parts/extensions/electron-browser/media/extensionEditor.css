@@ -6,8 +6,6 @@
 .extension-editor {
 	height: 100%;
 	overflow: hidden;
-	display: flex;
-	flex-direction: column;
 }
 
 .extension-editor a {
@@ -46,6 +44,7 @@
 .extension-editor > .header > .details > .title > .name {
 	flex: 1;
 	font-size: 26px;
+	line-height: 30px;
 	font-weight: 600;
 	line-height: normal;
 	white-space: nowrap;
@@ -99,17 +98,12 @@
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
 	padding: 1px 6px;
+	line-height: 15px;
 }
 
 .extension-editor > .body {
-	flex: 1;
-	overflow-y: scroll;
-	overflow-x: hidden;
-	padding: 20px;
-}
-
-.extension-editor > .body img {
-	max-width: 100%;
+	height: calc(100% - 168px);
+	overflow: hidden;
 }
 
 .extension-editor > .body.loading {

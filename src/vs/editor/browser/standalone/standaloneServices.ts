@@ -40,6 +40,8 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {IMenuService} from 'vs/platform/actions/common/actions';
+import {MenuService} from 'vs/platform/actions/browser/menuService';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -71,6 +73,10 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	markerService?:IMarkerService;
+	/**
+	 * @internal
+	 */
+	menuService?:IMenuService;
 	/**
 	 * @internal
 	 */
@@ -139,6 +145,7 @@ export interface IStaticServices {
 	modeService: IModeService;
 	extensionService: IExtensionService;
 	markerService: IMarkerService;
+	menuService: IMenuService;
 	contextService: IWorkspaceContextService;
 	requestService: IRequestService;
 	messageService: IMessageService;
@@ -244,6 +251,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService, messageService);
 	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
+	let menuService = services.menuService || new MenuService(extensionService);
 
 	staticServices = {
 		configurationService: configurationService,
@@ -251,6 +259,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		modeService: modeService,
 		threadService: threadService,
 		markerService: markerService,
+		menuService: menuService,
 		contextService: contextService,
 		telemetryService: telemetryService,
 		requestService: requestService,

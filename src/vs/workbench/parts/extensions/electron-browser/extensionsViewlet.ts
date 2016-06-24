@@ -11,27 +11,27 @@ import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { mapEvent, filterEvent } from 'vs/base/common/event';
+import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, emmet as $ } from 'vs/base/browser/dom';
-import { PagedModel, SinglePagePagedModel } from 'vs/base/common/paging';
+import { IPager, PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionsWorkbenchService, IExtension } from './extensions';
-import { IExtensionsViewlet } from './extensions';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
+import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
-
-	static ID: string = 'workbench.viewlet.extensions';
 
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
@@ -49,7 +49,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(ExtensionsViewlet.ID, telemetryService);
+		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
 	}
 
@@ -86,15 +86,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		this.list.onDOMFocus(() => this.searchBox.focus(), null, this.disposables);
 
-		this.list.onSelectionChange(e => {
-			const [extension] = e.elements;
-
-			if (!extension) {
-				return;
-			}
-
-			return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension));
-		}, null, this.disposables);
+		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
+		onSelectedExtension(this.onExtensionSelected, this, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -104,9 +97,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			if (visible) {
 				this.searchBox.focus();
 				this.searchBox.setSelectionRange(0,this.searchBox.value.length);
-				this.triggerSearch(true);
+				this.triggerSearch(true, true);
 			} else {
-				this.list.model = new SinglePagePagedModel([]);
+				this.list.model = new PagedModel([]);
 			}
 		});
 	}
@@ -119,37 +112,55 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.list.layout(height - 38);
 	}
 
+	getActions(): IAction[] {
+		return [
+			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
+			this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL)
+		];
+	}
+
 	search(text: string, immediate = false): void {
 		this.searchBox.value = text;
 		this.triggerSearch(immediate);
 	}
 
-	private triggerSearch(immediate = false): void {
+	private triggerSearch(immediate = false, suggestPopular = false): void {
 		const text = this.searchBox.value;
-		this.searchDelayer.trigger(() => this.doSearch(text), immediate || !text ? 0 : 500);
+		this.searchDelayer.trigger(() => this.doSearch(text, suggestPopular), immediate || !text ? 0 : 500);
 	}
 
-	private doSearch(text: string = ''): TPromise<any> {
+	private doSearch(text: string = '', suggestPopular = false): TPromise<any> {
 		const progressRunner = this.progressService.show(true);
-		let promise: TPromise<PagedModel<IExtension>>;
+		let promise: TPromise<IPager<IExtension> | IExtension[]>;
 
 		if (!text) {
 			promise = this.extensionsWorkbenchService.queryLocal()
-				.then(result => new SinglePagePagedModel(result));
+				.then(result => {
+					if (result.length === 0 && suggestPopular) {
+						this.search('@popular', true);
+					}
+
+					return result;
+				});
 		} else if (/@outdated/i.test(text)) {
 			promise = this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.outdated))
-				.then(result => new SinglePagePagedModel(result));
+				.then(result => result.filter(e => e.outdated));
 		} else if (/@popular/i.test(text)) {
-			promise = this.extensionsWorkbenchService.queryGallery({ sortBy: SortBy.InstallCount })
-				.then(result => new PagedModel(result));
+			promise = this.extensionsWorkbenchService.queryGallery({ sortBy: SortBy.InstallCount });
+		} else if (/@recommended/i.test(text)) {
+			promise = this.extensionsWorkbenchService.getRecommendations();
 		} else {
-			promise = this.extensionsWorkbenchService.queryGallery({ text })
-				.then(result => new PagedModel(result));
+			promise = this.extensionsWorkbenchService.queryGallery({ text });
 		}
 
 		return always(promise, () => progressRunner.done())
+			.then(result => new PagedModel<IExtension>(result))
 			.then(model => this.list.model = model);
+	}
+
+	private onExtensionSelected(extension: IExtension): void {
+		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
+			.done(null, onUnexpectedError);
 	}
 
 	private onEnter(): void {

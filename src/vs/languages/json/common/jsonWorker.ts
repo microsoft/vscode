@@ -62,7 +62,7 @@ export interface ISuggestionsCollector {
 }
 
 export interface IJSONWorkerContribution {
-	getInfoContribution(resource: URI, location: JSONLocation) : WinJS.TPromise<HtmlContent.IHTMLContentElement[]>;
+	getInfoContribution(resource: URI, location: JSONLocation) : WinJS.TPromise<HtmlContent.MarkedString[]>;
 	collectPropertySuggestions(resource: URI, location: JSONLocation, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : WinJS.Promise;
 	collectValueSuggestions(resource: URI, location: JSONLocation, propertyKey: string, result: ISuggestionsCollector): WinJS.Promise;
 	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
@@ -325,7 +325,7 @@ export class JSONWorker {
 				}
 
 				if (description) {
-					var htmlContent = [ {className: 'documentation', text: description } ];
+					var htmlContent = [ description ];
 					return this.createInfoResult(htmlContent, originalNode, modelMirror);
 				}
 			}
@@ -333,11 +333,11 @@ export class JSONWorker {
 		});
 	}
 
-	private createInfoResult(htmlContent : HtmlContent.IHTMLContentElement[], node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel) : Modes.Hover {
+	private createInfoResult(htmlContent : HtmlContent.MarkedString[], node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel) : Modes.Hover {
 		var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 
 		var result:Modes.Hover = {
-			htmlContent: htmlContent,
+			contents: htmlContent,
 			range: range
 		};
 		return result;

@@ -159,6 +159,31 @@ export function filterEvent<T>(event: Event<T>, filter: (e:T)=>boolean): Event<T
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
 
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100): Event<O> {
+
+	let subscription: IDisposable;
+	let output: O;
+	let handle: number;
+
+	const emitter = new Emitter<O>({
+		onFirstListenerAdd() {
+			subscription = event(cur => {
+				output = merger(output, cur);
+				clearTimeout(handle);
+				handle = setTimeout(() => {
+					emitter.fire(output);
+					output = undefined;
+				}, delay);
+			});
+		},
+		onLastListenerRemove() {
+			subscription.dispose();
+		}
+	});
+
+	return emitter.event;
+}
+
 enum EventDelayerState {
 	Idle,
 	Running

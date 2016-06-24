@@ -672,7 +672,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			}
 			let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
 			if (decorationOption.hoverMessage) {
-				opts.htmlMessage = decorationOption.hoverMessage;
+				opts.hoverMessage = decorationOption.hoverMessage;
 			}
 			newModelDecorations.push({ range: decorationOption.range, options: opts });
 		}

@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
+import network = require('vs/base/common/network');
 import labels = require('vs/base/common/labels');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
@@ -217,7 +218,7 @@ class DefaultSettingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.from({ scheme: 'vscode', authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
+		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' }); // URI is used to register JSON schema support
 	}
 }
 
@@ -236,7 +237,7 @@ class DefaultKeybindingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.from({ scheme: 'vscode', authority: 'defaultsettings', path: '/keybindings.json' }); // URI is used to register JSON schema support
+		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' }); // URI is used to register JSON schema support
 	}
 }
 
