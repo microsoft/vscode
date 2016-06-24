@@ -24,7 +24,6 @@ export interface ITemplateData {
 	installCount: HTMLElement;
 	ratings: HTMLElement;
 	author: HTMLElement;
-	needsRestart: HTMLElement;
 	description: HTMLElement;
 	actionbar: ActionBar;
 	disposables: IDisposable[];
@@ -55,13 +54,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
-		const needsRestart = append(footer, $('.needsRestart'));
 		const actionbar = new ActionBar(footer, { animated: false });
 		const disposables = [];
 
 		return {
 			extension: null, element, icon, name, version,
-			installCount, ratings, author, needsRestart, description,
+			installCount, ratings, author, description,
 			actionbar, disposables
 		};
 	}
@@ -74,6 +72,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.icon.style.backgroundImage = '';
 		data.name.textContent = '';
 		data.version.textContent = '';
+		data.installCount.style.display = 'none';
+		data.ratings.style.display = 'none';
 		data.author.textContent = '';
 		data.description.textContent = '';
 		data.actionbar.clear();
@@ -88,6 +88,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
+		data.installCount.style.display = 'initial';
+		data.ratings.style.display = 'initial';
 
 		const version = this.instantiationService.createInstance(Label, data.version, extension, e => e.version);
 		const installCount = this.instantiationService.createInstance(InstallWidget, data.installCount, extension, { small: true });
