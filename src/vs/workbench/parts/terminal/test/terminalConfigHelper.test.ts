@@ -29,10 +29,9 @@ class MockConfigurationService implements IConfigurationService {
 
 suite('Workbench - TerminalConfigHelper', () => {
 	let fixture: Builder;
-	let fixtureId = 'terminal-config-helper-fixture';
 
 	setup(() => {
-		fixture = new Builder(document.body, false).id(fixtureId);
+		fixture = new Builder(document.body, false);
 	});
 
 	test('TerminalConfigHelper - getFont', function () {
