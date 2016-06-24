@@ -126,9 +126,9 @@ export class SwitchTerminalInstanceAction extends Action {
 		this.class = 'terminal-action switch-terminal-instance';
 	}
 
-	public run(channelId?: string): TPromise<any> {
-		return null;
-		//return this.outputService.getChannel(channelId).show();
+	public run(item?: string): TPromise<any> {
+		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
+		return this.terminalService.setActiveTerminal(selectedTerminalIndex);
 	}
 }
 
