@@ -89,13 +89,13 @@ export class WorkerClient {
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
 
-		let GlobalEnvironment = (<any>window).GlobalEnvironment || null;
+		let MonacoEnvironment = (<any>window).MonacoEnvironment || null;
 
 		this.onModuleLoaded = this._sendMessage(workerProtocol.MessageType.INITIALIZE, {
 			id: this._worker.getId(),
 			moduleId: moduleId,
 			loaderConfiguration: loaderConfiguration,
-			GlobalEnvironment: GlobalEnvironment
+			MonacoEnvironment: MonacoEnvironment
 		});
 
 		this._remoteCom = new workerProtocol.RemoteCom(this);
