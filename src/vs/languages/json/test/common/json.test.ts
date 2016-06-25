@@ -29,7 +29,9 @@ suite('JSON - tokenization', () => {
 		let mode = new jsonMode.JSONMode(
 			{ id: 'json' },
 			inst,
-			threadService
+			threadService,
+			null,
+			null
 		);
 
 		tokenizationSupport = mode.tokenizationSupport;
