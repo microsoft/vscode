@@ -13,7 +13,6 @@ import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
@@ -35,7 +34,6 @@ export class HTMLWorker {
 
 	private _contextService: IWorkspaceContextService;
 	private resourceService:IResourceService;
-	private markerService: IMarkerService;
 	private _modeId: string;
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
 	private formatSettings: any;
@@ -43,13 +41,11 @@ export class HTMLWorker {
 	constructor(
 		modeId: string,
 		@IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService,
 		@IWorkspaceContextService contextService:IWorkspaceContextService
 	) {
 
 		this._modeId = modeId;
 		this.resourceService = resourceService;
-		this.markerService = markerService;
 		this._contextService = contextService;
 
 		this._tagProviders = [];

@@ -9,7 +9,6 @@ import mm = require('vs/editor/common/model/mirrorModel');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
-import MarkerService = require('vs/platform/markers/common/markerService');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
@@ -49,9 +48,7 @@ suite('HTML - worker', () => {
 		var model = mm.createTestMirrorModelFromString(content, mode, url);
 		resourceService.insert(url, model);
 
-		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
-
-		var worker = new htmlWorker.HTMLWorker(mode.getId(), resourceService, markerService, null);
+		var worker = new htmlWorker.HTMLWorker(mode.getId(), resourceService, null);
 
 		return { worker: worker, model: model };
 	};
