@@ -73,13 +73,12 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		onReturningFromNestedMode: boolean;
 	};
 
-	public shouldGenerateEmbeddedModels:boolean;
 	public supportsNestedModes:boolean;
 
 	private _mode:modes.IMode;
 	private _embeddedModesListeners: { [modeId:string]: IDisposable; };
 
-	constructor(mode:modes.IMode, customization:ITokenizationCustomization, supportsNestedModes:boolean, shouldGenerateEmbeddedModels:boolean) {
+	constructor(mode:modes.IMode, customization:ITokenizationCustomization, supportsNestedModes:boolean) {
 		this._mode = mode;
 		this.customization = customization;
 		this.supportsNestedModes = supportsNestedModes;
@@ -89,7 +88,6 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 				throw new Error('Cannot be a mode with nested modes unless I can emit a tokenizationSupport changed event!');
 			}
 		}
-		this.shouldGenerateEmbeddedModels = shouldGenerateEmbeddedModels;
 		this.defaults = {
 			enterNestedMode: !isFunction(customization.enterNestedMode),
 			getNestedMode: !isFunction(customization.getNestedMode),

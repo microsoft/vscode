@@ -150,7 +150,6 @@ export class MainProcessTextMateSyntax {
 function createTokenizationSupport(mode: IMode, grammar: IGrammar): ITokenizationSupport {
 	var tokenizer = new Tokenizer(mode.getId(), grammar);
 	return {
-		shouldGenerateEmbeddedModels: false,
 		getInitialState: () => new TMState(mode, null, null),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState> state, offsetDelta, stopAtOffset)
 	};

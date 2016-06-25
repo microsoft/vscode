@@ -10,7 +10,6 @@ import jsonTokenTypes = require('vs/languages/json/common/features/jsonTokenType
 
 export function createTokenizationSupport(mode:Modes.IMode, supportComments:boolean):Modes.ITokenizationSupport {
 	return {
-		shouldGenerateEmbeddedModels: false,
 		getInitialState: () => new JSONState(mode, null, null, false),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenize(mode, supportComments, line, <JSONState> state, offsetDelta, stopAtOffset)
 	};

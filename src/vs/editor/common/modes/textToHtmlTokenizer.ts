@@ -22,7 +22,6 @@ function _getSafeTokenizationSupport(mode: IMode): ITokenizationSupport {
 		return mode.tokenizationSupport;
 	}
 	return {
-		shouldGenerateEmbeddedModels: false,
 		getInitialState: () => new NullState(null, null),
 		tokenize: (buffer:string, state: IState, deltaOffset:number = 0, stopAtOffset?:number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
 	};

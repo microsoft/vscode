@@ -256,8 +256,6 @@ export interface ILineTokens {
  */
 export interface ITokenizationSupport {
 
-	shouldGenerateEmbeddedModels: boolean;
-
 	getInitialState():IState;
 
 	// add offsetDelta to each of the returned indices

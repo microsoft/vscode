@@ -60,6 +60,6 @@ export class MockTokenizingMode extends MockMode {
 
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new StateForMockTokenizingMode(this, tokenType)
-		}, false, false);
+		}, false);
 	}
 }

@@ -346,7 +346,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.modeService = modeService;
 		this.threadService = threadService;
 
-		this.tokenizationSupport = new TokenizationSupport(this, this, true, true);
+		this.tokenizationSupport = new TokenizationSupport(this, this, true);
 		this.configSupport = this;
 
 		this._registerSupports();
@@ -363,18 +363,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		if (this.getId() !== 'html') {
 			throw new Error('This method must be overwritten!');
 		}
-
-		modes.HoverProviderRegistry.register(this.getId(), {
-			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.uri, position));
-			}
-		}, true);
-
-		modes.ReferenceProviderRegistry.register(this.getId(), {
-			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
-				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
-			}
-		}, true);
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
@@ -490,16 +478,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentRangeFormattingEdits);
 	private _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.FormattingOptions):winjs.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.provideDocumentRangeFormattingEdits(resource, range, options));
-	}
-
-	static $_provideHover = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideHover);
-	protected _provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
-		return this._worker((w) => w.provideHover(resource, position));
-	}
-
-	static $_provideReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideReferences);
-	protected _provideReferences(resource:URI, position:editorCommon.IPosition, context: modes.ReferenceContext): winjs.TPromise<modes.Location[]> {
-		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
 	static $_provideDocumentHighlights = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentHighlights);

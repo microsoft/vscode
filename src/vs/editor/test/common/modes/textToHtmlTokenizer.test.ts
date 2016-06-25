@@ -80,6 +80,6 @@ class Mode extends MockMode {
 		super();
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
-		}, false, false);
+		}, false);
 	}
 }

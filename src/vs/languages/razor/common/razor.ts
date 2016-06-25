@@ -108,18 +108,6 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	}
 
 	protected _registerSupports(): void {
-		modes.HoverProviderRegistry.register(this.getId(), {
-			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.uri, position));
-			}
-		}, true);
-
-		modes.ReferenceProviderRegistry.register(this.getId(), {
-			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
-				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
-			}
-		}, true);
-
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
