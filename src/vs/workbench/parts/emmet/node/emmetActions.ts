@@ -43,8 +43,10 @@ export abstract class EmmetEditorAction extends EditorAction {
 			}
 		}
 		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
-		_module.profile.reset();
-		_module.loadProfiles(syntaxProfile);
+		if (Object.keys(syntaxProfile).length !== 0) {
+			_module.profile.reset();
+			_module.loadProfiles(syntaxProfile);
+		}
 	}
 
 	private resetEmmetPreferences(_module: any) {
@@ -69,10 +71,10 @@ export abstract class EmmetEditorAction extends EditorAction {
 					}
 					this.updateEmmetPreferences(_module);
 					this.runEmmetAction(_module);
-					this.resetEmmetPreferences(_module);
 				} catch (err) {
 					//
 				} finally {
+					this.resetEmmetPreferences(_module);
 				}
 			}, e);
 		});
