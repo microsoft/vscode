@@ -15,7 +15,7 @@ import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {TestThreadService} from './testThreadService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -62,7 +62,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
-		services.set(IMarkerService, new MainProcessMarkerService(threadService));
+		services.set(IMarkerService, new MarkerService());
 		services.set(IThreadService, threadService);
 		services.set(IModelService, <IModelService>{
 			serviceId: IModelService,

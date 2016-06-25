@@ -11,7 +11,6 @@ import collections = require('vs/base/common/collections');
 import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics} from './markers';
 
 interface Key {
@@ -49,7 +48,7 @@ export interface MarkerData {
 }
 
 
-export abstract class MarkerService implements IMarkerService {
+export class MarkerService implements IMarkerService {
 	public serviceId = IMarkerService;
 	private _data: { [k: string]: IMarkerData[] };
 	private _stats: MarkerStatistics;
@@ -294,43 +293,5 @@ export abstract class MarkerService implements IMarkerService {
 		data.endLineNumber = data.endLineNumber >= data.startLineNumber ? data.endLineNumber : data.startLineNumber;
 		data.endColumn = data.endColumn > 0 ? data.endColumn : data.startColumn;
 		return true;
-	}
-}
-
-export class SecondaryMarkerService extends MarkerService {
-
-	private _proxy: MainProcessMarkerService;
-
-	constructor(threadService: IThreadService) {
-		super();
-		this._proxy = threadService.getRemotable(MainProcessMarkerService);
-	}
-
-	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
-		super.changeOne(owner, resource, markers);
-		this._proxy.changeOne(owner, resource, markers);
-	}
-
-	public changeAll(owner: string, data: IResourceMarker[]): void {
-		super.changeAll(owner, data);
-		this._proxy.changeAll(owner, data);
-	}
-
-}
-
-@Remotable.MainContext('MainProcessMarkerService')
-export class MainProcessMarkerService extends MarkerService {
-
-	constructor(@IThreadService threadService: IThreadService) {
-		super();
-		threadService.registerRemotableInstance(MainProcessMarkerService, this);
-	}
-
-	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
-		super.changeOne(owner, resource, markers);
-	}
-
-	public changeAll(owner: string, data: IResourceMarker[]): void {
-		super.changeAll(owner, data);
 	}
 }

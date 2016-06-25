@@ -36,7 +36,7 @@ import {FileService} from 'vs/workbench/services/files/electron-browser/fileServ
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
-import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
@@ -275,7 +275,7 @@ export class WorkbenchShell {
 		let requestService = disposables.add(instantiationService.createInstance(RequestService));
 		serviceCollection.set(IRequestService, requestService);
 
-		let markerService = instantiationService.createInstance(MainProcessMarkerService);
+		let markerService = instantiationService.createInstance(MarkerService);
 		serviceCollection.set(IMarkerService, markerService);
 
 		let modeService = instantiationService.createInstance(MainThreadModeServiceImpl);

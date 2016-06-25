@@ -16,8 +16,6 @@ import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensio
 import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -100,7 +98,6 @@ export class EditorWorkerServer {
 		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
 		this.threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, this.threadService])));
 		const resourceService = new ResourceService();
-		const markerService = new SecondaryMarkerService(this.threadService);
 		const modeService = new ModeServiceImpl(this.threadService, extensionService);
 		const requestService = new BaseRequestService(contextService, NullTelemetryService);
 
@@ -110,7 +107,6 @@ export class EditorWorkerServer {
 		services.set(IWorkspaceContextService, contextService);
 		services.set(IEventService, new EventService());
 		services.set(IResourceService, resourceService);
-		services.set(IMarkerService, markerService);
 		services.set(IRequestService, requestService);
 
 		const instantiationService = new InstantiationService(services);
