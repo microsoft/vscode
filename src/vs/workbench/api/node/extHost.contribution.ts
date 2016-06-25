@@ -28,7 +28,7 @@ import {MainThreadEditors} from 'vs/workbench/api/node/extHostEditors';
 import {MainThreadWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
-import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
+import {MainThreadStorage} from 'vs/workbench/api/node/extHostStorage';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
 
 export class ExtHostContribution implements IWorkbenchContribution {

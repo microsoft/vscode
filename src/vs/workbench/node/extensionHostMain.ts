@@ -21,7 +21,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
+import {ExtHostExtensionService} from 'vs/workbench/api/node/nativeExtensionService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
 import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';

@@ -13,7 +13,7 @@ import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensio
 import {IMessage, IExtensionDescription, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ExtHostStorage} from 'vs/platform/storage/common/remotable.storage';
+import {ExtHostStorage} from 'vs/workbench/api/node/extHostStorage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
