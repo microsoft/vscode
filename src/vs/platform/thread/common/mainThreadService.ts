@@ -7,12 +7,11 @@
 import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export abstract class CommonMainThreadService extends AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
 
-	constructor(contextService: IWorkspaceContextService, workerModuleId: string) {
+	constructor() {
 		super();
 	}
 

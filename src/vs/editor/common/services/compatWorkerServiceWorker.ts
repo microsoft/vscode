@@ -6,7 +6,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICompatWorkerService, ICompatMode, IRawModelData} from 'vs/editor/common/services/compatWorkerService';
-import {IRemoteCom} from 'vs/base/common/remote';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {ILanguageExtensionPoint, IModeService} from 'vs/editor/common/services/modeService';
 import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
@@ -22,13 +21,11 @@ export class CompatWorkerServiceWorker implements ICompatWorkerService {
 	constructor(
 		@IResourceService private resourceService: IResourceService,
 		@IModeService private modeService: IModeService,
-		remoteCom: IRemoteCom,
 		modesRegistryData: {
 			compatModes: ILegacyLanguageDefinition[];
 			languages: ILanguageExtensionPoint[];
 		}
 	) {
-		remoteCom.setManyHandler(this);
 		ModesRegistry.registerCompatModes(modesRegistryData.compatModes);
 		ModesRegistry.registerLanguages(modesRegistryData.languages);
 		this._compatModes = Object.create(null);
@@ -38,7 +35,7 @@ export class CompatWorkerServiceWorker implements ICompatWorkerService {
 		this._compatModes[compatMode.getId()] = compatMode;
 	}
 
-	public handle(rpcId: string, methodName: string, args: any[]): any {
+	public handleMainRequest(rpcId: string, methodName: string, args: any[]): any {
 		if (rpcId === '$') {
 			switch (methodName) {
 				case 'acceptNewModel':

@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError, transformErrorForSerialization} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {parse, stringify} from 'vs/base/common/marshalling';
-import {IRemoteCom} from 'vs/base/common/remote';
-import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as workerProtocol from 'vs/base/common/worker/workerProtocol';
 
@@ -51,22 +49,16 @@ export class WorkerClient {
 	private _messagesQueue:workerProtocol.IClientMessage[];
 	private _processQueueTimeout:number;
 	private _waitingForWorkerReply:boolean;
-	private _lastTimerEvent:timer.ITimerEvent;
-
-	private _remoteCom: workerProtocol.RemoteCom;
-	private _decodeMessageName: (msg: workerProtocol.IClientMessage) => string;
 
 	public onModuleLoaded:TPromise<void>;
 
-	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:workerProtocol.IClientMessage)=>string) {
-		this._decodeMessageName = decodeMessageName;
+	constructor(workerFactory:IWorkerFactory, moduleId:string) {
 		this._lastMessageId = 0;
 		this._promises = {};
 
 		this._messagesQueue = [];
 		this._processQueueTimeout = -1;
 		this._waitingForWorkerReply = false;
-		this._lastTimerEvent = null;
 
 		this._worker = workerFactory.create(
 			'vs/base/common/worker/workerServer',
@@ -94,15 +86,9 @@ export class WorkerClient {
 			moduleId: moduleId,
 			loaderConfiguration: loaderConfiguration
 		});
-
-		this._remoteCom = new workerProtocol.RemoteCom(this);
 	}
 
-	public getRemoteCom(): IRemoteCom {
-		return this._remoteCom;
-	}
-
-	public request(requestName:string, payload:any, forceTimestamp?:number): TPromise<any> {
+	public request(requestName:string, payload:any): TPromise<any> {
 
 		if (requestName.charAt(0) === '$') {
 			throw new Error('Illegal requestName: ' + requestName);
@@ -117,7 +103,7 @@ export class WorkerClient {
 			// promise so that it won't be canceled by accident
 			this.onModuleLoaded.then(() => {
 				if (!shouldCancelPromise) {
-					messagePromise = this._sendMessage(requestName, payload, forceTimestamp).then(c, e, p);
+					messagePromise = this._sendMessage(requestName, payload).then(c, e, p);
 				}
 			}, e, p);
 
@@ -129,10 +115,6 @@ export class WorkerClient {
 				shouldCancelPromise = true;
 			}
 		});
-	}
-
-	public destroy(): void {
-		this.dispose();
 	}
 
 	public dispose(): void {
@@ -149,12 +131,12 @@ export class WorkerClient {
 		this._worker.dispose();
 	}
 
-	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {
+	private _sendMessage(type:string, payload:any):TPromise<any> {
 
 		let msg = {
 			id: ++this._lastMessageId,
 			type: type,
-			timestamp: forceTimestamp,
+			timestamp: Date.now(),
 			payload: payload
 		};
 
@@ -235,7 +217,6 @@ export class WorkerClient {
 			}
 			this._waitingForWorkerReply = true;
 			let msg = this._messagesQueue.shift();
-			this._lastTimerEvent = timer.start(timer.Topic.WORKER, this._decodeMessageName(msg));
 			this._postMessage(msg);
 		}, delayUntilNextMessage);
 	}
@@ -269,9 +250,6 @@ export class WorkerClient {
 				let serverReplyMessage = <workerProtocol.IServerReplyMessage>msg;
 
 				this._waitingForWorkerReply = false;
-				if(this._lastTimerEvent) {
-					this._lastTimerEvent.stop();
-				}
 
 				if (!this._promises.hasOwnProperty(String(serverReplyMessage.id))) {
 					this._onError('Received unexpected message from Worker:', msg);
@@ -307,57 +285,10 @@ export class WorkerClient {
 				break;
 
 			default:
-				this._dispatchRequestFromWorker(msg);
+				this._onError('Received unexpected message from worker:', msg);
 		}
 
 		this._processMessagesQueue();
-	}
-
-	private _dispatchRequestFromWorker(msg:workerProtocol.IServerMessage): void {
-		this._handleWorkerRequest(msg).then((result) => {
-			let reply: workerProtocol.IClientReplyMessage = {
-				id: 0,
-				type: workerProtocol.MessageType.REPLY,
-				timestamp: (new Date()).getTime(),
-
-				seq: msg.req,
-				payload: (result instanceof Error ? transformErrorForSerialization(result) : result),
-				err: null
-			};
-			this._postMessage(reply);
-		}, (err) => {
-			let reply: workerProtocol.IClientReplyMessage = {
-				id: 0,
-				type: workerProtocol.MessageType.REPLY,
-				timestamp: (new Date()).getTime(),
-
-				seq: msg.req,
-				payload: null,
-				err: (err instanceof Error ? transformErrorForSerialization(err) : err)
-			};
-			this._postMessage(reply);
-		});
-	}
-
-	private _handleWorkerRequest(msg:workerProtocol.IServerMessage): TPromise<any> {
-		if (msg.type === '_proxyObj') {
-			return this._remoteCom.handleMessage(msg.payload);
-		}
-
-		if (typeof this[msg.type] === 'function') {
-			return this._invokeHandler(this[msg.type], this, msg.payload);
-		}
-
-		this._onError('Received unexpected message from Worker:', msg);
-		return TPromise.wrapError(new Error('No handler found'));
-	}
-
-	private _invokeHandler(handler:Function, handlerCtx:any, payload:any): TPromise<any> {
-		try {
-			return TPromise.as(handler.call(handlerCtx, payload));
-		} catch (err) {
-			return TPromise.wrapError(err);
-		}
 	}
 
 	_consoleLog(level:string, payload:any): void {

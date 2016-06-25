@@ -105,10 +105,6 @@ export class MainThreadCompatWorkerService implements ICompatWorkerService {
 		this._call('$', 'instantiateCompatMode', [compatMode.getId()]);
 	}
 
-	public handle(rpcId: string, methodName: string, args: any[]): any {
-		throw new Error('Not supported!');
-	}
-
 	public CompatWorker(obj: ICompatMode, methodName: string, target: Function, param: any[]): TPromise<any> {
 		return this._call(obj.getId(), methodName, param);
 	}
@@ -146,22 +142,11 @@ export class MainThreadCompatWorkerService implements ICompatWorkerService {
 		});
 	}
 
-	private _shortName(major: string, minor: string): string {
-		return major.substring(major.length - 14) + '.' + minor.substr(0, 14);
-	}
-
 	private _createWorker(isRetry:boolean = false): void {
 		this._worker = new WorkerClient(
 			this._workerFactory,
-			'vs/editor/common/worker/editorWorkerServer',
-			(msg) => {
-				if (msg.type === 'threadService') {
-					return this._shortName(msg.payload[0], msg.payload[1]);
-				}
-				return msg.type;
-			}
+			'vs/editor/common/worker/editorWorkerServer'
 		);
-		this._worker.getRemoteCom().setManyHandler(this);
 		this._worker.onModuleLoaded = this._worker.request('initialize', {
 			contextService: {
 				workspace: this._contextService.getWorkspace(),
@@ -191,7 +176,11 @@ export class MainThreadCompatWorkerService implements ICompatWorkerService {
 			if (this._worker === null) {
 				throw new Error('Cannot fulfill request...');
 			}
-			return this._worker.getRemoteCom().callOnRemote(rpcId, methodName, args);
+			return this._worker.request('request', {
+				target: rpcId,
+				methodName: methodName,
+				args: args
+			});
 		});
 	}
 }
