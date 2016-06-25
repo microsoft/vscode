@@ -18,7 +18,7 @@ import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
@@ -239,7 +239,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer');
 	let messageService = services.messageService || new SimpleMessageService();
 	let extensionService = services.extensionService || new SimpleExtensionService();
-	let markerService = services.markerService || new MainProcessMarkerService(threadService);
+	let markerService = services.markerService || new MarkerService();
 	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
 	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, extensionService, configurationService);
 	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService, messageService);

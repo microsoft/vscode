@@ -16,7 +16,7 @@ import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {TestThreadService} from './testThreadService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -61,7 +61,7 @@ suite('ExtHostLanguageFeatures', function() {
 		let services = new ServiceCollection();
 		let instantiationService = new InstantiationService(services);
 		threadService = new TestThreadService(instantiationService);
-		services.set(IMarkerService, new MainProcessMarkerService(threadService));
+		services.set(IMarkerService, new MarkerService());
 		services.set(IThreadService, threadService);
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
