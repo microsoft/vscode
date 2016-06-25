@@ -11,7 +11,7 @@ import modes = require('vs/editor/common/modes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import { AbstractMode, createWordRegExp, ModeWorkerManager } from 'vs/editor/common/modes/abstractMode';
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
-import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
+import {CompatWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
@@ -465,27 +465,27 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		}
 	}
 
-	static $_configureWorkers = AllWorkersAttr(HTMLMode, HTMLMode.prototype._configureWorkers);
+	static $_configureWorkers = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._configureWorkers);
 	private _configureWorkers(options:any): winjs.TPromise<void> {
 		return this._worker((w) => w._doConfigure(options));
 	}
 
-	static $_provideLinks = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideLinks);
+	static $_provideLinks = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideLinks);
 	protected _provideLinks(resource:URI):winjs.TPromise<modes.ILink[]> {
 		return this._worker((w) => w.provideLinks(resource));
 	}
 
-	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentRangeFormattingEdits);
+	static $_provideDocumentRangeFormattingEdits = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentRangeFormattingEdits);
 	private _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.FormattingOptions):winjs.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.provideDocumentRangeFormattingEdits(resource, range, options));
 	}
 
-	static $_provideDocumentHighlights = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentHighlights);
+	static $_provideDocumentHighlights = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentHighlights);
 	protected _provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
 		return this._worker((w) => w.provideDocumentHighlights(resource, position, strict));
 	}
 
-	static $_provideCompletionItems = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideCompletionItems);
+	static $_provideCompletionItems = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideCompletionItems);
 	protected _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}

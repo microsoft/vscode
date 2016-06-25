@@ -89,13 +89,10 @@ export class WorkerClient {
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
 
-		let MonacoEnvironment = (<any>window).MonacoEnvironment || null;
-
 		this.onModuleLoaded = this._sendMessage(workerProtocol.MessageType.INITIALIZE, {
 			id: this._worker.getId(),
 			moduleId: moduleId,
-			loaderConfiguration: loaderConfiguration,
-			MonacoEnvironment: MonacoEnvironment
+			loaderConfiguration: loaderConfiguration
 		});
 
 		this._remoteCom = new workerProtocol.RemoteCom(this);
@@ -103,10 +100,6 @@ export class WorkerClient {
 
 	public getRemoteCom(): IRemoteCom {
 		return this._remoteCom;
-	}
-
-	public getQueueSize(): number {
-		return this._messagesQueue.length + (this._waitingForWorkerReply ? 1 : 0);
 	}
 
 	public request(requestName:string, payload:any, forceTimestamp?:number): TPromise<any> {

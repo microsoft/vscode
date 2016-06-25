@@ -6,8 +6,8 @@
 (function () {
 	'use strict';
 
-	var MonacoEnvironment = (<any>self).MonacoEnvironment;
-	var monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	let MonacoEnvironment = (<any>self).MonacoEnvironment;
+	let monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 
 	importScripts(monacoBaseUrl + 'vs/loader.js');
 
@@ -16,9 +16,9 @@
 		catchError: true
 	});
 
-	var loadCode = function(moduleId) {
+	let loadCode = function(moduleId) {
 		require([moduleId], function(ws) {
-			var messageHandler = ws.create((msg:any) => {
+			let messageHandler = ws.create((msg:any) => {
 				(<any>self).postMessage(msg);
 			}, null);
 
@@ -29,8 +29,8 @@
 		});
 	};
 
-	var isFirstMessage = true;
-	var beforeReadyMessages:MessageEvent[] = [];
+	let isFirstMessage = true;
+	let beforeReadyMessages:MessageEvent[] = [];
 	self.onmessage = (message) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);

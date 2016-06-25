@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 
 export class NullThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
@@ -23,14 +23,9 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return super._doCreateInstance(params);
 	}
 
-	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): winjs.Promise {
-		return winjs.TPromise.as(null);
+	CompatWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
+		return TPromise.as(null);
 	}
-
-	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): winjs.Promise {
-		return winjs.TPromise.as(null);
-	}
-
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 		return this._getOrCreateLocalInstance(id, descriptor);
@@ -48,10 +43,10 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		throw new Error('Not supported in this runtime context!');
 	}
 
-	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker: ThreadAffinity): T {
+	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 		return this._getOrCreateProxyInstance({
-			callOnRemote: (proxyId: string, path: string, args: any[]): winjs.Promise => {
-				return winjs.TPromise.as(null);
+			callOnRemote: (proxyId: string, path: string, args: any[]): TPromise<any> => {
+				return TPromise.as(null);
 			}
 		}, id, descriptor);
 	}

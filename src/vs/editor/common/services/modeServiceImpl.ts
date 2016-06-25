@@ -16,7 +16,7 @@ import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import * as modes from 'vs/editor/common/modes';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
@@ -626,7 +626,7 @@ export interface IWorkerInitData {
 	languages: ILanguageExtensionPoint[];
 }
 
-@Remotable.WorkerContext('ModeServiceWorkerHelper', ThreadAffinity.All)
+@Remotable.WorkerContext('ModeServiceWorkerHelper')
 export class ModeServiceWorkerHelper {
 	private _modeService:IModeService;
 

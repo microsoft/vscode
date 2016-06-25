@@ -15,7 +15,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {anonymize} from 'vs/platform/telemetry/common/telemetry';
-import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
@@ -562,7 +562,7 @@ export class ModelServiceImpl implements IModelService {
 	}
 }
 
-@Remotable.WorkerContext('ModelServiceWorkerHelper', ThreadAffinity.All)
+@Remotable.WorkerContext('ModelServiceWorkerHelper')
 export class ModelServiceWorkerHelper {
 
 	private _resourceService: IResourceService;

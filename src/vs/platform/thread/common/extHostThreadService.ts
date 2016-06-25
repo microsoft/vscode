@@ -9,7 +9,7 @@ import remote = require('vs/base/common/remote');
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 
 import abstractThreadService = require('./abstractThreadService');
-import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 
 export class ExtHostThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
@@ -21,11 +21,7 @@ export class ExtHostThreadService extends abstractThreadService.AbstractThreadSe
 		this._remoteCom.setManyHandler(this);
 	}
 
-	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
+	CompatWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -45,7 +41,7 @@ export class ExtHostThreadService extends abstractThreadService.AbstractThreadSe
 		this._registerLocalInstance(id, actor);
 	}
 
-	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: descriptors.SyncDescriptor0<T>, whichWorker: ThreadAffinity): T {
+	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: descriptors.SyncDescriptor0<T>): T {
 		throw new Error('Not supported in this runtime context! Cannot communicate directly from Extension Host to Worker!');
 	}
 
