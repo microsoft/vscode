@@ -4,29 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import descriptors = require('vs/platform/instantiation/common/descriptors');
-import instantiation = require('vs/platform/instantiation/common/instantiation');
+import {createDecorator, ServiceIdentifier, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
-// --- thread service (web workers)
-
-export const IThreadService = instantiation.createDecorator<IThreadService>('threadService');
+export const IThreadService = createDecorator<IThreadService>('threadService');
 
 export interface IThreadService {
-	serviceId: instantiation.ServiceIdentifier<any>;
-
-	// --- BEGIN deprecated methods
-	isInMainThread: boolean;
-
-	CompatWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[]): TPromise<any>;
-
-	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
-
-	// --- END deprecated methods
-
-	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T;
-
+	serviceId: ServiceIdentifier<any>;
+	getRemotable<T>(ctor: IConstructorSignature0<T>): T;
 	registerRemotableInstance(ctor: any, instance: any): void;
 }
 
@@ -40,8 +24,7 @@ export class Remotable {
 
 	public static Registry = {
 		MainContext: <IRemotableCtorMap>Object.create(null),
-		ExtHostContext: <IRemotableCtorMap>Object.create(null),
-		WorkerContext: <IRemotableCtorMap>Object.create(null),
+		ExtHostContext: <IRemotableCtorMap>Object.create(null)
 	};
 
 	public static getId(ctor: any): string {
@@ -64,25 +47,9 @@ export class Remotable {
 		};
 	}
 
-	public static WorkerContext(identifier: string) {
-		return function(target: Function) {
-			Remotable._ensureUnique(identifier);
-			Remotable.Registry.WorkerContext[identifier] = target;
-			target[Remotable.PROP_NAME] = identifier;
-		};
-	}
-
 	private static _ensureUnique(identifier: string): void {
-		if (Remotable.Registry.MainContext[identifier] || Remotable.Registry.ExtHostContext[identifier] || Remotable.Registry.WorkerContext[identifier]) {
+		if (Remotable.Registry.MainContext[identifier] || Remotable.Registry.ExtHostContext[identifier]) {
 			throw new Error('Duplicate Remotable identifier found');
 		}
 	}
-}
-
-export interface IThreadSynchronizableObject {
-	getId(): string;
-
-	creationDone?: () => void;
-
-	asyncCtor?: () => TPromise<void>;
 }

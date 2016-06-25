@@ -17,7 +17,7 @@ import {findFreePort} from 'vs/base/node/ports';
 import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
+import {CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {IConfiguration, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';

@@ -6,74 +6,24 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import remote = require('vs/base/common/remote');
-import {Remotable, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
-import {THREAD_SERVICE_PROPERTY_NAME} from 'vs/platform/thread/common/threadService';
+import {Remotable} from 'vs/platform/thread/common/thread';
 import instantiation = require('vs/platform/instantiation/common/instantiation');
-import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
+import {SyncDescriptor0, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 export abstract class AbstractThreadService implements remote.IManyHandler {
 
-	public isInMainThread: boolean;
-
 	protected _instantiationService: instantiation.IInstantiationService;
 
-	protected _boundObjects: { [id: string]: IThreadSynchronizableObject; };
-	protected _pendingObjects: TPromise<IThreadSynchronizableObject>[];
 	private _localObjMap: { [id: string]: any; };
 	private _proxyObjMap: { [id: string]: any; };
 
-	constructor(isInMainThread: boolean) {
-		this.isInMainThread = isInMainThread;
-		this._boundObjects = {};
-		this._pendingObjects = [];
+	constructor() {
 		this._localObjMap = Object.create(null);
 		this._proxyObjMap = Object.create(null);
 	}
 
 	setInstantiationService(service: instantiation.IInstantiationService): void {
 		this._instantiationService = service;
-	}
-
-	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
-	createInstance(...params: any[]): any {
-		return this._doCreateInstance(params);
-	}
-
-	protected _doCreateInstance(params: any[]): any {
-		let instanceOrPromise = this._instantiationService.createInstance.apply(this._instantiationService, params);
-
-		if (TPromise.is(instanceOrPromise)) {
-
-			let objInstantiated: TPromise<IThreadSynchronizableObject>;
-			objInstantiated = instanceOrPromise.then((instance: IThreadSynchronizableObject): any => {
-				return instance;
-			});
-
-			this._pendingObjects.push(objInstantiated);
-			return objInstantiated.then((instance: IThreadSynchronizableObject) => {
-				let r = this._finishInstance(instance);
-
-				for (let i = 0; i < this._pendingObjects.length; i++) {
-					if (this._pendingObjects[i] === objInstantiated) {
-						this._pendingObjects.splice(i, 1);
-						break;
-					}
-				}
-
-				return r;
-			});
-
-		}
-
-		return this._finishInstance(<IThreadSynchronizableObject>instanceOrPromise);
-	}
-
-	private _finishInstance(instance: IThreadSynchronizableObject): IThreadSynchronizableObject {
-		instance[THREAD_SERVICE_PROPERTY_NAME] = this;
-		this._boundObjects[instance.getId()] = instance;
-
-		return instance;
 	}
 
 	public handle(rpcId: string, methodName: string, args: any[]): any {
@@ -89,7 +39,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	}
 
 	protected _getOrCreateProxyInstance(remoteCom: remote.IProxyHelper, id: string, descriptor: SyncDescriptor0<any>): any {
-		// console.log(`_getOrCreateProxyInstance: ${id}, ${descriptor}`);
 		if (this._proxyObjMap[id]) {
 			return this._proxyObjMap[id];
 		}
@@ -127,10 +76,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 			return this._registerAndInstantiateExtHostActor(id, desc);
 		}
 
-		if (Remotable.Registry.WorkerContext[id]) {
-			return this._registerAndInstantiateWorkerActor(id, desc);
-		}
-
 		throw new Error('Unknown Remotable: <<' + id + '>>');
 	}
 
@@ -148,10 +93,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 			return this._registerExtHostActor(id, instance);
 		}
 
-		if (Remotable.Registry.WorkerContext[id]) {
-			return this._registerWorkerActor(id, instance);
-		}
-
 		throw new Error('Unknown Remotable: <<' + id + '>>');
 	}
 
@@ -159,8 +100,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	protected abstract _registerMainProcessActor<T>(id: string, actor: T): void;
 	protected abstract _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
 	protected abstract _registerExtHostActor<T>(id: string, actor: T): void;
-	protected abstract _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
-	protected abstract _registerWorkerActor<T>(id: string, actor: T): void;
 }
 
 function createProxyFromCtor(remote:remote.IProxyHelper, id:string, ctor:Function): any {

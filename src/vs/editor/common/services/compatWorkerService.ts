@@ -46,13 +46,3 @@ export function CompatWorkerAttr(type: Function, target: Function): void {
 		return obj.compatWorkerService.CompatWorker(obj, methodName, target, param);
 	};
 }
-
-// export class NullCompatWorkerService implements ICompatWorkerService {
-// 	public serviceId = ICompatWorkerService;
-// 	public isInMainThread = true;
-
-// 	constructor() {}
-// 	registerCompatMode(compatMode:ICompatMode): void {}
-// }
-
-// export const NULL_COMPAT_WORKER_SERVICE = new NullCompatWorkerService();
