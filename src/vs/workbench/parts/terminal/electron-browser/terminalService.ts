@@ -132,7 +132,7 @@ export class TerminalService implements ITerminalService {
 	public createNew(): TPromise<any> {
 		let self = this;
 		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
-			this.initConfigHelper(terminalPanel.getContainer());
+			self.initConfigHelper(terminalPanel.getContainer());
 			terminalPanel.createNewTerminalInstance(self.createTerminalProcess());
 			self._onInstancesChanged.fire();
 		});
@@ -172,22 +172,23 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public killTerminalProcess(terminalProcess: ITerminalProcess): void {
-		if (!terminalProcess.process.connected) {
-			return;
+		if (terminalProcess.process.connected) {
+			terminalProcess.process.disconnect();
+			terminalProcess.process.kill();
 		}
-		terminalProcess.process.disconnect();
-		terminalProcess.process.kill();
 
 		let index = this.terminalProcesses.indexOf(terminalProcess);
-		let wasActiveTerminal = (index === this.getActiveTerminalIndex());
-		// Push active index back if the closed process was before the active process
-		if (this.getActiveTerminalIndex() >= index) {
-			this.activeTerminalIndex--;
-		}
-		this.terminalProcesses.splice(index, 1);
-		this._onInstancesChanged.fire();
-		if (wasActiveTerminal) {
-			this._onActiveInstanceChanged.fire();
+		if (index >= 0) {
+			let wasActiveTerminal = (index === this.getActiveTerminalIndex());
+			// Push active index back if the closed process was before the active process
+			if (this.getActiveTerminalIndex() >= index) {
+				this.activeTerminalIndex--;
+			}
+			this.terminalProcesses.splice(index, 1);
+			this._onInstancesChanged.fire();
+			if (wasActiveTerminal) {
+				this._onActiveInstanceChanged.fire();
+			}
 		}
 	}
 
