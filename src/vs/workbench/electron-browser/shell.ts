@@ -45,7 +45,7 @@ import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServic
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {MainProcessExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
+import {MainProcessExtensionService} from 'vs/workbench/api/node/nativeExtensionService';
 import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
