@@ -488,7 +488,7 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 		super(descriptor.id);
 		this.modeService = modeService;
 
-		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
+		this.tokenizationSupport = new TokenizationSupport(this, this, true);
 
 		LanguageConfigurationRegistry.register(this.getId(), PHPMode.LANG_CONFIG);
 

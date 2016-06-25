@@ -478,8 +478,6 @@ export class TokenizationState2Adapter implements modes.IState {
 
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	public shouldGenerateEmbeddedModels = false;
-
 	private _mode: modes.IMode;
 	private _actual: modes.TokensProvider;
 

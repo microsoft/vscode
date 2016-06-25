@@ -12,7 +12,6 @@ import network = require('vs/base/common/network');
 import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
-import {Position} from 'vs/editor/common/core/position';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
@@ -21,9 +20,6 @@ import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} 
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
-import {getHover} from 'vs/editor/contrib/hover/common/hover';
-import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -120,52 +116,6 @@ export class HTMLWorker {
 	_doConfigure(options: any): winjs.TPromise<void> {
 		this.formatSettings = options && options.format;
 		return winjs.TPromise.as(null);
-	}
-
-	_delegateToModeAtPosition<T>(resource:URI, position:editorCommon.IPosition, callback:(isEmbeddedMode:boolean, model:editorCommon.IMirrorModel) => T): T {
-		let model = this.resourceService.get(resource);
-
-		if (!model) {
-			return null;
-		}
-
-		let modelAtPosition = model.getEmbeddedAtPosition(position);
-
-		if (!modelAtPosition) {
-			return callback(false, model);
-		}
-
-		let modeAtPosition = modelAtPosition.getMode();
-
-		return callback(modeAtPosition.getId() !== this._modeId, modelAtPosition);
-	}
-
-	_delegateToAllModes<T>(resource:URI, callback:(models:editorCommon.IMirrorModel[]) => T): T {
-		let model = this.resourceService.get(resource);
-
-		if (!model) {
-			return null;
-		}
-
-		return callback(model.getAllEmbedded());
-	}
-
-	public provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode) {
-				return getHover(model, Position.lift(position)).then((r) => {
-					return (r.length > 0 ? r[0] : null);
-				});
-			}
-		});
-	}
-
-	public provideReferences(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Location[]> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode) {
-				return provideReferences(model, Position.lift(position));
-			}
-		});
 	}
 
 	private findMatchingOpenTag(scanner: IHTMLScanner) : string {
@@ -322,13 +272,13 @@ export class HTMLWorker {
 	}
 
 	public provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode) {
-				return provideCompletionItems(model, Position.lift(position));
-			}
-
+		let model = this.resourceService.get(resource);
+		let modeIdAtPosition = model.getModeIdAtPosition(position.lineNumber, position.column);
+		if (modeIdAtPosition === this._modeId) {
 			return this.suggestHTML(resource, position);
-		});
+		} else {
+			return winjs.TPromise.as([]);
+		}
 	}
 
 	private suggestHTML(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {

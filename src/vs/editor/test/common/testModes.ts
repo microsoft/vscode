@@ -38,7 +38,7 @@ export class CommentMode extends MockMode {
 		super();
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new CommentState(this, 0)
-		}, false, false);
+		}, false);
 
 		LanguageConfigurationRegistry.register(this.getId(), {
 			comments: commentsConfig
@@ -93,7 +93,7 @@ export class ModelMode1 extends MockMode {
 		this.calledFor = [];
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new ModelState1(this)
-		}, false, false);
+		}, false);
 	}
 }
 
@@ -134,7 +134,7 @@ export class ModelMode2 extends MockMode {
 		this.calledFor = null;
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new ModelState2(this, '')
-		}, false, false);
+		}, false);
 	}
 }
 
@@ -193,6 +193,6 @@ export class NMode extends MockMode {
 		this.n = n;
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new NState(this, this.n)
-		}, false, false);
+		}, false);
 	}
 }

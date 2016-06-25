@@ -578,7 +578,7 @@ export class ModelServiceWorkerHelper {
 
 	public $_acceptNewModel(data: IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url);
+		let mirrorModel = new MirrorModel(data.versionId, data.value, null, data.url);
 		this._resourceService.insert(mirrorModel.uri, mirrorModel);
 
 		// Block worker execution until the mode is instantiated

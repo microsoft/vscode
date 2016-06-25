@@ -2208,9 +2208,6 @@ export interface IRangeWithText {
  * @internal
  */
 export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
-	getEmbeddedAtPosition(position:IPosition): IMirrorModel;
-	getAllEmbedded(): IMirrorModel[];
-
 	uri: URI;
 
 	getOffsetFromPosition(position:IPosition): number;

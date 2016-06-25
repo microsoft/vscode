@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -12,7 +11,6 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
-import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 
@@ -33,14 +31,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 
 	public getModeId(): string {
 		return this.getMode().getId();
-	}
-
-	public getEmbeddedAtPosition(position:editorCommon.IPosition):editorCommon.IMirrorModel {
-		return null;
-	}
-
-	public getAllEmbedded():editorCommon.IMirrorModel[] {
-		return [];
 	}
 
 	public _constructLines(rawText:editorCommon.IRawText):void {
@@ -161,216 +151,17 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 }
 
-export class MirrorModelEmbedded extends AbstractMirrorModel implements editorCommon.IMirrorModel {
-
-	private _actualModel:MirrorModel;
-
-	constructor(actualModel:MirrorModel, includeRanges:editorCommon.IRange[], mode:IMode, url:URI) {
-		super(['changed'], actualModel.getVersionId(), MirrorModelEmbedded._getMirrorValueWithinRanges(actualModel, includeRanges), mode, url);
-		this._actualModel = actualModel;
-	}
-
-	private static _getMirrorValueWithinRanges(actualModel:MirrorModel, includeRanges:editorCommon.IRange[]): editorCommon.IRawText {
-
-		var	resultingText = '',
-			prevLineAdded = 1,
-			prevColumnAdded = 1,
-			i:number;
-
-		for (i = 0; i < includeRanges.length; i++) {
-			var includeRange = includeRanges[i];
-
-			resultingText += actualModel.getEmptiedValueInRange({
-				startLineNumber: prevLineAdded,
-				startColumn: prevColumnAdded,
-				endLineNumber: includeRange.startLineNumber,
-				endColumn: includeRange.startColumn
-			}, ' ');
-
-			resultingText += actualModel.getValueInRange(includeRange);
-
-			prevLineAdded = includeRange.endLineNumber;
-			prevColumnAdded = includeRange.endColumn;
-		}
-
-		var lastLineNumber = actualModel.getLineCount(),
-			lastColumn = actualModel.getLineMaxColumn(lastLineNumber);
-
-		resultingText += actualModel.getEmptiedValueInRange({
-			startLineNumber: prevLineAdded,
-			startColumn: prevColumnAdded,
-			endLineNumber: lastLineNumber,
-			endColumn: lastColumn
-		}, ' ');
-
-		let actualModelOptions = actualModel.getOptions();
-		return TextModel.toRawText(resultingText, {
-			tabSize: actualModelOptions.tabSize,
-			insertSpaces: actualModelOptions.insertSpaces,
-			detectIndentation: false,
-			defaultEOL: actualModelOptions.defaultEOL,
-			trimAutoWhitespace: actualModelOptions.trimAutoWhitespace
-		});
-	}
-
-	public setIncludedRanges(newIncludedRanges:editorCommon.IRange[]): void {
-		var prevVersionId = this.getVersionId();
-
-		// Force recreating of line starts (when used)
-		this._constructLines(MirrorModelEmbedded._getMirrorValueWithinRanges(this._actualModel, newIncludedRanges));
-		this._resetTokenizationState();
-
-		this._setVersionId(prevVersionId + 1);
-
-		this.emit('changed', {});
-	}
-
-}
-
-class EmbeddedModeRange {
-	public mode: IMode;
-	public ranges: editorCommon.IRange[];
-
-	public constructor(mode: IMode) {
-		this.mode = mode;
-		this.ranges = [];
-	}
-}
-
 export function createTestMirrorModelFromString(value:string, mode:IMode = null, associatedResource?:URI): MirrorModel {
-	return new MirrorModel(null, 0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
+	return new MirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
 }
 
 export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMirrorModel {
 
-	private _resourceService: IResourceService;
-	private _embeddedModels: {[modeId:string]:MirrorModelEmbedded;};
-
-	constructor(resourceService:IResourceService, versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
+	constructor(versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
 		super(['changed'], versionId, value, mode, associatedResource);
-
-		this._resourceService = resourceService;
-		this._embeddedModels = {};
-		this._updateEmbeddedModels();
 	}
 
-	public getEmbeddedAtPosition(position:editorCommon.IPosition):editorCommon.IMirrorModel {
-		var modeIdAtPosition = this.getModeIdAtPosition(position.lineNumber, position.column);
-		if (this._embeddedModels.hasOwnProperty(modeIdAtPosition)) {
-			return this._embeddedModels[modeIdAtPosition];
-		}
-		return null;
-	}
-
-	public getAllEmbedded():editorCommon.IMirrorModel[] {
-		return Object.keys(this._embeddedModels).map((embeddedModeId) => this._embeddedModels[embeddedModeId]);
-	}
-
-	public dispose(): void {
-		super.dispose();
-		var embeddedModels = Object.keys(this._embeddedModels).map((modeId) => this._embeddedModels[modeId]);
-		embeddedModels.forEach((embeddedModel) => this._resourceService.remove(embeddedModel.uri));
-		dispose(embeddedModels);
-		this._embeddedModels = {};
-	}
-
-	public setMode(newModeOrPromise:IMode|TPromise<IMode>): void {
-		super.setMode(newModeOrPromise);
-		this._updateEmbeddedModels();
-	}
-
-	private static _getModesRanges(model: editorCommon.IMirrorModel): {[modeId:string]:EmbeddedModeRange} {
-		var encounteredModesRanges:{[modeId:string]:EmbeddedModeRange} = {};
-
-		var getOrCreateEmbeddedModeRange = (modeId:string, mode:IMode) => {
-			if (!encounteredModesRanges.hasOwnProperty(modeId)) {
-				encounteredModesRanges[modeId] = new EmbeddedModeRange(mode);
-			}
-			return encounteredModesRanges[modeId];
-		};
-
-		var lineCount = model.getLineCount();
-		var currentModeId = model.getMode().getId();
-		var currentMode = model.getMode();
-		var currentStartLineNumber = 1, currentStartColumn = 1;
-
-		for (var lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
-			var modeTransitions = model._getLineModeTransitions(lineNumber);
-
-			for (var i = 0; i < modeTransitions.length; i++) {
-				var modeTransition = modeTransitions[i];
-				if (modeTransition.modeId !== currentModeId) {
-
-					var modeRange = getOrCreateEmbeddedModeRange(currentModeId, currentMode);
-					modeRange.ranges.push({
-						startLineNumber: currentStartLineNumber,
-						startColumn: currentStartColumn,
-						endLineNumber: lineNumber,
-						endColumn: modeTransition.startIndex + 1
-					});
-
-					currentModeId = modeTransition.modeId;
-					currentMode = modeTransition.mode;
-					currentStartLineNumber = lineNumber;
-					currentStartColumn = modeTransition.startIndex + 1;
-				}
-			}
-		}
-
-		var lastLineNumber = lineCount;
-		var lastColumn = model.getLineMaxColumn(lastLineNumber);
-
-		if (currentStartLineNumber !== lastLineNumber || currentStartColumn !== lastColumn) {
-			var modeRange = getOrCreateEmbeddedModeRange(currentModeId, currentMode);
-			modeRange.ranges.push({
-				startLineNumber: currentStartLineNumber,
-				startColumn: currentStartColumn,
-				endLineNumber: lastLineNumber,
-				endColumn: lastColumn
-			});
-		}
-
-		return encounteredModesRanges;
-	}
-
-	private _updateEmbeddedModels(): boolean {
-		if (!this._resourceService || !this.getMode().tokenizationSupport || !this.getMode().tokenizationSupport.shouldGenerateEmbeddedModels) {
-			return false;
-		}
-
-		var newModesRanges = MirrorModel._getModesRanges(this);
-
-		// Empty out embedded models that have disappeared
-		var oldNestedModesIds = Object.keys(this._embeddedModels);
-		for (var i = 0; i < oldNestedModesIds.length; i++) {
-			var oldNestedModeId = oldNestedModesIds[i];
-			if (!newModesRanges.hasOwnProperty(oldNestedModeId)) {
-				this._embeddedModels[oldNestedModeId].setIncludedRanges([{
-					startLineNumber: 1,
-					startColumn: 1,
-					endLineNumber: 1,
-					endColumn: 1
-				}]);
-			}
-		}
-
-		var newNestedModesIds = Object.keys(newModesRanges);
-		for (var i = 0; i < newNestedModesIds.length; i++) {
-			var newNestedModeId = newNestedModesIds[i];
-			if (this._embeddedModels.hasOwnProperty(newNestedModeId)) {
-				this._embeddedModels[newNestedModeId].setIncludedRanges(newModesRanges[newNestedModeId].ranges);
-			} else {
-				// TODO@Alex: implement derived resources (embedded mirror models) better
-				var embeddedModelUrl = this.uri.with({ fragment: this.uri.fragment + 'URL_MARSHAL_REMOVE' + newNestedModeId });
-				this._embeddedModels[newNestedModeId] = new MirrorModelEmbedded(this, newModesRanges[newNestedModeId].ranges, newModesRanges[newNestedModeId].mode, embeddedModelUrl);
-				this._resourceService.insert(this._embeddedModels[newNestedModeId].uri, this._embeddedModels[newNestedModeId]);
-			}
-		}
-
-		return false;
-	}
-
-	public onEvents(events:IMirrorModelEvents) : boolean {
+	public onEvents(events:IMirrorModelEvents) : void {
 		let changed = false;
 		for (let i = 0, len = events.contentChanged.length; i < len; i++) {
 			let contentChangedEvent = events.contentChanged[i];
@@ -399,12 +190,9 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 			}
 		}
 
-		var shouldFlushMarkers = false;
 		if (changed) {
 			this.emit('changed', {});
-			shouldFlushMarkers = this._updateEmbeddedModels();
 		}
-		return shouldFlushMarkers;
 	}
 
 	private _onLinesFlushed(e:editorCommon.IModelContentChangedFlushEvent): void {
