@@ -21,7 +21,7 @@ import PackageJSONContribution = require('./contributions/packageJSONContributio
 import BowerJSONContribution = require('./contributions/bowerJSONContribution');
 import GlobPatternContribution = require('./contributions/globPatternContribution');
 import errors = require('vs/base/common/errors');
-import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
+import {IMarkerData} from 'vs/platform/markers/common/markers';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -29,7 +29,6 @@ import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
-import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
 export interface IOptionsSchema {
 	/**
@@ -68,6 +67,11 @@ export interface IJSONWorkerContribution {
 	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
 }
 
+export interface ValidationResult {
+	resource: URI;
+	markerData: IMarkerData[];
+}
+
 export class JSONWorker {
 
 	private schemaService: SchemaService.IJSONSchemaService;
@@ -75,15 +79,12 @@ export class JSONWorker {
 	private contextService: IWorkspaceContextService;
 	private jsonIntellisense : JSONIntellisense.JSONIntellisense;
 	private contributions: IJSONWorkerContribution[];
-	private _validationHelper: ValidationHelper;
 	private resourceService:IResourceService;
-	private markerService: IMarkerService;
 	private _modeId: string;
 
 	constructor(
 		modeId: string,
 		@IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService,
 		@IRequestService requestService: IRequestService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -91,17 +92,6 @@ export class JSONWorker {
 
 		this._modeId = modeId;
 		this.resourceService = resourceService;
-		this.markerService = markerService;
-
-		this._validationHelper = new ValidationHelper(
-			this.resourceService,
-			this._modeId,
-			(toValidate) => this.doValidate(toValidate)
-		);
-		if (markerService) {
-			this._validationHelper.enable();
-		}
-
 		this.requestService = requestService;
 		this.contextService = contextService;
 		this.schemaService = instantiationService.createInstance(SchemaService.JSONSchemaService);
@@ -197,7 +187,6 @@ export class JSONWorker {
 				}
 			});
 		}
-		this._validationHelper.triggerDueToConfigurationChange();
 
 		return WinJS.TPromise.as(void 0);
 	}
@@ -207,23 +196,24 @@ export class JSONWorker {
 		return WinJS.TPromise.as(true);
 	}
 
-	public doValidate(resources: URI[]):void {
-		for (var i = 0; i < resources.length; i++) {
-			this.doValidate1(resources[i]);
-		}
+	public validate(resources: URI[]):WinJS.TPromise<ValidationResult[]> {
+		return WinJS.TPromise.join(resources.map(resource => this.doValidate1(resource)));
 	}
 
-	private doValidate1(resource: URI):void {
+	private doValidate1(resource: URI): WinJS.TPromise<ValidationResult> {
 		var modelMirror = this.resourceService.get(resource);
 		var parser = new Parser.JSONParser();
 		var content = modelMirror.getValue();
 
 		if (content.length === 0) {
 			// ignore empty content, no marker can be set anyway
-			return;
+			return WinJS.TPromise.as<ValidationResult>({
+				resource: resource,
+				markerData: []
+			});
 		}
 		var result = parser.parse(content);
-		this.schemaService.getSchemaForResource(resource.toString(), result).then((schema) => {
+		return this.schemaService.getSchemaForResource(resource.toString(), result).then((schema) => {
 			if (schema) {
 				if (schema.errors.length && result.root) {
 					var property = result.root.type === 'object' ? (<Parser.ObjectASTNode> result.root).getFirstProperty('$schema') : null;
@@ -258,9 +248,11 @@ export class JSONWorker {
 				}
 			});
 
-			this.markerService.changeOne(this._modeId, resource, markerData);
+			return {
+				resource: resource,
+				markerData: markerData
+			};
 		});
-
 	}
 
 	public provideCompletionItems(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {

@@ -18,6 +18,10 @@ import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/pl
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
 
 export class JSONMode extends AbstractMode {
 
@@ -47,11 +51,14 @@ export class JSONMode extends AbstractMode {
 
 	private _modeWorkerManager: ModeWorkerManager<jsonWorker.JSONWorker>;
 	private _threadService:IThreadService;
+	private _validationHelper:ValidationHelper;
 
 	constructor(
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService
+		@IThreadService threadService: IThreadService,
+		@IModelService modelService: IModelService,
+		@IMarkerService markerService: IMarkerService
 	) {
 		super(descriptor.id);
 		this._modeWorkerManager = new ModeWorkerManager<jsonWorker.JSONWorker>(descriptor, 'vs/languages/json/common/jsonWorker', 'JSONWorker', null, instantiationService);
@@ -97,6 +104,18 @@ export class JSONMode extends AbstractMode {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		}, true);
+
+		if (modelService && markerService) {
+			this._validationHelper = new ValidationHelper(modelService, this.getId(), (uris) => {
+				this._validate(uris).then((result) => {
+					result.forEach(r => {
+						markerService.changeOne(this.getId(), r.resource, r.markerData);
+					});
+				}, onUnexpectedError);
+			});
+		} else {
+			this._validationHelper = null;
+		}
 	}
 
 	public creationDone(): void {
@@ -121,20 +140,28 @@ export class JSONMode extends AbstractMode {
 
 	public configure(options:any): WinJS.TPromise<void> {
 		if (this._threadService.isInMainThread) {
-			return this._configureWorkers(options);
+			if (this._validationHelper) {
+				this._validationHelper.validateAll();
+			}
+			return this._configureWorker(options);
 		} else {
 			return this._worker((w) => w._doConfigure(options));
 		}
 	}
 
-	static $_configureWorkers = CompatWorkerAttr(JSONMode, JSONMode.prototype._configureWorkers);
-	private _configureWorkers(options:any): WinJS.TPromise<void> {
+	static $_configureWorker = CompatWorkerAttr(JSONMode, JSONMode.prototype._configureWorker);
+	private _configureWorker(options:any): WinJS.TPromise<void> {
 		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $_configureWorkerSchemas = CompatWorkerAttr(JSONMode, JSONMode.prototype._configureWorkerSchemas);
 	private _configureWorkerSchemas(data:ISchemaContributions): WinJS.TPromise<boolean> {
 		return this._worker((w) => w.setSchemaContributions(data));
+	}
+
+	static $_validate = CompatWorkerAttr(JSONMode, JSONMode.prototype._validate);
+	private _validate(uris:URI[]): WinJS.TPromise<jsonWorker.ValidationResult[]> {
+		return this._worker((w) => w.validate(uris));
 	}
 
 	static $navigateValueSet = CompatWorkerAttr(JSONMode, JSONMode.prototype.navigateValueSet);
@@ -165,5 +192,61 @@ export class JSONMode extends AbstractMode {
 	static $_provideDocumentRangeFormattingEdits = CompatWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentRangeFormattingEdits);
 	public _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.FormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
+	}
+}
+
+class ValidationHelper {
+
+	private _disposables: IDisposable[] = [];
+	private _listener: { [uri: string]: IDisposable } = Object.create(null);
+
+	constructor(
+		private _modelService: IModelService,
+		private _selector: string,
+		private _validate:(what:URI[])=>void
+	) {
+		const onModelAdd = (model: editorCommon.IModel): void => {
+			if (model.getModeId() !== _selector) {
+				return;
+			}
+
+			let handle: number;
+			this._listener[model.uri.toString()] = model.onDidChangeContent(() => {
+				clearTimeout(handle);
+				handle = setTimeout(() => this._validate([model.uri]), 500);
+			});
+
+			handle = setTimeout(() => this._validate([model.uri]), 500);
+		};
+
+		const onModelRemoved = (model: editorCommon.IModel): void => {
+			delete this._listener[model.uri.toString()];
+		};
+
+		this._disposables.push(this._modelService.onModelAdded(onModelAdd));
+		this._disposables.push(this._modelService.onModelRemoved(onModelRemoved));
+		this._disposables.push(this._modelService.onModelModeChanged(event => {
+			onModelRemoved(event.model);
+			onModelAdd(event.model);
+		}));
+
+		this._disposables.push({
+			dispose: () => {
+				for (let key in this._listener) {
+					this._listener[key].dispose();
+				}
+			}
+		});
+
+		this._modelService.getModels().forEach(onModelAdd);
+	}
+
+	public dispose(): void {
+		this._disposables.forEach(d => d && d.dispose());
+		this._disposables = [];
+	}
+
+	public validateAll(): void {
+		this._validate(Object.keys(this._listener).map(uri => URI.parse(uri)));
 	}
 }
