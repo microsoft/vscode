@@ -18,8 +18,7 @@ export interface IThreadService {
 	// --- BEGIN deprecated methods
 	isInMainThread: boolean;
 
-	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
-	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[]): TPromise<any>;
+	CompatWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[]): TPromise<any>;
 
 	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
 	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
@@ -35,13 +34,6 @@ export class IRemotableCtorMap {
 	[identifier: string]: Function;
 }
 
-export class IRemotableCtorAffinityMap {
-	[identifier: string]: {
-		ctor: Function;
-		affinity: ThreadAffinity;
-	};
-}
-
 export class Remotable {
 
 	private static PROP_NAME = '$__REMOTABLE_ID';
@@ -49,7 +41,7 @@ export class Remotable {
 	public static Registry = {
 		MainContext: <IRemotableCtorMap>Object.create(null),
 		ExtHostContext: <IRemotableCtorMap>Object.create(null),
-		WorkerContext: <IRemotableCtorAffinityMap>Object.create(null),
+		WorkerContext: <IRemotableCtorMap>Object.create(null),
 	};
 
 	public static getId(ctor: any): string {
@@ -72,13 +64,10 @@ export class Remotable {
 		};
 	}
 
-	public static WorkerContext(identifier: string, whichWorker: ThreadAffinity) {
+	public static WorkerContext(identifier: string) {
 		return function(target: Function) {
 			Remotable._ensureUnique(identifier);
-			Remotable.Registry.WorkerContext[identifier] = {
-				ctor: target,
-				affinity: whichWorker
-			};
+			Remotable.Registry.WorkerContext[identifier] = target;
 			target[Remotable.PROP_NAME] = identifier;
 		};
 	}
@@ -96,18 +85,4 @@ export interface IThreadSynchronizableObject {
 	creationDone?: () => void;
 
 	asyncCtor?: () => TPromise<void>;
-}
-
-export enum ThreadAffinity {
-	None = 0,
-	Group1 = 1,
-	Group2 = 2,
-	Group3 = 3,
-	Group4 = 4,
-	Group5 = 5,
-	Group6 = 6,
-	Group7 = 7,
-	Group8 = 8,
-	Group9 = 9,
-	All = 10
 }

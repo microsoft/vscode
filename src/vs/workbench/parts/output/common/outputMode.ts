@@ -9,8 +9,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {OutputWorker} from 'vs/workbench/parts/output/common/outputWorker';
-import winjs = require('vs/base/common/winjs.base');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {CompatWorkerAttr} from 'vs/platform/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -38,12 +38,12 @@ export class OutputMode extends AbstractMode {
 		});
 	}
 
-	private _worker<T>(runner: (worker: OutputWorker) => winjs.TPromise<T>): winjs.TPromise<T> {
+	private _worker<T>(runner: (worker: OutputWorker) => TPromise<T>): TPromise<T> {
 		return this._modeWorkerManager.worker(runner);
 	}
 
-	static $_provideLinks = OneWorkerAttr(OutputMode, OutputMode.prototype._provideLinks);
-	private _provideLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
+	static $_provideLinks = CompatWorkerAttr(OutputMode, OutputMode.prototype._provideLinks);
+	private _provideLinks(resource: URI): TPromise<modes.ILink[]> {
 		return this._worker((w) => w.provideLinks(resource));
 	}
 }

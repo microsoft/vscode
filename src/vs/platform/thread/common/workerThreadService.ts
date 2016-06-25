@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import remote = require('vs/base/common/remote');
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 
 export class WorkerThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
@@ -48,11 +48,7 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		}
 	}
 
-	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
-		return target.apply(obj, params);
-	}
-
-	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
+	CompatWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
@@ -72,7 +68,7 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		throw new Error('Not supported in this runtime context!');
 	}
 
-	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker: ThreadAffinity): T {
+	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 		return this._getOrCreateLocalInstance(id, descriptor);
 	}
 

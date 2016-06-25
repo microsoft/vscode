@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as flags from 'vs/base/common/flags';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -237,12 +236,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let eventService = services.eventService || new EventService();
 	let configurationService = services.configurationService || new SimpleConfigurationService(contextService, eventService);
 
-	// warn the user that standaloneEdiktorTelemetryEndpint is absolete
-	if (flags.standaloneEditorTelemetryEndpoint) {
-		console.warn('standaloneEditorTelemetryEndpoint is obsolete');
-	}
-
-	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
+	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer');
 	let messageService = services.messageService || new SimpleMessageService();
 	let extensionService = services.extensionService || new SimpleExtensionService();
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);

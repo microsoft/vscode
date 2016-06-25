@@ -185,11 +185,6 @@ export class WorkerServer {
 					(<any>self).require.config(loaderConfig);
 				}
 
-				var MonacoEnvironment = msg.payload.MonacoEnvironment;
-				if (MonacoEnvironment) {
-					(<any>self).MonacoEnvironment = MonacoEnvironment;
-				}
-
 				this.loadModule(msg.payload.moduleId, (handlerModule:any) => {
 					this._requestHandler = handlerModule.value;
 					c();

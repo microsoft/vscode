@@ -47,7 +47,7 @@ export class MainThreadService extends CommonMainThreadService {
 		@IWindowService windowService: IWindowService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		super(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
+		super(contextService, 'vs/editor/common/worker/editorWorkerServer');
 
 		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService);
 

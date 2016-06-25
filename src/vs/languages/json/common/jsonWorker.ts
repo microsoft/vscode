@@ -98,6 +98,9 @@ export class JSONWorker {
 			this._modeId,
 			(toValidate) => this.doValidate(toValidate)
 		);
+		if (markerService) {
+			this._validationHelper.enable();
+		}
 
 		this.requestService = requestService;
 		this.contextService = contextService;
@@ -202,11 +205,6 @@ export class JSONWorker {
 	public setSchemaContributions(contributions:ISchemaContributions): WinJS.TPromise<boolean> {
 		this.schemaService.setSchemaContributions(contributions);
 		return WinJS.TPromise.as(true);
-	}
-
-	public enableValidator(): WinJS.TPromise<void> {
-		this._validationHelper.enable();
-		return WinJS.TPromise.as(null);
 	}
 
 	public doValidate(resources: URI[]):void {

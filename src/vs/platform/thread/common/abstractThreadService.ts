@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import remote = require('vs/base/common/remote');
-import {ThreadAffinity, Remotable, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
+import {Remotable, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {THREAD_SERVICE_PROPERTY_NAME} from 'vs/platform/thread/common/threadService';
 import instantiation = require('vs/platform/instantiation/common/instantiation');
 import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
@@ -101,6 +101,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	}
 
 	protected _getOrCreateProxyInstance(remoteCom: remote.IProxyHelper, id: string, descriptor: SyncDescriptor0<any>): any {
+		// console.log(`_getOrCreateProxyInstance: ${id}, ${descriptor}`);
 		if (this._proxyObjMap[id]) {
 			return this._proxyObjMap[id];
 		}
@@ -139,7 +140,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		}
 
 		if (Remotable.Registry.WorkerContext[id]) {
-			return this._registerAndInstantiateWorkerActor(id, desc, Remotable.Registry.WorkerContext[id].affinity);
+			return this._registerAndInstantiateWorkerActor(id, desc);
 		}
 
 		throw new Error('Unknown Remotable: <<' + id + '>>');
@@ -170,7 +171,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	protected abstract _registerMainProcessActor<T>(id: string, actor: T): void;
 	protected abstract _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
 	protected abstract _registerExtHostActor<T>(id: string, actor: T): void;
-	protected abstract _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker: ThreadAffinity): T;
+	protected abstract _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
 	protected abstract _registerWorkerActor<T>(id: string, actor: T): void;
 }
 

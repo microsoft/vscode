@@ -12,8 +12,8 @@ import Platform = require('vs/platform/platform');
 import jsonWorker = require('vs/languages/json/common/jsonWorker');
 import tokenization = require('vs/languages/json/common/features/tokenization');
 import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
-import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {CompatWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -101,9 +101,6 @@ export class JSONMode extends AbstractMode {
 
 	public creationDone(): void {
 		if (this._threadService.isInMainThread) {
-			// Pick a worker to do validation
-			this._pickAWorkerToValidate();
-
 			// Configure all workers
 			this._configureWorkerSchemas(this.getSchemaConfiguration());
 			var contributionRegistry = <IJSONContributionRegistry> Platform.Registry.as(Extensions.JSONContribution);
@@ -130,47 +127,42 @@ export class JSONMode extends AbstractMode {
 		}
 	}
 
-	static $_configureWorkers = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkers);
+	static $_configureWorkers = CompatWorkerAttr(JSONMode, JSONMode.prototype._configureWorkers);
 	private _configureWorkers(options:any): WinJS.TPromise<void> {
 		return this._worker((w) => w._doConfigure(options));
 	}
 
-	static $_configureWorkerSchemas = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkerSchemas);
+	static $_configureWorkerSchemas = CompatWorkerAttr(JSONMode, JSONMode.prototype._configureWorkerSchemas);
 	private _configureWorkerSchemas(data:ISchemaContributions): WinJS.TPromise<boolean> {
 		return this._worker((w) => w.setSchemaContributions(data));
 	}
 
-	static $_pickAWorkerToValidate = OneWorkerAttr(JSONMode, JSONMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
-	private _pickAWorkerToValidate(): WinJS.TPromise<void> {
-		return this._worker((w) => w.enableValidator());
-	}
-
-	static $navigateValueSet = OneWorkerAttr(JSONMode, JSONMode.prototype.navigateValueSet);
+	static $navigateValueSet = CompatWorkerAttr(JSONMode, JSONMode.prototype.navigateValueSet);
 	public navigateValueSet(resource:URI, position:editorCommon.IRange, up:boolean):WinJS.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
-	static $_provideCompletionItems = OneWorkerAttr(JSONMode, JSONMode.prototype._provideCompletionItems);
+	static $_provideCompletionItems = CompatWorkerAttr(JSONMode, JSONMode.prototype._provideCompletionItems);
 	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.ISuggestResult[]> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
-	static $_provideHover = OneWorkerAttr(JSONMode, JSONMode.prototype._provideHover);
+	static $_provideHover = CompatWorkerAttr(JSONMode, JSONMode.prototype._provideHover);
 	private _provideHover(resource:URI, position:editorCommon.IPosition): WinJS.TPromise<modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $_provideDocumentSymbols = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentSymbols);
+	static $_provideDocumentSymbols = CompatWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentSymbols);
 	private _provideDocumentSymbols(resource:URI):WinJS.TPromise<modes.SymbolInformation[]> {
 		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
-	static $_provideDocumentFormattingEdits = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentFormattingEdits);
+	static $_provideDocumentFormattingEdits = CompatWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentFormattingEdits);
 	public _provideDocumentFormattingEdits(resource:URI, options:modes.FormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, null, options));
 	}
 
-	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentRangeFormattingEdits);
+	static $_provideDocumentRangeFormattingEdits = CompatWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentRangeFormattingEdits);
 	public _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.FormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
 	}
