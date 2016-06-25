@@ -17,12 +17,18 @@ if (os.platform() === 'win32') {
 } else {
 	name = fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm';
 }
-
-var ptyProcess = ptyJs.fork(process.env.PTYSHELL, getArgs(), {
-	name: name,
-	cwd: process.env.PTYCWD
-});
+var shell = process.env.PTYSHELL;
+var args = getArgs();
+var cwd = process.env.PTYCWD;
 var currentTitle = '';
+
+setupPlanB(process.env.PTYPID);
+cleanEnv();
+
+var ptyProcess = ptyJs.fork(shell, args, {
+	name: name,
+	cwd: cwd
+});
 
 ptyProcess.on('data', function (data) {
 	process.send({
@@ -43,7 +49,6 @@ process.on('message', function (message) {
 	}
 });
 
-setupPlanB(process.env.PTYPID);
 setupTitlePolling();
 
 function getArgs() {
@@ -54,6 +59,16 @@ function getArgs() {
 		i++;
 	}
 	return args;
+}
+
+function cleanEnv() {
+	delete process.env['PTYSHELL'];
+	delete process.env['PTYCWD'];
+	delete process.env['PTYPID'];
+	var i = 0;
+	while (process.env['PTYSHELLARG' + i]) {
+		delete process.env['PTYSHELLARG' + i];
+	}
 }
 
 function setupPlanB(parentPid) {
