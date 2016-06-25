@@ -105,14 +105,20 @@ export class EditorWorkerServer {
 		const modeService = new ModeServiceImpl(instantiationService, extensionService);
 		services.set(IModeService, modeService);
 
-		this.compatWorkerService = new CompatWorkerServiceWorker(resourceService, modeService, mainThread.getRemoteCom(), initData.modesRegistryData);
+		this.compatWorkerService = new CompatWorkerServiceWorker(resourceService, modeService, initData.modesRegistryData);
 		services.set(ICompatWorkerService, this.compatWorkerService);
 
 		complete(undefined);
 	}
 
 	public request(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, data:any):void {
-		throw new Error('unexpected!');
+		try {
+			TPromise.as(
+				this.compatWorkerService.handleMainRequest(data.target, data.methodName, data.args)
+			).then(complete, error);
+		} catch (err) {
+			error(err);
+		}
 	}
 }
 
