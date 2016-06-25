@@ -12,12 +12,12 @@
 		var initData = {};
 
 		function styleBody(body) {
-			if (body) {
-				body.classList.remove.apply(body.classList, initData.bodyClasses.remove);
-				body.classList.add(initData.bodyClasses.add);
+			if (!body) {
+				return
 			}
+			body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
+			body.classList.add(initData.activeTheme);
 		}
-
 
 		const ipcRenderer = require('electron').ipcRenderer;
 		const target = document.getElementById('_target');
@@ -26,9 +26,9 @@
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', function(event, value, bodyClasses) {
+		ipcRenderer.on('styles', function(event, value, activeTheme) {
 			initData.styles = value;
-			initData.bodyClasses = bodyClasses;
+			initData.activeTheme = activeTheme;
 
 			// webview
 			let defaultStyles = document.getElementById('_defaultStyles');
