@@ -62,9 +62,17 @@ function getArgs() {
 }
 
 function cleanEnv() {
-	delete process.env['PTYSHELL'];
-	delete process.env['PTYCWD'];
-	delete process.env['PTYPID'];
+	var keys = [
+		'ATOM_SHELL_INTERNAL_RUN_AS_NODE',
+		'PTYCWD',
+		'PTYPID',
+		'PTYSHELL'
+	];
+	keys.forEach(function (key) {
+		if (process.env[key]) {
+			delete process.env[key];
+		}
+	});
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		delete process.env['PTYSHELLARG' + i];
