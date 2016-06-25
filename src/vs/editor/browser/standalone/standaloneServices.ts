@@ -14,7 +14,7 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -26,8 +26,6 @@ import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IStorageService, NullStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -41,6 +39,8 @@ import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServic
 import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/browser/menuService';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -51,7 +51,7 @@ export interface IEditorOverrideServices {
 	/**
 	 * @internal
 	 */
-	threadService?:IThreadService;
+	compatWorkerService?: ICompatWorkerService;
 	/**
 	 * @internal
 	 */
@@ -140,7 +140,7 @@ export interface IEditorOverrideServices {
 
 export interface IStaticServices {
 	configurationService: IConfigurationService;
-	threadService: IThreadService;
+	compatWorkerService: ICompatWorkerService;
 	modeService: IModeService;
 	extensionService: IExtensionService;
 	markerService: IMarkerService;
@@ -216,42 +216,62 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	}
 	services = services || {};
 
-	let contextService = services.contextService;
-	if (!contextService) {
-		contextService = new BaseWorkspaceContextService({
-			resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' }),
-			id: null,
-			name: null,
-			uid: null,
-			mtime: null
-		}, {});
-	}
+	let serviceCollection = new ServiceCollection();
+	const instantiationService = new InstantiationService(serviceCollection, true);
 
-	let telemetryService = services.telemetryService;
+	let contextService = services.contextService || new BaseWorkspaceContextService({
+		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' }),
+		id: null,
+		name: null,
+		uid: null,
+		mtime: null
+	}, {});
+	serviceCollection.set(IWorkspaceContextService, contextService);
 
-	if (!telemetryService) {
-		telemetryService = NullTelemetryService;
-	}
+	let telemetryService = services.telemetryService || NullTelemetryService;
+	serviceCollection.set(ITelemetryService, telemetryService);
 
 	let eventService = services.eventService || new EventService();
-	let configurationService = services.configurationService || new SimpleConfigurationService(contextService, eventService);
+	serviceCollection.set(IEventService, eventService);
 
-	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer');
+	let configurationService = services.configurationService || new SimpleConfigurationService(contextService, eventService);
+	serviceCollection.set(IConfigurationService, configurationService);
+
 	let messageService = services.messageService || new SimpleMessageService();
+	serviceCollection.set(IMessageService, messageService);
+
 	let extensionService = services.extensionService || new SimpleExtensionService();
+	serviceCollection.set(IExtensionService, extensionService);
+
 	let markerService = services.markerService || new MarkerService();
+	serviceCollection.set(IMarkerService, markerService);
+
 	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
-	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, extensionService, configurationService);
-	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService, messageService);
+	serviceCollection.set(IRequestService, requestService);
+
+	let modeService = services.modeService || new MainThreadModeServiceImpl(instantiationService, extensionService, configurationService);
+	serviceCollection.set(IModeService, modeService);
+
+	let modelService = services.modelService || new ModelServiceImpl(markerService, configurationService, messageService);
+	serviceCollection.set(IModelService, modelService);
+
+	let compatWorkerService = services.compatWorkerService || new MainThreadCompatWorkerService(contextService, modelService);
+	serviceCollection.set(ICompatWorkerService, compatWorkerService);
+
 	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
+	serviceCollection.set(IEditorWorkerService, editorWorkerService);
+
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
+	serviceCollection.set(ICodeEditorService, codeEditorService);
+
 	let menuService = services.menuService || new MenuService(extensionService);
+	serviceCollection.set(IMenuService, menuService);
 
 	staticServices = {
 		configurationService: configurationService,
 		extensionService: extensionService,
+		compatWorkerService: compatWorkerService,
 		modeService: modeService,
-		threadService: threadService,
 		markerService: markerService,
 		menuService: menuService,
 		contextService: contextService,
@@ -263,23 +283,8 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		editorWorkerService: editorWorkerService,
 		eventService: eventService,
 		storageService: services.storageService || NullStorageService,
-		instantiationService: void 0
+		instantiationService: instantiationService
 	};
-
-	let serviceCollection = new ServiceCollection();
-	for (var legacyServiceId in staticServices) {
-		if (staticServices.hasOwnProperty(legacyServiceId)) {
-			let id = createDecorator(legacyServiceId);
-			let element = staticServices[legacyServiceId];
-			serviceCollection.set(id, element);
-		}
-	}
-	let instantiationService = new InstantiationService(serviceCollection);
-
-	staticServices.instantiationService = instantiationService;
-	if (threadService instanceof MainThreadService) {
-		threadService.setInstantiationService(instantiationService);
-	}
 
 	return staticServices;
 }

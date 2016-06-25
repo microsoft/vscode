@@ -47,14 +47,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 
 			let objInstantiated: TPromise<IThreadSynchronizableObject>;
 			objInstantiated = instanceOrPromise.then((instance: IThreadSynchronizableObject): any => {
-				if (instance.asyncCtor) {
-					let initPromise = instance.asyncCtor();
-					if (TPromise.is(initPromise)) {
-						return initPromise.then(() => {
-							return instance;
-						});
-					}
-				}
 				return instance;
 			});
 
@@ -80,10 +72,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	private _finishInstance(instance: IThreadSynchronizableObject): IThreadSynchronizableObject {
 		instance[THREAD_SERVICE_PROPERTY_NAME] = this;
 		this._boundObjects[instance.getId()] = instance;
-
-		if (instance.creationDone) {
-			instance.creationDone();
-		}
 
 		return instance;
 	}

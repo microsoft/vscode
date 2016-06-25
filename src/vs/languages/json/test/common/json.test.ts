@@ -8,10 +8,6 @@ import jsonMode = require('vs/languages/json/common/json');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import jsonTokenTypes = require('vs/languages/json/common/features/jsonTokenTypes');
-import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 suite('JSON - tokenization', () => {
 
@@ -20,16 +16,10 @@ suite('JSON - tokenization', () => {
 
 	(function() {
 
-		let threadService = NULL_THREAD_SERVICE;
-		let services = new ServiceCollection();
-		services.set(IThreadService, threadService);
-		let inst = new InstantiationService(services);
-		threadService.setInstantiationService(inst);
-
 		let mode = new jsonMode.JSONMode(
 			{ id: 'json' },
-			inst,
-			threadService,
+			null,
+			null,
 			null,
 			null
 		);

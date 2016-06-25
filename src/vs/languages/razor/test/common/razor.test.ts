@@ -9,32 +9,18 @@ import Modes = require('vs/editor/common/modes');
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
 import {RAZORMode} from 'vs/languages/razor/common/razor';
-import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 suite('Syntax Highlighting - Razor', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
 
 	(function() {
-
-		let threadService = NULL_THREAD_SERVICE;
-		let modeService = new MockModeService();
-		let services = new ServiceCollection();
-		services.set(IThreadService, threadService);
-		services.set(IModeService, modeService);
-		let inst = new InstantiationService(services);
-		threadService.setInstantiationService(inst);
-
 		let mode = new RAZORMode(
 			{ id: 'razor' },
-			inst,
-			modeService,
-			threadService
+			null,
+			new MockModeService(),
+			null
 		);
 
 		tokenizationSupport = mode.tokenizationSupport;

@@ -27,12 +27,12 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 				if (!this._boundObjects.hasOwnProperty(identifier)) {
 					return TPromise.wrapError(new Error('Bound object `' + identifier + '` was not found.'));
 				}
-				//					console.log(identifier + ' > ' + memberName);
+				// console.log(identifier + ' > ' + memberName);
 				let obj = this._boundObjects[identifier];
 				return TPromise.as(obj[memberName].apply(obj, args));
 			});
 		}
-		//			console.log(identifier + ' > ' + memberName);
+		// console.log(identifier + ' > ' + memberName);
 		let obj = this._boundObjects[identifier];
 		return TPromise.as(obj[memberName].apply(obj, args));
 	}
@@ -53,7 +53,7 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 	}
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-		return this._getOrCreateProxyInstance(this._remoteCom, id, descriptor);
+		throw new Error('Not supported in this runtime context! Not allowed to make requests back to the main thread!');
 	}
 
 	protected _registerMainProcessActor<T>(id: string, actor: T): void {

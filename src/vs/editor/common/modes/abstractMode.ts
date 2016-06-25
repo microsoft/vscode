@@ -15,6 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import * as wordHelper from 'vs/editor/common/model/wordHelper';
+import {ICompatWorkerService, ICompatMode} from 'vs/editor/common/services/compatWorkerService';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return wordHelper.createWordRegExp(allowInWords);
@@ -117,6 +118,21 @@ export abstract class AbstractMode implements modes.IMode {
 			}
 		};
 	}
+}
+
+export abstract class CompatMode extends AbstractMode implements ICompatMode {
+
+	public compatWorkerService:ICompatWorkerService;
+
+	constructor(modeId:string, compatWorkerService:ICompatWorkerService) {
+		super(modeId);
+		this.compatWorkerService = compatWorkerService;
+
+		if (this.compatWorkerService) {
+			this.compatWorkerService.registerCompatMode(this);
+		}
+	}
+
 }
 
 class SimplifiedMode implements modes.IMode {

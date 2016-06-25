@@ -11,12 +11,7 @@ import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
-import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {HTMLMode} from 'vs/languages/html/common/html';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 
 suite('HTML - worker', () => {
@@ -24,22 +19,12 @@ suite('HTML - worker', () => {
 	var mode: Modes.IMode;
 
 	(function() {
-
-		let threadService = NULL_THREAD_SERVICE;
-		let modeService = new MockModeService();
-		let services = new ServiceCollection();
-		services.set(IThreadService, threadService);
-		services.set(IModeService, modeService);
-		let inst = new InstantiationService(services);
-		threadService.setInstantiationService(inst);
-
 		mode = new HTMLMode<htmlWorker.HTMLWorker>(
 			{ id: 'html' },
-			inst,
-			modeService,
-			threadService
+			null,
+			new MockModeService(),
+			null
 		);
-
 	})();
 
 	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {

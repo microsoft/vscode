@@ -13,8 +13,8 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
 
 export enum States {
 	HTML,
@@ -154,9 +154,9 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
-		@IThreadService threadService: IThreadService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService
 	) {
-		super(descriptor, instantiationService, modeService, threadService);
+		super(descriptor, instantiationService, modeService, compatWorkerService);
 	}
 
 	protected _registerSupports(): void {

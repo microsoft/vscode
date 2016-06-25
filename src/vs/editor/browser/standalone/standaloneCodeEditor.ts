@@ -10,7 +10,6 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -248,10 +247,7 @@ export var startup = (function() {
 				return;
 			}
 			modesRegistryInitialized = true;
-			var staticServices = getOrCreateStaticServices();
-
-			// Instantiate thread actors
-			staticServices.threadService.getRemotable(RemoteTelemetryServiceHelper);
+			getOrCreateStaticServices();
 		},
 
 		setupServices: function(services: IEditorOverrideServices): IEditorOverrideServices {
