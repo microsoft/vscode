@@ -24,7 +24,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
-import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
+import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

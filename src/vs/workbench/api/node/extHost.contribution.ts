@@ -19,7 +19,7 @@ import {MainThreadFileSystemEventService} from 'vs/workbench/api/node/extHostFil
 import {MainThreadQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
 import {MainThreadStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
 import {MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
+import {RemoteTelemetryServiceHelper} from 'vs/workbench/api/node/extHostTelemetry';
 import {MainThreadDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {MainThreadOutputService} from 'vs/workbench/api/node/extHostOutputService';
 import {MainThreadMessageService} from 'vs/workbench/api/node/extHostMessageService';
