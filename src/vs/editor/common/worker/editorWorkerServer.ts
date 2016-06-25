@@ -19,16 +19,15 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {ModeServiceImpl, ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
+import {IModeService, ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-
+import {CompatWorkerServiceWorker} from 'vs/editor/common/services/compatWorkerServiceWorker';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {ILegacyLanguageDefinition} from 'vs/editor/common/modes/modesRegistry';
 
 export interface IInitData {
 	contextService: {
@@ -36,14 +35,10 @@ export interface IInitData {
 		configuration:any;
 		options:any;
 	};
-}
-
-interface IWorkspaceWithTelemetry extends IWorkspace {
-	telemetry?:string;
-}
-
-interface IWorkspaceWithSearch extends IWorkspace {
-	search?:string;
+	modesRegistryData?: {
+		compatModes: ILegacyLanguageDefinition[];
+		languages: ILanguageExtensionPoint[];
+	};
 }
 
 export interface ICallback {
@@ -79,12 +74,11 @@ class WorkerExtensionService extends AbstractExtensionService<ActivatedExtension
 	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		throw new Error('unexpected');
 	}
-
 }
 
 export class EditorWorkerServer {
 
-	private threadService:WorkerThreadService;
+	private compatWorkerService:CompatWorkerServiceWorker;
 
 	constructor() {
 	}
@@ -92,35 +86,33 @@ export class EditorWorkerServer {
 	public initialize(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, initData:IInitData):void {
 
 		const services = new ServiceCollection();
+		const instantiationService = new InstantiationService(services);
 
 		const extensionService = new WorkerExtensionService();
-		const contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
-		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
-		this.threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, this.threadService])));
-		const resourceService = new ResourceService();
-		const modeService = new ModeServiceImpl(this.threadService, extensionService);
-		const requestService = new BaseRequestService(contextService, NullTelemetryService);
-
 		services.set(IExtensionService, extensionService);
-		services.set(IThreadService, this.threadService);
-		services.set(IModeService, modeService);
+
+		const contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 		services.set(IWorkspaceContextService, contextService);
-		services.set(IEventService, new EventService());
+
+		const resourceService = new ResourceService();
 		services.set(IResourceService, resourceService);
+
+		const requestService = new BaseRequestService(contextService, NullTelemetryService);
 		services.set(IRequestService, requestService);
 
-		const instantiationService = new InstantiationService(services);
-		this.threadService.setInstantiationService(instantiationService);
+		services.set(IEventService, new EventService());
 
-		// Instantiate thread actors
-		this.threadService.getRemotable(ModeServiceWorkerHelper);
-		this.threadService.getRemotable(ModelServiceWorkerHelper);
+		const modeService = new ModeServiceImpl(instantiationService, extensionService);
+		services.set(IModeService, modeService);
+
+		this.compatWorkerService = new CompatWorkerServiceWorker(resourceService, modeService, mainThread.getRemoteCom(), initData.modesRegistryData);
+		services.set(ICompatWorkerService, this.compatWorkerService);
 
 		complete(undefined);
 	}
 
 	public request(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, data:any):void {
-		this.threadService.dispatch(data).then(complete, error, progress);
+		throw new Error('unexpected!');
 	}
 }
 

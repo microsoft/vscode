@@ -15,7 +15,8 @@ ModesRegistry.registerCompatMode({
 	aliases: ['HTML', 'htm', 'html', 'xhtml'],
 	mimetypes: ['text/html', 'text/x-jshtm', 'text/template', 'text/ng-template'],
 	moduleId: 'vs/languages/html/common/html',
-	ctorName: 'HTMLMode'
+	ctorName: 'HTMLMode',
+	deps: ['text/css', 'text/javascript']
 });
 
 var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);

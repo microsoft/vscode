@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
@@ -15,15 +14,11 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {anonymize} from 'vs/platform/telemetry/common/telemetry';
-import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode} from 'vs/editor/common/modes';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
@@ -42,14 +37,12 @@ function MODEL_ID(resource: URI): string {
 
 class ModelData implements IDisposable {
 	model: editorCommon.IModel;
-	isSyncedToWorkers: boolean;
 
 	private _markerDecorations: string[];
 	private _modelEventsListener: IDisposable;
 
 	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: EmitterEvent[]) => void) {
 		this.model = model;
-		this.isSyncedToWorkers = false;
 
 		this._markerDecorations = [];
 		this._modelEventsListener = model.addBulkListener((events) => eventsHandler(this, events));
@@ -189,12 +182,9 @@ export class ModelServiceImpl implements IModelService {
 
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;
-	private _threadService: IThreadService;
-	private _modeService: IModeService;
 	private _messageService: IMessageService;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
-	private _workerHelper: ModelServiceWorkerHelper;
 
 	private _onModelAdded: Emitter<editorCommon.IModel>;
 	private _onModelRemoved: Emitter<editorCommon.IModel>;
@@ -210,9 +200,7 @@ export class ModelServiceImpl implements IModelService {
 	private _models: { [modelId: string]: ModelData; };
 
 	constructor(
-		@IThreadService threadService: IThreadService,
 		@IMarkerService markerService: IMarkerService,
-		@IModeService modeService: IModeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMessageService messageService: IMessageService
 	) {
@@ -223,10 +211,7 @@ export class ModelServiceImpl implements IModelService {
 			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF,
 			trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE
 		};
-		this._threadService = threadService;
 		this._markerService = markerService;
-		this._modeService = modeService;
-		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
 		this._configurationService = configurationService;
 		this._messageService = messageService;
 		this._hasShownMigrationMessage = false;
@@ -357,14 +342,6 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _shouldSyncModelToWorkers(model: editorCommon.IModel): boolean {
-		if (model.isTooLargeForHavingARichMode()) {
-			return false;
-		}
-		// Only sync models with compat modes to the workers
-		return this._modeService.isCompatMode(model.getMode().getId());
-	}
-
 	private _createModelData(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ModelData {
 		// create & save the model
 		let model:Model;
@@ -392,11 +369,6 @@ export class ModelServiceImpl implements IModelService {
 		// handle markers (marker service => model)
 		if (this._markerService) {
 			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.uri }));
-		}
-
-		if (this._shouldSyncModelToWorkers(modelData.model)) {
-			// send this model to the workers
-			this._beginWorkerSync(modelData);
 		}
 
 		this._onModelAdded.fire(modelData.model);
@@ -448,45 +420,14 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- end IModelService
 
-	private _beginWorkerSync(modelData: ModelData): void {
-		if (modelData.isSyncedToWorkers) {
-			throw new Error('Model is already being synced to workers!');
-		}
-
-		modelData.isSyncedToWorkers = true;
-		this._workerHelper.$_acceptNewModel(ModelServiceImpl._getBoundModelData(modelData.model));
-	}
-
-	private _stopWorkerSync(modelData: ModelData): void {
-		if (!modelData.isSyncedToWorkers) {
-			throw new Error('Model is already not being synced to workers!');
-		}
-		modelData.isSyncedToWorkers = false;
-		this._workerHelper.$_acceptDidDisposeModel(modelData.model.uri);
-	}
-
 	private _onModelDisposing(model: editorCommon.IModel): void {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
-
-		if (modelData.isSyncedToWorkers) {
-			// Dispose model in workers
-			this._stopWorkerSync(modelData);
-		}
 
 		delete this._models[modelId];
 		modelData.dispose();
 
 		this._onModelRemoved.fire(model);
-	}
-
-	private static _getBoundModelData(model: editorCommon.IModel): IRawModelData {
-		return {
-			url: model.uri,
-			versionId: model.getVersionId(),
-			value: model.toRawText(),
-			modeId: model.getMode().getId()
-		};
 	}
 
 	private _onModelEvents(modelData: ModelData, events: EmitterEvent[]): void {
@@ -505,132 +446,11 @@ export class ModelServiceImpl implements IModelService {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
 			if (e.getType() === editorCommon.EventType.ModelModeChanged) {
-				let wasSyncedToWorkers = modelData.isSyncedToWorkers;
-				let shouldSyncToWorkers = this._shouldSyncModelToWorkers(modelData.model);
-
 				this._onModelModeChanged.fire({
 					model: modelData.model,
 					oldModeId: (<editorCommon.IModelModeChangedEvent>e.getData()).oldMode.getId()
 				});
-
-				if (wasSyncedToWorkers) {
-					if (shouldSyncToWorkers) {
-						// true -> true
-						// Forward mode change to all the workers
-						this._workerHelper.$_acceptDidChangeModelMode(modelData.getModelId(), modelData.model.getMode().getId());
-					} else {
-						// true -> false
-						// Stop worker sync for this model
-						this._stopWorkerSync(modelData);
-						// no more processing since we have removed the model from the workers
-						return;
-					}
-				} else {
-					if (shouldSyncToWorkers) {
-						// false -> true
-						// Begin syncing this model to the workers
-						this._beginWorkerSync(modelData);
-						// no more processing since we are sending the latest state
-						return;
-					} else {
-						// false -> false
-						// no more processing since this model was not synced and will not be synced
-						return;
-					}
-				}
 			}
-		}
-
-		if (!modelData.isSyncedToWorkers) {
-			return;
-		}
-
-		// Finally, look for model content changes
-		let eventsForWorkers: IMirrorModelEvents = { contentChanged: [] };
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-
-			if (e.getType() === editorCommon.EventType.ModelRawContentChanged) {
-				eventsForWorkers.contentChanged.push(<editorCommon.IModelContentChangedEvent>e.getData());
-			}
-		}
-
-		if (eventsForWorkers.contentChanged.length > 0) {
-			// Forward events to all the workers
-			this._workerHelper.$_acceptModelEvents(modelData.getModelId(), eventsForWorkers);
-		}
-	}
-}
-
-@Remotable.WorkerContext('ModelServiceWorkerHelper')
-export class ModelServiceWorkerHelper {
-
-	private _resourceService: IResourceService;
-	private _modeService: IModeService;
-
-	constructor(
-		@IResourceService resourceService: IResourceService,
-		@IModeService modeService: IModeService
-	) {
-		this._resourceService = resourceService;
-		this._modeService = modeService;
-	}
-
-	public $_acceptNewModel(data: IRawModelData): TPromise<void> {
-		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(data.versionId, data.value, null, data.url);
-		this._resourceService.insert(mirrorModel.uri, mirrorModel);
-
-		// Block worker execution until the mode is instantiated
-		return this._modeService.getOrCreateMode(data.modeId).then((mode) => {
-			// Changing mode should trigger a remove & an add, therefore:
-
-			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.uri);
-
-			// (2) Change mode
-			mirrorModel.setMode(mode);
-
-			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.uri, mirrorModel);
-		});
-	}
-
-	public $_acceptDidChangeModelMode(modelId: string, newModeId: string): TPromise<void> {
-		let mirrorModel = this._resourceService.get(URI.parse(modelId));
-
-		// Block worker execution until the mode is instantiated
-		return this._modeService.getOrCreateMode(newModeId).then((mode) => {
-			// Changing mode should trigger a remove & an add, therefore:
-
-			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.uri);
-
-			// (2) Change mode
-			mirrorModel.setMode(mode);
-
-			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.uri, mirrorModel);
-		});
-	}
-
-	public $_acceptDidDisposeModel(url: URI): void {
-		let model = <MirrorModel>this._resourceService.get(url);
-		this._resourceService.remove(url);
-		if (model) {
-			model.dispose();
-		}
-	}
-
-	public $_acceptModelEvents(modelId: string, events: IMirrorModelEvents): void {
-		let model = <MirrorModel>this._resourceService.get(URI.parse(modelId));
-		if (!model) {
-			throw new Error('Received model events for missing model ' + anonymize(modelId));
-		}
-		try {
-			model.onEvents(events);
-		} catch (err) {
-			onUnexpectedError(err);
 		}
 	}
 }

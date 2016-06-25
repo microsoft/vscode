@@ -6,17 +6,12 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
-import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -28,15 +23,15 @@ class MockModeService extends ModeServiceImpl {}
 class MockModelService extends ModelServiceImpl { }
 
 export function createMockModeService(): IModeService {
-	var threadService = NULL_THREAD_SERVICE;
+	let services = new ServiceCollection();
+	let inst = new InstantiationService(services);
+
 	var extensionService = new MockExtensionService();
-	var modeService = new MockModeService(threadService, extensionService);
-	var services = new ServiceCollection();
-	services.set(IThreadService, threadService);
 	services.set(IExtensionService, extensionService);
+
+	var modeService = new MockModeService(inst, extensionService);
 	services.set(IModeService, modeService);
-	var inst = new InstantiationService(services);
-	threadService.setInstantiationService(inst);
+
 	return modeService;
 }
 
@@ -48,24 +43,12 @@ export function createMockModelService(): IModelService {
 		uid: null,
 		mtime: null
 	}, {});
+
 	let eventService = new EventService();
+
 	let configurationService = new MockConfigurationService(contextService, eventService);
-	var threadService = NULL_THREAD_SERVICE;
-	var extensionService = new MockExtensionService();
-	var modeService = new MockModeService(threadService, extensionService);
-	var modelService = new MockModelService(threadService, null, modeService, configurationService, null);
 
-	var services = new ServiceCollection();
-	services.set(IThreadService, threadService);
-	services.set(IExtensionService, extensionService);
-	services.set(IModeService, modeService);
-	services.set(IWorkspaceContextService, contextService);
-	services.set(IEventService, eventService);
-	services.set(IConfigurationService, configurationService);
-	var inst = new InstantiationService(services);
-
-	threadService.setInstantiationService(inst);
-	return modelService;
+	return new MockModelService(null, configurationService, null);
 }
 
 export class MockConfigurationService extends ConfigurationService {

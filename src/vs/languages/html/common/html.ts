@@ -9,17 +9,16 @@ import winjs = require('vs/base/common/winjs.base');
 import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
-import { AbstractMode, createWordRegExp, ModeWorkerManager } from 'vs/editor/common/modes/abstractMode';
+import { CompatMode, createWordRegExp, ModeWorkerManager } from 'vs/editor/common/modes/abstractMode';
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
-import {CompatWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
@@ -283,7 +282,7 @@ export class State extends AbstractState {
 	}
 }
 
-export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode implements ITokenizationCustomization {
+export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implements ITokenizationCustomization {
 
 	public static LANG_CONFIG:LanguageConfiguration = {
 		wordPattern: createWordRegExp('#-?%'),
@@ -331,32 +330,23 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public configSupport: modes.IConfigurationSupport;
 
 	private modeService:IModeService;
-	private threadService:IThreadService;
 	private _modeWorkerManager: ModeWorkerManager<W>;
 
 	constructor(
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
-		@IThreadService threadService: IThreadService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService
 	) {
-		super(descriptor.id);
+		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
 
 		this.modeService = modeService;
-		this.threadService = threadService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true);
 		this.configSupport = this;
 
 		this._registerSupports();
-	}
-
-	public asyncCtor(): winjs.Promise {
-		return winjs.Promise.join([
-			this.modeService.getOrCreateMode('text/css'),
-			this.modeService.getOrCreateMode('text/javascript'),
-		]);
 	}
 
 	protected _registerSupports(): void {
@@ -458,15 +448,18 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	}
 
 	public configure(options:any): winjs.TPromise<void> {
-		if (this.threadService.isInMainThread) {
-			return this._configureWorkers(options);
+		if (!this.compatWorkerService) {
+			return;
+		}
+		if (this.compatWorkerService.isInMainThread) {
+			return this._configureWorker(options);
 		} else {
 			return this._worker((w) => w._doConfigure(options));
 		}
 	}
 
-	static $_configureWorkers = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._configureWorkers);
-	private _configureWorkers(options:any): winjs.TPromise<void> {
+	static $_configureWorker = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._configureWorker);
+	private _configureWorker(options:any): winjs.TPromise<void> {
 		return this._worker((w) => w._doConfigure(options));
 	}
 

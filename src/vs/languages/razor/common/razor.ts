@@ -14,8 +14,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
@@ -102,9 +102,9 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
-		@IThreadService threadService: IThreadService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService
 	) {
-		super(descriptor, instantiationService, modeService, threadService);
+		super(descriptor, instantiationService, modeService, compatWorkerService);
 	}
 
 	protected _registerSupports(): void {

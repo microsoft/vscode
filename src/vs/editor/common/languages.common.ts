@@ -24,7 +24,6 @@ import 'vs/platform/request/common/request';
 import 'vs/platform/workspace/common/workspace';
 import 'vs/platform/telemetry/common/telemetry';
 import 'vs/platform/thread/common/thread';
-import 'vs/platform/thread/common/threadService';
 
 // editor common
 import 'vs/editor/common/editorCommon';
@@ -39,3 +38,4 @@ import 'vs/editor/common/modes/supports/suggestSupport';
 import 'vs/editor/common/modes/supports/tokenizationSupport';
 import 'vs/editor/common/services/modelService';
 import 'vs/editor/common/services/modeService';
+import 'vs/editor/common/services/compatWorkerService';

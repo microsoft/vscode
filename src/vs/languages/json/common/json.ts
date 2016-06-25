@@ -11,9 +11,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import Platform = require('vs/platform/platform');
 import jsonWorker = require('vs/languages/json/common/jsonWorker');
 import tokenization = require('vs/languages/json/common/features/tokenization');
-import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
-import {CompatWorkerAttr} from 'vs/platform/thread/common/threadService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {CompatMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -22,8 +20,9 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
+import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
 
-export class JSONMode extends AbstractMode {
+export class JSONMode extends CompatMode {
 
 	public static LANG_CONFIG:LanguageConfiguration = {
 		wordPattern: createWordRegExp('.-'),
@@ -50,19 +49,17 @@ export class JSONMode extends AbstractMode {
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<jsonWorker.JSONWorker>;
-	private _threadService:IThreadService;
 	private _validationHelper:ValidationHelper;
 
 	constructor(
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
-		@IMarkerService markerService: IMarkerService
+		@IMarkerService markerService: IMarkerService,
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService
 	) {
-		super(descriptor.id);
+		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<jsonWorker.JSONWorker>(descriptor, 'vs/languages/json/common/jsonWorker', 'JSONWorker', null, instantiationService);
-		this._threadService = threadService;
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
 
@@ -116,10 +113,8 @@ export class JSONMode extends AbstractMode {
 		} else {
 			this._validationHelper = null;
 		}
-	}
 
-	public creationDone(): void {
-		if (this._threadService.isInMainThread) {
+		if (this.compatWorkerService && this.compatWorkerService.isInMainThread) {
 			// Configure all workers
 			this._configureWorkerSchemas(this.getSchemaConfiguration());
 			var contributionRegistry = <IJSONContributionRegistry> Platform.Registry.as(Extensions.JSONContribution);
@@ -139,7 +134,11 @@ export class JSONMode extends AbstractMode {
 	}
 
 	public configure(options:any): WinJS.TPromise<void> {
-		if (this._threadService.isInMainThread) {
+		if (!this.compatWorkerService) {
+			return;
+		}
+
+		if (this.compatWorkerService.isInMainThread) {
 			if (this._validationHelper) {
 				this._validationHelper.validateAll();
 			}
@@ -210,17 +209,27 @@ class ValidationHelper {
 				return;
 			}
 
-			let handle: number;
-			this._listener[model.uri.toString()] = model.onDidChangeContent(() => {
+			let modelListener = model.onDidChangeContent(() => {
 				clearTimeout(handle);
 				handle = setTimeout(() => this._validate([model.uri]), 500);
 			});
+
+			let handle: number;
+			this._listener[model.uri.toString()] = {
+				dispose: () => {
+					modelListener.dispose();
+					clearTimeout(handle);
+				}
+			};
 
 			handle = setTimeout(() => this._validate([model.uri]), 500);
 		};
 
 		const onModelRemoved = (model: editorCommon.IModel): void => {
-			delete this._listener[model.uri.toString()];
+			if (this._listener[model.uri.toString()]) {
+				this._listener[model.uri.toString()].dispose();
+				delete this._listener[model.uri.toString()];
+			}
 		};
 
 		this._disposables.push(this._modelService.onModelAdded(onModelAdd));

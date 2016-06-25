@@ -12,5 +12,6 @@ ModesRegistry.registerCompatMode({
 	aliases: ['PHP', 'php'],
 	mimetypes: ['application/x-php'],
 	moduleId: 'vs/languages/php/common/php',
-	ctorName: 'PHPMode'
+	ctorName: 'PHPMode',
+	deps: ['text/html']
 });

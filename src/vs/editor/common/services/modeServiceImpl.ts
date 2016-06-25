@@ -16,10 +16,10 @@ import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
-import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -137,7 +137,7 @@ function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:
 export class ModeServiceImpl implements IModeService {
 	public serviceId = IModeService;
 
-	protected _threadService: IThreadService;
+	private _instantiationService: IInstantiationService;
 	protected _extensionService: IExtensionService;
 
 	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
@@ -152,8 +152,8 @@ export class ModeServiceImpl implements IModeService {
 	private _onDidCreateMode: Emitter<modes.IMode> = new Emitter<modes.IMode>();
 	public onDidCreateMode: Event<modes.IMode> = this._onDidCreateMode.event;
 
-	constructor(threadService:IThreadService, extensionService:IExtensionService) {
-		this._threadService = threadService;
+	constructor(instantiationService:IInstantiationService, extensionService:IExtensionService) {
+		this._instantiationService = instantiationService;
 		this._extensionService = extensionService;
 
 		this._activationPromises = {};
@@ -363,22 +363,32 @@ export class ModeServiceImpl implements IModeService {
 		return promise;
 	}
 
-	protected _createMode(modeId:string): TPromise<modes.IMode> {
+	private _createMode(modeId:string): TPromise<modes.IMode> {
 		let modeDescriptor = this._createModeDescriptor(modeId);
 
 		let compatModeData = this._registry.getCompatMode(modeId);
 		if (compatModeData) {
 			// This is a compatibility mode
-			let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
-			return this._threadService.createInstance(compatModeAsyncDescriptor, modeDescriptor).then((compatMode) => {
-				if (compatMode.configSupport) {
-					compatMode.configSupport.configure(this.getConfigurationForMode(modeId));
-				}
-				return compatMode;
+
+			let resolvedDeps: TPromise<modes.IMode[]> = null;
+			if (Array.isArray(compatModeData.deps)) {
+				resolvedDeps = TPromise.join(compatModeData.deps.map(dep => this.getOrCreateMode(dep)));
+			} else {
+				resolvedDeps = TPromise.as<modes.IMode[]>(null);
+			}
+
+			return resolvedDeps.then(_ => {
+				let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
+				return this._instantiationService.createInstance(compatModeAsyncDescriptor, modeDescriptor).then((compatMode) => {
+					if (compatMode.configSupport) {
+						compatMode.configSupport.configure(this.getConfigurationForMode(modeId));
+					}
+					return compatMode;
+				});
 			});
 		}
 
-		return TPromise.as<modes.IMode>(this._threadService.createInstance(FrankensteinMode, modeDescriptor));
+		return TPromise.as<modes.IMode>(this._instantiationService.createInstance(FrankensteinMode, modeDescriptor));
 	}
 
 	private _createModeDescriptor(modeId:string): modes.IModeDescriptor {
@@ -516,18 +526,16 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 }
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {
-	private _hasInitialized: boolean;
 	private _configurationService: IConfigurationService;
 	private _onReadyPromise: TPromise<boolean>;
 
 	constructor(
-		@IThreadService threadService:IThreadService,
+		@IInstantiationService instantiationService:IInstantiationService,
 		@IExtensionService extensionService:IExtensionService,
 		@IConfigurationService configurationService:IConfigurationService
 	) {
-		super(threadService, extensionService);
+		super(instantiationService, extensionService);
 		this._configurationService = configurationService;
-		this._hasInitialized = false;
 
 		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
 			let allValidLanguages: IValidLanguageExtensionPoint[] = [];
@@ -589,69 +597,5 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 				mime.registerTextMime({ mime: this.getMimeForMode(configuration.files.associations[pattern]), filepattern: pattern, userConfigured: true });
 			});
 		}
-	}
-
-	private _getModeServiceWorkerHelper(): ModeServiceWorkerHelper {
-		let r = this._threadService.getRemotable(ModeServiceWorkerHelper);
-		if (!this._hasInitialized) {
-			this._hasInitialized = true;
-
-			let initData = {
-				compatModes: ModesRegistry.getCompatModes(),
-				languages: ModesRegistry.getLanguages()
-			};
-
-			r._initialize(initData);
-
-			ModesRegistry.onDidAddCompatModes((m) => r._acceptCompatModes(m));
-			ModesRegistry.onDidAddLanguages((m) => r._acceptLanguages(m));
-		}
-		return r;
-	}
-
-	public configureModeById(modeId:string, options:any):void {
-		this._getModeServiceWorkerHelper().configureModeById(modeId, options);
-		super.configureModeById(modeId, options);
-	}
-
-	protected _createMode(modeId:string): TPromise<modes.IMode> {
-		// Instantiate mode also in worker
-		this._getModeServiceWorkerHelper().instantiateMode(modeId);
-		return super._createMode(modeId);
-	}
-}
-
-export interface IWorkerInitData {
-	compatModes: ILegacyLanguageDefinition[];
-	languages: ILanguageExtensionPoint[];
-}
-
-@Remotable.WorkerContext('ModeServiceWorkerHelper')
-export class ModeServiceWorkerHelper {
-	private _modeService:IModeService;
-
-	constructor(@IModeService modeService:IModeService) {
-		this._modeService = modeService;
-	}
-
-	public _initialize(initData:IWorkerInitData): void {
-		ModesRegistry.registerCompatModes(initData.compatModes);
-		ModesRegistry.registerLanguages(initData.languages);
-	}
-
-	public _acceptCompatModes(modes:ILegacyLanguageDefinition[]): void {
-		ModesRegistry.registerCompatModes(modes);
-	}
-
-	public _acceptLanguages(languages:ILanguageExtensionPoint[]): void {
-		ModesRegistry.registerLanguages(languages);
-	}
-
-	public instantiateMode(modeId:string): void {
-		this._modeService.getOrCreateMode(modeId).done(null, onUnexpectedError);
-	}
-
-	public configureModeById(modeId:string, options:any):void {
-		this._modeService.configureMode(modeId, options);
 	}
 }

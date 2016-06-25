@@ -6,29 +6,24 @@
 
 import {IModeDescriptor} from 'vs/editor/common/modes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import {OutputWorker} from 'vs/workbench/parts/output/common/outputWorker';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CompatWorkerAttr} from 'vs/platform/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {CompatMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
 
-export class OutputMode extends AbstractMode {
+export class OutputMode extends CompatMode {
 
 	private _modeWorkerManager: ModeWorkerManager<OutputWorker>;
 
 	constructor(
 		descriptor: IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService
 	) {
-		super(descriptor.id);
+		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
 		modes.LinkProviderRegistry.register(this.getId(), {

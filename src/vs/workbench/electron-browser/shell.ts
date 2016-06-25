@@ -39,6 +39,8 @@ import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/t
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
@@ -283,6 +285,9 @@ export class WorkbenchShell {
 
 		let modelService = instantiationService.createInstance(ModelServiceImpl);
 		serviceCollection.set(IModelService, modelService);
+
+		let compatWorkerService = instantiationService.createInstance(MainThreadCompatWorkerService);
+		serviceCollection.set(ICompatWorkerService, compatWorkerService);
 
 		let editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
 		serviceCollection.set(IEditorWorkerService, editorWorkerService);

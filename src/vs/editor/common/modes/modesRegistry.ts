@@ -18,6 +18,7 @@ export interface ILegacyLanguageDefinition {
 	mimetypes: string[];
 	moduleId: string;
 	ctorName: string;
+	deps?: string[];
 }
 
 // Define extension point ids
