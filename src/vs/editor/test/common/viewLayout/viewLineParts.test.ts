@@ -418,7 +418,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 
 	function createTestGetColumnOfLinePartOffset(lineContent:string, tabSize:number, parts:ViewLineToken[]): (partIndex:number, partLength:number, offset:number, expected:number)=>void {
-		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, false, parts));
+		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, false, false, parts));
 
 		return (partIndex:number, partLength:number, offset:number, expected:number) => {
 			let actual = getColumnOfLinePartOffset(-1, parts, lineContent.length + 1, renderLineOutput.charOffsetInPart, partIndex, partLength, offset);
