@@ -7,9 +7,8 @@
 import {MarkedString, CompletionItemKind, CompletionItem} from 'vscode-languageserver';
 import Strings = require('../utils/strings');
 import {XHRResponse, getErrorStatusDescription} from 'request-light';
-import {IJSONWorkerContribution, ISuggestionsCollector} from '../jsonContributions';
-import {RequestService} from '../jsonLanguageService';
-import {JSONLocation} from '../jsonLocation';
+import {JSONWorkerContribution, JSONPath, CompletionsCollector} from 'vscode-json-languageservice';
+import {xhr} from 'request-light';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -28,15 +27,13 @@ interface NugetServices {
 	[key: string]: string;
 }
 
-export class ProjectJSONContribution implements IJSONWorkerContribution {
+export class ProjectJSONContribution implements JSONWorkerContribution {
 
-	private requestService : RequestService;
 	private cachedProjects: { [id: string]: { version: string, description: string, time: number }} = {};
 	private cacheSize: number = 0;
 	private nugetIndexPromise: Thenable<NugetServices>;
 
-	public constructor(requestService: RequestService) {
-		this.requestService = requestService;
+	public constructor() {
 	}
 
 	private isProjectJSONFile(resource: string): boolean {
@@ -104,7 +101,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		});
 	}
 
-	public collectDefaultSuggestions(resource: string, result: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultCompletions(resource: string, result: CompletionsCollector): Thenable<any> {
 		if (this.isProjectJSONFile(resource)) {
 			let defaultValue = {
 				'version': '{{1.0.0-*}}',
@@ -120,7 +117,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 	}
 
 	private makeJSONRequest<T>(url: string) : Thenable<T> {
-		return this.requestService({
+		return xhr({
 			url : url
 		}).then(success => {
 			if (success.status === 200) {
@@ -136,8 +133,8 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		});
 	}
 
-	public collectPropertySuggestions(resource: string, location: JSONLocation, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : Thenable<any> {
-		if (this.isProjectJSONFile(resource) && (location.matches(['dependencies']) || location.matches(['frameworks', '*', 'dependencies']) || location.matches(['frameworks', '*', 'frameworkAssemblies']))) {
+	public collectPropertyCompletions(resource: string, location: JSONPath, currentWord: string, addValue: boolean, isLast:boolean, result: CompletionsCollector) : Thenable<any> {
+		if (this.isProjectJSONFile(resource) && (matches(location, ['dependencies']) || matches(location, ['frameworks', '*', 'dependencies']) || matches(location, ['frameworks', '*', 'frameworkAssemblies']))) {
 
 			return this.getNugetService('SearchAutocompleteService').then(service => {
 				let queryUrl : string;
@@ -178,8 +175,8 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		return null;
 	}
 
-	public collectValueSuggestions(resource: string, location: JSONLocation, currentKey: string, result: ISuggestionsCollector): Thenable<any> {
-		if (this.isProjectJSONFile(resource) && (location.matches(['dependencies']) || location.matches(['frameworks', '*', 'dependencies']) || location.matches(['frameworks', '*', 'frameworkAssemblies']))) {
+	public collectValueCompletions(resource: string, location: JSONPath, currentKey: string, result: CompletionsCollector): Thenable<any> {
+		if (this.isProjectJSONFile(resource) && (matches(location, ['dependencies']) || matches(location, ['frameworks', '*', 'dependencies']) || matches(location, ['frameworks', '*', 'frameworkAssemblies']))) {
 			return this.getNugetService('PackageBaseAddress/3.0.0').then(service => {
 				let queryUrl = service + currentKey + '/index.json';
 				return this.makeJSONRequest<any>(queryUrl).then(obj => {
@@ -206,9 +203,9 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		return null;
 	}
 
-	public getInfoContribution(resource: string, location: JSONLocation): Thenable<MarkedString[]> {
-		if (this.isProjectJSONFile(resource) && (location.matches(['dependencies', '*']) || location.matches(['frameworks', '*', 'dependencies', '*']) || location.matches(['frameworks', '*', 'frameworkAssemblies', '*']))) {
-			let pack = location.getSegments()[location.getSegments().length - 1];
+	public getInfoContribution(resource: string, location: JSONPath): Thenable<MarkedString[]> {
+		if (this.isProjectJSONFile(resource) && (matches(location, ['dependencies', '*']) || matches(location, ['frameworks', '*', 'dependencies', '*']) || matches(location, ['frameworks', '*', 'frameworkAssemblies', '*']))) {
+			let pack = <string> location[location.length - 1];
 
 			return this.getNugetService('SearchQueryService').then(service => {
 				let queryUrl = service + '?q=' + encodeURIComponent(pack) +'&take=' + 5;
@@ -269,4 +266,16 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		};
 		return null;
 	}
+}
+
+function matches(segments: JSONPath, pattern: string[]) {
+	let k = 0;
+	for (let i = 0; k < pattern.length && i < segments.length; i++) {
+		if (pattern[k] === segments[i] || pattern[k] === '*') {
+			k++;
+		} else if (pattern[k] !== '**') {
+			return false;
+		}
+	}
+	return k === pattern.length;
 }

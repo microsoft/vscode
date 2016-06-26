@@ -9,23 +9,24 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType
 } from 'vscode-languageserver';
 
-import {xhr, XHROptions, XHRResponse, configure as configureHttpRequests} from 'request-light';
+import {xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription} from 'request-light';
 import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
-import {ISchemaAssociations} from './jsonSchemaService';
-import {JSONDocument} from './jsonParser';
-import {IJSONSchema} from './jsonSchema';
+import {JSONDocument, JSONSchema, LanguageSettings, getLanguageService} from 'vscode-json-languageservice';
 import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
 import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
 import {FileAssociationContribution} from './jsoncontributions/fileAssociationContribution';
-
-import {JSONSchemaConfiguration, getLanguageService} from './jsonLanguageService';
+import {getLanguageModelCache} from './languageModelCache';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
+
+interface ISchemaAssociations {
+	[pattern: string]: string[];
+}
 
 namespace SchemaAssociationNotification {
 	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
@@ -76,47 +77,51 @@ let workspaceContext = {
 	}
 };
 
-let telemetry = {
-	log: (key: string, data: any) => {
-		connection.telemetry.logEvent({ key, data });
-	}
-};
-
-let request = (options: XHROptions): Thenable<XHRResponse> => {
-	if (Strings.startsWith(options.url, 'file://')) {
-		let fsPath = URI.parse(options.url).fsPath;
-		return new Promise<XHRResponse>((c, e) => {
+let schemaRequestService = (uri:string): Thenable<string> => {
+	if (Strings.startsWith(uri, 'file://')) {
+		let fsPath = URI.parse(uri).fsPath;
+		return new Promise<string>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
-				err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 });
+				err ? e('') : c(result.toString());
 			});
 		});
-	} else if (Strings.startsWith(options.url, 'vscode://')) {
-		return connection.sendRequest(VSCodeContentRequest.type, options.url).then(responseText => {
-			return {
-				responseText: responseText,
-				status: 200
-			};
+	} else if (Strings.startsWith(uri, 'vscode://')) {
+		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
+			return responseText;
 		}, error => {
-			return {
-				responseText: error.message,
-				status: 404
-			};
+			return error.message;
 		});
 	}
-	return xhr(options);
+	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
+		connection.telemetry.logEvent({
+			key: 'json.schema',
+			value: {
+				schemaURL: uri
+			}
+		});
+	}
+	return xhr({ url: uri, followRedirects: 5 }).then(response => {
+		return response.responseText;
+	}, (error: XHRResponse) => {
+		return error.responseText || getErrorStatusDescription(error.status) || error.toString();
+	});
 };
 
-let contributions = [
-	new ProjectJSONContribution(request),
-	new GlobPatternContribution(),
-	filesAssociationContribution
-];
-let languageService = getLanguageService(contributions, request, workspaceContext, telemetry);
+let languageService = getLanguageService({
+	schemaRequestService,
+	workspaceContext,
+	contributions: [
+		new ProjectJSONContribution(),
+		new GlobPatternContribution(),
+		filesAssociationContribution
+	]
+});
+
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent((change) => {
-	validateTextDocument(change.document);
+	triggerValidation(change.document);
 });
 
 // The settings interface describe the server relevant settings part
@@ -133,7 +138,7 @@ interface Settings {
 interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;
-	schema?: IJSONSchema;
+	schema?: JSONSchema;
 }
 
 let jsonConfigurationSettings: JSONSchemaSettings[] = void 0;
@@ -149,19 +154,23 @@ connection.onDidChangeConfiguration((change) => {
 });
 
 // The jsonValidation extension configuration has changed
-connection.onNotification(SchemaAssociationNotification.type, (associations) => {
+connection.onNotification(SchemaAssociationNotification.type, associations => {
 	schemaAssociations = associations;
 	updateConfiguration();
 });
 
 function updateConfiguration() {
-	let schemaConfigs: JSONSchemaConfiguration[] = [];
+	let languageSettings : LanguageSettings = {
+		validate: true,
+		allowComments: true,
+		schemas: []
+	};
 	if (schemaAssociations) {
 		for (var pattern in schemaAssociations) {
 			let association = schemaAssociations[pattern];
 			if (Array.isArray(association)) {
 				association.forEach(uri => {
-					schemaConfigs.push({ uri, fileMatch: [pattern] });
+					languageSettings.schemas.push({ uri, fileMatch: [pattern] });
 				});
 			}
 		}
@@ -181,17 +190,37 @@ function updateConfiguration() {
 					uri = URI.file(path.normalize(path.join(workspaceRoot.fsPath, uri))).toString();
 				}
 				if (uri) {
-					schemaConfigs.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
+					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
 				}
 			}
 		});
 	}
-	languageService.configure(schemaConfigs);
+	languageService.configure(languageSettings);
 
 	// Revalidate any open text documents
-	documents.all().forEach(validateTextDocument);
+	documents.all().forEach(triggerValidation);
 }
 
+let pendingValidationRequests : {[uri:string]:number} = {};
+const validationDelayMs = 200;
+documents.onDidClose(e => {
+	let request = pendingValidationRequests[e.document.uri];
+	if (request) {
+		clearTimeout(request);
+		delete pendingValidationRequests[e.document.uri];
+	}
+});
+
+function triggerValidation(textDocument: TextDocument): void {
+	let request = pendingValidationRequests[textDocument.uri];
+	if (request) {
+		clearTimeout(request);
+	}
+	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
+		delete pendingValidationRequests[textDocument.uri];
+		validateTextDocument(textDocument);
+	}, validationDelayMs);
+}
 
 function validateTextDocument(textDocument: TextDocument): void {
 	if (textDocument.getText().length === 0) {
@@ -220,8 +249,10 @@ connection.onDidChangeWatchedFiles((change) => {
 	}
 });
 
+let jsonDocuments = getLanguageModelCache<JSONDocument>(10, 60, document => languageService.parseJSONDocument(document));
+
 function getJSONDocument(document: TextDocument): JSONDocument {
-	return languageService.parseJSONDocument(document);
+	return jsonDocuments.get(document);
 }
 
 connection.onCompletion(textDocumentPosition => {
