@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 
+import * as Paths from 'vs/base/common/paths';
 import {fileExists} from 'vs/base/node/pfs';
 import {createPath} from '../fileAccessor';
 import {EmmetEditorAction} from '../emmetActions';
@@ -44,7 +45,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 		const quickPromise = this.quickOpenService.input(options)
 			.then((path) => {
-				if (path === undefined) {
+				if (!this.isValidInput(path)) {
 					quickPromise.cancel();
 				}
 
@@ -59,7 +60,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 					return;
 				}
 
-				const message = nls.localize('warnEscalation', "File '{0}' already exists.  Do you want to overwrite the existing file?", this.imageFilePath);
+				const message = nls.localize('warnEscalation', "File **{0}** already exists.  Do you want to overwrite the existing file?", this.imageFilePath);
 				const actions = [
 					new Action('cancel', nls.localize('cancel', "Cancel"), '', true),
 					new Action('ok', nls.localize('ok', "OK"), '', true, () => {
@@ -79,6 +80,34 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		if (!_module.run('encode_decode_data_url', this.editorAccessor)) {
 			this.editorAccessor.noExpansionOccurred();
 		}
+	}
+
+	private isValidInput(input: any): boolean {
+		if (input === undefined) {
+			return false;
+		}
+
+		// Validate all segments of path without absolute and empty segments
+		// Valid: `images/test.png`, `./test.png`, `../images/test.png`, `\images\test.png`
+		let isValidFilePath = true;
+		const filePathSegments = Paths.normalize(input).split('/').filter((segment: string) => {
+			return segment.length !== 0 && segment !== '..';
+		});
+
+		for (let i = 0; i < filePathSegments.length; i++) {
+			if (!Paths.isValidBasename(filePathSegments[i])) {
+				isValidFilePath = false;
+				break;
+			}
+		}
+
+		if (!isValidFilePath) {
+			const message = nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", input);
+			this.messageService.show(Severity.Error, message);
+			return false;
+		}
+
+		return true;
 	}
 
 	private isDataURI(data: string): boolean {
