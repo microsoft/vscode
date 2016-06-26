@@ -15,7 +15,6 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {findFreePort} from 'vs/base/node/ports';
 import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
@@ -78,10 +77,6 @@ export class MainThreadService extends CommonMainThreadService {
 
 	public dispose(): void {
 		this.extensionHostProcessManager.terminate();
-	}
-
-	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-		return this._getOrCreateProxyInstance(this.remoteCom, id, descriptor);
 	}
 
 	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {

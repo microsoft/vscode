@@ -5,8 +5,6 @@
 
 'use strict';
 
-import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
 import {IThreadService, ProxyIdentifier} from 'vs/platform/thread/common/thread';
@@ -14,9 +12,8 @@ import {IThreadService, ProxyIdentifier} from 'vs/platform/thread/common/thread'
 export class TestThreadService extends AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
 
-	constructor(instantiationService: IInstantiationService) {
-		super();
-		this.setInstantiationService(instantiationService);
+	constructor() {
+		super(false);
 	}
 
 	private _callCountValue: number = 0;
@@ -55,57 +52,6 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 		});
 	}
 
-	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-
-		let _calls: {path: string; args: any[] }[] = [];
-		let _instance: any;
-
-		return this._getOrCreateProxyInstance({
-
-			callOnRemote: (proxyId: string, path: string, args: any[]): TPromise<any> => {
-
-				this._callCount++;
-				_calls.push({path, args});
-
-				return new TPromise<any>((c) => {
-					setTimeout(c, 0);
-				}).then(() => {
-					if (!_instance) {
-						_instance = this._instantiationService.createInstance(descriptor.ctor);
-					}
-					let p: TPromise<any>;
-					try {
-						let {path, args} = _calls.shift();
-						let result = (<Function>_instance[path]).apply(_instance, args);
-						p = TPromise.is(result) ? result : TPromise.as(result);
-					} catch (err) {
-						p = TPromise.wrapError(err);
-					}
-
-					return p.then(result => {
-						this._callCount--;
-						return result;
-					}, err => {
-						this._callCount--;
-						return TPromise.wrapError(err);
-					});
-				});
-			}
-		}, id, descriptor);
-	}
-
-	protected _registerMainProcessActor<T>(id: string, actor: T): void {
-		throw new Error('Not implemented');
-	}
-
-	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-		throw new Error('Not implemented');
-	}
-
-	protected _registerExtHostActor<T>(id: string, actor: T): void {
-		this._registerLocalInstance(id, actor);
-	}
-
 	private _testInstances: {[id:string]:any;} = Object.create(null);
 	setTestInstance<T>(identifier:ProxyIdentifier<T>, value:T): T {
 		this._testInstances[identifier.id] = value;
@@ -114,8 +60,8 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 
 	get<T>(identifier:ProxyIdentifier<T>): T {
 		let id = identifier.id;
-		if (this._localObjMap[id]) {
-			return this._localObjMap[id];
+		if (this._locals[id]) {
+			return this._locals[id];
 		}
 		return super.get(identifier);
 	}
@@ -129,7 +75,6 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 			const instance = this._testInstances[proxyId];
 			let p: TPromise<any>;
 			try {
-				// let {path, args} = _calls.shift();
 				let result = (<Function>instance[path]).apply(instance, args);
 				p = TPromise.is(result) ? result : TPromise.as(result);
 			} catch (err) {
@@ -138,11 +83,9 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 
 			return p.then(result => {
 				this._callCount--;
-				// console.log(`this._callCount: ${this._callCount}`);
 				return result;
 			}, err => {
 				this._callCount--;
-				// console.log(`this._callCount: ${this._callCount}`);
 				return TPromise.wrapError(err);
 			});
 		});

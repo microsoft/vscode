@@ -62,7 +62,6 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/browser/menuService';
@@ -391,10 +390,6 @@ export class Workbench implements IPartService {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
 
-		// Some services need to be set explicitly after all services are created
-		if (this.threadService instanceof CommonMainThreadService) {
-			(<CommonMainThreadService>this.threadService).setInstantiationService(this.instantiationService);
-		}
 		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);
 
 		// Set the some services to registries that have been created eagerly

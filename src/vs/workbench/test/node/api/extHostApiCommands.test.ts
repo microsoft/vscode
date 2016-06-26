@@ -56,7 +56,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		let services = new ServiceCollection();
 		let instantiationService = new InstantiationService(services);
-		threadService = new TestThreadService(null);
+		threadService = new TestThreadService();
 
 		services.set(IKeybindingService, <IKeybindingService>{
 			executeCommand(id, args): any {
