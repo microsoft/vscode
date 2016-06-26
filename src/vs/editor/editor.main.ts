@@ -11,7 +11,6 @@ import 'vs/editor/contrib/quickOpen/browser/gotoLine.contribution';
 import 'vs/editor/contrib/quickOpen/browser/quickCommand.contribution';
 import 'vs/languages/languages.main';
 import 'vs/languages/php/common/php.contribution';
-import 'vs/languages/json/common/json.contribution';
 
 import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 import {createMonacoEditorAPI} from 'vs/editor/browser/standalone/standaloneEditor';
