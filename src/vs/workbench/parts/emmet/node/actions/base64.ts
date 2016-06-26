@@ -79,7 +79,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 	}
 
 	private isData(data: string): boolean {
-		return /(?:src=|url\()['"]data:/.test(data);
+		return /(?:src=|url\()['"]?data:/.test(data);
 	}
 }
 
