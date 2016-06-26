@@ -14,6 +14,7 @@ import {
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {BracketMode} from 'vs/editor/test/common/testModes';
+import {TextModel, IParsedSearchRequest} from 'vs/editor/common/model/textModel';
 
 // --------- utils
 
@@ -29,11 +30,6 @@ function isBracket(model:Model, lineNumber1:number, column11:number, column12:nu
 		new Range(lineNumber2, column21, lineNumber2, column22)
 	], 'is matching brackets at ' + lineNumber1 + ', ' + column11);
 }
-
-function rangeEqual(range:Range, startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number) {
-	assert.deepEqual(range, new Range(startLineNumber, startColumn, endLineNumber, endColumn));
-}
-
 
 var LINE1 = 'My First Line';
 var LINE2 = '\t\tMy Second Line';
@@ -522,114 +518,220 @@ suite('Editor Model - Words', () => {
 // --------- Find
 suite('Editor Model - Find', () => {
 
-	var thisModel: Model;
+	function toArrRange(r:Range): [number,number,number,number] {
+		return [r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn];
+	}
 
-	setup(() => {
-		var text = [
-			'This is some foo - bar text which contains foo and bar - as in Barcelona.',
-			'Now it begins a word fooBar and now it is caps Foo-isn\'t this great?',
-			'And here\'s a dull line with nothing interesting in it',
-			'It is also interesting if it\'s part of a word like amazingFooBar',
-			'Again nothing interesting here'
-		];
-		thisModel = Model.createFromString(text.join('\n'));
-	});
+	function assertFindMatches(text:string, searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:[number,number,number,number][]): void {
+		let model = Model.createFromString(text);
 
-	teardown(() => {
-		thisModel.dispose();
-	});
+		let actualRanges = model.findMatches(searchString, false, isRegex, matchCase, wholeWord);
+		let actual = actualRanges.map(toArrRange);
 
-	test('Simple find', () => {
-		var ranges = [
-			[1, 14, 1, 17],
-			[1, 44, 1, 47],
-			[2, 22, 2, 25],
-			[2, 48, 2, 51],
-			[4, 59, 4, 62]
-		];
-		var matches = thisModel.findMatches('foo', false, false, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
+		assert.deepEqual(actual, expected);
+
+		// test `findNextMatch`
+		let match = model.findNextMatch(searchString, new Position(1, 1), isRegex, matchCase, wholeWord);
+		assert.deepEqual(toArrRange(match), expected[0]);
+		for (let i = 0; i < expected.length; i++) {
+			match = model.findNextMatch(searchString, new Position(expected[i][0], expected[i][1]), isRegex, matchCase, wholeWord);
+			assert.deepEqual(toArrRange(match), expected[i]);
 		}
-	});
 
-	test('Case sensitive find', () => {
-		var ranges = [
-			[1, 14, 1, 17],
-			[1, 44, 1, 47],
-			[2, 22, 2, 25]
-		];
-		var matches = thisModel.findMatches('foo', false, false, true, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('Whole words find', () => {
-		var ranges = [
-			[1, 14, 1, 17],
-			[1, 44, 1, 47],
-			[2, 48, 2, 51]
-		];
-		var matches = thisModel.findMatches('foo', false, false, false, true);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('/^/ find', () => {
-		var ranges = [
-			[1, 1, 1, 1],
-			[2, 1, 2, 1],
-			[3, 1, 3, 1],
-			[4, 1, 4, 1],
-			[5, 1, 5, 1]
-		];
-		var matches = thisModel.findMatches('^', false, true, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('/$/ find', () => {
-		var ranges = [
-			[1, 74, 1, 74],
-			[2, 69, 2, 69],
-			[3, 54, 3, 54],
-			[4, 65, 4, 65],
-			[5, 31, 5, 31]
-		];
-		var matches = thisModel.findMatches('$', false, true, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
-		}
-	});
-
-	test('/^$/ find', () => {
-		var text = [
-			'This is some foo - bar text which contains foo and bar - as in Barcelona.',
-			'',
-			'And here\'s a dull line with nothing interesting in it',
-			'',
-			'Again nothing interesting here'
-		];
-		var model = Model.createFromString(text.join('\n'));
-
-		var ranges = [
-			[2, 1, 2, 1],
-			[4, 1, 4, 1]
-		];
-		var matches = model.findMatches('^$', false, true, false, false);
-		assert.equal(matches.length, ranges.length);
-		for (var i = 0; i < matches.length; i++) {
-			rangeEqual(matches[i], ranges[i][0], ranges[i][1], ranges[i][2], ranges[i][3]);
+		// test `findPrevMatch`
+		match = model.findPreviousMatch(searchString, new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount())), isRegex, matchCase, wholeWord);
+		assert.deepEqual(toArrRange(match), expected[expected.length-1]);
+		for (let i = 0; i < expected.length; i++) {
+			match = model.findPreviousMatch(searchString, new Position(expected[i][2], expected[i][3]), isRegex, matchCase, wholeWord);
+			assert.deepEqual(toArrRange(match), expected[i]);
 		}
 
 		model.dispose();
+	}
+
+	let regularText = [
+		'This is some foo - bar text which contains foo and bar - as in Barcelona.',
+		'Now it begins a word fooBar and now it is caps Foo-isn\'t this great?',
+		'And here\'s a dull line with nothing interesting in it',
+		'It is also interesting if it\'s part of a word like amazingFooBar',
+		'Again nothing interesting here'
+	];
+
+	test('Simple find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'foo', false, false, false,
+			[
+				[1, 14, 1, 17],
+				[1, 44, 1, 47],
+				[2, 22, 2, 25],
+				[2, 48, 2, 51],
+				[4, 59, 4, 62]
+			]
+		);
+	});
+
+	test('Case sensitive find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'foo', false, true, false,
+			[
+				[1, 14, 1, 17],
+				[1, 44, 1, 47],
+				[2, 22, 2, 25]
+			]
+		);
+	});
+
+	test('Whole words find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'foo', false, false, true,
+			[
+				[1, 14, 1, 17],
+				[1, 44, 1, 47],
+				[2, 48, 2, 51]
+			]
+		);
+	});
+
+	test('/^/ find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'^', true, false, false,
+			[
+				[1, 1, 1, 1],
+				[2, 1, 2, 1],
+				[3, 1, 3, 1],
+				[4, 1, 4, 1],
+				[5, 1, 5, 1]
+			]
+		);
+	});
+
+	test('/$/ find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'$', true, false, false,
+			[
+				[1, 74, 1, 74],
+				[2, 69, 2, 69],
+				[3, 54, 3, 54],
+				[4, 65, 4, 65],
+				[5, 31, 5, 31]
+			]
+		);
+	});
+
+	test('/^$/ find', () => {
+		assertFindMatches(
+			[
+				'This is some foo - bar text which contains foo and bar - as in Barcelona.',
+				'',
+				'And here\'s a dull line with nothing interesting in it',
+				'',
+				'Again nothing interesting here'
+			].join('\n'),
+			'^$', true, false, false,
+			[
+				[2, 1, 2, 1],
+				[4, 1, 4, 1]
+			]
+		);
+	});
+
+	test('multiline find 1', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'text\\n', true, false, false,
+			[
+				[1, 16, 2, 1],
+				[2, 16, 3, 1],
+			]
+		);
+	});
+
+	test('multiline find 2', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'text\\nJust', true, false, false,
+			[
+				[1, 16, 2, 5]
+			]
+		);
+	});
+
+	test('multiline find 3', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'\\nagain', true, false, false,
+			[
+				[3, 16, 4, 6]
+			]
+		);
+	});
+
+	test('multiline find 4', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'.*\\nJust.*\\n', true, false, false,
+			[
+				[1, 1, 3, 1]
+			]
+		);
+	});
+
+
+	function assertParseSearchResult(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:IParsedSearchRequest): void {
+		let actual = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+		assert.deepEqual(actual, expected);
+	}
+
+	test('parseSearchRequest invalid', () => {
+		assertParseSearchResult('', true, true, true, null);
+		assertParseSearchResult(null, true, true, true, null);
+		assertParseSearchResult('(', true, false, false, null);
+	});
+
+	test('parseSearchRequest non regex', () => {
+		assertParseSearchResult('foo', false, false, false, { regex: /foo/gi, isMultiline: false });
+		assertParseSearchResult('foo', false, false, true, { regex: /\bfoo\b/gi, isMultiline: false });
+		assertParseSearchResult('foo', false, true, false, { regex: /foo/g, isMultiline: false });
+		assertParseSearchResult('foo', false, true, true, { regex: /\bfoo\b/g, isMultiline: false });
+		assertParseSearchResult('foo\\n', false, false, false, { regex: /foo\\n/gi, isMultiline: false });
+		assertParseSearchResult('foo\\\\n', false, false, false, { regex: /foo\\\\n/gi, isMultiline: false });
+		assertParseSearchResult('foo\\r', false, false, false, { regex: /foo\\r/gi, isMultiline: false });
+		assertParseSearchResult('foo\\\\r', false, false, false, { regex: /foo\\\\r/gi, isMultiline: false });
+	});
+
+	test('parseSearchRequest regex', () => {
+		assertParseSearchResult('foo', true, false, false, { regex: /foo/gi, isMultiline: false });
+		assertParseSearchResult('foo', true, false, true, { regex: /\bfoo\b/gi, isMultiline: false });
+		assertParseSearchResult('foo', true, true, false, { regex: /foo/g, isMultiline: false });
+		assertParseSearchResult('foo', true, true, true, { regex: /\bfoo\b/g, isMultiline: false });
+		assertParseSearchResult('foo\\n', true, false, false, { regex: /foo\n/gi, isMultiline: true });
+		assertParseSearchResult('foo\\\\n', true, false, false, { regex: /foo\\n/gi, isMultiline: false });
+		assertParseSearchResult('foo\\r', true, false, false, { regex: /foo\r/gi, isMultiline: true });
+		assertParseSearchResult('foo\\\\r', true, false, false, { regex: /foo\\r/gi, isMultiline: false });
 	});
 });
