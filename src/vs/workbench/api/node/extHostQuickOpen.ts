@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IQuickOpenService, IPickOpenEntry, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
 import {MainContext, ExtHostContext} from './extHostProtocol';

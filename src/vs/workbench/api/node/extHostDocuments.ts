@@ -9,7 +9,7 @@ import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';

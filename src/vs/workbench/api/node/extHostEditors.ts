@@ -10,7 +10,7 @@ import {IdGenerator} from 'vs/base/common/idGenerator';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ExtHostModelService, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
 import {Selection, Range, Position, EditorOptions, EndOfLine} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IDecorationOptions} from 'vs/editor/common/editorCommon';

@@ -5,7 +5,7 @@
 'use strict';
 
 import {FileChangesEvent, FileChangeType} from 'vs/platform/files/common/files';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from './extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';

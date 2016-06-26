@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';

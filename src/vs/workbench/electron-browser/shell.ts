@@ -58,7 +58,7 @@ import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';

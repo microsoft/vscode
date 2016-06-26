@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {MainContext} from './extHostProtocol';
 

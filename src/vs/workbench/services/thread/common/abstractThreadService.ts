@@ -5,12 +5,12 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import remote = require('vs/base/common/remote');
-import {ProxyIdentifier} from 'vs/platform/thread/common/thread';
+import {IManyHandler} from 'vs/base/common/remote';
+import {ProxyIdentifier} from 'vs/workbench/services/thread/common/threadService';
 
 declare var Proxy:any; // TODO@TypeScript
 
-export abstract class AbstractThreadService implements remote.IManyHandler {
+export abstract class AbstractThreadService implements IManyHandler {
 
 	private _isMain: boolean;
 	protected _locals: { [id: string]: any; };
