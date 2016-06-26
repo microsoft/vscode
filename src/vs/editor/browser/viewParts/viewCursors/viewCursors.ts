@@ -27,6 +27,7 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: string;
 	private _cursorStyle: editorCommon.TextEditorCursorStyle;
+	private _cursorBlinkingStyle: editorCommon.TextEditorCursorBlinkingStyle;
 	private _canUseTranslate3d: boolean;
 
 	private _isVisible: boolean;
@@ -34,6 +35,7 @@ export class ViewCursors extends ViewPart {
 	private _domNode: FastDomNode;
 
 	private _blinkTimer: number;
+	private _blinkingEnabled: boolean;
 
 	private _editorHasFocus: boolean;
 
@@ -45,6 +47,7 @@ export class ViewCursors extends ViewPart {
 
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
+		this._cursorBlinkingStyle = this._context.configuration.editor.viewInfo.cursorBlinkingStyle;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 
@@ -57,6 +60,7 @@ export class ViewCursors extends ViewPart {
 		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._blinkTimer = -1;
+		this._blinkingEnabled = false;
 
 		this._editorHasFocus = false;
 		this._updateBlinking();
@@ -67,6 +71,7 @@ export class ViewCursors extends ViewPart {
 		if (this._blinkTimer !== -1) {
 			window.clearInterval(this._blinkTimer);
 			this._blinkTimer = -1;
+			this._blinkingEnabled = true;
 		}
 	}
 
@@ -150,6 +155,9 @@ export class ViewCursors extends ViewPart {
 		if (e.viewInfo.cursorBlinking) {
 			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		}
+		if (e.viewInfo.cursorBlinkingStyle) {
+			this._cursorBlinkingStyle = this._context.configuration.editor.viewInfo.cursorBlinkingStyle;
+		}
 		if (e.viewInfo.cursorStyle) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
@@ -159,7 +167,7 @@ export class ViewCursors extends ViewPart {
 
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
-		if (e.viewInfo.cursorStyle) {
+		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinkingStyle) {
 			this._updateDomClassName();
 		}
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
@@ -210,7 +218,7 @@ export class ViewCursors extends ViewPart {
 
 	private _updateBlinking(): void {
 		if (this._blinkTimer !== -1) {
-			window.clearInterval(this._blinkTimer);
+			window.clearTimeout(this._blinkTimer);
 			this._blinkTimer = -1;
 		}
 
@@ -221,9 +229,13 @@ export class ViewCursors extends ViewPart {
 		} else {
 			this._hide();
 		}
-
+		this._blinkingEnabled = false;
+		this._updateDomClassName();
 		if (renderType === RenderType.Blink) {
-			this._blinkTimer = window.setInterval(() => this._blink(), ViewCursors.BLINK_INTERVAL);
+			this._blinkTimer = window.setTimeout(() => {
+				this._blinkingEnabled = true;
+				this._updateDomClassName();
+			}, ViewCursors.BLINK_INTERVAL);
 		}
 	}
 	// --- end blinking logic
@@ -234,29 +246,41 @@ export class ViewCursors extends ViewPart {
 
 	private _getClassName(): string {
 		let result = ClassNames.VIEW_CURSORS_LAYER;
-		let extraClassName: string;
+		let cursorStyleClassName: string;
 		switch (this._cursorStyle) {
 			case editorCommon.TextEditorCursorStyle.Line:
-				extraClassName = 'cursor-line-style';
+				cursorStyleClassName = 'cursor-line-style';
 				break;
 			case editorCommon.TextEditorCursorStyle.Block:
-				extraClassName = 'cursor-block-style';
+				cursorStyleClassName = 'cursor-block-style';
 				break;
 			case editorCommon.TextEditorCursorStyle.Underline:
-				extraClassName = 'cursor-underline-style';
+				cursorStyleClassName = 'cursor-underline-style';
 				break;
 			default:
-				extraClassName = 'cursor-line-style';
+				cursorStyleClassName = 'cursor-line-style';
 		}
-		return result + ' ' + extraClassName;
-	}
-
-	private _blink(): void {
-		if (this._isVisible) {
-			this._hide();
-		} else {
-			this._show();
+		let cursorBlinkingStyleClassName: string = 'cursor-solid';
+		if (this._blinkingEnabled){
+			switch (this._cursorBlinkingStyle) {
+				case editorCommon.TextEditorCursorBlinkingStyle.Blink:
+					cursorBlinkingStyleClassName = 'cursor-blink';
+					break;
+				case editorCommon.TextEditorCursorBlinkingStyle.Smooth:
+					cursorBlinkingStyleClassName = 'cursor-smooth';
+					break;
+				case editorCommon.TextEditorCursorBlinkingStyle.Phase:
+					cursorBlinkingStyleClassName = 'cursor-phase';
+					break;
+				case editorCommon.TextEditorCursorBlinkingStyle.Expand:
+					cursorBlinkingStyleClassName = 'cursor-expand';
+					break;
+				case editorCommon.TextEditorCursorBlinkingStyle.Solid:
+				default:
+					break;
+			}
 		}
+		return result + ' ' + cursorStyleClassName + ' ' + cursorBlinkingStyleClassName;
 	}
 
 	private _show(): void {

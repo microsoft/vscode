@@ -268,6 +268,11 @@ export interface IEditorOptions {
 	 */
 	cursorStyle?:string;
 	/**
+	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
+	 * Defaults to 'blink'.
+	 */
+	cursorBlinkingStyle?:string;
+	/**
 	 * Enable font ligatures.
 	 * Defaults to false.
 	 */
@@ -606,6 +611,7 @@ export class InternalEditorViewOptions {
 	overviewRulerLanes:number;
 	cursorBlinking:string;
 	cursorStyle:TextEditorCursorStyle;
+	cursorBlinkingStyle:TextEditorCursorBlinkingStyle;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
 	editorClassName: string;
@@ -631,6 +637,7 @@ export class InternalEditorViewOptions {
 		overviewRulerLanes:number;
 		cursorBlinking:string;
 		cursorStyle:TextEditorCursorStyle;
+		cursorBlinkingStyle: TextEditorCursorBlinkingStyle;
 		hideCursorInOverviewRuler:boolean;
 		scrollBeyondLastLine:boolean;
 		editorClassName: string;
@@ -652,6 +659,7 @@ export class InternalEditorViewOptions {
 		this.overviewRulerLanes = source.overviewRulerLanes|0;
 		this.cursorBlinking = String(source.cursorBlinking);
 		this.cursorStyle = source.cursorStyle|0;
+		this.cursorBlinkingStyle = source.cursorBlinkingStyle|0;
 		this.hideCursorInOverviewRuler = Boolean(source.hideCursorInOverviewRuler);
 		this.scrollBeyondLastLine = Boolean(source.scrollBeyondLastLine);
 		this.editorClassName = String(source.editorClassName);
@@ -707,6 +715,7 @@ export class InternalEditorViewOptions {
 			&& this.overviewRulerLanes === other.overviewRulerLanes
 			&& this.cursorBlinking === other.cursorBlinking
 			&& this.cursorStyle === other.cursorStyle
+			&& this.cursorBlinkingStyle === other.cursorBlinkingStyle
 			&& this.hideCursorInOverviewRuler === other.hideCursorInOverviewRuler
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.editorClassName === other.editorClassName
@@ -735,6 +744,7 @@ export class InternalEditorViewOptions {
 			overviewRulerLanes: this.overviewRulerLanes !== newOpts.overviewRulerLanes,
 			cursorBlinking: this.cursorBlinking !== newOpts.cursorBlinking,
 			cursorStyle: this.cursorStyle !== newOpts.cursorStyle,
+			cursorBlinkingStyle: this.cursorBlinkingStyle !== newOpts.cursorBlinkingStyle,
 			hideCursorInOverviewRuler: this.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler,
 			scrollBeyondLastLine: this.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine,
 			editorClassName: this.editorClassName !== newOpts.editorClassName,
@@ -767,6 +777,7 @@ export interface IViewConfigurationChangedEvent {
 	overviewRulerLanes: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: boolean;
+	cursorBlinkingStyle: boolean;
 	hideCursorInOverviewRuler: boolean;
 	scrollBeyondLastLine: boolean;
 	editorClassName:  boolean;
@@ -4230,6 +4241,32 @@ export enum TextEditorCursorStyle {
 	 * As a horizontal line (sitting under a character).
 	 */
 	Underline = 3
+}
+
+/**
+ * The kind of animation in which the editor's cursor should be rendered.
+ */
+export enum TextEditorCursorBlinkingStyle {
+	/**
+	 * Blinking
+	 */
+	Blink = 1,
+	/**
+	 * Blinking with smooth fading
+	 */
+	Smooth = 2,
+	/**
+	 * Blinking with prolonged filled state and smooth fading
+	 */
+	Phase = 3,
+	/**
+	 * Expand collapse animation on the y axis
+	 */
+	Expand = 4,
+	/**
+	 * No-Blinking
+	 */
+	Solid = 5
 }
 
 /**
