@@ -8,7 +8,7 @@ import {Emitter} from 'vs/base/common/event';
 import {score} from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
 import {ExtHostModelService, setWordDefinitionFor} from 'vs/workbench/api/node/extHostDocuments';

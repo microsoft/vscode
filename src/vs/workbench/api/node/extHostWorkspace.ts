@@ -8,7 +8,7 @@ import {isPromiseCanceledError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {ISearchService, QueryType} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';

@@ -7,7 +7,7 @@
 import {clone} from 'vs/base/common/objects';
 import {illegalState} from 'vs/base/common/errors';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';

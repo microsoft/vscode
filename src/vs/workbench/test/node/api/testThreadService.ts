@@ -6,8 +6,8 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
-import {IThreadService, ProxyIdentifier} from 'vs/platform/thread/common/thread';
+import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstractThreadService';
+import {IThreadService, ProxyIdentifier} from 'vs/workbench/services/thread/common/threadService';
 
 export class TestThreadService extends AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;

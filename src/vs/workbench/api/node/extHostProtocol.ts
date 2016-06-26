@@ -7,7 +7,7 @@
 import {
 	createMainContextProxyIdentifier as createMainId,
 	createExtHostContextProxyIdentifier as createExtId,
-	ProxyIdentifier, IThreadService} from 'vs/platform/thread/common/thread';
+	ProxyIdentifier, IThreadService} from 'vs/workbench/services/thread/common/threadService';
 
 import {MainProcessVSCodeAPIHelper} from './extHost.api.impl';
 import {ExtHostCommands, MainThreadCommands} from './extHostCommands';

@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import {Action} from 'vs/base/common/actions';

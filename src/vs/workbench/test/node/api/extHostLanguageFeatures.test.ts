@@ -18,7 +18,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';

@@ -61,7 +61,7 @@ import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/browser/menuService';

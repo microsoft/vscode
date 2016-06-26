@@ -15,7 +15,7 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ExtHostStorage} from 'vs/workbench/api/node/extHostStorage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {MainContext, ExtHostContext} from './extHostProtocol';
 
