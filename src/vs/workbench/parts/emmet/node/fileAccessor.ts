@@ -21,5 +21,7 @@ export function createPath(parent: string, fileName: string): string {
 export function save(file: string, content: string): any {
 	mkdirp(dirname(file)).then(() => {
 		return writeFile(file, content, 'ascii');
+	}, (err) => {
+		//
 	});
 }
