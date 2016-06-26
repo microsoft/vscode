@@ -44,8 +44,8 @@ export class SelectNextItemAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectPreviousItemAction,
 	SelectPreviousItemAction.ID,
-	nls.localize('selectPreviousItem', 'Emmet: Select Previous Item'), void 0, 'Emmet: Select Previous Item'));
+	nls.localize('selectPreviousItem', "Emmet: Select Previous Item"), void 0, 'Emmet: Select Previous Item'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectNextItemAction,
 	SelectNextItemAction.ID,
-	nls.localize('selectNextItem', 'Emmet: Select Next Item'), void 0, 'Emmet: Select Next Item'));
+	nls.localize('selectNextItem', "Emmet: Select Next Item"), void 0, 'Emmet: Select Next Item'));

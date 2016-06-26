@@ -29,4 +29,4 @@ export class EvaluateMathAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(EvaluateMathAction,
 	EvaluateMathAction.ID,
-	nls.localize('evaluateMathExpression', 'Emmet: Evaluate Math Expression'), void 0, 'Emmet: Evaluate Math Expression'));
+	nls.localize('evaluateMathExpression', "Emmet: Evaluate Math Expression"), void 0, 'Emmet: Evaluate Math Expression'));

@@ -44,8 +44,8 @@ export class NextEditPointAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviousEditPointAction,
 	PreviousEditPointAction.ID,
-	nls.localize('previousEditPoint', 'Emmet: Previous Edit Point'), void 0, 'Emmet: Previous Edit Point'));
+	nls.localize('previousEditPoint', "Emmet: Previous Edit Point"), void 0, 'Emmet: Previous Edit Point'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextEditPointAction,
 	NextEditPointAction.ID,
-	nls.localize('nextEditPoint', 'Emmet: Next Edit Point'), void 0, 'Emmet: Next Edit Point'));
+	nls.localize('nextEditPoint', "Emmet: Next Edit Point"), void 0, 'Emmet: Next Edit Point'));

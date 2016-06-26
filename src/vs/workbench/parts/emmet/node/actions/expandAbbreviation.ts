@@ -34,7 +34,7 @@ export class ExpandAbbreviationAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ExpandAbbreviationAction,
 	ExpandAbbreviationAction.ID,
-	nls.localize('expandAbbreviationAction', 'Emmet: Expand Abbreviation'), void 0, 'Emmet: Expand Abbreviation'));
+	nls.localize('expandAbbreviationAction', "Emmet: Expand Abbreviation"), void 0, 'Emmet: Expand Abbreviation'));
 
 
 KeybindingsRegistry.registerCommandRule({

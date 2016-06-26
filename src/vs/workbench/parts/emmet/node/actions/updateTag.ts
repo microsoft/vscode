@@ -42,4 +42,4 @@ export class UpdateTagAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UpdateTagAction,
 	UpdateTagAction.ID,
-	nls.localize('updateTag', 'Emmet: Update Tag'), void 0, 'Emmet: Update Tag'));
+	nls.localize('updateTag', "Emmet: Update Tag"), void 0, 'Emmet: Update Tag'));

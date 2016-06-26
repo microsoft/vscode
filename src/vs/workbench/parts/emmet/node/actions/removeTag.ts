@@ -29,4 +29,4 @@ export class RemoveTagAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RemoveTagAction,
 	RemoveTagAction.ID,
-	nls.localize('removeTag', 'Emmet: Remove Tag'), void 0, 'Emmet: Remove Tag'));
+	nls.localize('removeTag', "Emmet: Remove Tag"), void 0, 'Emmet: Remove Tag'));

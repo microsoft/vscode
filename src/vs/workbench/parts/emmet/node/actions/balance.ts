@@ -45,8 +45,8 @@ export class BalanceOutwardAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BalanceInwardAction,
 	BalanceInwardAction.ID,
-	nls.localize('balanceInward', 'Emmet: Balance (inward)'), void 0, 'Emmet: Balance (inward)'));
+	nls.localize('balanceInward', "Emmet: Balance (inward)"), void 0, 'Emmet: Balance (inward)'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BalanceOutwardAction,
 	BalanceOutwardAction.ID,
-	nls.localize('balanceOutward', 'Emmet: Balance (outward)'), void 0, 'Emmet: Balance (outward)'));
+	nls.localize('balanceOutward', "Emmet: Balance (outward)"), void 0, 'Emmet: Balance (outward)'));

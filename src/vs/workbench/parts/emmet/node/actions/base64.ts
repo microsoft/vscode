@@ -39,12 +39,12 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 
 		let options: IInputOptions = {
-			prompt: nls.localize('enterImagePath', 'Enter path to file (absolute or relative)'),
-			placeHolder: nls.localize('path', 'Path to file')
+			prompt: nls.localize('enterImagePath', "Enter path to file (absolute or relative)"),
+			placeHolder: nls.localize('path', "Path to file")
 		};
 
 		const quickPromise = this.quickOpenService.input(options)
-			.then((path) => {
+			.then(path => {
 				if (!this.isValidInput(path)) {
 					quickPromise.cancel();
 				}
@@ -54,7 +54,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 				const fullpath = createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
-			.then((status) => {
+			.then(status => {
 				if (!status) {
 					this.encodeDecode(_module, this.imageFilePath);
 					return;
@@ -90,7 +90,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		// Validate all segments of path without absolute and empty segments
 		// Valid: `images/test.png`, `./test.png`, `../images/test.png`, `\images\test.png`
 		let isValidFilePath = true;
-		const filePathSegments = Paths.normalize(input).split('/').filter((segment: string) => {
+		const filePathSegments = Paths.normalize(input).split('/').filter(segment => {
 			return segment.length !== 0 && segment !== '..';
 		});
 
@@ -117,4 +117,4 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(EncodeDecodeDataUrlAction,
 	EncodeDecodeDataUrlAction.ID,
-	nls.localize('encodeDecodeDataUrl', 'Emmet: Encode\\Decode data:URL image'), void 0, 'Emmet: Encode\\Decode data:URL image'));
+	nls.localize('encodeDecodeDataUrl', "Emmet: Encode\\Decode data:URL image"), void 0, 'Emmet: Encode\\Decode data:URL image'));

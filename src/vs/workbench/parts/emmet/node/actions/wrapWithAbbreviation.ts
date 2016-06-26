@@ -25,8 +25,8 @@ export class WrapWithAbbreviationAction extends EmmetEditorAction {
 
 	public runEmmetAction(_module) {
 		let options: IInputOptions = {
-			prompt: nls.localize('enterAbbreviation', 'Enter Abbreviation'),
-			placeHolder: nls.localize('abbreviation', 'Abbreviation')
+			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
+			placeHolder: nls.localize('abbreviation', "Abbreviation")
 		};
 		this.quickOpenService.input(options).then(abbreviation => {
 			this.wrapAbbreviation(_module, abbreviation);
@@ -42,4 +42,4 @@ export class WrapWithAbbreviationAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(WrapWithAbbreviationAction,
 	WrapWithAbbreviationAction.ID,
-	nls.localize('wrapWithAbbreviationAction', 'Emmet: Wrap with Abbreviation'), void 0, 'Emmet: Wrap with Abbreviation'));
+	nls.localize('wrapWithAbbreviationAction', "Emmet: Wrap with Abbreviation"), void 0, 'Emmet: Wrap with Abbreviation'));

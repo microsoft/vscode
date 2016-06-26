@@ -104,24 +104,24 @@ export class DecrementNumberByTenAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IncrementNumberByOneTenthAction,
 	IncrementNumberByOneTenthAction.ID,
-	nls.localize('incrementNumberByOneTenth', 'Emmet: Increment by 0.1'), void 0, 'Emmet: Increment by 0.1'));
+	nls.localize('incrementNumberByOneTenth', "Emmet: Increment by 0.1"), void 0, 'Emmet: Increment by 0.1'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DecrementNumberByOneTenthAction,
 	DecrementNumberByOneTenthAction.ID,
-	nls.localize('decrementNumberByOneTenth', 'Emmet: Decrement by 0.1'), void 0, 'Emmet: Decrement by 0.1'));
+	nls.localize('decrementNumberByOneTenth', "Emmet: Decrement by 0.1"), void 0, 'Emmet: Decrement by 0.1'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IncrementNumberByOneAction,
 	IncrementNumberByOneAction.ID,
-	nls.localize('incrementNumberByOne', 'Emmet: Increment by 1'), void 0, 'Emmet: Increment by 1'));
+	nls.localize('incrementNumberByOne', "Emmet: Increment by 1"), void 0, 'Emmet: Increment by 1'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DecrementNumberByOneAction,
 	DecrementNumberByOneAction.ID,
-	nls.localize('decrementNumberByOne', 'Emmet: Decrement by 1'), void 0, 'Emmet: Decrement by 1'));
+	nls.localize('decrementNumberByOne', "Emmet: Decrement by 1"), void 0, 'Emmet: Decrement by 1'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IncrementNumberByTenAction,
 	IncrementNumberByTenAction.ID,
-	nls.localize('incrementNumberByTen', 'Emmet: Increment by 10'), void 0, 'Emmet: Increment by 10'));
+	nls.localize('incrementNumberByTen', "Emmet: Increment by 10"), void 0, 'Emmet: Increment by 10'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DecrementNumberByTenAction,
 	DecrementNumberByTenAction.ID,
-	nls.localize('decrementNumberByTen', 'Emmet: Decrement by 10'), void 0, 'Emmet: Decrement by 10'));
+	nls.localize('decrementNumberByTen', "Emmet: Decrement by 10"), void 0, 'Emmet: Decrement by 10'));

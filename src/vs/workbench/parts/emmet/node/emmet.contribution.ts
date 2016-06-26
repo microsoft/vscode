@@ -30,23 +30,23 @@ const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationE
 configurationRegistry.registerConfiguration({
 	'id': 'emmet',
 	'order': 6,
-	'title': nls.localize('emmetConfigurationTitle', 'Emmet configuration'),
+	'title': nls.localize('emmetConfigurationTitle', "Emmet configuration"),
 	'type': 'object',
 	'properties': {
 		'emmet.triggerExpansionOnTab': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('triggerExpansionOnTab', 'When enabled, emmet abbreviations are expanded when pressing TAB.')
+			'description': nls.localize('triggerExpansionOnTab', "When enabled, emmet abbreviations are expanded when pressing TAB.")
 		},
 		'emmet.preferences': {
 			'type': 'object',
 			'default': {},
-			'description': nls.localize('emmetPreferences', 'Preferences used to modify behavior of some actions and resolvers of Emmet.')
+			'description': nls.localize('emmetPreferences', "Preferences used to modify behavior of some actions and resolvers of Emmet.")
 		},
 		'emmet.syntaxProfiles': {
 			'type': 'object',
 			'default': {},
-			'description': nls.localize('emmetSyntaxProfiles', 'Define profile for specified syntax or use your own profile with specific rules.')
+			'description': nls.localize('emmetSyntaxProfiles', "Define profile for specified syntax or use your own profile with specific rules.")
 		}
 	}
 });

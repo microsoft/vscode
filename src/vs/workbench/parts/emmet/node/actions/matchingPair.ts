@@ -29,4 +29,4 @@ export class GoToMatchingPairAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToMatchingPairAction,
 	GoToMatchingPairAction.ID,
-	nls.localize('matchingPair', 'Emmet: Go to Matching Pair'), void 0, 'Emmet: Go to Matching Pair'));
+	nls.localize('matchingPair', "Emmet: Go to Matching Pair"), void 0, 'Emmet: Go to Matching Pair'));

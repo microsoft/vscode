@@ -29,4 +29,4 @@ export class MergeLinesAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MergeLinesAction,
 	MergeLinesAction.ID,
-	nls.localize('mergeLines', 'Emmet: Merge Lines'), void 0, 'Emmet: Merge Lines'));
+	nls.localize('mergeLines', "Emmet: Merge Lines"), void 0, 'Emmet: Merge Lines'));

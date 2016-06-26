@@ -29,4 +29,4 @@ export class SplitJoinTagAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SplitJoinTagAction,
 	SplitJoinTagAction.ID,
-	nls.localize('splitJoinTag', 'Emmet: Split/Join Tag'), void 0, 'Emmet: Split/Join Tag'));
+	nls.localize('splitJoinTag', "Emmet: Split/Join Tag"), void 0, 'Emmet: Split/Join Tag'));

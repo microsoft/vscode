@@ -29,4 +29,4 @@ export class UpdateImageSizeAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UpdateImageSizeAction,
 	UpdateImageSizeAction.ID,
-	nls.localize('updateImageSize', 'Emmet: Update Image Size'), void 0, 'Emmet: Update Image Size'));
+	nls.localize('updateImageSize', "Emmet: Update Image Size"), void 0, 'Emmet: Update Image Size'));

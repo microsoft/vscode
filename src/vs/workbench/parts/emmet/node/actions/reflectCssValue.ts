@@ -29,4 +29,4 @@ export class ReflectCSSValueAction extends EmmetEditorAction {
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ReflectCSSValueAction,
 	ReflectCSSValueAction.ID,
-	nls.localize('reflectCSSValue', 'Emmet: Reflect CSS Value'), void 0, 'Emmet: Reflect CSS Value'));
+	nls.localize('reflectCSSValue', "Emmet: Reflect CSS Value"), void 0, 'Emmet: Reflect CSS Value'));
