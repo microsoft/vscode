@@ -1269,6 +1269,11 @@ declare module monaco.editor {
          */
         renderWhitespace?: boolean;
         /**
+         * Enable rendering of control characters.
+         * Defaults to false.
+         */
+        renderControlCharacters?: boolean;
+        /**
          * Enable rendering of indent guides.
          * Defaults to true.
          */
@@ -1363,6 +1368,7 @@ declare module monaco.editor {
         editorClassName: string;
         stopRenderingLineAfter: number;
         renderWhitespace: boolean;
+        renderControlCharacters: boolean;
         indentGuides: boolean;
         scrollbar: InternalEditorScrollbarOptions;
     }
@@ -1386,6 +1392,7 @@ declare module monaco.editor {
         editorClassName: boolean;
         stopRenderingLineAfter: boolean;
         renderWhitespace: boolean;
+        renderControlCharacters: boolean;
         indentGuides: boolean;
         scrollbar: boolean;
     }

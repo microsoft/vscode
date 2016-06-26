@@ -168,6 +168,22 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	}
 }
 
+export class ToggleRenderControlCharacterAction extends EditorAction {
+	static ID = 'editor.action.toggleRenderControlCharacter';
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
+		super(descriptor, editor, Behaviour.TextFocus);
+	}
+
+	public run(): TPromise<boolean> {
+		this.editor.updateOptions({
+			renderControlCharacters: !this.editor.getConfiguration().viewInfo.renderControlCharacters
+		});
+
+		return TPromise.as(true);
+	}
+}
+
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToSpacesAction, IndentationToSpacesAction.ID, nls.localize('indentationToSpaces', "Convert Indentation to Spaces"), void 0, 'Convert Indentation to Spaces'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToTabsAction, IndentationToTabsAction.ID, nls.localize('indentationToTabs', "Convert Indentation to Tabs"), void 0, 'Convert Indentation to Tabs'));
@@ -175,3 +191,4 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsing
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsingTabs, IndentUsingTabs.ID, nls.localize('indentUsingTabs', "Indent Using Tabs"), void 0, 'Indent Using Tabs'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DetectIndentation, DetectIndentation.ID, nls.localize('detectIndentation', "Detect Indentation from Content"), void 0, 'Detect Indentation from Content'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"), void 0, 'Toggle Render Whitespace'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleRenderControlCharacterAction, ToggleRenderControlCharacterAction.ID, nls.localize('toggleRenderControlCharacters', "Toggle Control Characters"), void 0, 'Toggle Render Control Characters'));

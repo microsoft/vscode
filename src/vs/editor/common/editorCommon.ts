@@ -416,6 +416,11 @@ export interface IEditorOptions {
 	 */
 	renderWhitespace?: boolean;
 	/**
+	 * Enable rendering of control characters.
+	 * Defaults to false.
+	 */
+	renderControlCharacters?: boolean;
+	/**
 	 * Enable rendering of indent guides.
 	 * Defaults to true.
 	 */
@@ -611,6 +616,7 @@ export class InternalEditorViewOptions {
 	editorClassName: string;
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
+	renderControlCharacters: boolean;
 	indentGuides: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
@@ -636,6 +642,7 @@ export class InternalEditorViewOptions {
 		editorClassName: string;
 		stopRenderingLineAfter: number;
 		renderWhitespace: boolean;
+		renderControlCharacters: boolean;
 		indentGuides: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
@@ -657,6 +664,7 @@ export class InternalEditorViewOptions {
 		this.editorClassName = String(source.editorClassName);
 		this.stopRenderingLineAfter = source.stopRenderingLineAfter|0;
 		this.renderWhitespace = Boolean(source.renderWhitespace);
+		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.indentGuides = Boolean(source.indentGuides);
 		this.scrollbar = source.scrollbar.clone();
 	}
@@ -712,6 +720,7 @@ export class InternalEditorViewOptions {
 			&& this.editorClassName === other.editorClassName
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
+			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.indentGuides === other.indentGuides
 			&& this.scrollbar.equals(other.scrollbar)
 		);
@@ -740,6 +749,7 @@ export class InternalEditorViewOptions {
 			editorClassName: this.editorClassName !== newOpts.editorClassName,
 			stopRenderingLineAfter: this.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter,
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
+			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
 			indentGuides: this.indentGuides !== newOpts.indentGuides,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
 		};
@@ -772,6 +782,7 @@ export interface IViewConfigurationChangedEvent {
 	editorClassName:  boolean;
 	stopRenderingLineAfter:  boolean;
 	renderWhitespace:  boolean;
+	renderControlCharacters: boolean;
 	indentGuides:  boolean;
 	scrollbar: boolean;
 }
