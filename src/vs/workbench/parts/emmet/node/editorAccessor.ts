@@ -5,6 +5,7 @@
 
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import {IPosition, Handler, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
@@ -104,6 +105,7 @@ export class EditorAccessor implements emmet.Editor {
 		}
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 		this.editor.setSelection(range);
+		this.editor.revealRange(range);
 	}
 
 	public getSyntax(): string {
@@ -126,7 +128,7 @@ export class EditorAccessor implements emmet.Editor {
 		return null;
 	}
 
-	public prompt(title: string): void {
+	public prompt(title: string): any {
 		//
 	}
 
@@ -140,7 +142,7 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getFilePath(): string {
-		return '';
+		return this.editor.getModel().uri.fsPath;
 	}
 
 	private getPositionFromOffset(offset: number): IPosition {
