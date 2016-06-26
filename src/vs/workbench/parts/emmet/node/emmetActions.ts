@@ -24,7 +24,7 @@ interface IEmmetConfiguration {
 export abstract class EmmetEditorAction extends EditorAction {
 
 	protected editorAccessor: EditorAccessor;
-	private configurationService:IConfigurationService = null;
+	private configurationService: IConfigurationService = null;
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, configurationService: IConfigurationService) {
 		super(descriptor, editor, Behaviour.TextFocus);
@@ -37,7 +37,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		for (let key in preferences) {
 			try {
 				_module.preferences.set(key, preferences[key]);
-			} catch(err) {
+			} catch (err) {
 				_module.preferences.define(key, preferences[key]);
 			}
 		}
@@ -53,7 +53,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		for (let key in preferences) {
 			try {
 				_module.preferences.remove(key);
-			} catch(err) {
+			} catch (err) {
 			}
 		}
 	}
