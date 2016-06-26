@@ -7,11 +7,10 @@
 import nls = require('vs/nls');
 
 import {Registry} from 'vs/platform/platform';
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 
 import './actions/expandAbbreviation';
-import './actions/balance'
+import './actions/balance';
 import './actions/matchingPair';
 import './actions/wrapWithAbbreviation';
 import './actions/editPoints';

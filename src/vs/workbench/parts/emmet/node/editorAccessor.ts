@@ -5,7 +5,6 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
 import {IPosition, Handler, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');

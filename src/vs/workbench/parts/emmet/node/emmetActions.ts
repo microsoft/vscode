@@ -12,7 +12,6 @@ import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {EditorAccessor} from './editorAccessor';
 import * as fileAccessor from './fileAccessor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import nls = require('vs/nls');
 
 interface IEmmetConfiguration {
 	emmet: {

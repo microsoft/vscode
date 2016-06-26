@@ -9,8 +9,6 @@ import fs = require('fs');
 import {dirname, join} from 'vs/base/common/paths';
 import {mkdirp, writeFile} from 'vs/base/node/pfs';
 
-import emmet = require('emmet');
-
 export function createPath(parent: string, fileName: string): string {
 	var stat = fs.statSync(parent);
 	if (stat && !stat.isDirectory()) {

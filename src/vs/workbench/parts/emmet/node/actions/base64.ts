@@ -71,7 +71,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 	public encodeDecode(_module: any, filepath?: string) {
 		this.editorAccessor.prompt = (): string => {
 			return filepath;
-		}
+		};
 
 		if (!_module.run('encode_decode_data_url', this.editorAccessor)) {
 			this.editorAccessor.noExpansionOccurred();
