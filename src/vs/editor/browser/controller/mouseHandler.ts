@@ -7,6 +7,7 @@
 import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
 import {Position} from 'vs/editor/common/core/position';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -17,6 +18,8 @@ import {TimeoutTimer} from 'vs/base/common/async';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {VisibleRange} from 'vs/editor/common/view/renderingContext';
 import {EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent} from 'vs/editor/browser/editorDom';
+import {StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
+import {EditorZoom} from 'vs/editor/common/config/commonEditorConfig';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -162,6 +165,19 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		this.listenersToRemove.push(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
 
 		this.listenersToRemove.push(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
+
+		let onMouseWheel = (browserEvent: MouseWheelEvent) => {
+			let e = new StandardMouseWheelEvent(browserEvent);
+			if (e.browserEvent.ctrlKey) {
+				let zoomLevel:number = EditorZoom.getZoomLevel();
+				let delta = e.deltaY > 0 ? 1 : -1;
+				EditorZoom.setZoomLevel(zoomLevel + delta);
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		};
+		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mousewheel', onMouseWheel, true));
+		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.viewDomNode, 'DOMMouseScroll', onMouseWheel, true));
 
 		this._context.addEventHandler(this);
 	}
