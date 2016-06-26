@@ -416,6 +416,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		CursorChangeReason: editorCommon.CursorChangeReason,
 		MouseTargetType: editorCommon.MouseTargetType,
 		TextEditorCursorStyle: editorCommon.TextEditorCursorStyle,
+		TextEditorCursorBlinkingStyle: editorCommon.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 

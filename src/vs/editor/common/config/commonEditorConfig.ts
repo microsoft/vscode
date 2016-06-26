@@ -168,6 +168,7 @@ class InternalEditorOptionsHelper {
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
+			cursorBlinkingStyle: cursorBlinkingStyleFromString(opts.cursorBlinkingStyle),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			editorClassName: editorClassName,
@@ -308,6 +309,21 @@ function cursorStyleFromString(cursorStyle:string): editorCommon.TextEditorCurso
 		return editorCommon.TextEditorCursorStyle.Underline;
 	}
 	return editorCommon.TextEditorCursorStyle.Line;
+}
+
+function cursorBlinkingStyleFromString(cursorBlinkingStyle: string): editorCommon.TextEditorCursorBlinkingStyle {
+	if (cursorBlinkingStyle === 'blink') {
+		return editorCommon.TextEditorCursorBlinkingStyle.Blink;
+	} else if (cursorBlinkingStyle === 'smooth') {
+		return editorCommon.TextEditorCursorBlinkingStyle.Smooth;
+	} else if (cursorBlinkingStyle === 'phase') {
+		return editorCommon.TextEditorCursorBlinkingStyle.Phase;
+	} else if (cursorBlinkingStyle === 'expand') {
+		return editorCommon.TextEditorCursorBlinkingStyle.Expand;
+	} else if (cursorBlinkingStyle === 'solid') {
+		return editorCommon.TextEditorCursorBlinkingStyle.Solid;
+	}
+	return editorCommon.TextEditorCursorBlinkingStyle.Blink;
 }
 
 function toIntegerWithDefault(source:any, defaultValue:number): number {
@@ -643,6 +659,12 @@ let editorConfiguration:IConfigurationNode = {
 			'enum': ['block', 'line'],
 			'default': DefaultConfig.editor.cursorStyle,
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block' and 'line'")
+		},
+		'editor.cursorBlinkingStyle' : {
+			'type': 'string',
+			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
+			'default': DefaultConfig.editor.cursorBlinkingStyle,
+			'description': nls.localize('cursorBlinkingStyle', "Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'")
 		},
 		'editor.fontLigatures' : {
 			'type': 'boolean',
