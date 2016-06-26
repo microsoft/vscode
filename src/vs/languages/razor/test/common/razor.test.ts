@@ -20,6 +20,7 @@ suite('Syntax Highlighting - Razor', () => {
 			{ id: 'razor' },
 			null,
 			new MockModeService(),
+			null,
 			null
 		);
 

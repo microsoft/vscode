@@ -56,6 +56,7 @@ suite('Handlebars', () => {
 			{ id: 'handlebars' },
 			null,
 			modeService,
+			null,
 			null
 		);
 

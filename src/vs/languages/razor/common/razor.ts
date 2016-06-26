@@ -16,6 +16,7 @@ import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/co
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
@@ -102,9 +103,10 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
-		@ICompatWorkerService compatWorkerService: ICompatWorkerService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
-		super(descriptor, instantiationService, modeService, compatWorkerService);
+		super(descriptor, instantiationService, modeService, compatWorkerService, workspaceContextService);
 	}
 
 	protected _registerSupports(): void {
@@ -124,7 +126,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
-				return wireCancellationToken(token, this._provideLinks(model.uri));
+				return wireCancellationToken(token, this.provideLinks(model.uri));
 			}
 		}, true);
 

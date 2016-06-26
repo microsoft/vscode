@@ -19,6 +19,7 @@ import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/co
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
@@ -336,7 +337,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
-		@ICompatWorkerService compatWorkerService: ICompatWorkerService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
@@ -376,7 +378,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
-				return wireCancellationToken(token, this._provideLinks(model.uri));
+				return wireCancellationToken(token, this.provideLinks(model.uri));
 			}
 		}, true);
 
@@ -463,9 +465,15 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		return this._worker((w) => w._doConfigure(options));
 	}
 
+	protected provideLinks(resource:URI):winjs.TPromise<modes.ILink[]> {
+		let workspace = this.workspaceContextService.getWorkspace();
+		let workspaceResource = workspace ? workspace.resource : null;
+		return this._provideLinks(resource, workspaceResource);
+	}
+
 	static $_provideLinks = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideLinks);
-	protected _provideLinks(resource:URI):winjs.TPromise<modes.ILink[]> {
-		return this._worker((w) => w.provideLinks(resource));
+	private _provideLinks(resource:URI, workspaceResource:URI):winjs.TPromise<modes.ILink[]> {
+		return this._worker((w) => w.provideLinks(resource, workspaceResource));
 	}
 
 	static $_provideDocumentRangeFormattingEdits = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentRangeFormattingEdits);

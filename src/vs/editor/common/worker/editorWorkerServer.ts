@@ -16,8 +16,6 @@ import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensio
 import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModeService, ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
@@ -27,11 +25,6 @@ import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerServic
 import {ILegacyLanguageDefinition} from 'vs/editor/common/modes/modesRegistry';
 
 export interface IInitData {
-	contextService: {
-		workspace:any;
-		configuration:any;
-		options:any;
-	};
 	modesRegistryData?: {
 		compatModes: ILegacyLanguageDefinition[];
 		languages: ILanguageExtensionPoint[];
@@ -87,9 +80,6 @@ export class EditorWorkerServer {
 
 		const extensionService = new WorkerExtensionService();
 		services.set(IExtensionService, extensionService);
-
-		const contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
-		services.set(IWorkspaceContextService, contextService);
 
 		const resourceService = new ResourceService();
 		services.set(IResourceService, resourceService);

@@ -53,6 +53,7 @@ suite('Syntax Highlighting - PHP', () => {
 			{ id: 'html' },
 			null,
 			modeService,
+			null,
 			null
 		));
 

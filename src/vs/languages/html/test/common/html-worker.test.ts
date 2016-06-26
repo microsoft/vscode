@@ -23,6 +23,7 @@ suite('HTML - worker', () => {
 			{ id: 'html' },
 			null,
 			new MockModeService(),
+			null,
 			null
 		);
 	})();
@@ -33,7 +34,7 @@ suite('HTML - worker', () => {
 		var model = mm.createTestMirrorModelFromString(content, mode, url);
 		resourceService.insert(url, model);
 
-		var worker = new htmlWorker.HTMLWorker(mode.getId(), resourceService, null);
+		var worker = new htmlWorker.HTMLWorker(mode.getId(), resourceService);
 
 		return { worker: worker, model: model };
 	};

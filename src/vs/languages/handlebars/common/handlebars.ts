@@ -15,6 +15,7 @@ import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export enum States {
 	HTML,
@@ -154,9 +155,10 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
-		@ICompatWorkerService compatWorkerService: ICompatWorkerService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
-		super(descriptor, instantiationService, modeService, compatWorkerService);
+		super(descriptor, instantiationService, modeService, compatWorkerService, workspaceContextService);
 	}
 
 	protected _registerSupports(): void {
@@ -176,7 +178,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
-				return wireCancellationToken(token, this._provideLinks(model.uri));
+				return wireCancellationToken(token, this.provideLinks(model.uri));
 			}
 		}, true);
 
