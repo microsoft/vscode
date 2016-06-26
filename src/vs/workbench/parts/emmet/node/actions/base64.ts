@@ -32,7 +32,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	public runEmmetAction(_module) {
 		const currentLine = this.editorAccessor.getCurrentLine();
-		if (!this.isData(currentLine)) {
+		if (!this.isDataURI(currentLine)) {
 			this.encodeDecode(_module);
 			return;
 		}
@@ -81,7 +81,7 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 	}
 
-	private isData(data: string): boolean {
+	private isDataURI(data: string): boolean {
 		return /(?:src=|url\()['"]?data:/.test(data);
 	}
 }
