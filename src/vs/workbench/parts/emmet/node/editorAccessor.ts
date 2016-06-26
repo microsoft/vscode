@@ -44,8 +44,8 @@ export class EditorAccessor implements emmet.Editor {
 	public getCurrentLineRange(): emmet.Range {
 		let currentLine = this.editor.getSelection().startLineNumber;
 		return {
-			start: this.getOffsetFromPosition({ lineNumber: currentLine, column: 1}),
-			end: this.getOffsetFromPosition({ lineNumber: currentLine + 1, column: 1})
+			start: this.getOffsetFromPosition({ lineNumber: currentLine, column: 1 }),
+			end: this.getOffsetFromPosition({ lineNumber: currentLine + 1, column: 1 })
 		};
 	}
 
