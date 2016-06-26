@@ -301,7 +301,7 @@ export class FindModelBoundToEditorModel {
 	private _rangeIsMatch(range:Range): boolean {
 		let selection = this._editor.getSelection();
 		let selectionText = this._editor.getModel().getValueInRange(selection);
-		let regexp = strings.createSafeRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		let regexp = strings.createRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord, true);
 		let m = selectionText.match(regexp);
 		return (m && m[0].length === selectionText.length);
 	}
