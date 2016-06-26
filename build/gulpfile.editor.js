@@ -23,7 +23,6 @@ var headerVersion = semver + '(' + sha1 + ')';
 var editorEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/editor/editor.main'),
 	buildfile.base,
-	buildfile.standaloneLanguages2,
 	buildfile.editor,
 	buildfile.languages
 ]);
