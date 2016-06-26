@@ -62,7 +62,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		let services = new ServiceCollection();
 		let instantiationService = new InstantiationService(services);
-		threadService = new TestThreadService(instantiationService);
+		threadService = new TestThreadService();
 		services.set(IMarkerService, new MarkerService());
 		services.set(IThreadService, threadService);
 
