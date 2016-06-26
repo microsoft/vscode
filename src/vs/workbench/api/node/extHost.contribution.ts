@@ -32,6 +32,7 @@ import {MainThreadStorage} from 'vs/workbench/api/node/extHostStorage';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
 import {MainContext, InstanceCollection} from './extHostProtocol';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {MainProcessExtensionService} from './nativeExtensionService';
 
 export class ExtHostContribution implements IWorkbenchContribution {
 
@@ -69,7 +70,9 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadStorage).set(create(MainThreadStorage));
 		col.define(MainContext.MainThreadTelemetry).set(create(MainThreadTelemetry));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
-		col.define(MainContext.MainProcessExtensionService).set(this.extensionService);
+		if (this.extensionService instanceof MainProcessExtensionService) {
+			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
+		}
 		col.finish(true, this.threadService);
 
 		// Other interested parties
