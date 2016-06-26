@@ -39,14 +39,17 @@ export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 		let options: IInputOptions = {
 			prompt: nls.localize('enterImagePath', 'Enter path to file (absolute or relative)'),
-			placeHolder: nls.localize('path', 'Path to file'),
+			placeHolder: nls.localize('path', 'Path to file')
 		};
 
-		this.quickOpenService.input(options)
+		const quickPromise = this.quickOpenService.input(options)
 			.then((path) => {
+				if (path === undefined) {
+					quickPromise.cancel();
+				}
+
 				this.imageFilePath = path;
 
-				// File exists?
 				const fullpath = createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
