@@ -8,7 +8,7 @@
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {Registry} from 'vs/platform/platform';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
@@ -19,7 +19,7 @@ import {MainThreadFileSystemEventService} from 'vs/workbench/api/node/extHostFil
 import {MainThreadQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
 import {MainThreadStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
 import {MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {RemoteTelemetryServiceHelper} from 'vs/workbench/api/node/extHostTelemetry';
+import {MainThreadTelemetry} from 'vs/workbench/api/node/extHostTelemetry';
 import {MainThreadDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {MainThreadOutputService} from 'vs/workbench/api/node/extHostOutputService';
 import {MainThreadMessageService} from 'vs/workbench/api/node/extHostMessageService';
@@ -30,12 +30,15 @@ import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguratio
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {MainThreadStorage} from 'vs/workbench/api/node/extHostStorage';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
+import {MainContext, InstanceCollection} from './extHostProtocol';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IThreadService private threadService: IThreadService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.initExtensionSystem();
 	}
@@ -45,26 +48,36 @@ export class ExtHostContribution implements IWorkbenchContribution {
 	}
 
 	private initExtensionSystem(): void {
-		this.threadService.getRemotable(MainProcessVSCodeAPIHelper);
-		this.threadService.getRemotable(MainThreadDocuments);
-		this.threadService.getRemotable(RemoteTelemetryServiceHelper);
-		this.instantiationService.createInstance(MainProcessTextMateSyntax);
-		this.instantiationService.createInstance(MainProcessTextMateSnippet);
-		this.instantiationService.createInstance(JSONValidationExtensionPoint);
-		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
-		this.threadService.getRemotable(MainThreadConfiguration);
-		this.threadService.getRemotable(MainThreadQuickOpen);
-		this.threadService.getRemotable(MainThreadStatusBar);
-		this.instantiationService.createInstance(MainThreadFileSystemEventService);
-		this.threadService.getRemotable(MainThreadCommands);
-		this.threadService.getRemotable(MainThreadOutputService);
-		this.threadService.getRemotable(MainThreadDiagnostics);
-		this.threadService.getRemotable(MainThreadMessageService);
-		this.threadService.getRemotable(MainThreadLanguages);
-		this.threadService.getRemotable(MainThreadWorkspace);
-		this.threadService.getRemotable(MainThreadEditors);
-		this.threadService.getRemotable(MainThreadStorage);
-		this.threadService.getRemotable(MainThreadLanguageFeatures);
+		const create = <T>(ctor: IConstructorSignature0<T>): T => {
+			return this.instantiationService.createInstance(ctor);
+		};
+
+		// Addressable instances
+		const col = new InstanceCollection();
+		col.define(MainContext.MainProcessVSCodeAPIHelper).set(create(MainProcessVSCodeAPIHelper));
+		col.define(MainContext.MainThreadCommands).set(create(MainThreadCommands));
+		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
+		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
+		col.define(MainContext.MainThreadDocuments).set(create(MainThreadDocuments));
+		col.define(MainContext.MainThreadEditors).set(create(MainThreadEditors));
+		col.define(MainContext.MainThreadLanguageFeatures).set(create(MainThreadLanguageFeatures));
+		col.define(MainContext.MainThreadLanguages).set(create(MainThreadLanguages));
+		col.define(MainContext.MainThreadMessageService).set(create(MainThreadMessageService));
+		col.define(MainContext.MainThreadOutputService).set(create(MainThreadOutputService));
+		col.define(MainContext.MainThreadQuickOpen).set(create(MainThreadQuickOpen));
+		col.define(MainContext.MainThreadStatusBar).set(create(MainThreadStatusBar));
+		col.define(MainContext.MainThreadStorage).set(create(MainThreadStorage));
+		col.define(MainContext.MainThreadTelemetry).set(create(MainThreadTelemetry));
+		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
+		col.define(MainContext.MainProcessExtensionService).set(this.extensionService);
+		col.finish(true, this.threadService);
+
+		// Other interested parties
+		create(MainProcessTextMateSyntax);
+		create(MainProcessTextMateSnippet);
+		create(JSONValidationExtensionPoint);
+		create(LanguageConfigurationFileHandler);
+		create(MainThreadFileSystemEventService);
 	}
 }
 

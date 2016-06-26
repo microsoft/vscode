@@ -5,7 +5,7 @@
 'use strict';
 
 import {FileChangesEvent, FileChangeType} from 'vs/platform/files/common/files';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from './extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -13,6 +13,7 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import {match} from 'vs/base/common/glob';
 import {Uri, FileSystemWatcher as _FileSystemWatcher} from 'vscode';
+import {ExtHostContext} from './extHostProtocol';
 
 export interface FileSystemEvents {
 	created: URI[];
@@ -97,7 +98,6 @@ export class FileSystemWatcher implements _FileSystemWatcher {
 	}
 }
 
-@Remotable.ExtHostContext('ExtHostFileSystemEventService')
 export class ExtHostFileSystemEventService {
 
 	private _emitter = new Emitter<FileSystemEvents>();
@@ -118,7 +118,7 @@ export class MainThreadFileSystemEventService {
 
 	constructor( @IEventService eventService: IEventService, @IThreadService threadService: IThreadService) {
 
-		const proxy = threadService.getRemotable(ExtHostFileSystemEventService);
+		const proxy = threadService.get(ExtHostContext.ExtHostFileSystemEventService);
 		const events: FileSystemEvents = {
 			created: [],
 			changed: [],

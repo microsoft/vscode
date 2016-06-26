@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {Range, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
@@ -21,6 +21,7 @@ import {asWinJsPromise, ShallowCancelThenPromise, wireCancellationToken} from 'v
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
+import {MainContext, ExtHostContext} from './extHostProtocol';
 
 // --- adapter
 
@@ -594,7 +595,6 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapt
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter;
 
-@Remotable.ExtHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
 
 	private static _handlePool: number = 0;
@@ -605,11 +605,16 @@ export class ExtHostLanguageFeatures {
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
-	constructor( @IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadLanguageFeatures);
-		this._documents = threadService.getRemotable(ExtHostModelService);
-		this._commands = threadService.getRemotable(ExtHostCommands);
-		this._diagnostics = threadService.getRemotable(ExtHostDiagnostics);
+	constructor(
+		threadService: IThreadService,
+		documents: ExtHostModelService,
+		commands: ExtHostCommands,
+		diagnostics: ExtHostDiagnostics
+	) {
+		this._proxy = threadService.get(MainContext.MainThreadLanguageFeatures);
+		this._documents = documents;
+		this._commands = commands;
+		this._diagnostics = diagnostics;
 	}
 
 	private _createDisposable(handle: number): Disposable {
@@ -818,14 +823,13 @@ export class ExtHostLanguageFeatures {
 	}
 }
 
-@Remotable.MainContext('MainThreadLanguageFeatures')
 export class MainThreadLanguageFeatures {
 
 	private _proxy: ExtHostLanguageFeatures;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
 	constructor( @IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(ExtHostLanguageFeatures);
+		this._proxy = threadService.get(ExtHostContext.ExtHostLanguageFeatures);
 	}
 
 	$unregister(handle: number): TPromise<any> {

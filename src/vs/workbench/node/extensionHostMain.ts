@@ -13,23 +13,17 @@ import pfs = require('vs/base/node/pfs');
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
+import {ExtHostAPIImplementation, defineAPI} from 'vs/workbench/api/node/extHost.api.impl';
 import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ExtHostExtensionService} from 'vs/workbench/api/node/nativeExtensionService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
 import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Client} from 'vs/base/parts/ipc/node/ipc.net';
-import {IExtensionManagementService} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
@@ -54,74 +48,6 @@ export function exit(code?: number) {
 	nativeExit(code);
 }
 
-export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
-
-	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
-	let threadService = new ExtHostThreadService(remoteCom);
-	threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, threadService])));
-	let telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-
-	let workspaceStoragePath: string;
-	const workspace = contextService.getWorkspace();
-	const env = contextService.getConfiguration().env;
-	function rmkDir(directory: string): boolean {
-		console.log('Creating Directory ' + directory);
-		try {
-			fs.mkdirSync(directory);
-			return true;
-		} catch (err) {
-			if (err.code === 'ENOENT') {
-				if (rmkDir(paths.dirname(directory))) {
-					fs.mkdirSync(directory);
-					return true;
-				}
-			} else {
-				return fs.statSync(directory).isDirectory();
-			}
-		}
-	}
-	if (workspace) {
-		const hash = crypto.createHash('md5');
-		hash.update(workspace.resource.fsPath);
-		if (workspace.uid) {
-			hash.update(workspace.uid.toString());
-		}
-		workspaceStoragePath = paths.join(env.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
-		if (!fs.existsSync(workspaceStoragePath)) {
-			try {
-				if (rmkDir(workspaceStoragePath)) {
-					fs.writeFileSync(paths.join(workspaceStoragePath, 'meta.json'), JSON.stringify({
-						workspacePath: workspace.resource.fsPath,
-						uid: workspace.uid ? workspace.uid : null
-					}, null, 4));
-				} else {
-					workspaceStoragePath = undefined;
-				}
-			} catch (err) {
-				workspaceStoragePath = undefined;
-			}
-		}
-	}
-	let services = new ServiceCollection();
-	services.set(IWorkspaceContextService, contextService);
-	services.set(ITelemetryService, telemetryService);
-	services.set(IThreadService, threadService);
-	services.set(IExtensionService, new ExtHostExtensionService(threadService, telemetryService, {serviceId: 'optionalArgs', workspaceStoragePath }));
-
-	// Connect to shared process services
-	const channel = sharedProcessClient.getChannel<IExtensionManagementChannel>('extensions');
-	const extensionsService = new ExtensionManagementChannelClient(channel);
-	services.set(IExtensionManagementService, extensionsService);
-
-	let instantiationService = new InstantiationService(services, true);
-	threadService.setInstantiationService(instantiationService);
-
-	// Create the ext host API
-	instantiationService.createInstance(ExtHostAPIImplementation);
-
-	return instantiationService;
-}
-
 interface ITestRunner {
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
 }
@@ -132,13 +58,77 @@ export class ExtensionHostMain {
 	private _contextService: IWorkspaceContextService;
 	private _extensionService: ExtHostExtensionService;
 
-	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IExtensionService extensionService: IExtensionService
-	) {
+	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData, sharedProcessClient: Client) {
 		this._isTerminating = false;
-		this._contextService = contextService;
-		this._extensionService = <ExtHostExtensionService>extensionService;
+
+		this._contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
+		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
+
+		const threadService = new ExtHostThreadService(remoteCom);
+
+		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
+
+		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, {serviceId: 'optionalArgs', workspaceStoragePath });
+
+		// Connect to shared process services
+		const channel = sharedProcessClient.getChannel<IExtensionManagementChannel>('extensions');
+		const extensionsService = new ExtensionManagementChannelClient(channel);
+		if (false && false) {
+			// TODO: what to do with the ExtensionManagementChannelClient?
+			console.log(extensionsService);
+		}
+
+		// Create the ext host API
+		defineAPI(new ExtHostAPIImplementation(threadService, this._extensionService, this._contextService, telemetryService));
+	}
+
+	private _getOrCreateWorkspaceStoragePath(): string {
+		let workspaceStoragePath: string;
+
+		const workspace = this._contextService.getWorkspace();
+		const env = this._contextService.getConfiguration().env;
+
+		function rmkDir(directory: string): boolean {
+			console.log('Creating Directory ' + directory);
+			try {
+				fs.mkdirSync(directory);
+				return true;
+			} catch (err) {
+				if (err.code === 'ENOENT') {
+					if (rmkDir(paths.dirname(directory))) {
+						fs.mkdirSync(directory);
+						return true;
+					}
+				} else {
+					return fs.statSync(directory).isDirectory();
+				}
+			}
+		}
+
+		if (workspace) {
+			const hash = crypto.createHash('md5');
+			hash.update(workspace.resource.fsPath);
+			if (workspace.uid) {
+				hash.update(workspace.uid.toString());
+			}
+			workspaceStoragePath = paths.join(env.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
+			if (!fs.existsSync(workspaceStoragePath)) {
+				try {
+					if (rmkDir(workspaceStoragePath)) {
+						fs.writeFileSync(paths.join(workspaceStoragePath, 'meta.json'), JSON.stringify({
+							workspacePath: workspace.resource.fsPath,
+							uid: workspace.uid ? workspace.uid : null
+						}, null, 4));
+					} else {
+						workspaceStoragePath = undefined;
+					}
+				} catch (err) {
+					workspaceStoragePath = undefined;
+				}
+			}
+		}
+
+		return workspaceStoragePath;
 	}
 
 	public start(): TPromise<void> {

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
+import {MainContext} from './extHostProtocol';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -175,7 +176,6 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
-@Remotable.ExtHostContext('ExtHostDiagnostics')
 export class ExtHostDiagnostics {
 
 	private static _idPool: number = 0;
@@ -183,8 +183,8 @@ export class ExtHostDiagnostics {
 	private _proxy: MainThreadDiagnostics;
 	private _collections: DiagnosticCollection[];
 
-	constructor(@IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadDiagnostics);
+	constructor(threadService: IThreadService) {
+		this._proxy = threadService.get(MainContext.MainThreadDiagnostics);
 		this._collections = [];
 	}
 
@@ -216,7 +216,6 @@ export class ExtHostDiagnostics {
 	}
 }
 
-@Remotable.MainContext('MainThreadDiagnostics')
 export class MainThreadDiagnostics {
 
 	private _markerService: IMarkerService;

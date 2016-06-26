@@ -5,9 +5,10 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IQuickOpenService, IPickOpenEntry, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
+import {MainContext, ExtHostContext} from './extHostProtocol';
 
 export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
@@ -15,15 +16,14 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 
 export type Item = string | QuickPickItem;
 
-@Remotable.ExtHostContext('ExtHostQuickOpen')
 export class ExtHostQuickOpen {
 
 	private _proxy: MainThreadQuickOpen;
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string;
 
-	constructor(@IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadQuickOpen);
+	constructor(threadService: IThreadService) {
+		this._proxy = threadService.get(MainContext.MainThreadQuickOpen);
 	}
 
 	show(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions): Thenable<Item> {
@@ -112,7 +112,6 @@ export class ExtHostQuickOpen {
 	}
 }
 
-@Remotable.MainContext('MainThreadQuickOpen')
 export class MainThreadQuickOpen {
 
 	private _proxy: ExtHostQuickOpen;
@@ -123,7 +122,7 @@ export class MainThreadQuickOpen {
 	private _token: number = 0;
 
 	constructor( @IThreadService threadService: IThreadService, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		this._proxy = threadService.getRemotable(ExtHostQuickOpen);
+		this._proxy = threadService.get(ExtHostContext.ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
 	}
 

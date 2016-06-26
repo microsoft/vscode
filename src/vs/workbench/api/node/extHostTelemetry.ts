@@ -7,13 +7,13 @@
 import {notImplemented} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {MainContext} from './extHostProtocol';
 
 /**
  * Helper always instantiated in the main process to receive telemetry events from remote telemetry services
  */
-@Remotable.MainContext('RemoteTelemetryServiceHelper')
-export class RemoteTelemetryServiceHelper {
+export class MainThreadTelemetry {
 
 	private _telemetryService: ITelemetryService;
 
@@ -35,11 +35,11 @@ export class RemoteTelemetryService implements ITelemetryService {
 	serviceId: any;
 
 	private _name: string;
-	private _proxy: RemoteTelemetryServiceHelper;
+	private _proxy: MainThreadTelemetry;
 
 	constructor(name: string, threadService: IThreadService) {
 		this._name = name;
-		this._proxy = threadService.getRemotable(RemoteTelemetryServiceHelper);
+		this._proxy = threadService.get(MainContext.MainThreadTelemetry);
 	}
 
 	get isOptedIn(): boolean {

@@ -12,6 +12,28 @@ export interface IThreadService {
 	serviceId: ServiceIdentifier<any>;
 	getRemotable<T>(ctor: IConstructorSignature0<T>): T;
 	registerRemotableInstance(ctor: any, instance: any): void;
+
+	get<T>(identifier:ProxyIdentifier<T>): T;
+	set<T>(identifier:ProxyIdentifier<T>, value:T): T;
+}
+
+export class ProxyIdentifier<T> {
+	_proxyIdentifierBrand: void;
+
+	isMain: boolean;
+	id: string;
+
+	constructor(isMain: boolean, id: string) {
+		this.isMain = isMain;
+		this.id = id;
+	}
+}
+
+export function createMainContextProxyIdentifier<T>(identifier: number): ProxyIdentifier<T> {
+	return new ProxyIdentifier(true, 'm' + identifier);
+}
+export function createExtHostContextProxyIdentifier<T>(identifier: number): ProxyIdentifier<T> {
+	return new ProxyIdentifier(false, 'e' + identifier);
 }
 
 export class IRemotableCtorMap {
@@ -31,25 +53,25 @@ export class Remotable {
 		return (ctor[Remotable.PROP_NAME] || null);
 	}
 
-	public static MainContext(identifier: string) {
-		return function(target: Function) {
-			Remotable._ensureUnique(identifier);
-			Remotable.Registry.MainContext[identifier] = target;
-			target[Remotable.PROP_NAME] = identifier;
-		};
-	}
+	// public static MainContext(identifier: string) {
+	// 	return function(target: Function) {
+	// 		Remotable._ensureUnique(identifier);
+	// 		Remotable.Registry.MainContext[identifier] = target;
+	// 		target[Remotable.PROP_NAME] = identifier;
+	// 	};
+	// }
 
-	public static ExtHostContext(identifier: string) {
-		return function(target: Function) {
-			Remotable._ensureUnique(identifier);
-			Remotable.Registry.ExtHostContext[identifier] = target;
-			target[Remotable.PROP_NAME] = identifier;
-		};
-	}
+	// public static ExtHostContext(identifier: string) {
+	// 	return function(target: Function) {
+	// 		Remotable._ensureUnique(identifier);
+	// 		Remotable.Registry.ExtHostContext[identifier] = target;
+	// 		target[Remotable.PROP_NAME] = identifier;
+	// 	};
+	// }
 
-	private static _ensureUnique(identifier: string): void {
-		if (Remotable.Registry.MainContext[identifier] || Remotable.Registry.ExtHostContext[identifier]) {
-			throw new Error('Duplicate Remotable identifier found');
-		}
-	}
+	// private static _ensureUnique(identifier: string): void {
+	// 	if (Remotable.Registry.MainContext[identifier] || Remotable.Registry.ExtHostContext[identifier]) {
+	// 		throw new Error('Duplicate Remotable identifier found');
+	// 	}
+	// }
 }

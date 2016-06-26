@@ -83,6 +83,10 @@ export class MainThreadService extends CommonMainThreadService {
 	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 		return this._getOrCreateProxyInstance(this.remoteCom, id, descriptor);
 	}
+
+	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {
+		return this.remoteCom.callOnRemote(proxyId, path, args);
+	}
 }
 
 class ExtensionHostProcessManager {

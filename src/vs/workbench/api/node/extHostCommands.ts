@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {validateConstraint} from 'vs/base/common/types';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
@@ -13,6 +13,7 @@ import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import {cloneAndChange} from 'vs/base/common/objects';
+import {MainContext, ExtHostContext} from './extHostProtocol';
 
 interface CommandHandler {
 	callback: Function;
@@ -20,16 +21,18 @@ interface CommandHandler {
 	description: ICommandHandlerDescription;
 }
 
-@Remotable.ExtHostContext('ExtHostCommands')
 export class ExtHostCommands {
 
 	private _commands: { [n: string]: CommandHandler } = Object.create(null);
 	private _proxy: MainThreadCommands;
 	private _extHostEditors: ExtHostEditors;
 
-	constructor(@IThreadService threadService: IThreadService) {
-		this._extHostEditors = threadService.getRemotable(ExtHostEditors);
-		this._proxy = threadService.getRemotable(MainThreadCommands);
+	constructor(
+		threadService: IThreadService,
+		extHostEditors:ExtHostEditors
+	) {
+		this._extHostEditors = extHostEditors;
+		this._proxy = threadService.get(MainContext.MainThreadCommands);
 	}
 
 	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
@@ -124,17 +127,19 @@ export class ExtHostCommands {
 	}
 }
 
-@Remotable.MainContext('MainThreadCommands')
 export class MainThreadCommands {
 
 	private _threadService: IThreadService;
 	private _keybindingService: IKeybindingService;
 	private _proxy: ExtHostCommands;
 
-	constructor( @IThreadService threadService: IThreadService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(
+		@IThreadService threadService: IThreadService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
 		this._threadService = threadService;
 		this._keybindingService = keybindingService;
-		this._proxy = this._threadService.getRemotable(ExtHostCommands);
+		this._proxy = this._threadService.get(ExtHostContext.ExtHostCommands);
 	}
 
 	$registerCommand(id: string): TPromise<any> {
@@ -171,7 +176,7 @@ export class MainThreadCommands {
 KeybindingsRegistry.registerCommandDesc({
 	id: '_generateCommandsDocumentation',
 	handler: function(accessor) {
-		return accessor.get(IThreadService).getRemotable(ExtHostCommands).$getContributedCommandHandlerDescriptions().then(result => {
+		return accessor.get(IThreadService).get(ExtHostContext.ExtHostCommands).$getContributedCommandHandlerDescriptions().then(result => {
 
 			// add local commands
 			const commands = KeybindingsRegistry.getCommands();

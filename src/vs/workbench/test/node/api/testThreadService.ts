@@ -5,12 +5,14 @@
 
 'use strict';
 
-import {NullThreadService} from 'vs/platform/test/common/nullThreadService';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
+import {IThreadService, ProxyIdentifier} from 'vs/platform/thread/common/thread';
 
-export class TestThreadService extends NullThreadService {
+export class TestThreadService extends AbstractThreadService implements IThreadService {
+	public serviceId = IThreadService;
 
 	constructor(instantiationService: IInstantiationService) {
 		super();
@@ -92,7 +94,57 @@ export class TestThreadService extends NullThreadService {
 		}, id, descriptor);
 	}
 
+	protected _registerMainProcessActor<T>(id: string, actor: T): void {
+		throw new Error('Not implemented');
+	}
+
 	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-		return this._getOrCreateLocalInstance(id, descriptor);
+		throw new Error('Not implemented');
+	}
+
+	protected _registerExtHostActor<T>(id: string, actor: T): void {
+		this._registerLocalInstance(id, actor);
+	}
+
+	private _testInstances: {[id:string]:any;} = Object.create(null);
+	setTestInstance<T>(identifier:ProxyIdentifier<T>, value:T): T {
+		this._testInstances[identifier.id] = value;
+		return value;
+	}
+
+	get<T>(identifier:ProxyIdentifier<T>): T {
+		let id = identifier.id;
+		if (this._localObjMap[id]) {
+			return this._localObjMap[id];
+		}
+		return super.get(identifier);
+	}
+
+	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {
+		this._callCount++;
+
+		return new TPromise<any>((c) => {
+			setTimeout(c, 0);
+		}).then(() => {
+			const instance = this._testInstances[proxyId];
+			let p: TPromise<any>;
+			try {
+				// let {path, args} = _calls.shift();
+				let result = (<Function>instance[path]).apply(instance, args);
+				p = TPromise.is(result) ? result : TPromise.as(result);
+			} catch (err) {
+				p = TPromise.wrapError(err);
+			}
+
+			return p.then(result => {
+				this._callCount--;
+				// console.log(`this._callCount: ${this._callCount}`);
+				return result;
+			}, err => {
+				this._callCount--;
+				// console.log(`this._callCount: ${this._callCount}`);
+				return TPromise.wrapError(err);
+			});
+		});
 	}
 }

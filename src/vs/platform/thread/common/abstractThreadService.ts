@@ -6,15 +6,17 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import remote = require('vs/base/common/remote');
-import {Remotable} from 'vs/platform/thread/common/thread';
+import {Remotable, ProxyIdentifier} from 'vs/platform/thread/common/thread';
 import instantiation = require('vs/platform/instantiation/common/instantiation');
 import {SyncDescriptor0, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+
+declare var Proxy:any; // TODO@TypeScript
 
 export abstract class AbstractThreadService implements remote.IManyHandler {
 
 	protected _instantiationService: instantiation.IInstantiationService;
 
-	private _localObjMap: { [id: string]: any; };
+	protected _localObjMap: { [id: string]: any; };
 	private _proxyObjMap: { [id: string]: any; };
 
 	constructor() {
@@ -63,7 +65,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T {
 		let id = Remotable.getId(ctor);
 		if (!id) {
-			throw new Error('Unknown Remotable: <<' + id + '>>');
+			throw new Error('Unknown Remotable: <<' + ctor + '>>');
 		}
 
 		let desc = createSyncDescriptor<T>(ctor);
@@ -95,6 +97,38 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 
 		throw new Error('Unknown Remotable: <<' + id + '>>');
 	}
+
+	private _proxies: {[id:string]:any;} = Object.create(null);
+	get<T>(identifier:ProxyIdentifier<T>): T {
+		let id = identifier.id;
+		if (!this._proxies[id]) {
+			this._proxies[id] = this._createProxy(id);
+		}
+		return this._proxies[id];
+	}
+
+	private _createProxy<T>(id:string): T {
+		let handler = {
+			get: (target, name) => {
+				return (...myArgs: any[]) => {
+					return this._callOnRemote(id, name, myArgs);
+				};
+			}
+		};
+
+		return new Proxy({}, handler);
+	}
+
+	set<T>(identifier:ProxyIdentifier<T>, value:T): T {
+		if (identifier.isMain) {
+			this._registerMainProcessActor(identifier.id, value);
+		} else {
+			this._registerExtHostActor(identifier.id, value);
+		}
+		return value;
+	}
+
+	protected abstract _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any>;
 
 	protected abstract _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
 	protected abstract _registerMainProcessActor<T>(id: string, actor: T): void;

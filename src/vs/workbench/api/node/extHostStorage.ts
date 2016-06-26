@@ -5,10 +5,10 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {MainContext} from './extHostProtocol';
 
-@Remotable.MainContext('MainThreadStorage')
 export class MainThreadStorage {
 
 	private _storageService: IStorageService;
@@ -47,7 +47,7 @@ export class ExtHostStorage {
 	private _proxy: MainThreadStorage;
 
 	constructor(threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadStorage);
+		this._proxy = threadService.get(MainContext.MainThreadStorage);
 	}
 
 	getValue<T>(shared: boolean, key: string, defaultValue?: T): TPromise<T> {

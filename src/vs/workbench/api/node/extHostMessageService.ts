@@ -5,19 +5,20 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import {Action} from 'vs/base/common/actions';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import vscode = require('vscode');
+import {MainContext} from './extHostProtocol';
 
 export class ExtHostMessageService {
 
 	private _proxy: MainThreadMessageService;
 
-	constructor(@IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadMessageService);
+	constructor(threadService: IThreadService) {
+		this._proxy = threadService.get(MainContext.MainThreadMessageService);
 	}
 
 	showMessage(severity: Severity, message: string, commands: (string|vscode.MessageItem)[]): Thenable<string|vscode.MessageItem> {
@@ -44,7 +45,6 @@ export class ExtHostMessageService {
 	}
 }
 
-@Remotable.MainContext('MainThreadMessageService')
 export class MainThreadMessageService {
 
 	private _messageService: IMessageService;
