@@ -6,39 +6,27 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from '../emmetActions';
+import {BasicEmmetEditorAction} from '../emmetEditorAction';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-export class PreviousEditPointAction extends EmmetEditorAction {
+class PreviousEditPointAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.previousEditPoint';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('prev_edit_point', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'prev_edit_point');
 	}
 }
 
-export class NextEditPointAction extends EmmetEditorAction {
+class NextEditPointAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.nextEditPoint';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('next_edit_point', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'next_edit_point');
 	}
 }
 

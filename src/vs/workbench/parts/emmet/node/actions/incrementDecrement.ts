@@ -6,99 +6,63 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from '../emmetActions';
+import {BasicEmmetEditorAction} from '../emmetEditorAction';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-export class IncrementNumberByOneTenthAction extends EmmetEditorAction {
+class IncrementNumberByOneTenthAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.incrementNumberByOneTenth';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('increment_number_by_01', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'increment_number_by_01');
 	}
 }
 
-export class IncrementNumberByOneAction extends EmmetEditorAction {
+class IncrementNumberByOneAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.incrementNumberByOne';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('increment_number_by_1', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'increment_number_by_1');
 	}
 }
 
-export class IncrementNumberByTenAction extends EmmetEditorAction {
+class IncrementNumberByTenAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.incrementNumberByTen';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('increment_number_by_10', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'increment_number_by_10');
 	}
 }
 
-export class DecrementNumberByOneTenthAction extends EmmetEditorAction {
+class DecrementNumberByOneTenthAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.decrementNumberByOneTenth';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('decrement_number_by_01', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'decrement_number_by_01');
 	}
 }
 
-export class DecrementNumberByOneAction extends EmmetEditorAction {
+class DecrementNumberByOneAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.decrementNumberByOne';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('decrement_number_by_1', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'decrement_number_by_1');
 	}
 }
 
-export class DecrementNumberByTenAction extends EmmetEditorAction {
+class DecrementNumberByTenAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.decrementNumberByTen';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('decrement_number_by_10', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'decrement_number_by_10');
 	}
 }
 

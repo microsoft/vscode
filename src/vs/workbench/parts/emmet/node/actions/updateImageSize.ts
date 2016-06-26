@@ -6,24 +6,18 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from '../emmetActions';
+import {BasicEmmetEditorAction} from '../emmetEditorAction';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-export class UpdateImageSizeAction extends EmmetEditorAction {
+class UpdateImageSizeAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.updateImageSize';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('update_image_size', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'update_image_size');
 	}
 }
 

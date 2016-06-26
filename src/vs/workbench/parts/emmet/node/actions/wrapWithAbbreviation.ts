@@ -13,7 +13,7 @@ import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/e
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
-export class WrapWithAbbreviationAction extends EmmetEditorAction {
+class WrapWithAbbreviationAction extends EmmetEditorAction {
 
 	static ID = 'editor.emmet.action.wrapWithAbbreviation';
 

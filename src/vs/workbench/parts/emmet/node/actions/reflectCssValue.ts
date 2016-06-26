@@ -6,24 +6,18 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from '../emmetActions';
+import {BasicEmmetEditorAction} from '../emmetEditorAction';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-export class ReflectCSSValueAction extends EmmetEditorAction {
+class ReflectCSSValueAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.reflectCSSValue';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('reflect_css_value', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'reflect_css_value');
 	}
 }
 

@@ -6,24 +6,18 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from '../emmetActions';
+import {BasicEmmetEditorAction} from '../emmetEditorAction';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
-export class SplitJoinTagAction extends EmmetEditorAction {
+class SplitJoinTagAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.splitJoinTag';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('split_join_tag', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'split_join_tag');
 	}
 }
 

@@ -6,7 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from '../emmetActions';
+import {BasicEmmetEditorAction} from '../emmetEditorAction';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
@@ -17,18 +17,12 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 
-export class ExpandAbbreviationAction extends EmmetEditorAction {
+class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.expandAbbreviation';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('expand_abbreviation', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
+		super(descriptor, editor, configurationService, 'expand_abbreviation');
 	}
 }
 

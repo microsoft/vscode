@@ -19,7 +19,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 
-export class EncodeDecodeDataUrlAction extends EmmetEditorAction {
+class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	static ID = 'editor.emmet.action.encodeDecodeDataUrl';
 	private imageFilePath: string = null;
