@@ -844,7 +844,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			return resolvedHandler;
 		}, (error) => {
-			return TPromise.wrapError('Unable to instanciate quick open handler ' + handler.moduleName + ' - ' + handler.ctorName + ': ' + JSON.stringify(error));
+			return TPromise.wrapError('Unable to instantiate quick open handler ' + handler.moduleName + ' - ' + handler.ctorName + ': ' + JSON.stringify(error));
 		});
 	}
 
