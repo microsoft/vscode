@@ -241,7 +241,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let modelService = services.modelService || new ModelServiceImpl(markerService, configurationService, messageService);
 	serviceCollection.set(IModelService, modelService);
 
-	let compatWorkerService = services.compatWorkerService || new MainThreadCompatWorkerService(contextService, modelService);
+	let compatWorkerService = services.compatWorkerService || new MainThreadCompatWorkerService(modelService);
 	serviceCollection.set(ICompatWorkerService, compatWorkerService);
 
 	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);

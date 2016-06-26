@@ -10,7 +10,6 @@ import {IModel, EventType, IModelContentChangedEvent} from 'vs/editor/common/edi
 import {ICompatWorkerService, ICompatMode} from 'vs/editor/common/services/compatWorkerService';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {WorkerClient} from 'vs/base/common/worker/workerClient';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 
@@ -18,7 +17,6 @@ export class MainThreadCompatWorkerService implements ICompatWorkerService {
 	public serviceId = ICompatWorkerService;
 	public isInMainThread = true;
 
-	private _contextService: IWorkspaceContextService;
 	private _workerFactory: DefaultWorkerFactory;
 	private _worker: WorkerClient;
 	private _workerCreatedPromise: TPromise<void>;
@@ -27,10 +25,8 @@ export class MainThreadCompatWorkerService implements ICompatWorkerService {
 	private _modelListeners: { [uri: string]: IDisposable };
 
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService
 	) {
-		this._contextService = contextService;
 		this._workerFactory = new DefaultWorkerFactory(true);
 		this._worker = null;
 		this._workerCreatedPromise = new TPromise<void>((c, e, p) => {
@@ -148,11 +144,6 @@ export class MainThreadCompatWorkerService implements ICompatWorkerService {
 			'vs/editor/common/worker/editorWorkerServer'
 		);
 		this._worker.onModuleLoaded = this._worker.request('initialize', {
-			contextService: {
-				workspace: this._contextService.getWorkspace(),
-				configuration: this._contextService.getConfiguration(),
-				options: this._contextService.getOptions()
-			},
 			modesRegistryData: {
 				compatModes: ModesRegistry.getCompatModes(),
 				languages: ModesRegistry.getLanguages()

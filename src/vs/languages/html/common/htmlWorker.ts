@@ -12,7 +12,6 @@ import network = require('vs/base/common/network');
 import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
@@ -32,7 +31,6 @@ interface IColorRange {
 
 export class HTMLWorker {
 
-	private _contextService: IWorkspaceContextService;
 	private resourceService:IResourceService;
 	private _modeId: string;
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
@@ -40,13 +38,11 @@ export class HTMLWorker {
 
 	constructor(
 		modeId: string,
-		@IResourceService resourceService: IResourceService,
-		@IWorkspaceContextService contextService:IWorkspaceContextService
+		@IResourceService resourceService: IResourceService
 	) {
 
 		this._modeId = modeId;
 		this.resourceService = resourceService;
-		this._contextService = contextService;
 
 		this._tagProviders = [];
 		this._tagProviders.push(htmlTags.getHTML5TagProvider());
@@ -511,7 +507,7 @@ export class HTMLWorker {
 		};
 	}
 
-	private _computeHTMLLinks(model: editorCommon.IMirrorModel): modes.ILink[] {
+	private _computeHTMLLinks(model: editorCommon.IMirrorModel, workspaceResource:URI): modes.ILink[] {
 		let lineCount = model.getLineCount(),
 			newLinks: modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
@@ -528,10 +524,9 @@ export class HTMLWorker {
 			link: modes.ILink;
 
 		let rootAbsoluteUrl: URI = null;
-		let workspace = this._contextService.getWorkspace();
-		if (workspace) {
+		if (workspaceResource) {
 			// The workspace can be null in the no folder opened case
-			let strRootAbsoluteUrl = String(workspace.resource);
+			let strRootAbsoluteUrl = String(workspaceResource);
 			if (strRootAbsoluteUrl.charAt(strRootAbsoluteUrl.length - 1) === '/') {
 				rootAbsoluteUrl = URI.parse(strRootAbsoluteUrl);
 			} else {
@@ -590,9 +585,9 @@ export class HTMLWorker {
 		return newLinks;
 	}
 
-	public provideLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
+	public provideLinks(resource: URI, workspaceResource:URI): winjs.TPromise<modes.ILink[]> {
 		let model = this.resourceService.get(resource);
-		return winjs.TPromise.as(this._computeHTMLLinks(model));
+		return winjs.TPromise.as(this._computeHTMLLinks(model, workspaceResource));
 	}
 }
 
