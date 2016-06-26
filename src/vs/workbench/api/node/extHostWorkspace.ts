@@ -8,7 +8,7 @@ import {isPromiseCanceledError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {ISearchService, QueryType} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
@@ -17,6 +17,7 @@ import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
 import {Uri, CancellationToken} from 'vscode';
+import {MainContext} from './extHostProtocol';
 
 export class ExtHostWorkspace {
 
@@ -25,8 +26,8 @@ export class ExtHostWorkspace {
 	private _proxy: MainThreadWorkspace;
 	private _workspacePath: string;
 
-	constructor( @IThreadService threadService: IThreadService, workspacePath:string) {
-		this._proxy = threadService.getRemotable(MainThreadWorkspace);
+	constructor(threadService: IThreadService, workspacePath:string) {
+		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
 		this._workspacePath = workspacePath;
 	}
 
@@ -85,7 +86,6 @@ export class ExtHostWorkspace {
 	}
 }
 
-@Remotable.MainContext('MainThreadWorkspace')
 export class MainThreadWorkspace {
 
 	private _activeSearches: { [id: number]: TPromise<Uri[]> } = Object.create(null);

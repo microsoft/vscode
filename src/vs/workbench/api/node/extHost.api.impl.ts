@@ -8,7 +8,7 @@ import {Emitter} from 'vs/base/common/event';
 import {score} from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import * as errors from 'vs/base/common/errors';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
 import {ExtHostModelService, setWordDefinitionFor} from 'vs/workbench/api/node/extHostDocuments';
@@ -32,7 +32,7 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ExtHostExtensionService} from 'vs/workbench/api/node/nativeExtensionService';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -43,6 +43,7 @@ import {TextEditorRevealType} from 'vs/workbench/api/node/mainThreadEditors';
 import * as paths from 'vs/base/common/paths';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {MainContext, ExtHostContext, InstanceCollection} from './extHostProtocol';
 
 /**
  * This class implements the API described in vscode.d.ts,
@@ -55,7 +56,6 @@ export class ExtHostAPIImplementation {
 		return String(++ExtHostAPIImplementation._LAST_REGISTER_TOKEN);
 	}
 
-	private _threadService: IThreadService;
 	private _proxy: MainProcessVSCodeAPIHelper;
 
 	version: typeof vscode.version;
@@ -98,13 +98,45 @@ export class ExtHostAPIImplementation {
 	extensions: typeof vscode.extensions;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
-		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITelemetryService telemetryService: ITelemetryService
+		threadService: IThreadService,
+		extensionService: ExtHostExtensionService,
+		contextService: IWorkspaceContextService,
+		telemetryService: ITelemetryService
 	) {
-		this._threadService = threadService;
-		this._proxy = threadService.getRemotable(MainProcessVSCodeAPIHelper);
+		// Addressable instances
+		const col = new InstanceCollection();
+
+		const extHostDocuments = col.define(ExtHostContext.ExtHostModelService).set(new ExtHostModelService(threadService));
+		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set(new ExtHostEditors(threadService, extHostDocuments));
+		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set(new ExtHostCommands(threadService, extHostEditors));
+		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set(new ExtHostConfiguration());
+		const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set(new ExtHostDiagnostics(threadService));
+		const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostDiagnostics));
+		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set(new ExtHostFileSystemEventService());
+		const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set(new ExtHostQuickOpen(threadService));
+		col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
+
+		col.finish(false, threadService);
+
+
+		// Others
+		this._proxy = threadService.get(MainContext.MainProcessVSCodeAPIHelper);
+		errors.setUnexpectedErrorHandler((err) => {
+			this._proxy.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
+		});
+
+		const extHostMessageService = new ExtHostMessageService(threadService);
+		const extHostStatusBar = new ExtHostStatusBar(threadService);
+		const extHostOutputService = new ExtHostOutputService(threadService);
+		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
+		const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
+		const languages = new ExtHostLanguages(threadService);
+
+		// the converter might create delegate commands to avoid sending args
+		// around all the time
+		ExtHostTypeConverters.Command.initialize(extHostCommands);
+		registerApiCommands(extHostCommands);
+
 
 		this.version = contextService.getConfiguration().env.version;
 		this.Uri = URI;
@@ -138,21 +170,6 @@ export class ExtHostAPIImplementation {
 		this.TextEditorRevealType = TextEditorRevealType;
 		this.EndOfLine = extHostTypes.EndOfLine;
 		this.TextEditorCursorStyle = EditorCommon.TextEditorCursorStyle;
-
-		errors.setUnexpectedErrorHandler((err) => {
-			this._proxy.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
-		});
-
-		const extHostCommands = this._threadService.getRemotable(ExtHostCommands);
-		const extHostEditors = this._threadService.getRemotable(ExtHostEditors);
-		const extHostMessageService = new ExtHostMessageService(this._threadService);
-		const extHostQuickOpen = this._threadService.getRemotable(ExtHostQuickOpen);
-		const extHostStatusBar = new ExtHostStatusBar(this._threadService);
-		const extHostOutputService = new ExtHostOutputService(this._threadService);
-
-		// the converter might create delegate commands to avoid sending args
-		// around all the time
-		ExtHostTypeConverters.Command.initialize(extHostCommands);
 
 		// env namespace
 		let telemetryInfo: ITelemetryInfo;
@@ -248,11 +265,6 @@ export class ExtHostAPIImplementation {
 			}
 		};
 
-		//
-		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
-		const extHostFileSystemEvent = threadService.getRemotable(ExtHostFileSystemEventService);
-		const extHostWorkspace = new ExtHostWorkspace(this._threadService, workspacePath);
-		const extHostDocuments = this._threadService.getRemotable(ExtHostModelService);
 		this.workspace = Object.freeze({
 			get rootPath() {
 				return extHostWorkspace.getPath();
@@ -318,14 +330,6 @@ export class ExtHostAPIImplementation {
 			}
 		});
 
-		//
-		registerApiCommands(threadService);
-
-		//
-		const languages = new ExtHostLanguages(this._threadService);
-		const extHostDiagnostics = threadService.getRemotable(ExtHostDiagnostics);
-		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
-
 		this.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
 				return extHostDiagnostics.createDiagnosticCollection(name);
@@ -383,9 +387,6 @@ export class ExtHostAPIImplementation {
 			}
 		};
 
-		var extHostConfiguration = threadService.getRemotable(ExtHostConfiguration);
-
-		//
 		this.extensions = {
 			getExtension(extensionId: string):Extension<any> {
 				let desc = ExtensionsRegistry.getExtensionDescription(extensionId);
@@ -397,9 +398,6 @@ export class ExtHostAPIImplementation {
 				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(<ExtHostExtensionService> extensionService, desc));
 			}
 		};
-
-		// Intentionally calling a function for typechecking purposes
-		defineAPI(this);
 	}
 
 	private _disposableFromToken(disposeToken:string): IDisposable {
@@ -466,7 +464,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
-function defineAPI(impl: typeof vscode) {
+export function defineAPI(impl: typeof vscode) {
 	let node_module = <any>require.__$__nodeRequire('module');
 	let original = node_module._load;
 	node_module._load = function load(request, parent, isMain) {
@@ -478,7 +476,6 @@ function defineAPI(impl: typeof vscode) {
 	define('vscode', [], impl);
 }
 
-@Remotable.MainContext('MainProcessVSCodeAPIHelper')
 export class MainProcessVSCodeAPIHelper {
 	protected _modeService: IModeService;
 	private _token2Dispose: {

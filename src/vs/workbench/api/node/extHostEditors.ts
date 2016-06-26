@@ -10,7 +10,7 @@ import {IdGenerator} from 'vs/base/common/idGenerator';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostModelService, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
 import {Selection, Range, Position, EditorOptions, EndOfLine} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IDecorationOptions} from 'vs/editor/common/editorCommon';
@@ -26,6 +26,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
 import {equals as objectEquals} from 'vs/base/common/objects';
+import {MainContext, ExtHostContext} from './extHostProtocol';
 
 export interface ITextEditorAddData {
 	id: string;
@@ -39,7 +40,6 @@ export interface ITextEditorPositionData {
 	[id: string]: EditorPosition;
 }
 
-@Remotable.ExtHostContext('ExtHostEditors')
 export class ExtHostEditors {
 
 	public onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
@@ -59,7 +59,8 @@ export class ExtHostEditors {
 	private _visibleEditorIds: string[];
 
 	constructor(
-		@IThreadService threadService: IThreadService
+		threadService: IThreadService,
+		modelService: ExtHostModelService
 	) {
 		this._onDidChangeTextEditorSelection = new Emitter<TextEditorSelectionChangeEvent>();
 		this.onDidChangeTextEditorSelection = this._onDidChangeTextEditorSelection.event;
@@ -70,8 +71,8 @@ export class ExtHostEditors {
 		this._onDidChangeTextEditorViewColumn = new Emitter<TextEditorViewColumnChangeEvent>();
 		this.onDidChangeTextEditorViewColumn = this._onDidChangeTextEditorViewColumn.event;
 
-		this._modelService = threadService.getRemotable(ExtHostModelService);
-		this._proxy = threadService.getRemotable(MainThreadEditors);
+		this._modelService = modelService;
+		this._proxy = threadService.get(MainContext.MainThreadEditors);
 		this._onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor>();
 		this._editors = Object.create(null);
 
@@ -453,7 +454,6 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	}
 }
 
-@Remotable.MainContext('MainThreadEditors')
 export class MainThreadEditors {
 
 	private _proxy: ExtHostEditors;
@@ -476,7 +476,7 @@ export class MainThreadEditors {
 		@IEventService eventService: IEventService,
 		@IModelService modelService: IModelService
 	) {
-		this._proxy = threadService.getRemotable(ExtHostEditors);
+		this._proxy = threadService.get(ExtHostContext.ExtHostEditors);
 		this._workbenchEditorService = workbenchEditorService;
 		this._telemetryService = telemetryService;
 		this._toDispose = [];

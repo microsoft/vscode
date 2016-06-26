@@ -9,7 +9,7 @@ import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -26,6 +26,7 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
+import {MainContext, ExtHostContext} from './extHostProtocol';
 
 export interface IModelAddedData {
 	url: URI;
@@ -47,7 +48,6 @@ export function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition[modeId];
 }
 
-@Remotable.ExtHostContext('ExtHostModelService')
 export class ExtHostModelService {
 
 	private static _handlePool: number = 0;
@@ -70,8 +70,8 @@ export class ExtHostModelService {
 
 	private _proxy: MainThreadDocuments;
 
-	constructor(@IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadDocuments);
+	constructor(threadService: IThreadService) {
+		this._proxy = threadService.get(MainContext.MainThreadDocuments);
 
 		this._onDidAddDocumentEventEmitter = new Emitter<vscode.TextDocument>();
 		this.onDidAddDocument = this._onDidAddDocumentEventEmitter.event;
@@ -437,7 +437,6 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	}
 }
 
-@Remotable.MainContext('MainThreadDocuments')
 export class MainThreadDocuments {
 	private _modelService: IModelService;
 	private _modeService: IModeService;
@@ -468,7 +467,7 @@ export class MainThreadDocuments {
 		this._editorService = editorService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
-		this._proxy = threadService.getRemotable(ExtHostModelService);
+		this._proxy = threadService.get(ExtHostContext.ExtHostModelService);
 		this._modelIsSynced = {};
 
 		this._toDispose = [];

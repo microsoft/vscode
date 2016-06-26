@@ -36,6 +36,8 @@ import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/para
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
 import {asWinJsPromise} from 'vs/base/common/async';
+import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHostProtocol';
+import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -67,7 +69,8 @@ suite('ExtHostLanguageFeatures', function() {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
+		const extHostModelService = threadService.set(ExtHostContext.ExtHostModelService, new ExtHostModelService(threadService));
+		extHostModelService._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -86,10 +89,14 @@ suite('ExtHostLanguageFeatures', function() {
 			},
 		});
 
-		threadService.getRemotable(ExtHostCommands);
-		threadService.getRemotable(MainThreadCommands);
-		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
-		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
+		const commands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, null));
+		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
+
+		const diagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
+
+		extHost = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostModelService, commands, diagnostics));
+
+		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
 	});
 
 	suiteTeardown(() => {

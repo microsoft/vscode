@@ -15,8 +15,9 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ExtHostStorage} from 'vs/workbench/api/node/extHostStorage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {MainContext, ExtHostContext} from './extHostProtocol';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -43,7 +44,6 @@ function messageWithSource(msg:IMessage): string {
 	return (msg.source ? '[' + msg.source + ']: ' : '') + msg.message;
 }
 
-@Remotable.MainContext('MainProcessExtensionService')
 export class MainProcessExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
 	private _threadService: IThreadService;
@@ -65,9 +65,8 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._isDev = !config.env.isBuilt || !!config.env.extensionDevelopmentPath;
 
 		this._messageService = messageService;
-		threadService.registerRemotableInstance(MainProcessExtensionService, this);
 		this._threadService = threadService;
-		this._proxy = this._threadService.getRemotable(ExtHostExtensionService);
+		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
 		ExtensionsRegistry.handleExtensionPoints((msg) => this._handleMessage(msg));
@@ -238,7 +237,6 @@ export interface IExtensionContext {
 	asAbsolutePath(relativePath: string): string;
 }
 
-@Remotable.ExtHostContext('ExtHostExtensionService')
 export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExtension> {
 
 	private _threadService: IThreadService;
@@ -252,10 +250,9 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	 */
 	constructor(threadService: IThreadService, telemetryService: ITelemetryService, args: { serviceId: any; workspaceStoragePath: string; }) {
 		super(false);
-		threadService.registerRemotableInstance(ExtHostExtensionService, this);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
-		this._proxy = this._threadService.getRemotable(MainProcessExtensionService);
+		this._proxy = this._threadService.get(MainContext.MainProcessExtensionService);
 		this._telemetryService = telemetryService;
 		this._workspaceStoragePath = args.workspaceStoragePath;
 	}

@@ -7,6 +7,7 @@
 import remote = require('vs/base/common/remote');
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {AbstractThreadService} from './abstractThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 
@@ -18,6 +19,10 @@ export class ExtHostThreadService extends AbstractThreadService implements IThre
 		super();
 		this._remoteCom = remoteCom;
 		this._remoteCom.setManyHandler(this);
+	}
+
+	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {
+		return this._remoteCom.callOnRemote(proxyId, path, args);
 	}
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: descriptors.SyncDescriptor0<T>): T {

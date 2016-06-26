@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';
 import {StatusBarItem, StatusBarAlignment} from 'vscode';
+import {MainContext} from './extHostProtocol';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -161,8 +162,8 @@ export class ExtHostStatusBar {
 	private _proxy: MainThreadStatusBar;
 	private _statusMessage: StatusBarMessage;
 
-	constructor( @IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadStatusBar);
+	constructor(threadService: IThreadService) {
+		this._proxy = threadService.get(MainContext.MainThreadStatusBar);
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
@@ -188,7 +189,6 @@ export class ExtHostStatusBar {
 	}
 }
 
-@Remotable.MainContext('MainThreadStatusBar')
 export class MainThreadStatusBar {
 	private mapIdToDisposable: { [id: number]: IDisposable };
 
