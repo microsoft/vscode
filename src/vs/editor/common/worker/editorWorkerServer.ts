@@ -16,9 +16,6 @@ import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensio
 import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
@@ -96,9 +93,6 @@ export class EditorWorkerServer {
 
 		const resourceService = new ResourceService();
 		services.set(IResourceService, resourceService);
-
-		const requestService = new BaseRequestService(contextService, NullTelemetryService);
-		services.set(IRequestService, requestService);
 
 		services.set(IEventService, new EventService());
 

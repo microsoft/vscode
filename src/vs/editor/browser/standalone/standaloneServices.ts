@@ -22,8 +22,6 @@ import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {ISearchService} from 'vs/platform/search/common/search';
 import {IStorageService, NullStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
@@ -36,7 +34,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/browser/menuService';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
@@ -83,10 +81,6 @@ export interface IEditorOverrideServices {
 	/**
 	 * @internal
 	 */
-	requestService?:IRequestService;
-	/**
-	 * @internal
-	 */
 	keybindingService?:IKeybindingService;
 	/**
 	 * @internal
@@ -112,10 +106,6 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	storageService?:IStorageService;
-	/**
-	 * @internal
-	 */
-	searchService?:ISearchService;
 	/**
 	 * @internal
 	 */
@@ -146,7 +136,6 @@ export interface IStaticServices {
 	markerService: IMarkerService;
 	menuService: IMenuService;
 	contextService: IWorkspaceContextService;
-	requestService: IRequestService;
 	messageService: IMessageService;
 	telemetryService: ITelemetryService;
 	modelService: IModelService;
@@ -246,9 +235,6 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let markerService = services.markerService || new MarkerService();
 	serviceCollection.set(IMarkerService, markerService);
 
-	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
-	serviceCollection.set(IRequestService, requestService);
-
 	let modeService = services.modeService || new MainThreadModeServiceImpl(instantiationService, extensionService, configurationService);
 	serviceCollection.set(IModeService, modeService);
 
@@ -276,7 +262,6 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		menuService: menuService,
 		contextService: contextService,
 		telemetryService: telemetryService,
-		requestService: requestService,
 		messageService: messageService,
 		modelService: modelService,
 		codeEditorService: codeEditorService,

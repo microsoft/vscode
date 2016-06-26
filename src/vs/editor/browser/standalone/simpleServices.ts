@@ -19,8 +19,6 @@ import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServic
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandHandler, ICommandsMap, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
@@ -197,13 +195,6 @@ export class SimpleMessageService implements IMessageService {
 		}
 
 		return window.confirm(messageText);
-	}
-}
-
-export class SimpleEditorRequestService extends BaseRequestService {
-
-	constructor(contextService: IWorkspaceContextService, telemetryService?: ITelemetryService) {
-		super(contextService, telemetryService);
 	}
 }
 

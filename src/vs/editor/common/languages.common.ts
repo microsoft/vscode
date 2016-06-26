@@ -20,7 +20,6 @@ import 'vs/base/common/uri';
 // platform common
 import 'vs/platform/platform';
 import 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import 'vs/platform/request/common/request';
 import 'vs/platform/workspace/common/workspace';
 import 'vs/platform/telemetry/common/telemetry';
 
