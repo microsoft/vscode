@@ -47,7 +47,8 @@ export class TerminalPanel extends Panel {
 		if (!dimension) {
 			return;
 		}
-		if (this.terminalInstances.length > 0) {
+		let activeIndex = this.terminalService.getActiveTerminalIndex();
+		if (activeIndex !== -1 && this.terminalInstances.length > 0) {
 			this.terminalInstances[this.terminalService.getActiveTerminalIndex()].layout(dimension);
 		}
 	}
@@ -152,10 +153,13 @@ export class TerminalPanel extends Panel {
 			this.terminalInstances[index].dispose();
 			this.terminalInstances.splice(index, 1);
 		}
-		if (this.terminalInstances.length === 0) {
-			this.terminalService.toggle();
-		} else {
+		if (this.terminalInstances.length > 0) {
 			this.setActiveTerminal(this.terminalService.getActiveTerminalIndex());
+		}
+		if (this.terminalInstances.length === 0) {
+			this.terminalService.hide();
+		} else {
+			this.terminalService.focus();
 		}
 	}
 
@@ -202,8 +206,9 @@ export class TerminalPanel extends Panel {
 	}
 
 	public focus(): void {
-		if (this.terminalInstances.length > 0) {
-			this.terminalInstances[this.terminalService.getActiveTerminalIndex()].focus(true);
+		let activeIndex = this.terminalService.getActiveTerminalIndex();
+		if (activeIndex !== -1 && this.terminalInstances.length > 0) {
+			this.terminalInstances[activeIndex].focus(true);
 		}
 	}
 

@@ -58,6 +58,7 @@ export interface ITerminalService {
 	focus(): TPromise<any>;
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
+	hide(): TPromise<any>;
 	runSelectedText(): TPromise<any>;
 	setActiveTerminal(index: number): TPromise<any>;
 	toggle(): TPromise<any>;
