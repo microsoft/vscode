@@ -1575,6 +1575,11 @@ export interface ITextModel {
 	getIndentRanges(): IndentRange[];
 
 	/**
+	 * @internal
+	 */
+	getLineIndentGuide(lineNumber:number): number;
+
+	/**
 	 * Get the text for all lines.
 	 */
 	getLinesContent(): string[];
