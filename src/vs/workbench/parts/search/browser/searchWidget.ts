@@ -28,8 +28,6 @@ export interface ISearchWidgetOptions {
 
 export class SearchWidget extends Widget {
 
-	public static REPLACE_PLACE_HOLD= nls.localize('search.replace.placeHolder', "Replace");
-
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
 	private replaceInput: InputBox;
@@ -146,7 +144,8 @@ export class SearchWidget extends Widget {
 		});
 		this.replaceInputContainer= dom.append(parent, dom.emmet('.replace-box.input-box.disabled'));
 		this.replaceInput = this._register(new InputBox(this.replaceInputContainer, this.contextViewService, {
-			placeholder: SearchWidget.REPLACE_PLACE_HOLD,
+			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
+			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
 			actions: [this.replaceAllAction]
 		}));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
