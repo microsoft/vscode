@@ -19,6 +19,7 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
@@ -111,11 +112,13 @@ export class RemoveAction extends Action {
 export class ReplaceAllAction extends Action {
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
-							@IReplaceService private replaceService: IReplaceService) {
+							@IReplaceService private replaceService: IReplaceService,
+							@ITelemetryService private telemetryService: ITelemetryService) {
 		super('file-action-replace-all', nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
 	}
 
 	public run(): TPromise<any> {
+		this.telemetryService.publicLog('replaceAll.action.selected');
 		return this.replaceService.replace([this.fileMatch], this.fileMatch.parent().replaceText).then(() => {
 			this.viewlet.open(this.fileMatch).done(() => {
 				new RemoveAction(this.viewer, this.fileMatch).run();
@@ -127,11 +130,13 @@ export class ReplaceAllAction extends Action {
 export class ReplaceAction extends Action {
 
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
-				@IReplaceService private replaceService: IReplaceService) {
+				@IReplaceService private replaceService: IReplaceService,
+				@ITelemetryService private telemetryService: ITelemetryService) {
 		super('action-replace', nls.localize('match.replace.label', "Replace"), 'action-replace');
 	}
 
 	public run(): TPromise<any> {
+		this.telemetryService.publicLog('replace.action.selected');
 		return this.replaceService.replace(this.element, this.element.parent().parent().replaceText).then(() => {
 			this.viewlet.open(this.element).done(() => {
 				new RemoveAction(this.viewer, this.element).run();

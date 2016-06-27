@@ -55,6 +55,7 @@ import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, Searc
 import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import Severity from 'vs/base/common/severity';
 
 export class SearchViewlet extends Viewlet {
 
@@ -317,7 +318,6 @@ export class SearchViewlet extends Viewlet {
 		let occurrences= this.viewModel.count();
 		let fileCount= this.viewModel.fileCount();
 		let afterReplaceAllMessage= nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files.", occurrences, fileCount);
-		let isDone:boolean= false;
 
 		let confirmation= {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
@@ -326,16 +326,23 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		if (this.messageService.confirm(confirmation)) {
+			let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
 			this.replacingAll= true;
 			this.replaceService.replace(this.viewModel.matches(), this.viewModel.replaceText, progressRunner).then(() => {
-				isDone= true;
+				replaceAllTimer.stop();
 				this.replacingAll= false;
 				setTimeout(() => {
 					progressRunner.done();
 					this.showEmptyStage();
 					this.showMessage(afterReplaceAllMessage);
 				}, 200);
-			}, () => this.replacingAll= false);
+			}, (error) => {
+				replaceAllTimer.stop();
+				progressRunner.done();
+				this.replacingAll= false;
+				errors.isPromiseCanceledError(error);
+				this.messageService.show(Severity.Error, error);
+			});
 		}
 	}
 
@@ -938,6 +945,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		this.telemetryService.publicLog('replace.open.previewEditor');
 		return this.replaceService.getInput(element instanceof Match ? element.parent() : element, this.viewModel.replaceText).then((editorInput) => {
 			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned: pinned}).then((editor) => {
 				let editorControl= (<IDiffEditor>editor.getControl());
@@ -950,8 +958,8 @@ export class SearchViewlet extends Viewlet {
 				if (!preserveFocus) {
 					editorControl.getOriginalEditor().focus();
 				}
-			});
-		});
+			}, errors.onUnexpectedError);
+		}, errors.onUnexpectedError);
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
