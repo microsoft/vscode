@@ -8,42 +8,9 @@
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
 
-export function computeRanges(model: IModel, tabSize: number, minimumRangeSize: number = 1): IFoldingRange[] {
-
-	let result: IFoldingRange[] = [];
-
-	let previousRegions: { indent: number, line: number }[] = [];
-	previousRegions.push({ indent: -1, line: model.getLineCount() + 1 }); // sentinel, to make sure there's at least one entry
-
-	for (let line = model.getLineCount(); line > 0; line--) {
-		let indent = model.getIndentLevel(line);
-		if (indent === -1) {
-			continue; // only whitespace
-		}
-
-		let previous = previousRegions[previousRegions.length - 1];
-
-		if (previous.indent > indent) {
-			// discard all regions with larger indent
-			do {
-				previousRegions.pop();
-				previous = previousRegions[previousRegions.length - 1];
-			} while (previous.indent > indent);
-
-			// new folding range
-			let endLineNumber = previous.line - 1;
-			if (endLineNumber - line >= minimumRangeSize) {
-				result.push({ startLineNumber: line, endLineNumber, indent: indent });
-			}
-		}
-		if (previous.indent === indent) {
-			previous.line = line;
-		} else { // previous.indent < indent
-			// new region with a bigger indent
-			previousRegions.push({ indent, line });
-		}
-	}
-	return result.reverse();
+export function computeRanges(model: IModel): IFoldingRange[] {
+	// we get here a clone of the model's indent ranges
+	return model.getIndentRanges();
 }
 
 /**

@@ -13,8 +13,9 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
 import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
+import {IndentRange, computeRanges} from 'vs/editor/common/model/indentRanges';
 
-var LIMIT_FIND_COUNT = 999;
+const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
 
 export interface IParsedSearchRequest {
@@ -40,6 +41,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	protected _isDisposing:boolean;
 	protected _options: editorCommon.ITextModelResolvedOptions;
 	protected _lineStarts: PrefixSumComputer;
+	private _indentRanges: IndentRange[];
 
 	private _versionId:number;
 	/**
@@ -474,6 +476,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._lines[lineNumber - 1].getIndentLevel();
 	}
 
+	protected _resetIndentRanges(): void {
+		this._indentRanges = null;
+	}
+
+	public getIndentRanges(): IndentRange[] {
+		if (!this._indentRanges) {
+			this._indentRanges = computeRanges(this);
+		}
+		return IndentRange.deepCloneArr(this._indentRanges);
+	}
+
 	public getLinesContent(): string[] {
 		var r: string[] = [];
 		for (var i = 0, len = this._lines.length; i < len; i++) {
@@ -672,6 +685,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._EOL = rawText.EOL;
 		this._lines = modelLines;
 		this._lineStarts = null;
+		this._resetIndentRanges();
 	}
 
 	private _getEndOfLine(eol:editorCommon.EndOfLinePreference): string {

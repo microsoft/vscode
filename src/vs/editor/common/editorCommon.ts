@@ -18,6 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {IndentRange} from 'vs/editor/common/model/indentRanges';
 
 /**
  * @internal
@@ -1567,6 +1568,11 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getIndentLevel(lineNumber:number): number;
+
+	/**
+	 * @internal
+	 */
+	getIndentRanges(): IndentRange[];
 
 	/**
 	 * Get the text for all lines.

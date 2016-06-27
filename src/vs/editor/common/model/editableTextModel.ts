@@ -665,6 +665,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 
 			// this._assertLineNumbersOK();
+			this._resetIndentRanges();
 		});
 	}
 
