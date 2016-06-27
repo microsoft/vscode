@@ -224,6 +224,11 @@ export class OpenExtensionsViewletAction extends ToggleViewletAction {
 	}
 }
 
+export class InstallExtensionsAction extends OpenExtensionsViewletAction {
+	static ID = 'workbench.extensions.action.installExtensions';
+	static LABEL = localize('installExtensions', "Install Extensions");
+}
+
 export class ListOutdatedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.listOutdatedExtensions';
