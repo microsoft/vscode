@@ -13,24 +13,10 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import {ExtHostDocuments, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
 import {Selection, Range, Position, EditorOptions, EndOfLine, TextEditorRevealType} from './extHostTypes';
 import {ISingleEditOperation, ISelection} from 'vs/editor/common/editorCommon';
-import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IResolvedTextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn} from 'vscode';
-import {MainContext} from './extHostProtocol';
-import {MainThreadEditors} from './mainThreadEditors';
-
-export interface ITextEditorAddData {
-	id: string;
-	document: URI;
-	options: IResolvedTextEditorConfiguration;
-	selections: ISelection[];
-	editorPosition: EditorPosition;
-}
-
-export interface ITextEditorPositionData {
-	[id: string]: EditorPosition;
-}
+import {MainContext, MainThreadEditorsShape, ITextEditorAddData, ITextEditorPositionData} from './extHostProtocol';
 
 export class ExtHostEditors {
 
@@ -44,7 +30,7 @@ export class ExtHostEditors {
 	private _onDidChangeTextEditorViewColumn: Emitter<TextEditorViewColumnChangeEvent>;
 
 	private _editors: { [id: string]: ExtHostTextEditor };
-	private _proxy: MainThreadEditors;
+	private _proxy: MainThreadEditorsShape;
 	private _onDidChangeActiveTextEditor: Emitter<vscode.TextEditor>;
 	private _extHostDocuments: ExtHostDocuments;
 	private _activeEditorId: string;
@@ -168,10 +154,10 @@ class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
 	private static _Keys = new IdGenerator('TextEditorDecorationType');
 
-	private _proxy: MainThreadEditors;
+	private _proxy: MainThreadEditorsShape;
 	public key: string;
 
-	constructor(proxy: MainThreadEditors, options: vscode.DecorationRenderOptions) {
+	constructor(proxy: MainThreadEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
 		this._proxy._registerTextEditorDecorationType(this.key, <any>options);
@@ -284,7 +270,7 @@ function deprecated(name: string, message: string = 'Refer to the documentation 
 
 class ExtHostTextEditor implements vscode.TextEditor {
 
-	private _proxy: MainThreadEditors;
+	private _proxy: MainThreadEditorsShape;
 	private _id: string;
 
 	private _documentData: ExtHostDocumentData;
@@ -292,7 +278,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	private _options: TextEditorOptions;
 	private _viewColumn: vscode.ViewColumn;
 
-	constructor(proxy: MainThreadEditors, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions, viewColumn: vscode.ViewColumn) {
+	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: EditorOptions, viewColumn: vscode.ViewColumn) {
 		this._proxy = proxy;
 		this._id = id;
 		this._documentData = document;

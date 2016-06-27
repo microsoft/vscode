@@ -18,8 +18,7 @@ import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
-import {MainContext} from './extHostProtocol';
-import {MainThreadLanguageFeatures} from './mainThreadLanguageFeatures';
+import {MainContext, MainThreadLanguageFeaturesShape} from './extHostProtocol';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
 
 // --- adapter
@@ -598,7 +597,7 @@ export class ExtHostLanguageFeatures {
 
 	private static _handlePool: number = 0;
 
-	private _proxy: MainThreadLanguageFeatures;
+	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _diagnostics: ExtHostDiagnostics;

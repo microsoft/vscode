@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IManyHandler} from 'vs/base/common/remote';
 import {ProxyIdentifier} from 'vs/workbench/services/thread/common/threadService';
 
-declare var Proxy:any; // TODO@TypeScript
+// declare var Proxy:any; // TODO@TypeScript
 
 export abstract class AbstractThreadService implements IManyHandler {
 
@@ -36,29 +36,41 @@ export abstract class AbstractThreadService implements IManyHandler {
 
 	get<T>(identifier:ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id);
+			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.methodNames);
 		}
 		return this._proxies[identifier.id];
 	}
 
-	private _createProxy<T>(id:string): T {
-		let handler = {
-			get: (target, name) => {
-				return (...myArgs: any[]) => {
-					return this._callOnRemote(id, name, myArgs);
-				};
-			}
-		};
+	private _createProxy<T>(id:string, methodNames:string[]): T {
+		// Check below how to switch to native proxies
+		let result:any = {};
+		for (let i = 0; i < methodNames.length; i++) {
+			let methodName = methodNames[i];
+			result[methodName] = this.createMethodProxy(id, methodName);
+		}
+		return result;
 
-		return new Proxy({}, handler);
+		// let handler = {
+		// 	get: (target, name) => {
+		// 		return (...myArgs: any[]) => {
+		// 			return this._callOnRemote(id, name, myArgs);
+		// 		};
+		// 	}
+		// };
+		// return new Proxy({}, handler);
 	}
 
-	set<T>(identifier:ProxyIdentifier<T>, value:T): T {
+	private createMethodProxy(id: string, methodName: string): (...myArgs: any[]) => TPromise<any> {
+		return (...myArgs: any[]) => {
+			return this._callOnRemote(id, methodName, myArgs);
+		};
+	}
+
+	set<T>(identifier:ProxyIdentifier<T>, value:T): void {
 		if (identifier.isMain !== this._isMain) {
 			throw new Error('Mismatch in object registration!');
 		}
 		this._locals[identifier.id] = value;
-		return value;
 	}
 
 	protected abstract _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any>;

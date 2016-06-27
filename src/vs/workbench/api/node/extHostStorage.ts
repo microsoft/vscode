@@ -6,12 +6,11 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext} from './extHostProtocol';
-import {MainThreadStorage} from './mainThreadStorage';
+import {MainContext, MainThreadStorageShape} from './extHostProtocol';
 
 export class ExtHostStorage {
 
-	private _proxy: MainThreadStorage;
+	private _proxy: MainThreadStorageShape;
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadStorage);

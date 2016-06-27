@@ -7,12 +7,11 @@
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import Severity from 'vs/base/common/severity';
 import vscode = require('vscode');
-import {MainContext} from './extHostProtocol';
-import {MainThreadMessageService} from './mainThreadMessageService';
+import {MainContext, MainThreadMessageServiceShape} from './extHostProtocol';
 
 export class ExtHostMessageService {
 
-	private _proxy: MainThreadMessageService;
+	private _proxy: MainThreadMessageServiceShape;
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadMessageService);

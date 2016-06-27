@@ -8,14 +8,13 @@ import {FileChangesEvent, FileChangeType} from 'vs/platform/files/common/files';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {ExtHostContext} from './extHostProtocol';
-import {FileSystemEvents} from './extHostFileSystemEventService';
+import {ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents} from './extHostProtocol';
 
 export class MainThreadFileSystemEventService {
 
 	constructor( @IEventService eventService: IEventService, @IThreadService threadService: IThreadService) {
 
-		const proxy = threadService.get(ExtHostContext.ExtHostFileSystemEventService);
+		const proxy: ExtHostFileSystemEventServiceShape = threadService.get(ExtHostContext.ExtHostFileSystemEventService);
 		const events: FileSystemEvents = {
 			created: [],
 			changed: [],

@@ -5,19 +5,18 @@
 'use strict';
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext} from './extHostProtocol';
-import {MainThreadOutputService} from './mainThreadOutputService';
+import {MainContext, MainThreadOutputServiceShape} from './extHostProtocol';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	private static _idPool = 1;
 
-	private _proxy: MainThreadOutputService;
+	private _proxy: MainThreadOutputServiceShape;
 	private _name: string;
 	private _id: string;
 	private _disposed: boolean;
 
-	constructor(name: string, proxy: MainThreadOutputService) {
+	constructor(name: string, proxy: MainThreadOutputServiceShape) {
 		this._name = name;
 		this._id = 'extension-output-#' + (ExtHostOutputChannel._idPool++);
 		this._proxy = proxy;
@@ -62,7 +61,7 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 export class ExtHostOutputService {
 
-	private _proxy: MainThreadOutputService;
+	private _proxy: MainThreadOutputServiceShape;
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadOutputService);

@@ -15,13 +15,12 @@ import {wireCancellationToken} from 'vs/base/common/async';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
-import {ExtHostContext} from './extHostProtocol';
-import {ExtHostLanguageFeatures} from './extHostLanguageFeatures';
+import {ExtHostContext, ExtHostLanguageFeaturesShape} from './extHostProtocol';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class MainThreadLanguageFeatures {
 
-	private _proxy: ExtHostLanguageFeatures;
+	private _proxy: ExtHostLanguageFeaturesShape;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
 	constructor( @IThreadService threadService: IThreadService) {

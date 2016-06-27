@@ -12,8 +12,7 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ExtHostContext} from './extHostProtocol';
-import {ExtHostExtensionService} from './extHostExtensionService';
+import {ExtHostContext, ExtHostExtensionServiceShape} from './extHostProtocol';
 
 /**
  * Represents a failed extension in the ext host.
@@ -42,7 +41,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 
 	private _threadService: IThreadService;
 	private _messageService: IMessageService;
-	private _proxy: ExtHostExtensionService;
+	private _proxy: ExtHostExtensionServiceShape;
 	private _isDev: boolean;
 	private _extensionsStatus: { [id: string]: IExtensionsStatus };
 

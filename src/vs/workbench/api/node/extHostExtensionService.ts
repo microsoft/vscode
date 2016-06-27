@@ -15,8 +15,7 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {ExtHostStorage} from 'vs/workbench/api/node/extHostStorage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext} from './extHostProtocol';
-import {MainProcessExtensionService} from './mainThreadExtensionService';
+import {MainContext, MainProcessExtensionServiceShape} from './extHostProtocol';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -113,7 +112,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 	private _threadService: IThreadService;
 	private _storage: ExtHostStorage;
-	private _proxy: MainProcessExtensionService;
+	private _proxy: MainProcessExtensionServiceShape;
 	private _telemetryService: ITelemetryService;
 	private _workspaceStoragePath: string;
 
