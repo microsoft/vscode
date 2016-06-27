@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import {Action} from 'vs/base/common/actions';
-import {MainThreadMessageService} from 'vs/workbench/api/node/extHostMessageService';
+import {MainThreadMessageService} from 'vs/workbench/api/node/mainThreadMessageService';
 
 suite('ExtHostMessageService', function () {
 

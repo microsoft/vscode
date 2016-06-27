@@ -5,11 +5,11 @@
 'use strict';
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';
 import {StatusBarItem, StatusBarAlignment} from 'vscode';
 import {MainContext} from './extHostProtocol';
+import {MainThreadStatusBar} from './mainThreadStatusBar';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -186,34 +186,5 @@ export class ExtHostStatusBar {
 			d.dispose();
 			clearTimeout(handle);
 		});
-	}
-}
-
-export class MainThreadStatusBar {
-	private mapIdToDisposable: { [id: number]: IDisposable };
-
-	constructor(
-		@IStatusbarService private statusbarService: IStatusbarService
-	) {
-		this.mapIdToDisposable = Object.create(null);
-	}
-
-	setEntry(id: number, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void {
-
-		// Dispose any old
-		this.dispose(id);
-
-		// Add new
-		let disposeable = this.statusbarService.addEntry({ text, tooltip, command, color }, alignment, priority);
-		this.mapIdToDisposable[id] = disposeable;
-	}
-
-	dispose(id: number) {
-		let disposeable = this.mapIdToDisposable[id];
-		if (disposeable) {
-			disposeable.dispose();
-		}
-
-		delete this.mapIdToDisposable[id];
 	}
 }

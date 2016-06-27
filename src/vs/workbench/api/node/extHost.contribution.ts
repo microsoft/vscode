@@ -10,29 +10,33 @@ import {Registry} from 'vs/platform/platform';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
+import {MainContext, InstanceCollection} from './extHostProtocol';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+
+// --- addressable
+import {MainThreadCommands} from './mainThreadCommands';
+import {MainThreadConfiguration} from './mainThreadConfiguration';
+import {MainThreadDiagnostics} from './mainThreadDiagnostics';
+import {MainThreadDocuments} from './mainThreadDocuments';
+import {MainThreadEditors} from './mainThreadEditors';
+import {MainThreadErrors} from './mainThreadErrors';
+import {MainThreadLanguageFeatures} from './mainThreadLanguageFeatures';
+import {MainThreadLanguages} from './mainThreadLanguages';
+import {MainThreadMessageService} from './mainThreadMessageService';
+import {MainThreadOutputService} from './mainThreadOutputService';
+import {MainThreadQuickOpen} from './mainThreadQuickOpen';
+import {MainThreadStatusBar} from './mainThreadStatusBar';
+import {MainThreadStorage} from './mainThreadStorage';
+import {MainThreadTelemetry} from './mainThreadTelemetry';
+import {MainThreadWorkspace} from './mainThreadWorkspace';
+import {MainProcessExtensionService} from './mainThreadExtensionService';
+import {MainThreadFileSystemEventService} from './mainThreadFileSystemEventService';
+
+// --- other interested parties
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
 import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
 import {JSONValidationExtensionPoint} from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import {LanguageConfigurationFileHandler} from 'vs/editor/node/languageConfiguration';
-import {MainThreadFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
-import {MainThreadQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
-import {MainThreadStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
-import {MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {MainThreadTelemetry} from 'vs/workbench/api/node/extHostTelemetry';
-import {MainThreadDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {MainThreadOutputService} from 'vs/workbench/api/node/extHostOutputService';
-import {MainThreadMessageService} from 'vs/workbench/api/node/extHostMessageService';
-import {MainThreadLanguages} from 'vs/workbench/api/node/extHostLanguages';
-import {MainThreadEditors} from 'vs/workbench/api/node/extHostEditors';
-import {MainThreadWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
-import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
-import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
-import {MainThreadStorage} from 'vs/workbench/api/node/extHostStorage';
-import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
-import {MainContext, InstanceCollection} from './extHostProtocol';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {MainProcessExtensionService} from './nativeExtensionService';
 
 export class ExtHostContribution implements IWorkbenchContribution {
 
@@ -55,12 +59,12 @@ export class ExtHostContribution implements IWorkbenchContribution {
 
 		// Addressable instances
 		const col = new InstanceCollection();
-		col.define(MainContext.MainProcessVSCodeAPIHelper).set(create(MainProcessVSCodeAPIHelper));
 		col.define(MainContext.MainThreadCommands).set(create(MainThreadCommands));
 		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
 		col.define(MainContext.MainThreadDocuments).set(create(MainThreadDocuments));
 		col.define(MainContext.MainThreadEditors).set(create(MainThreadEditors));
+		col.define(MainContext.MainThreadErrors).set(create(MainThreadErrors));
 		col.define(MainContext.MainThreadLanguageFeatures).set(create(MainThreadLanguageFeatures));
 		col.define(MainContext.MainThreadLanguages).set(create(MainThreadLanguages));
 		col.define(MainContext.MainThreadMessageService).set(create(MainThreadMessageService));

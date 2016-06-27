@@ -9,26 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {MainContext} from './extHostProtocol';
-
-/**
- * Helper always instantiated in the main process to receive telemetry events from remote telemetry services
- */
-export class MainThreadTelemetry {
-
-	private _telemetryService: ITelemetryService;
-
-	constructor( @ITelemetryService telemetryService: ITelemetryService) {
-		this._telemetryService = telemetryService;
-	}
-
-	public $publicLog(eventName: string, data?: any): void {
-		this._telemetryService.publicLog(eventName, data);
-	}
-
-	public $getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return this._telemetryService.getTelemetryInfo();
-	}
-}
+import {MainThreadTelemetry} from './mainThreadTelemetry';
 
 export class RemoteTelemetryService implements ITelemetryService {
 

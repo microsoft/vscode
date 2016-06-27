@@ -5,22 +5,19 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext} from './extHostProtocol';
-import {MainThreadLanguages} from './mainThreadLanguages';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
-export class ExtHostLanguages {
+export class MainThreadLanguages {
 
-	private _proxy: MainThreadLanguages;
+	private _modeService: IModeService;
 
 	constructor(
-		threadService: IThreadService
+		@IModeService modeService: IModeService
 	) {
-		this._proxy = threadService.get(MainContext.MainThreadLanguages);
+		this._modeService = modeService;
 	}
 
-	getLanguages(): TPromise<string[]> {
-		return this._proxy._getLanguages();
+	_getLanguages(): TPromise<string[]> {
+		return TPromise.as(this._modeService.getRegisteredModes());
 	}
 }
-

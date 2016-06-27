@@ -7,11 +7,10 @@
 import {Emitter} from 'vs/base/common/event';
 import {score} from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
-import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
-import {ExtHostModelService, setWordDefinitionFor} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
@@ -27,22 +26,18 @@ import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConvert
 import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import Modes = require('vs/editor/common/modes');
-import {IModeService} from 'vs/editor/common/services/modeService';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ExtHostExtensionService} from 'vs/workbench/api/node/nativeExtensionService';
+import {ExtHostExtensionService} from 'vs/workbench/api/node/extHostExtensionService';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import vscode = require('vscode');
-import {TextEditorRevealType} from 'vs/workbench/api/node/mainThreadEditors';
 import * as paths from 'vs/base/common/paths';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {MainContext, ExtHostContext, InstanceCollection} from './extHostProtocol';
 
 /**
@@ -50,13 +45,6 @@ import {MainContext, ExtHostContext, InstanceCollection} from './extHostProtocol
  * for the case of the extensionHost host process
  */
 export class ExtHostAPIImplementation {
-
-	private static _LAST_REGISTER_TOKEN = 0;
-	private static generateDisposeToken(): string {
-		return String(++ExtHostAPIImplementation._LAST_REGISTER_TOKEN);
-	}
-
-	private _proxy: MainProcessVSCodeAPIHelper;
 
 	version: typeof vscode.version;
 	env: typeof vscode.env;
@@ -106,7 +94,7 @@ export class ExtHostAPIImplementation {
 		// Addressable instances
 		const col = new InstanceCollection();
 
-		const extHostDocuments = col.define(ExtHostContext.ExtHostModelService).set(new ExtHostModelService(threadService));
+		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set(new ExtHostDocuments(threadService));
 		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set(new ExtHostEditors(threadService, extHostDocuments));
 		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set(new ExtHostCommands(threadService, extHostEditors));
 		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set(new ExtHostConfiguration());
@@ -118,11 +106,10 @@ export class ExtHostAPIImplementation {
 
 		col.finish(false, threadService);
 
-
 		// Others
-		this._proxy = threadService.get(MainContext.MainProcessVSCodeAPIHelper);
+		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler((err) => {
-			this._proxy.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
+			mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
 		});
 
 		const extHostMessageService = new ExtHostMessageService(threadService);
@@ -167,7 +154,7 @@ export class ExtHostAPIImplementation {
 		this.StatusBarAlignment = extHostTypes.StatusBarAlignment;
 		this.IndentAction = Modes.IndentAction;
 		this.OverviewRulerLane = EditorCommon.OverviewRulerLane;
-		this.TextEditorRevealType = TextEditorRevealType;
+		this.TextEditorRevealType = extHostTypes.TextEditorRevealType;
 		this.EndOfLine = extHostTypes.EndOfLine;
 		this.TextEditorCursorStyle = EditorCommon.TextEditorCursorStyle;
 
@@ -383,7 +370,7 @@ export class ExtHostAPIImplementation {
 				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters);
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration):vscode.Disposable => {
-				return this._setLanguageConfiguration(language, configuration);
+				return languageFeatures.setLanguageConfiguration(language, configuration);
 			}
 		};
 
@@ -398,41 +385,6 @@ export class ExtHostAPIImplementation {
 				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(<ExtHostExtensionService> extensionService, desc));
 			}
 		};
-	}
-
-	private _disposableFromToken(disposeToken:string): IDisposable {
-		return new extHostTypes.Disposable(() => this._proxy.disposeByToken(disposeToken));
-	}
-
-	private _setLanguageConfiguration(modeId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
-
-		let {wordPattern} = configuration;
-
-		// check for a valid word pattern
-		if (wordPattern && regExpLeadsToEndlessLoop(wordPattern)) {
-			throw new Error(`Invalid language configuration: wordPattern '${wordPattern}' is not allowed to match the empty string.`);
-		}
-
-		// word definition
-		if (wordPattern) {
-			setWordDefinitionFor(modeId, wordPattern);
-		} else {
-			setWordDefinitionFor(modeId, null);
-		}
-
-		// backward compatibility, migrate deprecated setting
-		if (configuration.__characterPairSupport && !configuration.autoClosingPairs) {
-			configuration.autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
-			delete configuration.__characterPairSupport;
-		}
-
-		return this.Modes_RichEditSupport_register(modeId, configuration);
-	}
-
-	private Modes_RichEditSupport_register(modeId: string, configuration:vscode.LanguageConfiguration): IDisposable {
-		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
-		this._proxy.Modes_RichEditSupport_register(disposeToken, modeId, configuration);
-		return this._disposableFromToken(disposeToken);
 	}
 }
 
@@ -474,33 +426,4 @@ export function defineAPI(impl: typeof vscode) {
 		return original.apply(this, arguments);
 	};
 	define('vscode', [], impl);
-}
-
-export class MainProcessVSCodeAPIHelper {
-	protected _modeService: IModeService;
-	private _token2Dispose: {
-		[token:string]: IDisposable;
-	};
-
-	constructor(
-		@IModeService modeService: IModeService
-	) {
-		this._modeService = modeService;
-		this._token2Dispose = {};
-	}
-
-	public onUnexpectedExtHostError(err: any): void {
-		errors.onUnexpectedError(err);
-	}
-
-	public disposeByToken(disposeToken:string): void {
-		if (this._token2Dispose[disposeToken]) {
-			this._token2Dispose[disposeToken].dispose();
-			delete this._token2Dispose[disposeToken];
-		}
-	}
-
-	public Modes_RichEditSupport_register(disposeToken:string, modeId: string, configuration:vscode.LanguageConfiguration): void {
-		this._token2Dispose[disposeToken] = LanguageConfigurationRegistry.register(modeId, configuration);
-	}
 }

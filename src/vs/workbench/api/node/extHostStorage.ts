@@ -6,41 +6,8 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {MainContext} from './extHostProtocol';
-
-export class MainThreadStorage {
-
-	private _storageService: IStorageService;
-
-	constructor( @IStorageService storageService: IStorageService) {
-		this._storageService = storageService;
-	}
-
-	getValue<T>(shared: boolean, key: string): TPromise<T> {
-		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
-		if (!jsonValue) {
-			return TPromise.as(undefined);
-		}
-		let value: T;
-		try {
-			value = JSON.parse(jsonValue);
-			return TPromise.as(value);
-		} catch (err) {
-			return TPromise.wrapError(err);
-		}
-	}
-
-	setValue(shared: boolean, key: string, value: any): TPromise<any> {
-		let jsonValue: any;
-		try {
-			jsonValue = JSON.stringify(value);
-			this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
-		} catch (err) {
-			return TPromise.wrapError(err);
-		}
-	}
-}
+import {MainThreadStorage} from './mainThreadStorage';
 
 export class ExtHostStorage {
 

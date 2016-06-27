@@ -21,10 +21,12 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
 import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
-import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
+import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHostProtocol';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
@@ -78,8 +80,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			getCreationOptions(): any { throw new Error(); }
 		});
 
-		const extHostModelService = threadService.set(ExtHostContext.ExtHostModelService, new ExtHostModelService(threadService));
-		extHostModelService._acceptModelAdd({
+		const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService));
+		extHostDocuments._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -105,7 +107,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		const diagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
 
-		extHost = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostModelService, commands, diagnostics));
+		extHost = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics));
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
 

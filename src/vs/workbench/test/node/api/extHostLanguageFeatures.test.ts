@@ -19,9 +19,11 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
-import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
+import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
+import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {DocumentSymbolProviderRegistry, DocumentHighlightKind} from 'vs/editor/common/modes';
 import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
@@ -69,8 +71,8 @@ suite('ExtHostLanguageFeatures', function() {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostModelService = threadService.set(ExtHostContext.ExtHostModelService, new ExtHostModelService(threadService));
-		extHostModelService._acceptModelAdd({
+		const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService));
+		extHostDocuments._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -94,7 +96,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		const diagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
 
-		extHost = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostModelService, commands, diagnostics));
+		extHost = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics));
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
 	});
