@@ -208,6 +208,16 @@ class ExtHostApiCommands {
 				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
 			]
 		});
+
+		this._register('vscode.open', (resource: URI, column: vscode.ViewColumn) => {
+			return this._commands.executeCommand('_workbench.open', [resource, typeConverters.fromViewColumn(column)]);
+		}, {
+				description: 'Opens the provided resource in the editor. Can be a text or binary file.',
+				args: [
+					{ name: 'resource', description: 'Resource to open', constraint: URI },
+					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
+				]
+			});
 	}
 
 	// --- command impl
