@@ -764,3 +764,8 @@ export enum EndOfLine {
 	CRLF = 2
 }
 
+export enum TextEditorRevealType {
+	Default = 0,
+	InCenter = 1,
+	InCenterIfOutsideViewport = 2
+}

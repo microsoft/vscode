@@ -17,7 +17,7 @@ import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ExtHostAPIImplementation, defineAPI} from 'vs/workbench/api/node/extHost.api.impl';
 import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {ExtHostExtensionService} from 'vs/workbench/api/node/nativeExtensionService';
+import {ExtHostExtensionService} from 'vs/workbench/api/node/extHostExtensionService';
 import {ExtHostThreadService} from 'vs/workbench/services/thread/common/extHostThreadService';
 import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';

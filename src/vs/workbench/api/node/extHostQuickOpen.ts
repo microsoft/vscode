@@ -6,9 +6,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IQuickOpenService, IPickOpenEntry, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
-import {MainContext, ExtHostContext} from './extHostProtocol';
+import {MainContext} from './extHostProtocol';
+import {MainThreadQuickOpen} from './mainThreadQuickOpen';
 
 export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
@@ -109,85 +110,5 @@ export class ExtHostQuickOpen {
 		if (this._validateInput) {
 			return TPromise.as(this._validateInput(input));
 		}
-	}
-}
-
-export class MainThreadQuickOpen {
-
-	private _proxy: ExtHostQuickOpen;
-	private _quickOpenService: IQuickOpenService;
-	private _doSetItems: (items: MyQuickPickItems[]) => any;
-	private _doSetError: (error: Error) => any;
-	private _contents: TPromise<MyQuickPickItems[]>;
-	private _token: number = 0;
-
-	constructor( @IThreadService threadService: IThreadService, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		this._proxy = threadService.get(ExtHostContext.ExtHostQuickOpen);
-		this._quickOpenService = quickOpenService;
-	}
-
-	$show(options: IPickOptions): Thenable<number> {
-
-		const myToken = ++this._token;
-
-		this._contents = new TPromise((c, e) => {
-			this._doSetItems = (items) => {
-				if (myToken === this._token) {
-					c(items);
-				}
-			};
-
-			this._doSetError = (error) => {
-				if (myToken === this._token) {
-					e(error);
-				}
-			};
-		});
-
-		return this._quickOpenService.pick(this._contents, options).then(item => {
-			if (item) {
-				return item.handle;
-			}
-		}, undefined, progress => {
-			if (progress) {
-				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
-			}
-		});
-	}
-
-	$setItems(items: MyQuickPickItems[]): Thenable<any> {
-		if (this._doSetItems) {
-			this._doSetItems(items);
-			return;
-		}
-	}
-
-	$setError(error: Error): Thenable<any> {
-		if (this._doSetError) {
-			this._doSetError(error);
-			return;
-		}
-	}
-
-	// ---- input
-
-	$input(options: InputBoxOptions, validateInput: boolean): Thenable<string> {
-
-		const inputOptions: IInputOptions = Object.create(null);
-
-		if (options) {
-			inputOptions.password = options.password;
-			inputOptions.placeHolder = options.placeHolder;
-			inputOptions.prompt = options.prompt;
-			inputOptions.value = options.value;
-		}
-
-		if (validateInput) {
-			inputOptions.validateInput = (value) => {
-				return this._proxy.$validateInput(value);
-			};
-		}
-
-		return this._quickOpenService.input(inputOptions);
 	}
 }

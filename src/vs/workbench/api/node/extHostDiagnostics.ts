@@ -5,12 +5,12 @@
 'use strict';
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
+import {IMarkerData} from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import {MainContext} from './extHostProtocol';
+import {MainThreadDiagnostics} from './mainThreadDiagnostics';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -216,24 +216,3 @@ export class ExtHostDiagnostics {
 	}
 }
 
-export class MainThreadDiagnostics {
-
-	private _markerService: IMarkerService;
-
-	constructor(@IMarkerService markerService: IMarkerService) {
-		this._markerService = markerService;
-	}
-
-	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
-		for (let entry of entries) {
-			let [uri, markers] = entry;
-			this._markerService.changeOne(owner, uri, markers);
-		}
-		return undefined;
-	}
-
-	$clear(owner: string): TPromise<any> {
-		this._markerService.changeAll(owner, undefined);
-		return undefined;
-	}
-}

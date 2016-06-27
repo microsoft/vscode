@@ -9,32 +9,43 @@ import {
 	createExtHostContextProxyIdentifier as createExtId,
 	ProxyIdentifier, IThreadService} from 'vs/workbench/services/thread/common/threadService';
 
-import {MainProcessVSCodeAPIHelper} from './extHost.api.impl';
-import {ExtHostCommands, MainThreadCommands} from './extHostCommands';
-import {ExtHostConfiguration, MainThreadConfiguration} from './extHostConfiguration';
-import {ExtHostDiagnostics, MainThreadDiagnostics} from './extHostDiagnostics';
-import {ExtHostModelService, MainThreadDocuments} from './extHostDocuments';
-import {ExtHostEditors, MainThreadEditors} from './extHostEditors';
+// --- main thread addressable
+import {MainThreadCommands} from './mainThreadCommands';
+import {MainThreadConfiguration} from './mainThreadConfiguration';
+import {MainThreadDiagnostics} from './mainThreadDiagnostics';
+import {MainThreadDocuments} from './mainThreadDocuments';
+import {MainThreadEditors} from './mainThreadEditors';
+import {MainThreadErrors} from './mainThreadErrors';
+import {MainThreadLanguageFeatures} from './mainThreadLanguageFeatures';
+import {MainThreadLanguages} from './mainThreadLanguages';
+import {MainThreadMessageService} from './mainThreadMessageService';
+import {MainThreadOutputService} from './mainThreadOutputService';
+import {MainThreadQuickOpen} from './mainThreadQuickOpen';
+import {MainThreadStatusBar} from './mainThreadStatusBar';
+import {MainThreadStorage} from './mainThreadStorage';
+import {MainThreadTelemetry} from './mainThreadTelemetry';
+import {MainThreadWorkspace} from './mainThreadWorkspace';
+import {MainProcessExtensionService} from './mainThreadExtensionService';
+
+// --- ext host addressable
+import {ExtHostCommands} from './extHostCommands';
+import {ExtHostConfiguration} from './extHostConfiguration';
+import {ExtHostDiagnostics} from './extHostDiagnostics';
+import {ExtHostDocuments} from './extHostDocuments';
+import {ExtHostEditors} from './extHostEditors';
 import {ExtHostFileSystemEventService} from './extHostFileSystemEventService';
-import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from './extHostLanguageFeatures';
-import {MainThreadLanguages} from './extHostLanguages';
-import {MainThreadMessageService} from './extHostMessageService';
-import {MainThreadOutputService} from './extHostOutputService';
-import {ExtHostQuickOpen, MainThreadQuickOpen} from './extHostQuickOpen';
-import {MainThreadStatusBar} from './extHostStatusBar';
-import {MainThreadStorage} from './extHostStorage';
-import {MainThreadTelemetry} from './extHostTelemetry';
-import {MainThreadWorkspace} from './extHostWorkspace';
-import {ExtHostExtensionService, MainProcessExtensionService} from './nativeExtensionService';
+import {ExtHostLanguageFeatures} from './extHostLanguageFeatures';
+import {ExtHostQuickOpen} from './extHostQuickOpen';
+import {ExtHostExtensionService} from './extHostExtensionService';
 
 let mainCounter = 0;
 export const MainContext = {
-	MainProcessVSCodeAPIHelper: createMainId<MainProcessVSCodeAPIHelper>(++mainCounter),
 	MainThreadCommands: createMainId<MainThreadCommands>(++mainCounter),
 	MainThreadConfiguration: createMainId<MainThreadConfiguration>(++mainCounter),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnostics>(++mainCounter),
 	MainThreadDocuments: createMainId<MainThreadDocuments>(++mainCounter),
 	MainThreadEditors: createMainId<MainThreadEditors>(++mainCounter),
+	MainThreadErrors: createMainId<MainThreadErrors>(++mainCounter),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeatures>(++mainCounter),
 	MainThreadLanguages: createMainId<MainThreadLanguages>(++mainCounter),
 	MainThreadMessageService: createMainId<MainThreadMessageService>(++mainCounter),
@@ -52,7 +63,7 @@ export const ExtHostContext = {
 	ExtHostCommands: createExtId<ExtHostCommands>(++extCounter),
 	ExtHostConfiguration: createExtId<ExtHostConfiguration>(++extCounter),
 	ExtHostDiagnostics: createExtId<ExtHostDiagnostics>(++extCounter),
-	ExtHostModelService: createExtId<ExtHostModelService>(++extCounter),
+	ExtHostDocuments: createExtId<ExtHostDocuments>(++extCounter),
 	ExtHostEditors: createExtId<ExtHostEditors>(++extCounter),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventService>(++extCounter),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeatures>(++extCounter),

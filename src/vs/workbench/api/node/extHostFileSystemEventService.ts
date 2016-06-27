@@ -4,16 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {FileChangesEvent, FileChangeType} from 'vs/platform/files/common/files';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from './extHostTypes';
-import {IEventService} from 'vs/platform/event/common/event';
-import {RunOnceScheduler} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import {match} from 'vs/base/common/glob';
 import {Uri, FileSystemWatcher as _FileSystemWatcher} from 'vscode';
-import {ExtHostContext} from './extHostProtocol';
 
 export interface FileSystemEvents {
 	created: URI[];
@@ -111,42 +106,5 @@ export class ExtHostFileSystemEventService {
 
 	_onFileEvent(events: FileSystemEvents) {
 		this._emitter.fire(events);
-	}
-}
-
-export class MainThreadFileSystemEventService {
-
-	constructor( @IEventService eventService: IEventService, @IThreadService threadService: IThreadService) {
-
-		const proxy = threadService.get(ExtHostContext.ExtHostFileSystemEventService);
-		const events: FileSystemEvents = {
-			created: [],
-			changed: [],
-			deleted: []
-		};
-
-		const scheduler = new RunOnceScheduler(() => {
-			proxy._onFileEvent(events);
-			events.created.length = 0;
-			events.changed.length = 0;
-			events.deleted.length = 0;
-		}, 100);
-
-		eventService.addListener2('files:fileChanges', (event: FileChangesEvent) => {
-			for (let change of event.changes) {
-				switch (change.type) {
-					case FileChangeType.ADDED:
-						events.created.push(change.resource);
-						break;
-					case FileChangeType.UPDATED:
-						events.changed.push(change.resource);
-						break;
-					case FileChangeType.DELETED:
-						events.deleted.push(change.resource);
-						break;
-				}
-			}
-			scheduler.schedule();
-		});
 	}
 }
