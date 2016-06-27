@@ -160,7 +160,7 @@ const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationE
 configurationRegistry.registerConfiguration({
 	'id': 'search',
 	'order': 13,
-	'title': nls.localize('searchConfigurationTitle', "Search configuration"),
+	'title': nls.localize('searchConfigurationTitle', "Search"),
 	'type': 'object',
 	'properties': {
 		'search.exclude': {

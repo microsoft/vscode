@@ -378,7 +378,7 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExt
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
-	'title': nls.localize('workbenchConfigurationTitle', "Workbench configuration"),
+	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
 	'properties': {
 		'workbench.editor.showTabs': {

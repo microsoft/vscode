@@ -130,7 +130,7 @@ export var schemaId = 'vscode://schemas/launch';
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
-	title: nls.localize('app.launch.json.title', "Launch configuration"),
+	title: nls.localize('app.launch.json.title', "Launch"),
 	required: ['version', 'configurations'],
 	properties: {
 		version: {

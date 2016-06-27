@@ -95,7 +95,7 @@
 			"id": "json",
 			"order": 20,
 			"type": "object",
-			"title": "JSON configuration",
+			"title": "JSON",
 			"properties" : {
 				"json.schemas" : {
 					"type": "array",

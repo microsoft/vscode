@@ -31,7 +31,7 @@ const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationE
 configurationRegistry.registerConfiguration({
 	'id': 'emmet',
 	'order': 6,
-	'title': nls.localize('emmetConfigurationTitle', "Emmet configuration"),
+	'title': nls.localize('emmetConfigurationTitle', "Emmet"),
 	'type': 'object',
 	'properties': {
 		'emmet.triggerExpansionOnTab': {

@@ -42,7 +42,7 @@ const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationE
 configurationRegistry.registerConfiguration({
 	'id': 'window',
 	'order': 8,
-	'title': nls.localize('windowConfigurationTitle', "Window configuration"),
+	'title': nls.localize('windowConfigurationTitle', "Window"),
 	'type': 'object',
 	'properties': {
 		'window.openFilesInNewWindow': {
@@ -73,7 +73,7 @@ configurationRegistry.registerConfiguration({
 configurationRegistry.registerConfiguration({
 	'id': 'update',
 	'order': 15,
-	'title': nls.localize('updateConfigurationTitle', "Update configuration"),
+	'title': nls.localize('updateConfigurationTitle', "Update"),
 	'type': 'object',
 	'properties': {
 		'update.channel': {

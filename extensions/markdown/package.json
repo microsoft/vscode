@@ -111,7 +111,8 @@
 		],
 		"configuration": {
 			"type": "object",
-			"title": "Markdown preview configuration",
+			"title": "Markdown",
+			"order": 20,
 			"properties": {
 				"markdown.styles": {
 					"type": "array",

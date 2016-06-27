@@ -1,7 +1,7 @@
 {
 	"typescript.reloadProjects.title": "Reload TypeScript Project",
 	"javascript.reloadProjects.title": "Reload JavaScript Project",
-	"configuration.typescript": "TypeScript configuration",
+	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
 	"typescript.tsserver.trace": "Enables tracing of messages send to the TS server",
