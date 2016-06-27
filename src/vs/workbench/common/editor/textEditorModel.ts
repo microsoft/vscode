@@ -61,11 +61,11 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
 		return TPromise.any<any>([TPromise.timeout(50), mode]).then(() => {
-			return this._createTextEditorModelNow(value, mode, resource);
+			return this.doCreateTextEditorModel(value, mode, resource);
 		});
 	}
 
-	private _createTextEditorModelNow(value: string | IRawText, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: string | IRawText, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
@@ -76,6 +76,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			} else {
 				model.setValueFromRawText(value);
 			}
+			
 			model.setMode(mode);
 		}
 

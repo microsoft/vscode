@@ -42,7 +42,6 @@ export class NoTabsTitleControl extends TitleControl {
 			this.onTitleDoubleClick();
 		}));
 
-
 		// Detect mouse click
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, false);
@@ -163,7 +162,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Update Editor Actions Toolbar
-		const editorActions = this.getEditorActions({group, editor });
+		const editorActions = this.getEditorActions({ group, editor });
 		const primaryEditorActions = prepareActions(editorActions.primary);
 		if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
 			primaryEditorActions.push(this.splitEditorAction);
