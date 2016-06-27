@@ -116,7 +116,7 @@ export class FileWalker {
 			return clb(false);
 		}
 
-		return fs.stat(this.filePattern, (error, stat) => {
+		return extfs.stat(this.filePattern, (error, stat) => {
 			return clb(!error && !stat.isDirectory(), stat && stat.size); // only existing files
 		});
 	}
@@ -128,7 +128,7 @@ export class FileWalker {
 
 		const absolutePath = paths.join(basePath, this.filePattern);
 
-		return fs.stat(absolutePath, (error, stat) => {
+		return extfs.stat(absolutePath, (error, stat) => {
 			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
 		});
 	}
@@ -159,12 +159,12 @@ export class FileWalker {
 
 			// Use lstat to detect links
 			let currentAbsolutePath = [absolutePath, file].join(paths.sep);
-			fs.lstat(currentAbsolutePath, (error, lstat) => {
+			extfs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
 					return clb(null);
 				}
 
-				// If the path is a link, we must instead use fs.stat() to find out if the
+				// If the path is a link, we must instead use extfs.stat() to find out if the
 				// link is a directory or not because lstat will always return the stat of
 				// the link which is always a file.
 				this.statLinkIfNeeded(currentAbsolutePath, lstat, (error, stat) => {
@@ -257,7 +257,7 @@ export class FileWalker {
 
 	private statLinkIfNeeded(path: string, lstat: fs.Stats, clb: (error: Error, stat: fs.Stats) => void): void {
 		if (lstat.isSymbolicLink()) {
-			return fs.stat(path, clb); // stat the target the link points to
+			return extfs.stat(path, clb); // stat the target the link points to
 		}
 
 		return clb(null, lstat); // not a link, so the stat is already ok for us

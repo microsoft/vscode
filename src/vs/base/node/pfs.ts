@@ -32,7 +32,7 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 	const mkdir = () => nfcall(fs.mkdir, path, mode)
 		.then(null, (err: NodeJS.ErrnoException) => {
 			if (err.code === 'EEXIST') {
-				return nfcall(fs.stat, path)
+				return nfcall(extfs.stat, path)
 					.then((stat: fs.Stats) => stat.isDirectory
 						? null
 						: Promise.wrapError(new Error(`'${ path }' exists and is not a directory.`)));
@@ -77,11 +77,11 @@ export function realpath(path: string): TPromise<string> {
 }
 
 export function stat(path: string): TPromise<fs.Stats> {
-	return nfcall(fs.stat, path);
+	return nfcall(extfs.stat, path);
 }
 
 export function lstat(path: string): TPromise<fs.Stats> {
-	return nfcall(fs.lstat, path);
+	return nfcall(extfs.lstat, path);
 }
 
 export function mstat(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
