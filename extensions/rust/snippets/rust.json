@@ -1,76 +1,562 @@
 {
   ".source.rust": {
+    "allow": {
+      "prefix": "allow",
+      "body": [
+        "#![allow(${1})]"
+      ],
+      "description": "#![allow(…)]"
+    },
+    "assert": {
+      "prefix": "assert",
+      "body": [
+        "assert!(${1});"
+      ],
+      "description": "assert!(…);"
+    },
+    "assert_eq": {
+      "prefix": "assert_eq",
+      "body": [
+        "assert_eq!(${1}, ${2});"
+      ],
+      "description": "assert_eq!(…, …);"
+    },
+    "bench": {
+      "prefix": "bench",
+      "body": [
+        "#[bench]",
+        "fn ${1:name}(b: &mut test::Bencher) {",
+        "    ${2:b.iter(|| ${3:/* benchmark code */})}",
+        "}"
+      ],
+      "description": "#[bench]"
+    },
+    "cfg": {
+      "prefix": "cfg",
+      "body": [
+        "#[cfg(${1})]"
+      ],
+      "description": "#[cfg(…)]"
+    },
+    "cfg!": {
+      "prefix": "cfg!",
+      "body": [
+        "cfg!(${1})"
+      ],
+      "description": "cfg!(…)"
+    },
+    "cfg_attr": {
+      "prefix": "cfg_attr",
+      "body": [
+        "#[cfg_attr(${1}, ${2})]"
+      ],
+      "description": "#[cfg_attr(…, …)]"
+    },
+    "column": {
+      "prefix": "column",
+      "body": [
+        "column!()"
+      ],
+      "description": "column!()"
+    },
+    "concat": {
+      "prefix": "concat",
+      "body": [
+        "concat!(${1})"
+      ],
+      "description": "concat!(…)"
+    },
+    "concat_idents": {
+      "prefix": "concat_idents",
+      "body": [
+        "concat_idents!(${1})"
+      ],
+      "description": "concat_idents!(…)"
+    },
+    "const": {
+      "prefix": "const",
+      "body": [
+        "const ${1:CONST}: ${2:Type} = ${4:init};"
+      ],
+      "description": "const …: … = …;"
+    },
+    "debug_assert": {
+      "prefix": "debug_assert",
+      "body": [
+        "debug_assert!(${1});"
+      ],
+      "description": "debug_assert!(…)"
+    },
+    "debug_assert_eq": {
+      "prefix": "debug_assert_eq",
+      "body": [
+        "debug_assert_eq!(${1}, ${2});"
+      ],
+      "description": "debug_assert_eq!(…, …)"
+    },
+    "deny": {
+      "prefix": "deny",
+      "body": [
+        "#![deny(${1})]"
+      ],
+      "description": "#![deny(…)]"
+    },
+    "derive": {
+      "prefix": "derive",
+      "body": [
+        "#[derive(${1})]"
+      ],
+      "description": "#[derive(…)]"
+    },
+    "else": {
+      "prefix": "else",
+      "body": [
+        "else {",
+        "    ${1:unimplemented!();}",
+        "}"
+      ],
+      "description": "else { … }"
+    },
     "enum": {
       "prefix": "enum",
-      "body": "enum ${1:TypeName} {\n\t$2\n}"
+      "body": [
+        "#[derive(Debug)]",
+        "enum ${1:Name} {",
+        "    ${2:Variant1},",
+        "    ${3:Variant2},",
+        "}"
+      ],
+      "description": "enum … { … }"
+    },
+    "env": {
+      "prefix": "env",
+      "body": [
+        "env!(\"${1}\")"
+      ],
+      "description": "env!(\"…\")"
+    },
+    "Err": {
+      "prefix": "Err",
+      "body": [
+        "Err(${1})"
+      ],
+      "description": "Err(…)"
+    },
+    "extern-crate": {
+      "prefix": "extern-crate",
+      "body": [
+        "extern crate ${1:name};"
+      ],
+      "description": "extern crate …;"
+    },
+    "extern-fn": {
+      "prefix": "extern-fn",
+      "body": [
+        "extern \"C\" fn ${1:name}(${2:arg}: ${3:Type}) -> ${4:RetType} {",
+        "    ${5:// add code here}",
+        "}"
+      ],
+      "description": "extern \"C\" fn …(…) { … }"
+    },
+    "extern-mod": {
+      "prefix": "extern-mod",
+      "body": [
+        "extern \"C\" {",
+        "    ${2:// add code here}",
+        "}"
+      ],
+      "description": "extern \"C\" { … }"
+    },
+    "feature": {
+      "prefix": "feature",
+      "body": [
+        "#![feature(${1})]"
+      ],
+      "description": "#![feature(…)]"
+    },
+    "file": {
+      "prefix": "file",
+      "body": [
+        "file!()"
+      ],
+      "description": "file!()"
     },
     "fn": {
       "prefix": "fn",
-      "body": "fn ${1:function_name}($2) {\n\t$3\n}"
-    },
-    "fnr": {
-      "prefix": "fnr",
-      "body": "fn ${1:function_name}($2) -> ${3:TypeName} {\n\t$4\n}"
+      "body": [
+        "fn ${1:name}(${2:arg}: ${3:Type}) -> ${4:RetType} {",
+        "    ${5:unimplemented!();}",
+        "}"
+      ],
+      "description": "fn …(…) -> … { … }"
     },
     "for": {
       "prefix": "for",
-      "body": "for ${1:variable} in ${2:iterator} {\n\t$3\n}"
+      "body": [
+        "for ${1:pat} in ${2:expr} {",
+        "    ${3:unimplemented!();}",
+        "}"
+      ],
+      "description": "for … in … { … }"
+    },
+    "format": {
+      "prefix": "format",
+      "body": [
+        "format!(\"${1:\\{${2::?}\\}}\")"
+      ],
+      "description": "format!(…)"
+    },
+    "format_args": {
+      "prefix": "format_args",
+      "body": [
+        "format_args!(\"${1:\\{${2::?}\\}}\")"
+      ],
+      "description": "format_args!(…)"
     },
     "if": {
       "prefix": "if",
-      "body": "if ${1:expression} {\n\t$2\n}"
+      "body": [
+        "if ${1:condition} {",
+        "    ${2:unimplemented!();}",
+        "}"
+      ],
+      "description": "if … { … }"
+    },
+    "if-let": {
+      "prefix": "if-let",
+      "body": [
+        "if let ${1:Some(pat)} = ${2:expr} {",
+        "    ${2:unimplemented!();}",
+        "}"
+      ],
+      "description": "if let … = … { … }"
     },
     "impl": {
       "prefix": "impl",
-      "body": "impl ${1:TypeName} {\n\t$2\n}"
+      "body": [
+        "impl ${1:Type} {",
+        "    ${2:// add code here}",
+        "}"
+      ],
+      "description": "impl … { … }"
+    },
+    "impl-trait": {
+      "prefix": "impl-trait",
+      "body": [
+        "impl ${1:Trait} for ${2:Type} {",
+        "    ${3:// add code here}",
+        "}"
+      ],
+      "description": "impl … for … { … }"
+    },
+    "include": {
+      "prefix": "include",
+      "body": [
+        "include!(\"${1}\");"
+      ],
+      "description": "include!(\"…\");"
+    },
+    "include_bytes": {
+      "prefix": "include_bytes",
+      "body": [
+        "include_bytes!(\"${1}\")"
+      ],
+      "description": "include_bytes!(\"…\")"
+    },
+    "include_str": {
+      "prefix": "include_str",
+      "body": [
+        "include_str!(\"${1}\")"
+      ],
+      "description": "include_str!(\"…\")"
     },
     "let": {
       "prefix": "let",
-      "body": "let ${1:variable} = ${2:value};"
+      "body": [
+        "let ${1:pat} = ${2:expr};"
+      ],
+      "description": "let … = …;"
+    },
+    "line": {
+      "prefix": "line",
+      "body": [
+        "line!()"
+      ],
+      "description": "line!()"
     },
     "loop": {
       "prefix": "loop",
-      "body": "loop {\n\t$1\n}"
+      "body": [
+        "loop {",
+        "    ${2:unimplemented!();}",
+        "}"
+      ],
+      "description": "loop { … }"
     },
-    "macro": {
-      "prefix": "macro",
-      "body": "macro_rules! ${1:macro_name} {\n\t($2) => ($3);\n}"
+    "macro_rules": {
+      "prefix": "macro_rules",
+      "body": [
+        "macro_rules! ${1:name} {",
+        "    (${2}) => (${3})",
+        "}"
+      ],
+      "description": "macro_rules! … { … }"
+    },
+    "macro_use": {
+      "prefix": "macro_use",
+      "body": [
+        "#[macro_use]"
+      ],
+      "description": "#[macro_use]"
     },
     "main": {
       "prefix": "main",
-      "body": "fn main() {\n\t$1\n}"
+      "body": [
+        "fn main() {",
+        "    ${1:unimplemented!();}",
+        "}"
+      ],
+      "description": "fn main() { … }"
     },
     "match": {
       "prefix": "match",
-      "body": "match ${1:expression} {\n\t$2\n}"
+      "body": [
+        "match ${1:expr} {",
+        "    ${2:Some(expr)} => ${3:expr},",
+        "    ${4:None} => ${5:expr},",
+        "}"
+      ],
+      "description": "match … { … }"
+    },
+    "mod": {
+      "prefix": "mod",
+      "body": [
+        "mod ${1:name};"
+      ],
+      "description": "mod …;"
+    },
+    "mod-block": {
+      "prefix": "mod-block",
+      "body": [
+        "mod ${1:name} {",
+        "    ${2:// add code here}",
+        "}"
+      ],
+      "description": "mod … { … }"
+    },
+    "module_path": {
+      "prefix": "module_path",
+      "body": [
+        "module_path!()"
+      ],
+      "description": "module_path!()"
+    },
+    "no_core": {
+      "prefix": "no_core",
+      "body": [
+        "#![no_core]"
+      ],
+      "description": "#![no_core]"
+    },
+    "no_std": {
+      "prefix": "no_std",
+      "body": [
+        "#![no_std]"
+      ],
+      "description": "#![no_std]"
+    },
+    "Ok": {
+      "prefix": "Ok",
+      "body": [
+        "Ok(${1:result})"
+      ],
+      "description": "Ok(…)"
+    },
+    "option_env": {
+      "prefix": "option_env",
+      "body": [
+        "option_env!(\"${1}\")"
+      ],
+      "description": "option_env!(\"…\")"
+    },
+    "panic": {
+      "prefix": "panic",
+      "body": [
+        "panic!(\"${1:\\{${2::?}\\}}\");"
+      ],
+      "description": "panic!(…);"
+    },
+    "print": {
+      "prefix": "print",
+      "body": [
+        "print!(\"${1:\\{${2::?}\\}}\");"
+      ],
+      "description": "print!(…);"
+    },
+    "println": {
+      "prefix": "println",
+      "body": [
+        "println!(\"${1:\\{${2::?}\\}}\");"
+      ],
+      "description": "println!(…);"
+    },
+    "repr": {
+      "prefix": "repr",
+      "body": [
+        "#[repr(${1})]"
+      ],
+      "description": "#[repr(…)]"
+    },
+    "Some": {
+      "prefix": "Some",
+      "body": [
+        "Some(${1})"
+      ],
+      "description": "Some(…)"
     },
     "static": {
       "prefix": "static",
-      "body": "static ${1:CONSTANT}: ${2:TypeName} = ${3:value};"
+      "body": [
+        "static ${1:STATIC}: ${2:Type} = ${4:init};"
+      ],
+      "description": "static …: … = …;"
+    },
+    "stringify": {
+      "prefix": "stringify",
+      "body": [
+        "stringify!(${1})"
+      ],
+      "description": "stringify!(…)"
     },
     "struct": {
       "prefix": "struct",
-      "body": "struct ${1:TypeName} {\n\t$2\n}"
+      "body": [
+        "#[derive(Debug)]",
+        "struct ${1:Name} {",
+        "    ${2:field}: ${3:Type}",
+        "}"
+      ],
+      "description": "struct … { … }"
+    },
+    "struct-tuple": {
+      "prefix": "struct-tuple",
+      "body": [
+        "struct ${1:Name}(${2:Type});"
+      ],
+      "description": "struct …(…);"
+    },
+    "struct-unit": {
+      "prefix": "struct-unit",
+      "body": [
+        "struct ${1:Name};"
+      ],
+      "description": "struct …;"
     },
     "test": {
       "prefix": "test",
-      "body": "#[test]\nfn ${1:test_name}() {\n\t$2\n}"
+      "body": [
+        "#[test]",
+        "fn ${1:name}() {",
+        "    ${2:unimplemented!();}",
+        "}"
+      ],
+      "description": "#[test]"
     },
     "testmod": {
       "prefix": "testmod",
-      "body": "#[cfg(test)]\nmod test {\n\t#[test]\n\tfn ${1:test_name}() {\n\t\t$2\n\t}\n}"
+      "body": "#[cfg(test)]\nmod test {\n\t#[test]\n\tfn ${1:test_name}() {\n\t\t$2\n\t}\n}",
+      "description": "#[cfg(test)] mod test { #[test] fn …() { … } }"
+    },
+    "thread_local": {
+      "prefix": "thread_local",
+      "body": [
+        "thread_local!(static ${1:STATIC}: ${2:Type} = ${4:init});"
+      ],
+      "description": "thread_local!(static …: … = …);"
     },
     "trait": {
       "prefix": "trait",
-      "body": "trait ${1:TypeName} {\n\t$2\n}"
+      "body": [
+        "trait ${1:Name} {",
+        "    ${2:// add code here}",
+        "}",
+        ""
+      ],
+      "description": "trait … { … }"
+    },
+    "try": {
+      "prefix": "try",
+      "body": [
+        "try!(${1})"
+      ],
+      "description": "try!(…)"
     },
     "type": {
       "prefix": "type",
-      "body": "type ${1:TypeName} = ${2:TypeName};"
+      "body": [
+        "type ${1:Alias} = ${2:Type};"
+      ],
+      "description": "type … = …;"
+    },
+    "unimplemented": {
+      "prefix": "unimplemented",
+      "body": [
+        "unimplemented!()"
+      ],
+      "description": "unimplemented!()"
+    },
+    "unreachable": {
+      "prefix": "unreachable",
+      "body": [
+        "unreachable!(${1})"
+      ],
+      "description": "unreachable!(…)"
+    },
+    "vec": {
+      "prefix": "vec",
+      "body": [
+        "vec![${1}]"
+      ],
+      "description": "vec![…]"
+    },
+    "warn": {
+      "prefix": "warn",
+      "body": [
+        "#![warn(${1})]"
+      ],
+      "description": "#![warn(…)]"
     },
     "while": {
       "prefix": "while",
-      "body": "while ${1:expression} {\n\t$2\n}"
+      "body": [
+        "while ${1:condition} {",
+        "    ${2:unimplemented!();}",
+        "}"
+      ],
+      "description": "while … { … }"
+    },
+    "while-let": {
+      "prefix": "while-let",
+      "body": [
+        "while let ${1:Some(pat)} = ${2:expr} {",
+        "    ${2:unimplemented!();}",
+        "}"
+      ],
+      "description": "while let … = … { … }"
+    },
+    "write": {
+      "prefix": "write",
+      "body": [
+        "write!(${1}, \"${2:\\{${3::?}\\}}\")"
+      ],
+      "description": "write!(…)"
+    },
+    "writeln": {
+      "prefix": "writeln",
+      "body": [
+        "writeln!(${1}, \"${2:\\{${3::?}\\}}\")"
+      ],
+      "description": "writeln!(…, …)"
     }
   }
 }
