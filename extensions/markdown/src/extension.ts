@@ -219,6 +219,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
 				this.computeCustomStyleSheetIncludes(uri),
+				`<base href="${document.uri.toString(true)}">`,
 				'</head>',
 				'<body>'
 			).join('\n');

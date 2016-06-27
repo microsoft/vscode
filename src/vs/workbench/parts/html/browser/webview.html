@@ -55,8 +55,8 @@
 			const parser = new DOMParser();
 			const newDocument = parser.parseFromString(value.join('\n'), 'text/html');
 
-			// set base-url if possible
-			if(initData.baseUrl) {
+			// set base-url if applicable
+			if(initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
 				const baseElement = document.createElement('base');
 				baseElement.href = initData.baseUrl;
 				newDocument.head.appendChild(baseElement);
