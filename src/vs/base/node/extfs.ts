@@ -18,42 +18,46 @@ const loop = flow.loop;
 
 const ASAR_EXT = '.asar';
 
-class AsarStat implements fs.Stats {
-	dev: number;
-	ino: number;
+export interface IRawStat {
+	size: number;
+	mtime: Date;
+	atime: Date;
 	mode: number;
-	nlink: number;
-	uid: number;
-	gid: number;
-	rdev: number;
-	blksize: number;
-	blocks: number;
-	size = 1024;
-	atime= new Date();
-	mtime= new Date();
-	ctime= new Date();
-	birthtime= new Date();
-
-	isDirectory(): boolean { return false; }
-	isFile(): boolean { return true; }
-	isBlockDevice(): boolean { return false; }
-	isCharacterDevice(): boolean { return false; }
-	isSymbolicLink(): boolean { return false; }
-	isFIFO(): boolean { return false; }
-	isSocket(): boolean { return false; }
+	isDirectory(): boolean;
+	isSymbolicLink(): boolean;
+	isFile(): boolean;
 }
 
-export function stat(path: string, callback: (error: Error, stat: fs.Stats) => void): void {
+class FakeAsarStat implements IRawStat {
+	size = 1024;
+	mode = 0;
+	mtime = new Date(0);
+	atime = new Date(0);
+
+	isDirectory(): boolean { return false; }
+	isSymbolicLink(): boolean { return false; }
+	isFile(): boolean { return true; }
+}
+
+export function stat(path: string, callback: (error: Error, stat: IRawStat) => void): void {
 	if (path && paths.extname(path) === ASAR_EXT) {
-		return callback(null, new AsarStat()); // https://github.com/Microsoft/vscode/issues/646
+		return callback(null, new FakeAsarStat()); // https://github.com/Microsoft/vscode/issues/646
 	}
 
 	return fs.stat(path, callback);
 }
 
-export function lstat(path: string, callback: (error: Error, stat: fs.Stats) => void): void {
+export function statSync(path: string): IRawStat {
 	if (path && paths.extname(path) === ASAR_EXT) {
-		return callback(null, new AsarStat()); // https://github.com/Microsoft/vscode/issues/646
+		return new FakeAsarStat(); // https://github.com/Microsoft/vscode/issues/646
+	}
+
+	return fs.statSync(path);
+}
+
+export function lstat(path: string, callback: (error: Error, stat: IRawStat) => void): void {
+	if (path && paths.extname(path) === ASAR_EXT) {
+		return callback(null, new FakeAsarStat()); // https://github.com/Microsoft/vscode/issues/646
 	}
 
 	return fs.lstat(path, callback);
@@ -129,7 +133,7 @@ export function mkdirp(path: string, mode: number, callback: (error: Error) => v
 }
 
 function isDirectory(path: string, callback: (error: Error, isDirectory?: boolean) => void): void {
-	stat(path, (error: Error, stat: fs.Stats) => {
+	stat(path, (error: Error, stat: IRawStat) => {
 		if (error) { return callback(error); }
 
 		callback(null, stat.isDirectory());
@@ -308,7 +312,7 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 			return callback(err);
 		}
 
-		stat(target, (error: Error, stat: fs.Stats) => {
+		stat(target, (error: Error, stat: IRawStat) => {
 			if (error) {
 				return callback(error);
 			}

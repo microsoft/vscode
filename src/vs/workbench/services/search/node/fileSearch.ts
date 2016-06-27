@@ -255,7 +255,7 @@ export class FileWalker {
 		return true;
 	}
 
-	private statLinkIfNeeded(path: string, lstat: fs.Stats, clb: (error: Error, stat: fs.Stats) => void): void {
+	private statLinkIfNeeded(path: string, lstat: extfs.IRawStat, clb: (error: Error, stat: extfs.IRawStat) => void): void {
 		if (lstat.isSymbolicLink()) {
 			return extfs.stat(path, clb); // stat the target the link points to
 		}
@@ -263,7 +263,7 @@ export class FileWalker {
 		return clb(null, lstat); // not a link, so the stat is already ok for us
 	}
 
-	private realPathIfNeeded(path: string, lstat: fs.Stats, clb: (error: Error, realpath?: string) => void): void {
+	private realPathIfNeeded(path: string, lstat: extfs.IRawStat, clb: (error: Error, realpath?: string) => void): void {
 		if (lstat.isSymbolicLink()) {
 			return fs.realpath(path, (error, realpath) => {
 				if (error) {
