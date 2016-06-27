@@ -195,13 +195,13 @@
 	background-image: url('replace-all.svg');
 }
 
-.monaco-editor.hc-black .search-viewlet .action-replace,
-.monaco-editor.vs-dark .search-viewlet .action-replace {
+hc-black .search-viewlet .action-replace,
+.vs-dark .search-viewlet .action-replace {
 	background-image: url('replace-inverse.svg');
 }
 
-.monaco-editor.hc-black .search-viewlet .action-replace-all,
-.monaco-editor.vs-dark .search-viewlet .action-replace-all {
+.hc-black .search-viewlet .action-replace-all,
+.vs-dark .search-viewlet .action-replace-all {
 	background-image: url('replace-all-inverse.svg');
 }
 
