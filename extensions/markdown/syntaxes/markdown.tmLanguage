@@ -84,6 +84,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#fenced_code_block_php</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#fenced_code_block_sql</string>
 				</dict>
 				<dict>
@@ -655,6 +659,22 @@
 						<dict>
 							<key>include</key>
 							<string>source.ruby</string>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_php</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)\s*([`~]{3,})\s*(php|php3|php4|php5|phpt|phtml|aw|ctp)\s*$</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2)\n</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>text.html.php</string>
 						</dict>
 					</array>
 				</dict>
