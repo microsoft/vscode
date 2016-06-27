@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
+import {Match, FileMatch, SearchResult, EmptyMatch} from 'vs/workbench/parts/search/common/searchModel';
 import {Model} from 'vs/editor/common/model/model';
 import {Emitter} from 'vs/base/common/event';
 import {IModel} from 'vs/editor/common/editorCommon';
@@ -64,7 +64,8 @@ suite('Search - Model', () => {
 		fileMatch.add(lineMatch);
 		assert.equal(fileMatch.matches().length, 1);
 		fileMatch.remove(lineMatch);
-		assert.equal(fileMatch.matches().length, 0);
+		assert.equal(fileMatch.matches().length, 1);
+		assert.ok(fileMatch.matches()[0] instanceof EmptyMatch);
 	});
 
 	test('File Match', function () {
