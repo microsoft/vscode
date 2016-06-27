@@ -99,6 +99,9 @@ export class FileMatch extends EventEmitter implements lifecycle.IDisposable {
 
 	public remove(match: Match): void {
 		delete this._matches[match.id()];
+		if (this.count() === 0) {
+			this.add(new EmptyMatch(this));
+		}
 	}
 
 	public matches(): Match[] {
@@ -202,13 +205,6 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 
 	private _isTextModelDisposed(): boolean {
 		return !this._model || (<ITextModel>this._model).isDisposed();
-	}
-
-	public remove(match: Match): void {
-		super.remove(match);
-		if (this.count() === 0) {
-			this.add(new EmptyMatch(this));
-		}
 	}
 
 }

@@ -98,24 +98,42 @@ export class RemoveAction extends Action {
 	}
 
 	public run(retainFocus: boolean= true): TPromise<any> {
-		if (this.viewer.getFocus() === this.viewer.getNavigator().last()) {
-			this.viewer.focusPrevious();
-		} else {
-			this.viewer.focusNext();
+
+		if (this.element === this.viewer.getFocus()) {
+			let nextFocusElement= this.getNextFocusElement();
+			if (nextFocusElement) {
+				this.viewer.setFocus(nextFocusElement);
+			} else {
+				this.viewer.focusPrevious();
+			}
 		}
 
-		let parent: any;
+		let elementToRefresh: any;
 		if (this.element instanceof FileMatch) {
-			parent= <SearchResult>this.element.parent();
+			let parent:SearchResult= <SearchResult>this.element.parent();
 			parent.remove(<FileMatch>this.element);
+			elementToRefresh= parent;
 		} else {
-			parent= <FileMatch>this.element.parent();
+			let parent: FileMatch= <FileMatch>this.element.parent();
 			parent.remove(<Match>this.element);
+			elementToRefresh= parent.count() === 0 ? parent.parent() : parent;
 		}
-		if (retainFocus) {
+
+		if (retainFocus && this.viewer.getFocus()) {
 			this.viewer.DOMFocus();
 		}
-		return this.viewer.refresh(parent);
+		return this.viewer.refresh(elementToRefresh);
+	}
+
+	private getNextFocusElement():FileMatchOrMatch {
+		let navigator= this.viewer.getNavigator();
+		while (navigator.current() !== this.element && !!navigator.next()) {};
+		if (this.element instanceof FileMatch) {
+			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) {};
+			return navigator.current();
+		} else {
+			return navigator.next();
+		}
 	}
 }
 
