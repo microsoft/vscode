@@ -236,6 +236,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
+		this.toUnhook.push(this.editor.onDidChangeCursorSelection((e) => this.resetHandler())); // https://github.com/Microsoft/vscode/issues/7827
 		this.toUnhook.push(this.editor.onDidChangeModel((e) => this.resetHandler()));
 		this.toUnhook.push(this.editor.onDidChangeModelContent(() => this.resetHandler()));
 		this.toUnhook.push(this.editor.onDidScrollChange((e) => {
@@ -408,6 +409,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private resetHandler(): void {
 		this.lastMouseMoveEvent = null;
+		this.hasTriggerKeyOnMouseDown = false;
 		this.removeDecorations();
 	}
 
