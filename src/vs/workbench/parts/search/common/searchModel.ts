@@ -158,9 +158,10 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		this._query = query;
 		this._model = model;
 		this._diskFileMatch = fileMatch;
+		this._removedMatches= fileMatch._removedMatches;
 		this._updateScheduler = new RunOnceScheduler(this._updateMatches.bind(this), 250);
 		this._unbind.push(this._model.onDidChangeContent(_ => this._updateScheduler.schedule()));
-		this._updateMatches(fileMatch);
+		this._updateMatches();
 	}
 
 	public dispose(): void {
@@ -171,7 +172,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		super.dispose();
 	}
 
-	private _updateMatches(fileMatch?: FileMatch): void {
+	private _updateMatches(): void {
 		// this is called from a timeout and might fire
 		// after the model has been disposed
 		if (this._isTextModelDisposed()) {
@@ -183,7 +184,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 
 		matches.forEach(range => {
 			let match= new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
-			if (!(fileMatch && fileMatch._removedMatches.contains(match.id()))) {
+			if (!this._removedMatches.contains(match.id())) {
 				this.add(match);
 			}
 		});
