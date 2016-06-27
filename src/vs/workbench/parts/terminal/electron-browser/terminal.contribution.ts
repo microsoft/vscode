@@ -21,7 +21,7 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Confi
 configurationRegistry.registerConfiguration({
 	'id': 'terminal',
 	'order': 100,
-	'title': nls.localize('terminalIntegratedConfigurationTitle', "Integrated terminal configuration"),
+	'title': nls.localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 	'type': 'object',
 	'properties': {
 		'terminal.integrated.shell.linux': {

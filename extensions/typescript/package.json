@@ -65,6 +65,7 @@
 		"configuration": {
 			"type": "object",
 			"title": "%configuration.typescript%",
+			"order": 20,
 			"properties": {
 				"typescript.tsdk": {
 					"type": ["string", "null"],

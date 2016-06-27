@@ -529,7 +529,7 @@ let editorConfiguration:IConfigurationNode = {
 	'id': 'editor',
 	'order': 5,
 	'type': 'object',
-	'title': nls.localize('editorConfigurationTitle', "Editor configuration"),
+	'title': nls.localize('editorConfigurationTitle', "Editor"),
 	'properties' : {
 		'editor.fontFamily' : {
 			'type': 'string',

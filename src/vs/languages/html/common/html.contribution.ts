@@ -25,7 +25,7 @@ configurationRegistry.registerConfiguration({
 	'id': 'html',
 	'order': 20,
 	'type': 'object',
-	'title': nls.localize('htmlConfigurationTitle', "HTML configuration"),
+	'title': nls.localize('htmlConfigurationTitle', "HTML"),
 	'properties': {
 		'html.format.wrapLineLength': {
 			'type': 'integer',
