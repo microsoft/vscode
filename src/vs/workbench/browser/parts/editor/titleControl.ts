@@ -103,7 +103,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		this.contributedTitleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, this.keybindingService);
 		this.toDispose.push(this.contributedTitleBarMenu);
-		this.toDispose.push(this.contributedTitleBarMenu.onDidChange(e => this.refresh()));
+		this.toDispose.push(this.contributedTitleBarMenu.onDidChange(e => this.update()));
 
 		this.initActions();
 		this.registerListeners();
