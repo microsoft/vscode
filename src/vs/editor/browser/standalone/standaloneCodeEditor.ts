@@ -76,7 +76,7 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		}
 
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, keybindingService.createScoped(domElement), telemetryService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
@@ -181,7 +181,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
 		}
 
-		super(domElement, options, editorWorkerService, instantiationService);
+		super(domElement, options, editorWorkerService, keybindingService, instantiationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
