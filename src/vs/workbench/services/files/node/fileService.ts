@@ -50,7 +50,7 @@ export interface IFileServiceOptions {
 	debugBrkFileWatcherPort?: number;
 }
 
-function etag(stat: fs.Stats): string;
+function etag(stat: extfs.IRawStat): string;
 function etag(size: number, mtime: number): string;
 function etag(arg1: any, arg2?: any): string {
 	let size: number;
@@ -59,8 +59,8 @@ function etag(arg1: any, arg2?: any): string {
 		size = arg1;
 		mtime = arg2;
 	} else {
-		size = (<fs.Stats>arg1).size;
-		mtime = (<fs.Stats>arg1).mtime.getTime();
+		size = (<extfs.IRawStat>arg1).size;
+		mtime = (<extfs.IRawStat>arg1).mtime.getTime();
 	}
 
 	return '"' + crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex') + '"';
@@ -424,7 +424,7 @@ export class FileService implements IFileService {
 	private toStatResolver(resource: uri): TPromise<StatResolver> {
 		let absolutePath = this.toAbsolutePath(resource);
 
-		return pfs.stat(absolutePath).then((stat: fs.Stats) => {
+		return pfs.stat(absolutePath).then((stat: extfs.IRawStat) => {
 			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging);
 		});
 	}
@@ -528,7 +528,7 @@ export class FileService implements IFileService {
 	private checkFile(absolutePath: string, options: IUpdateContentOptions): TPromise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then((exists) => {
 			if (exists) {
-				return pfs.stat(absolutePath).then((stat: fs.Stats) => {
+				return pfs.stat(absolutePath).then((stat: extfs.IRawStat) => {
 					if (stat.isDirectory()) {
 						return TPromise.wrapError(new Error('Expected file is actually a directory'));
 					}
@@ -723,7 +723,7 @@ export class StatResolver {
 			// for each file in the folder
 			flow.parallel(files, (file: string, clb: (error: Error, children: IFileStat) => void) => {
 				let fileResource = uri.file(paths.resolve(absolutePath, file));
-				let fileStat: fs.Stats;
+				let fileStat: extfs.IRawStat;
 				let $this = this;
 
 				flow.sequence(
@@ -739,7 +739,7 @@ export class StatResolver {
 						extfs.stat(fileResource.fsPath, this);
 					},
 
-					function countChildren(fsstat: fs.Stats): void {
+					function countChildren(fsstat: extfs.IRawStat): void {
 						fileStat = fsstat;
 
 						if (fileStat.isDirectory()) {
