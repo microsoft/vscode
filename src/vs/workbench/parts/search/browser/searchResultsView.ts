@@ -192,7 +192,7 @@ export class SearchRenderer extends ActionsRenderer {
 
 			$('a.plain')
 				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + preview.inside + preview.after).trim().substr(0, 999))
+				.title((preview.before + input.isReplaceActive() ? input.replaceText : preview.inside + preview.after).trim().substr(0, 999))
 				.appendTo(domElement);
 		}
 
@@ -213,6 +213,11 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof Match) {
+			let input= <SearchResult>tree.getInput();
+			if (input.isReplaceActive()) {
+				let preview = element.preview();
+				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + input.replaceText + preview.after);
+			}
 			return nls.localize('searchResultAria', "{0}, Search result", element.text());
 		}
 	}
