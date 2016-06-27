@@ -35,9 +35,8 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {ModelBuilder, ModelBuilderResult} from 'vs/editor/node/model/modelBuilder';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IStringStream, IFileService} from 'vs/platform/files/common/files';
+import {IFileService} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
 export const TestWorkspace: IWorkspace = {
@@ -141,15 +140,10 @@ export abstract class TestTextFileService extends TextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
 		@IFileService fileService: IFileService,
-		@IModelService private modelService: IModelService
+		@IModelService modelService: IModelService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService);
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService, modelService);
 	}
-
-	protected stringStreamToRawText(stream:IStringStream): TPromise<ModelBuilderResult> {
-		return ModelBuilder.fromStringStream(stream, this.modelService.getCreationOptions());
-	}
-
 }
 
 export class TestMessageService implements IMessageService {
