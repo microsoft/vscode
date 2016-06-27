@@ -515,7 +515,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
-		const resource = getUntitledOrFileResource(editor);
+		const resource = getUntitledOrFileResource(editor, true /* include diff editors */);
 		if (resource) {
 			this.mapResourceToEditor[resource.toString()] = remove ? void 0 : editor;
 		}
