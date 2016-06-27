@@ -274,7 +274,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	public getOptimalWidth(): number {
 		let additionalMargin = 16;
-		let openedEditorsViewWidth = this.openEditorsView.getOptimalWidth();
+		let openedEditorsViewWidth = this.openEditorsVisible ? this.openEditorsView.getOptimalWidth() : 0;
 		let explorerView = this.getExplorerView();
 		let explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
 		let optimalWidth = Math.max(openedEditorsViewWidth, explorerViewWidth);
