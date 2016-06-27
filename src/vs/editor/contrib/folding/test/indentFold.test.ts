@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
-import {computeRanges, limitByIndent, computeIndentLevel} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
+import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 
 suite('Indentation Folding', () => {
 	function assertRanges(lines: string[], tabSize: number, expected:IFoldingRange[]): void {
@@ -125,20 +125,6 @@ suite('Indentation Folding', () => {
 		assert.deepEqual(limitByIndent(ranges, 2), []);
 		assert.deepEqual(limitByIndent(ranges, 1), []);
 		assert.deepEqual(limitByIndent(ranges, 0), []);
-	});
-
-	test('Compute indent level', () => {
-		assert.equal(computeIndentLevel('Hello', 4), 0);
-		assert.equal(computeIndentLevel(' Hello', 4), 1);
-		assert.equal(computeIndentLevel('   Hello', 4), 3);
-		assert.equal(computeIndentLevel('\tHello', 4), 4);
-		assert.equal(computeIndentLevel(' \tHello', 4), 4);
-		assert.equal(computeIndentLevel('  \tHello', 4), 4);
-		assert.equal(computeIndentLevel('   \tHello', 4), 4);
-		assert.equal(computeIndentLevel('    \tHello', 4), 8);
-		assert.equal(computeIndentLevel('     \tHello', 4), 8);
-		assert.equal(computeIndentLevel('\t Hello', 4), 5);
-		assert.equal(computeIndentLevel('\t \tHello', 4), 8);
 	});
 
 });

@@ -1564,6 +1564,11 @@ export interface ITextModel {
 	getLineContent(lineNumber:number): string;
 
 	/**
+	 * @internal
+	 */
+	getIndentLevel(lineNumber:number): number;
+
+	/**
 	 * Get the text for all lines.
 	 */
 	getLinesContent(): string[];

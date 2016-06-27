@@ -18,6 +18,8 @@ export interface IMirrorModelEvents {
 	contentChanged: editorCommon.IModelContentChangedEvent[];
 }
 
+const NO_TAB_SIZE = 0;
+
 export class AbstractMirrorModel extends TextModelWithTokens implements editorCommon.IMirrorModel {
 
 	_associatedResource:URI;
@@ -207,7 +209,7 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 			endColumn: Number.MAX_VALUE,
 			text: e.detail,
 			forceMoveMarkers: false
-		}]);
+		}], NO_TAB_SIZE);
 		if (this._lineStarts) {
 			// update prefix sum
 			this._lineStarts.changeValue(e.lineNumber - 1, this._lines[e.lineNumber - 1].text.length + this._EOL.length);
@@ -247,7 +249,7 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 
 		let newLengths:number[] = [];
 		for (lineIndex = e.fromLineNumber - 1, i = 0; lineIndex < e.toLineNumber; lineIndex++, i++) {
-			this._lines.splice(lineIndex, 0, new ModelLine(0, splitLines[i]));
+			this._lines.splice(lineIndex, 0, new ModelLine(0, splitLines[i], NO_TAB_SIZE));
 			newLengths.push(splitLines[i].length + this._EOL.length);
 		}
 		if (this._lineStarts) {

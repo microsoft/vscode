@@ -93,10 +93,15 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			}
 		}
 		if (typeof newOpts.tabSize !== 'undefined') {
-			if (this._options.tabSize !== newOpts.tabSize) {
+			let newTabSize = newOpts.tabSize | 0;
+			if (this._options.tabSize !== newTabSize) {
 				somethingChanged = true;
 				changed.tabSize = true;
-				this._options.tabSize = newOpts.tabSize;
+				this._options.tabSize = newTabSize;
+
+				for (let i = 0, len = this._lines.length; i < len; i++) {
+					this._lines[i].updateTabSize(newTabSize);
+				}
 			}
 		}
 		if (typeof newOpts.trimAutoWhitespace !== 'undefined') {
@@ -461,6 +466,14 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._lines[lineNumber - 1].text;
 	}
 
+	public getIndentLevel(lineNumber:number): number {
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+		}
+
+		return this._lines[lineNumber - 1].getIndentLevel();
+	}
+
 	public getLinesContent(): string[] {
 		var r: string[] = [];
 		for (var i = 0, len = this._lines.length; i < len; i++) {
@@ -648,13 +661,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	_constructLines(rawText:editorCommon.IRawText): void {
-		var rawLines = rawText.lines,
-			modelLines: ModelLine[] = [],
-			i: number,
-			len: number;
+		const tabSize = rawText.options.tabSize;
+		let rawLines = rawText.lines;
+		let modelLines: ModelLine[] = [];
 
-		for (i = 0, len = rawLines.length; i < len; i++) {
-			modelLines.push(new ModelLine(i + 1, rawLines[i]));
+		for (let i = 0, len = rawLines.length; i < len; i++) {
+			modelLines[i] = new ModelLine(i + 1, rawLines[i], tabSize);
 		}
 		this._BOM = rawText.BOM;
 		this._EOL = rawText.EOL;
