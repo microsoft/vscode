@@ -212,6 +212,10 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
+		if (element instanceof EmptyMatch) {
+			return nls.localize('emptyMatchAriaLabel', "No matches");
+		}
+
 		if (element instanceof Match) {
 			let input= <SearchResult>tree.getInput();
 			if (input.isReplaceActive()) {
