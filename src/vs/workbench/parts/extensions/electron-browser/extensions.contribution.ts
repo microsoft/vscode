@@ -24,6 +24,7 @@ import { OpenExtensionsViewletAction, InstallExtensionsAction, ListOutdatedExten
 import { ExtensionsInput } from './extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
+import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
@@ -39,6 +40,27 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
+
+// Quickopen
+Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
+		'ExtensionsHandler',
+		'ext ',
+		localize('extensionsCommands', "Manage Extensions"),
+		true
+	)
+);
+
+Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
+		'GalleryExtensionsHandler',
+		'ext install ',
+		localize('galleryExtensionsCommands', "Install Gallery Extensions"),
+		true
+	)
+);
 
 // Editor
 const editorDescriptor = new EditorDescriptor(
