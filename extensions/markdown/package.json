@@ -115,7 +115,7 @@
 			"order": 20,
 			"properties": {
 				"markdown.styles": {
-					"type": "array",
+					"type": ["array", "null"],
 					"default": null,
 					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
 				}
