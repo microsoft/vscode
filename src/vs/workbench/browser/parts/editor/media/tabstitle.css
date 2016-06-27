@@ -81,6 +81,13 @@
 	outline-offset: -2px;
 }
 
+/* Tab Label */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
+	margin-top: auto;
+	margin-bottom: auto;
+}
+
 /* Tab Close */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab > .tab-close {

@@ -28,6 +28,7 @@
 /* Title Label */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	line-height: 35px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	position: relative;
