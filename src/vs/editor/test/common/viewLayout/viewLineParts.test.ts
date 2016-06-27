@@ -55,7 +55,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
-	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace:boolean, indentGuides:boolean, expected:ViewLineToken[]): void {
+	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace:boolean, indentGuides:number, expected:ViewLineToken[]): void {
 		let lineParts = createLineParts(1, 1, lineContent, 4, new ViewLineTokens(tokens, fauxIndentLength, lineContent.length), [], renderWhitespace, indentGuides);
 		let actual = lineParts.getParts();
 
@@ -70,7 +70,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			false,
+			0,
 			[
 				new ViewLineToken(0, '')
 			]
@@ -85,7 +85,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			false,
+			0,
 			[
 				new ViewLineToken(0, 'a'),
 				new ViewLineToken(6, 'b')
@@ -102,7 +102,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			false,
+			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(4, 'a'),
@@ -121,7 +121,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			false,
+			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(4, ' leading whitespace'),
@@ -142,7 +142,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			false,
+			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(1, ' leading whitespace'),
@@ -162,7 +162,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			false,
+			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(3, ' leading whitespace'),
@@ -186,7 +186,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			true,
+			1,
 			[
 				new ViewLineToken(0, ' indent-guide'),
 				new ViewLineToken(4, 'a'),
@@ -204,7 +204,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			true,
+			2,
 			[
 				new ViewLineToken(0, ' indent-guide'),
 				new ViewLineToken(4, ' indent-guide'),
@@ -223,7 +223,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			true,
+			2,
 			[
 				new ViewLineToken(0, ' indent-guide'),
 				new ViewLineToken(1, ' indent-guide'),
@@ -242,7 +242,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			true,
+			2,
 			[
 				new ViewLineToken(0, ' indent-guide'),
 				new ViewLineToken(3, ' indent-guide'),
@@ -263,7 +263,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			true,
+			2,
 			[
 				new ViewLineToken(0, ' leading whitespace indent-guide'),
 				new ViewLineToken(3, ' leading whitespace indent-guide'),
@@ -288,7 +288,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			2,
 			true,
-			false,
+			0,
 			[
 				new ViewLineToken(0, ''),
 				new ViewLineToken(2, ' leading whitespace'),
@@ -312,7 +312,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			2,
 			false,
-			true,
+			2,
 			[
 				new ViewLineToken(0, ' indent-guide'),
 				new ViewLineToken(1, ' indent-guide'),
@@ -333,7 +333,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			2,
 			true,
-			true,
+			2,
 			[
 				new ViewLineToken(0, ' indent-guide'),
 				new ViewLineToken(1, ' indent-guide'),
