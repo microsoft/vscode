@@ -411,7 +411,7 @@
 						</dict>
 					</array>
 				</dict>
-				<dict>
+				<!-- <dict>
 					<key>begin</key>
 					<string>(^[ \t]+)?(?=#)</string>
 					<key>beginCaptures</key>
@@ -443,7 +443,7 @@
 							<string>comment.line.number-sign.sql</string>
 						</dict>
 					</array>
-				</dict>
+				</dict> -->
 				<dict>
 					<key>begin</key>
 					<string>/\*</string>
