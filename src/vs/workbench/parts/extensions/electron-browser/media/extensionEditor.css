@@ -14,7 +14,7 @@
 
 .extension-editor > .header {
 	display: flex;
-	height: 128px;
+	height: 130px;
 	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
 	overflow: hidden;
@@ -102,7 +102,7 @@
 }
 
 .extension-editor > .body {
-	height: calc(100% - 168px);
+	height: calc(100% - 170px);
 	overflow: hidden;
 }
 
