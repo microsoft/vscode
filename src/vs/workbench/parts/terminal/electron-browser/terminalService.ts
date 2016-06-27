@@ -58,7 +58,7 @@ export class TerminalService implements ITerminalService {
 
 	public setActiveTerminal(index: number): TPromise<any> {
 		return this.focus().then(() => {
-			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+			return this.showAndGetTerminalPanel().then((terminalPanel) => {
 				this.activeTerminalIndex = index;
 				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
 				terminalPanel.focus();
@@ -73,7 +73,7 @@ export class TerminalService implements ITerminalService {
 
 	public focusNext(): TPromise<any> {
 		return this.focus().then(() => {
-			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+			return this.showAndGetTerminalPanel().then((terminalPanel) => {
 				if (this.terminalProcesses.length <= 1) {
 					return;
 				}
@@ -90,7 +90,7 @@ export class TerminalService implements ITerminalService {
 
 	public focusPrevious(): TPromise<any> {
 		return this.focus().then(() => {
-			return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+			return this.showAndGetTerminalPanel().then((terminalPanel) => {
 				if (this.terminalProcesses.length <= 1) {
 					return;
 				}
@@ -106,7 +106,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public runSelectedText(): TPromise<any> {
-		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
 			let editor = this.codeEditorService.getFocusedCodeEditor();
 			let selection = editor.getModel().getValueInRange(editor.getSelection());
 			// Add a new line if one doesn't already exist so the text is executed
@@ -126,6 +126,10 @@ export class TerminalService implements ITerminalService {
 			return TPromise.as(null);
 		}
 
+		return this.show();
+	}
+
+	public show(): TPromise<any> {
 		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
 	}
 
@@ -139,7 +143,21 @@ export class TerminalService implements ITerminalService {
 
 	public createNew(): TPromise<any> {
 		let self = this;
-		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+		let processCount = this.terminalProcesses.length;
+
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+			// terminalPanel will be null if createNew is called from the command before the
+			// TerminalPanel has been initialized. In this case, skip creating the terminal here
+			// data rely on TerminalPanel's constructor creating the new instance.
+			if (!terminalPanel) {
+				return;
+			}
+
+			// Only create a new process if none have been created since toggling the terminal panel
+			if (processCount !== this.terminalProcesses.length) {
+				return;
+			}
+
 			self.initConfigHelper(terminalPanel.getContainer());
 			terminalPanel.createNewTerminalInstance(self.createTerminalProcess());
 			self._onInstancesChanged.fire();
@@ -147,16 +165,16 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public close(): TPromise<any> {
-		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
 			terminalPanel.closeActiveTerminal();
 		});
 	}
 
-	private toggleAndGetTerminalPanel(): TPromise<TerminalPanel> {
+	private showAndGetTerminalPanel(): TPromise<TerminalPanel> {
 		return new TPromise<TerminalPanel>((complete) => {
 			let panel = this.panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				this.toggle().then(() => {
+				this.show().then(() => {
 					panel = this.panelService.getActivePanel();
 					complete(<TerminalPanel>panel);
 				});
