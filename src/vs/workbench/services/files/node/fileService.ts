@@ -736,7 +736,7 @@ export class StatResolver {
 					},
 
 					function stat(): void {
-						fs.stat(fileResource.fsPath, this);
+						extfs.stat(fileResource.fsPath, this);
 					},
 
 					function countChildren(fsstat: fs.Stats): void {
