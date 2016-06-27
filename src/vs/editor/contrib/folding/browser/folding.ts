@@ -343,8 +343,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			return TPromise.as([]);
 		}
 
-		let tabSize = model.getOptions().tabSize;
-		let ranges = computeRanges(model, tabSize);
+		let ranges = computeRanges(model);
 		return TPromise.as(ranges);
 	}
 
