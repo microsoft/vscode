@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import paths = require('vs/base/common/paths');
+import URI from 'vs/base/common/uri';
 import {Action, IAction} from 'vs/base/common/actions';
 import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -48,6 +50,9 @@ export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
 	public static LABEL = nls.localize('workbench.action.terminal.new', "Terminal: Create New Integrated Terminal");
+	public static SCOPED_LABEL = nls.localize('workbench.action.terminal.new.scoped', "Open in Terminal");
+
+	private resource: URI;
 
 	constructor(
 		id: string, label: string,
@@ -57,7 +62,16 @@ export class CreateNewTerminalAction extends Action {
 		this.class = 'terminal-action new';
 	}
 
+	public setResource(resource: URI): void {
+		this.resource = resource;
+		this.enabled = !paths.isUNC(this.resource.fsPath);
+	}
+
 	public run(event?: any): TPromise<any> {
+		if (this.resource) {
+			return this.terminalService.createNew(this.resource.fsPath);
+		}
+
 		return this.terminalService.createNew();
 	}
 }

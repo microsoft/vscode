@@ -6,12 +6,14 @@
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
 import nls = require('vs/nls');
+import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import {KillTerminalAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {FileViewerActionContributor} from 'vs/workbench/parts/terminal/electron-browser/terminalActionBar';
 import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
@@ -89,6 +91,9 @@ registerSingleton(ITerminalService, TerminalService);
 	nls.localize('terminal', "Terminal"),
 	'terminal'
 ));
+
+const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContributor);
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);

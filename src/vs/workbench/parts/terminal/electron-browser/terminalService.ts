@@ -129,11 +129,11 @@ export class TerminalService implements ITerminalService {
 		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
 	}
 
-	public createNew(): TPromise<any> {
+	public createNew(openPath?: string): TPromise<any> {
 		let self = this;
 		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
 			self.initConfigHelper(terminalPanel.getContainer());
-			terminalPanel.createNewTerminalInstance(self.createTerminalProcess());
+			terminalPanel.createNewTerminalInstance(self.createTerminalProcess(openPath));
 			self._onInstancesChanged.fire();
 		});
 	}
@@ -192,7 +192,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private createTerminalProcess(): ITerminalProcess {
+	private createTerminalProcess(openPath?: string): ITerminalProcess {
 		let env = this.cloneEnv();
 		let shell = this.configHelper.getShell();
 		env['PTYPID'] = process.pid.toString();
@@ -200,7 +200,12 @@ export class TerminalService implements ITerminalService {
 		shell.args.forEach((arg, i) => {
 			env[`PTYSHELLARG${i}`] = arg;
 		});
-		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
+		if (openPath) {
+			env['PTYCWD'] = openPath;
+		} else {
+			let workspace = this.contextService.getWorkspace();
+			env['PTYCWD'] = workspace ? workspace.resource.fsPath : os.homedir();
+		}
 		let terminalProcess = {
 			title: '',
 			process: cp.fork('./terminalProcess', [], {

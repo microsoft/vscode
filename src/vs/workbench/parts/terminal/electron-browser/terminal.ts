@@ -54,7 +54,7 @@ export interface ITerminalService {
 	serviceId: ServiceIdentifier<any>;
 
 	close(): TPromise<any>;
-	createNew(): TPromise<any>;
+	createNew(openPath?: string): TPromise<any>;
 	focus(): TPromise<any>;
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;

@@ -29,7 +29,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
-import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
+import {CreateNewTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
@@ -427,9 +427,9 @@ export class ActionProvider implements IActionProvider {
 					result.push(new Separator());
 
 					result.push(this.instantiationService.createInstance(RevealInOSAction, resource));
-					const openConsoleAction = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
-					openConsoleAction.setResource(uri.file(paths.dirname(resource.fsPath)));
-					result.push(openConsoleAction);
+					const createNewTerminalAction = this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SCOPED_LABEL);
+					createNewTerminalAction.setResource(uri.file(paths.dirname(resource.fsPath)));
+					result.push(createNewTerminalAction);
 					result.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
 					// Files: Save / Revert
