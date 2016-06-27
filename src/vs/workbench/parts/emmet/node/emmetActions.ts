@@ -9,8 +9,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {EditorAccessor} from './editorAccessor';
-import * as fileAccessor from './fileAccessor';
+
+import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
+import * as fileAccessor from 'vs/workbench/parts/emmet/node/fileAccessor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 interface IEmmetConfiguration {
@@ -32,52 +33,69 @@ export abstract class EmmetEditorAction extends EditorAction {
 		this.configurationService = configurationService;
 	}
 
-	private updateEmmetPreferences(_module: any) {
+	private updateEmmetPreferences(_emmet: any) {
 		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
 		for (let key in preferences) {
 			try {
-				_module.preferences.set(key, preferences[key]);
+				_emmet.preferences.set(key, preferences[key]);
 			} catch (err) {
-				_module.preferences.define(key, preferences[key]);
+				_emmet.preferences.define(key, preferences[key]);
 			}
 		}
 		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
 		if (Object.keys(syntaxProfile).length !== 0) {
-			_module.profile.reset();
-			_module.loadProfiles(syntaxProfile);
+			_emmet.profile.reset();
+			_emmet.loadProfiles(syntaxProfile);
 		}
 	}
 
-	private resetEmmetPreferences(_module: any) {
+	private resetEmmetPreferences(_emmet: any) {
 		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
 		for (let key in preferences) {
 			try {
-				_module.preferences.remove(key);
+				_emmet.preferences.remove(key);
 			} catch (err) {
 			}
 		}
 	}
 
-	abstract runEmmetAction(_module: any);
+	abstract runEmmetAction(_emmet: any);
 
 	public run(): TPromise<boolean> {
 		return new TPromise((c, e) => {
-			require(['emmet'], (_module) => {
-				_module.file(fileAccessor);
+			require(['emmet'], (_emmet) => {
+				_emmet.file(fileAccessor);
 
 				try {
 					if (!this.editorAccessor.isEmmetEnabledMode()) {
 						this.editorAccessor.noExpansionOccurred();
 						return;
 					}
-					this.updateEmmetPreferences(_module);
-					this.runEmmetAction(_module);
+					this.updateEmmetPreferences(_emmet);
+					this.runEmmetAction(_emmet);
 				} catch (err) {
 					//
 				} finally {
-					this.resetEmmetPreferences(_module);
+					this.resetEmmetPreferences(_emmet);
 				}
 			}, e);
 		});
+	}
+}
+
+export class BasicEmmetEditorAction extends EmmetEditorAction {
+
+	private emmetActionName: string;
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService, actionName: string) {
+		super(descriptor, editor, configurationService);
+		this.editorAccessor = new EditorAccessor(editor);
+		this.emmetActionName = actionName;
+	}
+
+	public runEmmetAction(_emmet) {
+		if (!_emmet.run(this.emmetActionName, this.editorAccessor)) {
+			this.editorAccessor.noExpansionOccurred();
+		}
 	}
 }

@@ -9,8 +9,8 @@ import nls = require('vs/nls');
 
 import * as Paths from 'vs/base/common/paths';
 import {fileExists} from 'vs/base/node/pfs';
-import {createPath} from '../fileAccessor';
-import {EmmetEditorAction} from '../emmetActions';
+import {createPath} from 'vs/workbench/parts/emmet/node/fileAccessor';
+import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 import {Action} from 'vs/base/common/actions';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -31,10 +31,10 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		super(descriptor, editor, configurationService);
 	}
 
-	public runEmmetAction(_module) {
+	public runEmmetAction(_emmet) {
 		const currentLine = this.editorAccessor.getCurrentLine();
 		if (!this.isDataURI(currentLine)) {
-			this.encodeDecode(_module);
+			this.encodeDecode(_emmet);
 			return;
 		}
 
@@ -56,7 +56,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			})
 			.then(status => {
 				if (!status) {
-					this.encodeDecode(_module, this.imageFilePath);
+					this.encodeDecode(_emmet, this.imageFilePath);
 					return;
 				}
 
@@ -64,7 +64,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 				const actions = [
 					new Action('cancel', nls.localize('cancel', "Cancel"), '', true),
 					new Action('ok', nls.localize('ok', "OK"), '', true, () => {
-						this.encodeDecode(_module, this.imageFilePath);
+						this.encodeDecode(_emmet, this.imageFilePath);
 						return null;
 					})
 				];
@@ -72,12 +72,12 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			});
 	}
 
-	public encodeDecode(_module: any, filepath?: string) {
+	public encodeDecode(_emmet: any, filepath?: string) {
 		this.editorAccessor.prompt = (): string => {
 			return filepath;
 		};
 
-		if (!_module.run('encode_decode_data_url', this.editorAccessor)) {
+		if (!_emmet.run('encode_decode_data_url', this.editorAccessor)) {
 			this.editorAccessor.noExpansionOccurred();
 		}
 	}

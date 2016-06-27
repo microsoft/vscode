@@ -6,7 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from '../emmetActions';
+import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
@@ -23,18 +23,18 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 		super(descriptor, editor, configurationService);
 	}
 
-	public runEmmetAction(_module) {
+	public runEmmetAction(_emmet) {
 		let options: IInputOptions = {
 			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
 			placeHolder: nls.localize('abbreviation', "Abbreviation")
 		};
 		this.quickOpenService.input(options).then(abbreviation => {
-			this.wrapAbbreviation(_module, abbreviation);
+			this.wrapAbbreviation(_emmet, abbreviation);
 		});
 	}
 
-	private wrapAbbreviation(_module: any, abbreviation) {
-		if (!_module.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
+	private wrapAbbreviation(_emmet: any, abbreviation) {
+		if (!_emmet.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
 			this.editorAccessor.noExpansionOccurred();
 		}
 	}

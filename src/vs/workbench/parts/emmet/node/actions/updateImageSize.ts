@@ -6,7 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {BasicEmmetEditorAction} from '../emmetEditorAction';
+import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
