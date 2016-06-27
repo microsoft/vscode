@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from './extensions';
@@ -23,7 +24,7 @@ export class ExtensionsInput extends EditorInput {
 	}
 
 	getName(): string {
-		return this.extension.displayName;
+		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
 	matches(other: any): boolean {
