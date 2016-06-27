@@ -129,6 +129,14 @@ export class TerminalService implements ITerminalService {
 		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
 	}
 
+	public hide(): TPromise<any> {
+		const panel = this.panelService.getActivePanel();
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			this.partService.setPanelHidden(true);
+		}
+		return TPromise.as(null);
+	}
+
 	public createNew(): TPromise<any> {
 		let self = this;
 		return this.toggleAndGetTerminalPanel().then((terminalPanel) => {
@@ -182,7 +190,7 @@ export class TerminalService implements ITerminalService {
 			let wasActiveTerminal = (index === this.getActiveTerminalIndex());
 			// Push active index back if the closed process was before the active process
 			if (this.getActiveTerminalIndex() >= index) {
-				this.activeTerminalIndex--;
+				this.activeTerminalIndex = Math.max(0, this.activeTerminalIndex - 1);
 			}
 			this.terminalProcesses.splice(index, 1);
 			this._onInstancesChanged.fire();
