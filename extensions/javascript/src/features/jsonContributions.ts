@@ -87,7 +87,8 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		let fileName = basename(document.fileName);
 
 		let currentWord = this.getCurrentWord(document, position);
-		let overwriteRange = null;
+		let overwriteRange : Range;
+
 		let items: CompletionItem[] = [];
 		let isIncomplete = false;
 
@@ -100,15 +101,15 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		} else {
 			overwriteRange = new Range(document.positionAt(offset - currentWord.length), position);
 		}
+		let filterText = document.getText(new Range(overwriteRange.start, position));
 
 		let proposed: { [key: string]: boolean } = {};
 		let collector: ISuggestionsCollector = {
 			add: (suggestion: CompletionItem) => {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
-					if (overwriteRange) {
-						suggestion.textEdit = TextEdit.replace(overwriteRange, suggestion.insertText);
-					}
+					suggestion.textEdit = TextEdit.replace(overwriteRange, suggestion.insertText);
+					suggestion.filterText = filterText;
 
 					items.push(suggestion);
 				}
