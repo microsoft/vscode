@@ -9,12 +9,8 @@
 	margin: 4px 10px 0 0;
 }
 
-.monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+.vs .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
 	border: 1px solid #ddd;
-}
-
-.vs-dark .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
-	border: none;
 }
 
 .monaco-action-bar .action-item.markers-panel-action-filter .filterIcon {
