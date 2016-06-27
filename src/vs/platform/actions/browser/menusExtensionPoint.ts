@@ -58,11 +58,11 @@ namespace schema {
 		type: 'object',
 		properties: {
 			command: {
-				description: localize('vscode.extension.contributes.menuItem.command', 'Identifier of the command to execute'),
+				description: localize('vscode.extension.contributes.menuItem.command', 'Identifier of the command to execute. The command must be declared in the \'commands\'-section'),
 				type: 'string'
 			},
 			alt: {
-				description: localize('vscode.extension.contributes.menuItem.alt', 'Identifier of an alternative command to execute'),
+				description: localize('vscode.extension.contributes.menuItem.alt', 'Identifier of an alternative command to execute. The command must be declared in the \'commands\'-section'),
 				type: 'string'
 			},
 			when: {
@@ -77,18 +77,21 @@ namespace schema {
 	};
 
 	export const menusContribtion: IJSONSchema = {
-		description: localize('vscode.extension.contributes.menus', "Contributes menu items to predefined locations"),
+		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: {
 			'editor/title': {
-				type: 'array',
-				items: menuItem
-			},
-			'explorer/context': {
+				description: localize('menus.editorTitle', "The editor title menu"),
 				type: 'array',
 				items: menuItem
 			},
 			'editor/context': {
+				description: localize('menus.editorContext', "The editor context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'explorer/context': {
+				description: localize('menus.explorerContext', "The file explorer context menu"),
 				type: 'array',
 				items: menuItem
 			}
