@@ -97,13 +97,23 @@ export class RemoveAction extends Action {
 		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
 	}
 
-	public run(): TPromise<any> {
+	public run(retainFocus: boolean= true): TPromise<any> {
+		if (this.viewer.getFocus() === this.viewer.getNavigator().last()) {
+			this.viewer.focusPrevious();
+		} else {
+			this.viewer.focusNext();
+		}
+
+		let parent: any;
 		if (this.element instanceof FileMatch) {
-			let parent:SearchResult = <SearchResult>this.element.parent();
+			parent= <SearchResult>this.element.parent();
 			parent.remove(<FileMatch>this.element);
 		} else {
-			let parent:FileMatch = <FileMatch>this.element.parent();
+			parent= <FileMatch>this.element.parent();
 			parent.remove(<Match>this.element);
+		}
+		if (retainFocus) {
+			this.viewer.DOMFocus();
 		}
 		return this.viewer.refresh(parent);
 	}
@@ -139,7 +149,7 @@ export class ReplaceAction extends Action {
 		this.telemetryService.publicLog('replace.action.selected');
 		return this.replaceService.replace(this.element, this.element.parent().parent().replaceText).then(() => {
 			this.viewlet.open(this.element).done(() => {
-				new RemoveAction(this.viewer, this.element).run();
+				new RemoveAction(this.viewer, this.element).run(false);
 			}, errors.onUnexpectedError);
 		});
 	}
