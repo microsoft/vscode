@@ -14,10 +14,6 @@
 			"language": "rust",
 			"path": "./syntaxes/rust.json",
 			"scopeName":"source.rust"
-		}],
-		"snippets": [{
-			"language": "rust",
-			"path": "./snippets/rust.json"
 		}]
 	}
 }
