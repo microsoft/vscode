@@ -10,14 +10,13 @@ import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
 import {Uri, CancellationToken} from 'vscode';
-import {MainContext} from './extHostProtocol';
-import {MainThreadWorkspace} from './mainThreadWorkspace';
+import {MainContext, MainThreadWorkspaceShape} from './extHostProtocol';
 
 export class ExtHostWorkspace {
 
 	private static _requestIdPool = 0;
 
-	private _proxy: MainThreadWorkspace;
+	private _proxy: MainThreadWorkspaceShape;
 	private _workspacePath: string;
 
 	constructor(threadService: IThreadService, workspacePath:string) {

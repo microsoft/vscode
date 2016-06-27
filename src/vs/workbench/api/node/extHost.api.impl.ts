@@ -94,14 +94,14 @@ export class ExtHostAPIImplementation {
 		// Addressable instances
 		const col = new InstanceCollection();
 
-		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set(new ExtHostDocuments(threadService));
-		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set(new ExtHostEditors(threadService, extHostDocuments));
-		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set(new ExtHostCommands(threadService, extHostEditors));
-		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set(new ExtHostConfiguration());
-		const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set(new ExtHostDiagnostics(threadService));
-		const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostDiagnostics));
-		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set(new ExtHostFileSystemEventService());
-		const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set(new ExtHostQuickOpen(threadService));
+		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService));
+		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
+		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors));
+		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration());
+		const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
+		const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostDiagnostics));
+		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
+		const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
 		col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 
 		col.finish(false, threadService);

@@ -19,8 +19,7 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {ExtHostContext} from './extHostProtocol';
-import {ExtHostDocuments} from './extHostDocuments';
+import {ExtHostContext, ExtHostDocumentsShape} from './extHostProtocol';
 
 export class MainThreadDocuments {
 	private _modelService: IModelService;
@@ -31,7 +30,7 @@ export class MainThreadDocuments {
 	private _untitledEditorService: IUntitledEditorService;
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
-	private _proxy: ExtHostDocuments;
+	private _proxy: ExtHostDocumentsShape;
 	private _modelIsSynced: { [modelId: string]: boolean; };
 	private _resourceContentProvider: { [handle: number]: IDisposable };
 	private _virtualDocumentSet: { [resource: string]: boolean };

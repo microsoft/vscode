@@ -8,8 +8,7 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';
 import {StatusBarItem, StatusBarAlignment} from 'vscode';
-import {MainContext} from './extHostProtocol';
-import {MainThreadStatusBar} from './mainThreadStatusBar';
+import {MainContext, MainThreadStatusBarShape} from './extHostProtocol';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -26,9 +25,9 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _command: string;
 
 	private _timeoutHandle: number;
-	private _proxy: MainThreadStatusBar;
+	private _proxy: MainThreadStatusBarShape;
 
-	constructor(proxy: MainThreadStatusBar, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	constructor(proxy: MainThreadStatusBarShape, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._alignment = alignment;
@@ -159,7 +158,7 @@ class StatusBarMessage {
 
 export class ExtHostStatusBar {
 
-	private _proxy: MainThreadStatusBar;
+	private _proxy: MainThreadStatusBarShape;
 	private _statusMessage: StatusBarMessage;
 
 	constructor(threadService: IThreadService) {

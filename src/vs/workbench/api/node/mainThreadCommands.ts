@@ -8,14 +8,13 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostContext} from './extHostProtocol';
-import {ExtHostCommands} from './extHostCommands';
+import {ExtHostContext, ExtHostCommandsShape} from './extHostProtocol';
 
 export class MainThreadCommands {
 
 	private _threadService: IThreadService;
 	private _keybindingService: IKeybindingService;
-	private _proxy: ExtHostCommands;
+	private _proxy: ExtHostCommandsShape;
 
 	constructor(
 		@IThreadService threadService: IThreadService,

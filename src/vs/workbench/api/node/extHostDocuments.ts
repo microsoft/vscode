@@ -17,16 +17,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
-import {MainContext} from './extHostProtocol';
-import {MainThreadDocuments} from './mainThreadDocuments';
-
-export interface IModelAddedData {
-	url: URI;
-	versionId: number;
-	value: editorCommon.IRawText;
-	modeId: string;
-	isDirty: boolean;
-}
+import {MainContext, MainThreadDocumentsShape, IModelAddedData} from './extHostProtocol';
 
 const _modeId2WordDefinition: {
 	[modeId: string]: RegExp;
@@ -60,7 +51,7 @@ export class ExtHostDocuments {
 	private _documentLoader: { [modelUri: string]: TPromise<ExtHostDocumentData> };
 	private _documentContentProviders: { [handle: number]: vscode.TextDocumentContentProvider; };
 
-	private _proxy: MainThreadDocuments;
+	private _proxy: MainThreadDocumentsShape;
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadDocuments);
@@ -229,13 +220,13 @@ export class ExtHostDocuments {
 
 export class ExtHostDocumentData extends MirrorModel2 {
 
-	private _proxy: MainThreadDocuments;
+	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;
 	private _isDirty: boolean;
 	private _textLines: vscode.TextLine[];
 	private _document: vscode.TextDocument;
 
-	constructor(proxy: MainThreadDocuments, uri: URI, lines: string[], eol: string,
+	constructor(proxy: MainThreadDocumentsShape, uri: URI, lines: string[], eol: string,
 		languageId: string, versionId: number, isDirty: boolean) {
 
 		super(uri, lines, eol, versionId);

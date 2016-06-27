@@ -6,12 +6,11 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext} from './extHostProtocol';
-import {MainThreadLanguages} from './mainThreadLanguages';
+import {MainContext, MainThreadLanguagesShape} from './extHostProtocol';
 
 export class ExtHostLanguages {
 
-	private _proxy: MainThreadLanguages;
+	private _proxy: MainThreadLanguagesShape;
 
 	constructor(
 		threadService: IThreadService

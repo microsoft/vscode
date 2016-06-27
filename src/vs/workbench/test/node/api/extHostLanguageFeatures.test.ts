@@ -71,7 +71,8 @@ suite('ExtHostLanguageFeatures', function() {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService));
+		const extHostDocuments = new ExtHostDocuments(threadService);
+		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 		extHostDocuments._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
@@ -91,12 +92,15 @@ suite('ExtHostLanguageFeatures', function() {
 			},
 		});
 
-		const commands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, null));
+		const commands = new ExtHostCommands(threadService, null);
+		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
 
-		const diagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
+		const diagnostics = new ExtHostDiagnostics(threadService);
+		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics));
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics);
+		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
 	});

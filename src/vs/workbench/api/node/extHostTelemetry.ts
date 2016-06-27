@@ -8,15 +8,14 @@ import {notImplemented} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext} from './extHostProtocol';
-import {MainThreadTelemetry} from './mainThreadTelemetry';
+import {MainContext, MainThreadTelemetryShape} from './extHostProtocol';
 
 export class RemoteTelemetryService implements ITelemetryService {
 
 	serviceId: any;
 
 	private _name: string;
-	private _proxy: MainThreadTelemetry;
+	private _proxy: MainThreadTelemetryShape;
 
 	constructor(name: string, threadService: IThreadService) {
 		this._name = name;

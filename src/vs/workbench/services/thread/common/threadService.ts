@@ -19,7 +19,7 @@ export interface IThreadService {
 	/**
 	 * Register instance.
 	 */
-	set<T>(identifier:ProxyIdentifier<T>, value:T): T;
+	set<T>(identifier:ProxyIdentifier<T>, value:T): void;
 }
 
 export class ProxyIdentifier<T> {
@@ -27,17 +27,25 @@ export class ProxyIdentifier<T> {
 
 	isMain: boolean;
 	id: string;
+	methodNames: string[];
 
-	constructor(isMain: boolean, id: string) {
+	constructor(isMain: boolean, id: string, ctor:Function) {
 		this.isMain = isMain;
 		this.id = id;
+
+		this.methodNames = [];
+		for (let prop in ctor.prototype) {
+			if (typeof ctor.prototype[prop] === 'function') {
+				this.methodNames.push(prop);
+			}
+		}
 	}
 }
 
-export function createMainContextProxyIdentifier<T>(identifier: number): ProxyIdentifier<T> {
-	return new ProxyIdentifier(true, 'm' + identifier);
+export function createMainContextProxyIdentifier<T>(identifier:string, ctor:Function): ProxyIdentifier<T> {
+	return new ProxyIdentifier(true, 'm' + identifier, ctor);
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier: number): ProxyIdentifier<T> {
-	return new ProxyIdentifier(false, 'e' + identifier);
+export function createExtHostContextProxyIdentifier<T>(identifier:string, ctor:Function): ProxyIdentifier<T> {
+	return new ProxyIdentifier(false, 'e' + identifier, ctor);
 }

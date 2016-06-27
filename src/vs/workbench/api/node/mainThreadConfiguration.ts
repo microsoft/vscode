@@ -7,17 +7,18 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ExtHostContext} from './extHostProtocol';
-import {ExtHostConfiguration} from './extHostConfiguration';
+import {ExtHostContext, ExtHostConfigurationShape} from './extHostProtocol';
 
 export class MainThreadConfiguration {
 
 	private _configurationService: IConfigurationService;
 	private _toDispose: IDisposable;
-	private _proxy: ExtHostConfiguration;
+	private _proxy: ExtHostConfigurationShape;
 
-	constructor(@IConfigurationService configurationService: IConfigurationService,
-		@IThreadService threadService: IThreadService) {
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@IThreadService threadService: IThreadService
+	) {
 
 		this._configurationService = configurationService;
 		this._proxy = threadService.get(ExtHostContext.ExtHostConfiguration);
