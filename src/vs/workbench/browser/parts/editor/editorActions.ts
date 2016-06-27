@@ -220,7 +220,10 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			let options: EditorOptions;
 			if (referenceEditor instanceof BaseTextEditor) {
 				options = new TextEditorOptions();
+				options.pinned = true;
 				(<TextEditorOptions>options).viewState(referenceEditor.getControl().saveViewState());
+			} else {
+				options = EditorOptions.create({ pinned: true });
 			}
 
 			return this.editorService.openEditor(referenceEditor.input, options, this.getTargetEditorSide());
@@ -233,7 +236,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 				// For now only support to open files from history to the side
 				if (!!getUntitledOrFileResource(input)) {
-					return this.editorService.openEditor(input, null, this.getTargetEditorSide());
+					return this.editorService.openEditor(input, EditorOptions.create({ pinned: true }), this.getTargetEditorSide());
 				}
 			}
 		}
