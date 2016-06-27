@@ -238,6 +238,10 @@ export class EnvService implements IEnvironmentService {
 
 function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean): string[] {
 	const result = args.map(arg => {
+		if (typeof arg !== 'string') {
+			return null; // TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/7498
+		}
+
 		let pathCandidate = arg;
 
 		let parsedPath: IParsedPath;
