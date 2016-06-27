@@ -192,7 +192,7 @@ export class SearchRenderer extends ActionsRenderer {
 
 			$('a.plain')
 				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + input.isReplaceActive() ? input.replaceText : preview.inside + preview.after).trim().substr(0, 999))
+				.title((preview.before + (input.isReplaceActive() ? input.replaceText : preview.inside) + preview.after).trim().substr(0, 999))
 				.appendTo(domElement);
 		}
 
