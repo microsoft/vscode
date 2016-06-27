@@ -16,7 +16,7 @@ export function computeRanges(model: IModel, tabSize: number, minimumRangeSize: 
 	previousRegions.push({ indent: -1, line: model.getLineCount() + 1 }); // sentinel, to make sure there's at least one entry
 
 	for (let line = model.getLineCount(); line > 0; line--) {
-		let indent = computeIndentLevel(model.getLineContent(line), tabSize);
+		let indent = model.getIndentLevel(line);
 		if (indent === -1) {
 			continue; // only whitespace
 		}
@@ -44,27 +44,6 @@ export function computeRanges(model: IModel, tabSize: number, minimumRangeSize: 
 		}
 	}
 	return result.reverse();
-}
-
-
-export function computeIndentLevel(line: string, tabSize: number): number {
-	let i = 0;
-	let indent = 0;
-	while (i < line.length) {
-		let ch = line.charAt(i);
-		if (ch === ' ') {
-			indent++;
-		} else if (ch === '\t') {
-			indent = indent - indent % tabSize + tabSize;
-		} else {
-			break;
-		}
-		i++;
-	}
-	if (i === line.length) {
-		return -1; // line only consists of whitespace
-	}
-	return indent;
 }
 
 /**

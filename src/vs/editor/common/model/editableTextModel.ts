@@ -425,6 +425,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _applyEdits(operations:IValidatedEditOperation[]): void {
 
+		const tabSize = this._options.tabSize;
+
 		// Sort operations descending
 		operations.sort(EditableTextModel._sortOpsDescending);
 
@@ -461,7 +463,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					}
 
 					this._invalidateLine(currentLineNumber - 1);
-					this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, i));
+					this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, i), tabSize);
 					if (this._lineStarts) {
 						// update prefix sum
 						this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
@@ -473,7 +475,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				this._invalidateLine(currentLineNumber - 1);
-				this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length));
+				this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length), tabSize);
 				if (this._lineStarts) {
 					// update prefix sum
 					this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
@@ -535,7 +537,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					let spliceStartLineNumber = startLineNumber + editingLinesCnt;
 					let spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
 
-					let endLineRemains = this._lines[endLineNumber - 1].split(deferredEventsBuilder.changedMarkers, endColumn, false);
+					let endLineRemains = this._lines[endLineNumber - 1].split(deferredEventsBuilder.changedMarkers, endColumn, false, tabSize);
 					this._invalidateLine(spliceStartLineNumber - 1);
 
 					let spliceCnt = endLineNumber - spliceStartLineNumber;
@@ -554,7 +556,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					}
 
 					// Reconstruct first line
-					this._lines[spliceStartLineNumber - 1].append(deferredEventsBuilder.changedMarkers, endLineRemains);
+					this._lines[spliceStartLineNumber - 1].append(deferredEventsBuilder.changedMarkers, endLineRemains, tabSize);
 					if (this._lineStarts) {
 						// update prefix sum
 						this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
@@ -578,7 +580,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					}
 
 					// Split last line
-					let leftoverLine = this._lines[spliceLineNumber - 1].split(deferredEventsBuilder.changedMarkers, spliceColumn, op.forceMoveMarkers);
+					let leftoverLine = this._lines[spliceLineNumber - 1].split(deferredEventsBuilder.changedMarkers, spliceColumn, op.forceMoveMarkers, tabSize);
 					if (this._lineStarts) {
 						// update prefix sum
 						this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
@@ -591,7 +593,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					let newLinesLengths:number[] = [];
 					for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
 						let newLineNumber = startLineNumber + j;
-						this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j]));
+						this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j], tabSize));
 						newLinesContent.push(op.lines[j]);
 						newLinesLengths.push(op.lines[j].length + this._EOL.length);
 					}
@@ -602,7 +604,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					}
 
 					// Last line
-					this._lines[startLineNumber + insertingLinesCnt - 1].append(deferredEventsBuilder.changedMarkers, leftoverLine);
+					this._lines[startLineNumber + insertingLinesCnt - 1].append(deferredEventsBuilder.changedMarkers, leftoverLine, tabSize);
 					if (this._lineStarts) {
 						// update prefix sum
 						this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
