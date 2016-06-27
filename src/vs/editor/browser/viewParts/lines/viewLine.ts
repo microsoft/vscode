@@ -119,7 +119,7 @@ export class ViewLine implements IVisibleLineData {
 				this._context.model.getLineTokens(lineNumber),
 				inlineDecorations,
 				this._renderWhitespace,
-				this._indentGuides
+				this._indentGuides ? this._context.model.getLineIndentGuide(lineNumber) : 0
 			);
 		}
 

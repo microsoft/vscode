@@ -25,6 +25,7 @@ export interface IViewModel extends IEventEmitter {
 
 	getLineCount(): number;
 	getLineContent(lineNumber:number): string;
+	getLineIndentGuide(lineNumber:number): number;
 	getLineMinColumn(lineNumber:number): number;
 	getLineMaxColumn(lineNumber:number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber:number): number;

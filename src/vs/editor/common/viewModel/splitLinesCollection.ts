@@ -633,6 +633,13 @@ export class SplitLinesCollection implements ILinesCollection {
 		return this.lines[lineIndex].getOutputLineContent(this.model, lineIndex + 1, remainder);
 	}
 
+	public getOutputIndentGuide(outputLineNumber:number): number {
+		this._ensureValidState();
+		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
+		let r = this.prefixSumComputer.getIndexOf(outputLineNumber - 1);
+		return this.model.getLineIndentGuide(r.index + 1);
+	}
+
 	public getOutputLineMinColumn(outputLineNumber:number): number {
 		this._ensureValidState();
 		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
