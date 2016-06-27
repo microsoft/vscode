@@ -610,7 +610,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -621,7 +621,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -643,7 +643,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -654,7 +654,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -676,7 +676,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -687,7 +687,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -971,9 +971,9 @@
 		"c": ">",
 		"t": "definition.markdown.markup.punctuation.quote",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.punctuation.quote rgb(103, 150, 230)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.punctuation.quote rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.punctuation.quote rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.punctuation.quote rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.punctuation.quote rgb(96, 139, 78)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.punctuation.quote rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -982,9 +982,9 @@
 		"c": " ",
 		"t": "markdown.markup.quote",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.quote rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.quote rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -993,9 +993,9 @@
 		"c": "Blockquotes are like quoted text in email replies",
 		"t": "markdown.markup.meta.paragraph.quote",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.quote rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.quote rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1004,9 +1004,9 @@
 		"c": ">>",
 		"t": "definition.markdown.markup.punctuation.quote",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.punctuation.quote rgb(103, 150, 230)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.punctuation.quote rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.punctuation.quote rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.punctuation.quote rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.punctuation.quote rgb(96, 139, 78)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.punctuation.quote rgb(4, 81, 165)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1015,9 +1015,9 @@
 		"c": " ",
 		"t": "markdown.markup.quote",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.quote rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.quote rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1026,9 +1026,9 @@
 		"c": "And, they can be nested",
 		"t": "markdown.markup.meta.paragraph.quote",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.quote rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.quote rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.quote rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.quote rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1050,7 +1050,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1061,7 +1061,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1083,7 +1083,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1094,7 +1094,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1116,7 +1116,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1127,7 +1127,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1666,7 +1666,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1677,7 +1677,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1699,7 +1699,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1710,7 +1710,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1853,7 +1853,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1864,7 +1864,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1886,7 +1886,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
@@ -1897,7 +1897,7 @@
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.list rgb(103, 150, 230)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.list rgb(4, 81, 165)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(103, 150, 230)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.list rgb(212, 212, 212)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.list rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
