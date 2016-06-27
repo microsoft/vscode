@@ -184,7 +184,6 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	public abstract create(parent: HTMLElement): void;
 
-
 	protected abstract doRefresh(): void;
 
 	protected doUpdate(): void {
