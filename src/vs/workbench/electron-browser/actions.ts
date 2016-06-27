@@ -492,3 +492,19 @@ KeybindingsRegistry.registerCommandDesc({
 	when: undefined,
 	primary: undefined
 });
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.open',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, args: [URI, number]) {
+
+		const editorService = accessor.get(IWorkbenchEditorService);
+		let [resource, column] = args;
+
+		return editorService.openEditor({ resource }, column).then(() => {
+			return void 0;
+		});
+	},
+	when: undefined,
+	primary: undefined
+});

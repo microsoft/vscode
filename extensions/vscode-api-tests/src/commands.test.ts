@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import {join} from 'path';
-import {commands, workspace, window, Uri} from 'vscode';
+import {commands, workspace, window, Uri, ViewColumn} from 'vscode';
 
 suite('commands namespace tests', () => {
 
@@ -100,6 +100,16 @@ suite('commands namespace tests', () => {
 
 		let c = commands.executeCommand('vscode.diff').then(() => assert.ok(false), () => assert.ok(true));
 		let d = commands.executeCommand('vscode.diff', 1, 2, 3).then(() => assert.ok(false), () => assert.ok(true));
+
+		return Promise.all([a, b, c, d]);
+	});
+
+	test('api-command: vscode.open', function () {
+		let uri = Uri.file(join(workspace.rootPath, './image.png'));
+		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
+		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
+		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));
+		let d = commands.executeCommand('vscode.open', uri, true).then(() => assert.ok(false), () => assert.ok(true));
 
 		return Promise.all([a, b, c, d]);
 	});
