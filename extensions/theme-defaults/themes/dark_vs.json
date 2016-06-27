@@ -136,8 +136,14 @@
 				"foreground": "#569cd6"
 			}
 		},
-				{
-			"scope": ["markup.punctuation.quote", "markup.punctuation.list"],
+		{
+			"scope": "markup.punctuation.quote",
+			"settings": {
+				"foreground": "#608b4e"
+			}
+		},
+		{
+			"scope": "markup.punctuation.list",
 			"settings": {
 				"foreground": "#6796e6"
 			}
@@ -145,7 +151,7 @@
 		{
 			"scope": ["markup.quote", "markup.list"],
 			"settings": {
-				"foreground": "#6796e6"
+				"foreground": "#d4d4d4"
 			}
 		},
 		{
