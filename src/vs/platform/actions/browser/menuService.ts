@@ -24,8 +24,9 @@ export interface IDeclaredMenuItem {
 }
 
 export interface IMenuRegistry {
-	registerCommand(userCommand: CommandAction): boolean;
-	registerMenuItems(location: MenuId, items: IDeclaredMenuItem[]): void;
+	addCommand(userCommand: CommandAction): boolean;
+	hasCommand(id: string): boolean;
+	addMenuItems(location: MenuId, items: IDeclaredMenuItem[]): void;
 }
 
 const _registry = new class {
@@ -34,13 +35,17 @@ const _registry = new class {
 
 	menuItems: { [loc: number]: IDeclaredMenuItem[] } = Object.create(null);
 
-	registerCommand(command: CommandAction): boolean {
+	addCommand(command: CommandAction): boolean {
 		const old = this.commands[command.id];
 		this.commands[command.id] = command;
 		return old !== void 0;
 	}
 
-	registerMenuItems(loc: MenuId, items: IDeclaredMenuItem[]): void {
+	hasCommand(id: string): boolean {
+		return this.commands[id] !== void 0;
+	}
+
+	addMenuItems(loc: MenuId, items: IDeclaredMenuItem[]): void {
 		let array = this.menuItems[loc];
 		if (!array) {
 			this.menuItems[loc] = items;

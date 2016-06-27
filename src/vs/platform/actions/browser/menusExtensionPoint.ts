@@ -191,26 +191,6 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
-	for (let extension of extensions) {
-		const {value, collector} = extension;
-
-		forEach(value, entry => {
-			if (!schema.isValidMenuItems(entry.value, collector)) {
-				return;
-			}
-
-			const menu = schema.parseMenuId(entry.key);
-			if (!menu) {
-				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
-				return;
-			}
-
-			MenuRegistry.registerMenuItems(menu, entry.value);
-		});
-	}
-});
-
 ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', schema.commandsContribution).setHandler(extensions => {
 
 	const ids = new IdGenerator('contrib-cmd-icon-');
@@ -236,7 +216,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			}
 		}
 
-		if (MenuRegistry.registerCommand({ id: command, title, category, iconClass })) {
+		if (MenuRegistry.addCommand({ id: command, title, category, iconClass })) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
 	}
@@ -253,3 +233,35 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 	}
 });
 
+
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
+	for (let extension of extensions) {
+		const {value, collector} = extension;
+
+		forEach(value, entry => {
+			if (!schema.isValidMenuItems(entry.value, collector)) {
+				return;
+			}
+
+			const menu = schema.parseMenuId(entry.key);
+			if (!menu) {
+				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
+				return;
+			}
+
+			for (let item of entry.value) {
+				if (!MenuRegistry.hasCommand(item.command)) {
+					collector.warn(localize('missing.command', "Menu item references command `{0}` but is not defined in the `commands` section.", item.command));
+				}
+				if (item.alt && !MenuRegistry.hasCommand(item.alt)) {
+					collector.warn(localize('missing.altCommand', "Menu item references alt-command `{0}` but is not defined in the `commands` section.", item.alt));
+				}
+				if (item.command || item.alt) {
+					collector.info(localize('dupe.command', "Menu item references the same command as default and alternative command"));
+				}
+			}
+
+			MenuRegistry.addMenuItems(menu, entry.value);
+		});
+	}
+});
