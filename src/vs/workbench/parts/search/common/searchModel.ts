@@ -7,6 +7,7 @@
 import {RunOnceScheduler} from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
+import * as Set from 'vs/base/common/set';
 import paths = require('vs/base/common/paths');
 import lifecycle = require('vs/base/common/lifecycle');
 import collections = require('vs/base/common/collections');
@@ -72,6 +73,7 @@ export class FileMatch extends EventEmitter implements lifecycle.IDisposable {
 
 	private _parent: SearchResult;
 	private _resource: URI;
+	_removedMatches: Set.ArraySet<string>;
 	_matches: { [key: string]: Match };
 
 	constructor(parent: SearchResult, resource: URI) {
@@ -79,6 +81,7 @@ export class FileMatch extends EventEmitter implements lifecycle.IDisposable {
 		this._resource = resource;
 		this._parent = parent;
 		this._matches = Object.create(null);
+		this._removedMatches= new Set.ArraySet<string>();
 	}
 
 	public dispose(): void {
@@ -99,6 +102,7 @@ export class FileMatch extends EventEmitter implements lifecycle.IDisposable {
 
 	public remove(match: Match): void {
 		delete this._matches[match.id()];
+		this._removedMatches.set(match.id());
 		if (this.count() === 0) {
 			this.add(new EmptyMatch(this));
 		}
@@ -156,7 +160,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		this._diskFileMatch = fileMatch;
 		this._updateScheduler = new RunOnceScheduler(this._updateMatches.bind(this), 250);
 		this._unbind.push(this._model.onDidChangeContent(_ => this._updateScheduler.schedule()));
-		this._updateMatches();
+		this._updateMatches(fileMatch);
 	}
 
 	public dispose(): void {
@@ -167,7 +171,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		super.dispose();
 	}
 
-	private _updateMatches(): void {
+	private _updateMatches(fileMatch?: FileMatch): void {
 		// this is called from a timeout and might fire
 		// after the model has been disposed
 		if (this._isTextModelDisposed()) {
@@ -177,10 +181,15 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
 
-		if (matches.length === 0) {
+		matches.forEach(range => {
+			let match= new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
+			if (!(fileMatch && fileMatch._removedMatches.contains(match.id()))) {
+				this.add(match);
+			}
+		});
+
+		if (this.count() === 0) {
 			this.add(new EmptyMatch(this));
-		} else {
-			matches.forEach(range => this.add(new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn)));
 		}
 
 		this.parent().emit('changed', this);
