@@ -188,10 +188,10 @@ class Menu implements IMenu {
 	}
 
 	private static _compareGroupId(a: string, b: string): number {
-		const a_boost = Number(a.substr(a.lastIndexOf('@') + 1));
-		const b_boost = Number(b.substr(b.lastIndexOf('@') + 1));
-		if (a_boost !== b_boost && !isNaN(a_boost) && !isNaN(b_boost)) {
-			return a_boost < b_boost ? -1 : 1;
+		const a_order = Number(a.substr(a.lastIndexOf('@') + 1)) || 0;
+		const b_order = Number(b.substr(b.lastIndexOf('@') + 1)) || 0;
+		if (a_order !== b_order) {
+			return a_order < b_order ? -1 : 1;
 		}
 		return a.localeCompare(b);
 	}
