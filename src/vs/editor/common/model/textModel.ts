@@ -480,11 +480,34 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._indentRanges = null;
 	}
 
-	public getIndentRanges(): IndentRange[] {
+	private _getIndentRanges(): IndentRange[] {
 		if (!this._indentRanges) {
 			this._indentRanges = computeRanges(this);
 		}
-		return IndentRange.deepCloneArr(this._indentRanges);
+		return this._indentRanges;
+	}
+
+	public getIndentRanges(): IndentRange[] {
+		let indentRanges = this._getIndentRanges();
+		return IndentRange.deepCloneArr(indentRanges);
+	}
+
+	public getLineIndentGuide(lineNumber:number): number {
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+		}
+
+		let indentRanges = this._getIndentRanges();
+
+		for (let i = indentRanges.length - 1; i >= 0; i--) {
+			let rng = indentRanges[i];
+
+			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
+				return 1 + Math.floor(rng.indent / this._options.tabSize);
+			}
+		}
+
+		return 0;
 	}
 
 	public getLinesContent(): string[] {
