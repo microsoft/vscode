@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor.vs .scroll-decoration {
-	box-shadow: #fff 0 6px 6px -6px inset;
+	box-shadow: #fff 0 6px 6px -6px inset; /* TODO: use a CSS custom property of the theme's `.monaco-editor-background` color here to blend better */
 }
 
 .monaco-editor.vs-dark .scroll-decoration {
-	box-shadow: #1E1E1E 0 6px 6px -6px inset;
+	box-shadow: #1E1E1E 0 6px 6px -6px inset; /* TODO: use a CSS custom property of the theme's `.monaco-editor-background` color here to blend better */
 }
 
 /* Tabs Container */
@@ -38,14 +38,13 @@
 	display: flex;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions {
-	background-color: rgba(195, 195, 195, 0.2); /* Matches viewlet background color */
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+	background-color: #F3F3F3;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions {
-	background-color: rgba(65, 65, 65, 0.2); /* Aproximately matches viewlet background color */
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+	background-color: #252526;
+	mix-blend-mode: luminosity;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.scroll {
@@ -90,16 +89,14 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
 	border: 1px solid transparent;
-	height: 35px;
+	height: 36px;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
 	border: 1px solid #DDDDDD;
-	border-bottom-color: #fff;
 }
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
 	border: 1px solid #383838;
-	border-bottom-color: #1E1E1E;
 }
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
 	border: 1px solid #f38518;
