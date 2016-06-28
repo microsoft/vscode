@@ -62,6 +62,8 @@ export class ExplorerViewlet extends Viewlet {
 	) {
 		super(VIEWLET_ID, telemetryService);
 
+		this.views = [];
+
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = keybindingService.createKey<boolean>('explorerViewletVisible', true);
 
