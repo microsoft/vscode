@@ -225,3 +225,7 @@
 .monaco-shell .git-statusbar-group > .git-statusbar-branch-item.headless {
 	font-style: italic;
 }
+
+.monaco-shell .monaco-workbench.mac .git-statusbar-group > .git-statusbar-branch-item.headless {
+	font-weight: 300; /* makes the italic font appear the same as normal */
+}

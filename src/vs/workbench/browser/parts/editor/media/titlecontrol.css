@@ -12,6 +12,11 @@
 	font-style: italic;
 }
 
+.monaco-workbench.mac > .part.editor > .content > .one-editor-container > .title .title-label,
+.monaco-workbench.mac > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
+	font-weight: 300; /* makes the italic font appear the same as normal */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label,
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.pinned .tab-label {
 	font-style: normal;
