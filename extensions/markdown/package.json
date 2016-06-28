@@ -55,8 +55,8 @@
 				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewSide.title%",
 				"icon": {
-					"light": "./media/Preview.svg",
-					"dark": "./media/Preview_inverse.svg"
+					"light": "./media/PreviewOnRightPane_16x.svg",
+					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
 				}
 			},
 			{
