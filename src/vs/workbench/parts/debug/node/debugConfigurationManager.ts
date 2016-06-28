@@ -25,12 +25,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-
+import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
+import { ISystemVariables } from 'vs/base/common/parsers';
 // debuggers extension point
 
 export var debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
@@ -152,9 +152,8 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platfor
 jsonRegistry.registerSchema(schemaId, schema);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
-
 	public configuration: debug.IConfig;
-	private systemVariables: SystemVariables;
+	private systemVariables: ISystemVariables;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
 	private _onDidConfigurationChange: Emitter<string>;
@@ -169,8 +168,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
+		this.systemVariables = new ConfigVariables(this.configurationService, this.editorService, this.contextService);
 		this._onDidConfigurationChange = new Emitter<string>();
-		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
 		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();

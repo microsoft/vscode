@@ -56,7 +56,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 
-import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
+import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
@@ -215,7 +215,7 @@ class ConfigureTaskRunnerAction extends Action {
 					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 					outputChannel.show();
 					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
-					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
+					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new ConfigVariables(this.configurationService, this.editorService, this.contextService));
 					contentPromise = detector.detect(false, selection.id).then((value) => {
 						let config = value.config;
 						if (value.stderr && value.stderr.length > 0) {
@@ -634,7 +634,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._taskSystem = new NullTaskSystem();
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {
-				let variables = new SystemVariables(this.editorService, this.contextService);
+				let variables = new ConfigVariables(this.configurationService, this.editorService, this.contextService);
 				let clearOutput = true;
 				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfiguration>('tasks')).then((config: TaskConfiguration) => {
 					let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
