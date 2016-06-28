@@ -195,7 +195,7 @@
 	background-image: url('replace-all.svg');
 }
 
-hc-black .search-viewlet .action-replace,
+.hc-black .search-viewlet .action-replace,
 .vs-dark .search-viewlet .action-replace {
 	background-image: url('replace-inverse.svg');
 }
