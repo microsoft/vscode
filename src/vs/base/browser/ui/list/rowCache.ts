@@ -60,7 +60,7 @@ export class RowCache<T> implements IDisposable {
 	 * scrolling).
 	 */
 	release(row: IRow): void {
-		if (!row.domNode) {
+		if (!row) {
 			return;
 		}
 
