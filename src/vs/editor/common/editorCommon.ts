@@ -353,7 +353,7 @@ export interface IEditorOptions {
 	 */
 	mouseWheelScrollSensitivity?: number;
 	/**
-	 * Enable quick suggestions (shaddow suggestions)
+	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
 	quickSuggestions?:boolean;
