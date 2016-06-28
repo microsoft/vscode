@@ -9,7 +9,12 @@
 	margin: 4px 10px 0 0;
 }
 
+.monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	height: 25px;
+}
+
 .vs .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	height: 25px;
 	border: 1px solid #ddd;
 }
 
