@@ -18,7 +18,7 @@ import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/commo
 import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent} from 'vs/platform/files/common/files';
+import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -208,7 +208,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		}
 
 		// Resolve Content
-		return this.fileService.resolveContent(this.resource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((content: IContent) => {
+		return this.textFileService.resolveTextContent(this.resource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((content) => {
 			diag('load() - resolved content', this.resource, new Date());
 
 			// Telemetry

@@ -1795,31 +1795,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Gets the coordinates of the element relative to the specified parent.
-	 */
-	public getPositionRelativeTo(element: HTMLElement): Box;
-	public getPositionRelativeTo(element: Builder): Box;
-	public getPositionRelativeTo(element: any): Box {
-		if (element instanceof Builder) {
-			element = (<Builder>element).getHTMLElement();
-		}
-
-		let left = DOM.getRelativeLeft(this.currentElement, element);
-		let top = DOM.getRelativeTop(this.currentElement, element);
-
-		return new Box(top, -1, -1, left);
-	}
-
-	/**
-	 *  Gets the absolute coordinates of the element.
-	 */
-	public getPosition(): Box {
-		let position = DOM.getTopLeftOffset(this.currentElement);
-
-		return new Box(position.top, -1, -1, position.left);
-	}
-
-	/**
 	 *  Gets the size (in pixels) of an element, including the margin.
 	 */
 	public getTotalSize(): Dimension {
@@ -1844,10 +1819,9 @@ export class Builder implements IDisposable {
 	 */
 	public getClientArea(): Dimension {
 
-		// 0.) Try with DOM getDomNodePosition
+		// 0.) Try with DOM clientWidth / clientHeight
 		if (this.currentElement !== document.body) {
-			let dimensions = DOM.getDomNodePosition(this.currentElement);
-			return new Dimension(dimensions.width, dimensions.height);
+			return new Dimension(this.currentElement.clientWidth, this.currentElement.clientHeight);
 		}
 
 		// 1.) Try innerWidth / innerHeight

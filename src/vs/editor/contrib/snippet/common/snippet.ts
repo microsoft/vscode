@@ -41,7 +41,6 @@ export interface IIndentationNormalizer {
 export interface ICodeSnippet {
 	lines:string[];
 	placeHolders:IPlaceHolder[];
-	startPlaceHolderIndex:number;
 	finishPlaceHolderIndex:number;
 }
 
@@ -55,14 +54,12 @@ export class CodeSnippet implements ICodeSnippet {
 	private _lastGeneratedId: number;
 	public lines:string[];
 	public placeHolders:IPlaceHolder[];
-	public startPlaceHolderIndex:number;
 	public finishPlaceHolderIndex:number;
 
 	constructor(snippetTemplate:string) {
 		this.lines = [];
 		this.placeHolders = [];
 		this._lastGeneratedId = 0;
-		this.startPlaceHolderIndex = 0;
 		this.finishPlaceHolderIndex = -1;
 
 		this.parseTemplate(snippetTemplate);
@@ -94,9 +91,6 @@ export class CodeSnippet implements ICodeSnippet {
 						occurences: []
 					};
 					this.placeHolders.push(placeHolder);
-					if (linePlaceHolder.value === '') {
-						this.finishPlaceHolderIndex = this.placeHolders.length - 1;
-					}
 					placeHoldersMap[linePlaceHolder.id] = placeHolder;
 				}
 
@@ -106,14 +100,37 @@ export class CodeSnippet implements ICodeSnippet {
 			this.lines.push(parsedLine.line);
 		}
 
-		if (this.placeHolders.length > this.startPlaceHolderIndex) {
-			var startPlaceHolder = this.placeHolders[this.startPlaceHolderIndex];
-			if (startPlaceHolder.value === '' && startPlaceHolder.id === '') {
-				// Do not start at an empty placeholder if possible
-				if (this.placeHolders.length > 1) {
-					this.startPlaceHolderIndex++;
-				}
+		// Named variables (e.g. {greeting} and {greeting:Hello}) are sorted first, followed by
+		// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
+		this.placeHolders.sort((a, b) => {
+			let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
+			let isFinishPlaceHolder = (v: IPlaceHolder) => v.id === '' && v.value === '';
+
+			// Sort finish placeholder last
+			if (isFinishPlaceHolder(a)) {
+				return 1;
+			} else if (isFinishPlaceHolder(b)) {
+				return -1;
 			}
+
+			// Sort named placeholders first
+			if (nonIntegerId(a) && nonIntegerId(b)) {
+				return 0;
+			} else if (nonIntegerId(a)) {
+				return -1;
+			} else if (nonIntegerId(b)) {
+				return 1;
+			}
+
+			if (a.id === b.id) {
+				return 0;
+			}
+
+			return Number(a.id) < Number(b.id) ? -1 : 1;
+		});
+
+		if (this.placeHolders.length > 0 && this.placeHolders[this.placeHolders.length - 1].value === '') {
+			this.finishPlaceHolderIndex = this.placeHolders.length - 1;
 		}
 	}
 
@@ -366,7 +383,6 @@ export class CodeSnippet implements ICodeSnippet {
 		return {
 			lines: resultLines,
 			placeHolders: resultPlaceHolders,
-			startPlaceHolderIndex: this.startPlaceHolderIndex,
 			finishPlaceHolderIndex: this.finishPlaceHolderIndex
 		};
 	}
@@ -402,7 +418,7 @@ class InsertSnippetController {
 
 		this.trackedPlaceHolders = [];
 		this.placeHolderDecorations = [];
-		this.currentPlaceHolderIndex = adaptedSnippet.startPlaceHolderIndex;
+		this.currentPlaceHolderIndex = 0;
 		this.highlightDecorationId = null;
 		this.isFinished = false;
 

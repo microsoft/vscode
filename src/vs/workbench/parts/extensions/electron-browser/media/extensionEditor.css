@@ -5,9 +5,7 @@
 
 .extension-editor {
 	height: 100%;
-	overflow-y: scroll;
-	display: flex;
-	flex-direction: column;
+	overflow: hidden;
 }
 
 .extension-editor a {
@@ -16,7 +14,7 @@
 
 .extension-editor > .header {
 	display: flex;
-	height: 128px;
+	height: 130px;
 	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
 	overflow: hidden;
@@ -38,11 +36,22 @@
 	overflow: hidden;
 }
 
-.extension-editor > .header > .details > .name {
+.extension-editor > .header > .details > .title {
+	display: flex;
+	align-items: baseline;
+}
+
+.extension-editor > .header > .details > .title > .name {
+	flex: 1;
 	font-size: 26px;
+	line-height: 30px;
 	font-weight: 600;
 	line-height: normal;
 	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title > .license {
+	margin-left: 10px;
 }
 
 .extension-editor > .header > .details > .subtitle {
@@ -86,15 +95,15 @@
 	justify-content: flex-start;
 }
 
-.extension-editor > .body {
-	flex: 1;
-	overflow-y: scroll;
-	overflow-x: hidden;
-	padding: 20px;
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	font-weight: 600;
+	padding: 1px 6px;
+	line-height: 15px;
 }
 
-.extension-editor > .body img {
-	max-width: 100%;
+.extension-editor > .body {
+	height: calc(100% - 170px);
+	overflow: hidden;
 }
 
 .extension-editor > .body.loading {

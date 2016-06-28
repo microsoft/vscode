@@ -12,12 +12,14 @@ import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
-import { Match, FileMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { SearchResult, Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
@@ -27,6 +29,7 @@ export class OpenSearchViewletAction extends ToggleViewletAction {
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
 	}
+
 }
 
 export class FindInFolderAction extends Action {
@@ -88,82 +91,85 @@ export class ClearSearchResultsAction extends Action {
 	}
 }
 
-export class SelectOrRemoveAction extends Action {
-	private selectMode: boolean;
-	private viewlet: SearchViewlet;
+export class RemoveAction extends Action {
 
-	constructor(viewlet: SearchViewlet) {
-		super('selectOrRemove');
-
-		this.label = nls.localize('SelectOrRemoveAction.selectLabel', "Select");
-		this.enabled = false;
-		this.selectMode = true;
-		this.viewlet = viewlet;
+	constructor(private viewer: ITree, private element: FileMatchOrMatch) {
+		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
 	}
 
-	public run(): TPromise<any> {
-		let result: TPromise<any>;
+	public run(retainFocus: boolean= true): TPromise<any> {
 
-		if (this.selectMode) {
-			result = this.runAsSelect();
+		if (this.element === this.viewer.getFocus()) {
+			let nextFocusElement= this.getNextFocusElement();
+			if (nextFocusElement) {
+				this.viewer.setFocus(nextFocusElement);
+			} else {
+				this.viewer.focusPrevious();
+			}
+		}
+
+		let elementToRefresh: any;
+		if (this.element instanceof FileMatch) {
+			let parent:SearchResult= <SearchResult>this.element.parent();
+			parent.remove(<FileMatch>this.element);
+			elementToRefresh= parent;
 		} else {
-			result = this.runAsRemove();
+			let parent: FileMatch= <FileMatch>this.element.parent();
+			parent.remove(<Match>this.element);
+			elementToRefresh= parent.count() === 0 ? parent.parent() : parent;
 		}
 
-		this.selectMode = !this.selectMode;
-		this.label = this.selectMode ? nls.localize('SelectOrRemoveAction.selectLabel', "Select") : nls.localize('SelectOrRemoveAction.removeLabel', "Remove");
-
-		return result;
-	}
-
-	private runAsSelect(): TPromise<void> {
-		this.viewlet.getResults().addClass('select');
-
-		return TPromise.as(null);
-	}
-
-	private runAsRemove(): TPromise<void> {
-		let elements: any[] = [];
-		let tree: ITree = this.viewlet.getControl();
-
-		tree.getInput().matches().forEach((fileMatch: FileMatch) => {
-			fileMatch.matches().filter((lineMatch: Match) => {
-				return (<any>lineMatch).$checked;
-			}).forEach((lineMatch: Match) => {
-				lineMatch.parent().remove(lineMatch);
-				elements.push(lineMatch.parent());
-			});
-		});
-
-		this.viewlet.getResults().removeClass('select');
-
-		if (elements.length > 0) {
-			return tree.refreshAll(elements).then(() => {
-				return tree.refresh();
-			});
+		if (retainFocus && this.viewer.getFocus()) {
+			this.viewer.DOMFocus();
 		}
+		return this.viewer.refresh(elementToRefresh);
+	}
 
-		return TPromise.as(null);
+	private getNextFocusElement():FileMatchOrMatch {
+		let navigator= this.viewer.getNavigator();
+		while (navigator.current() !== this.element && !!navigator.next()) {};
+		if (this.element instanceof FileMatch) {
+			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) {};
+			return navigator.current();
+		} else {
+			return navigator.next();
+		}
 	}
 }
 
-export class RemoveAction extends Action {
+export class ReplaceAllAction extends Action {
 
-	private viewer: ITree;
-	private fileMatch: FileMatch;
-
-	constructor(viewer: ITree, element: FileMatch) {
-		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
-
-		this.viewer = viewer;
-		this.fileMatch = element;
+	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
+							@IReplaceService private replaceService: IReplaceService,
+							@ITelemetryService private telemetryService: ITelemetryService) {
+		super('file-action-replace-all', nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
 	}
 
 	public run(): TPromise<any> {
-		let parent = this.fileMatch.parent();
-		parent.remove(this.fileMatch);
+		this.telemetryService.publicLog('replaceAll.action.selected');
+		return this.replaceService.replace([this.fileMatch], this.fileMatch.parent().replaceText).then(() => {
+			this.viewlet.open(this.fileMatch).done(() => {
+				new RemoveAction(this.viewer, this.fileMatch).run();
+			}, errors.onUnexpectedError);
+		});
+	}
+}
 
-		return this.viewer.refresh(parent);
+export class ReplaceAction extends Action {
+
+	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
+				@IReplaceService private replaceService: IReplaceService,
+				@ITelemetryService private telemetryService: ITelemetryService) {
+		super('action-replace', nls.localize('match.replace.label', "Replace"), 'action-replace');
+	}
+
+	public run(): TPromise<any> {
+		this.telemetryService.publicLog('replace.action.selected');
+		return this.replaceService.replace(this.element, this.element.parent().parent().replaceText).then(() => {
+			this.viewlet.open(this.element).done(() => {
+				new RemoveAction(this.viewer, this.element).run(false);
+			}, errors.onUnexpectedError);
+		});
 	}
 }
 

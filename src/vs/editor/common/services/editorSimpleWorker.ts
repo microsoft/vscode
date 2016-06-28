@@ -7,6 +7,7 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {IRequestHandler} from 'vs/base/common/worker/simpleWorker';
 import {Range} from 'vs/editor/common/core/range';
 import {fuzzyContiguousFilter} from 'vs/base/common/filters';
@@ -23,13 +24,37 @@ import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 export interface IMirrorModel {
 	uri: URI;
 	version: number;
-	getText(): string;
+	getValue(): string;
+}
+
+export interface IWorkerContext {
+	/**
+	 * Get all available mirror models in this worker.
+	 */
+	getMirrorModels(): IMirrorModel[];
 }
 
 /**
  * @internal
  */
-export class MirrorModel extends MirrorModel2 {
+export interface ICommonModel {
+	uri: URI;
+	version: number;
+	getValue(): string;
+
+	getLinesContent(): string[];
+	getLineCount(): number;
+	getLineContent(lineNumber:number): string;
+	getWordUntilPosition(position: editorCommon.IPosition, wordDefinition:RegExp): editorCommon.IWordAtPosition;
+	getAllUniqueWords(wordDefinition:RegExp, skipWordOnce?:string) : string[];
+	getValueInRange(range:editorCommon.IRange): string;
+	getWordAtPosition(position:editorCommon.IPosition, wordDefinition:RegExp): Range;
+}
+
+/**
+ * @internal
+ */
+export class MirrorModel extends MirrorModel2 implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
@@ -37,6 +62,10 @@ export class MirrorModel extends MirrorModel2 {
 
 	public get version(): number {
 		return this._versionId;
+	}
+
+	public getValue(): string {
+		return this.getText();
 	}
 
 	public getLinesContent(): string[] {
@@ -146,47 +175,21 @@ export class MirrorModel extends MirrorModel2 {
 /**
  * @internal
  */
-export class EditorSimpleWorkerImpl implements IRequestHandler {
-	_requestHandlerTrait: any;
-
-	private _models:{[uri:string]:MirrorModel;};
+export abstract class BaseEditorSimpleWorker {
 	private _foreignModule: any;
 
 	constructor() {
-		this._models = Object.create(null);
 		this._foreignModule = null;
 	}
 
-	public getModels(): MirrorModel[] {
-		let all: MirrorModel[] = [];
-		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
-		return all;
-	}
-
-	public acceptNewModel(data:IRawModelData): void {
-		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.value.lines, data.value.EOL, data.versionId);
-	}
-
-	public acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		let model = this._models[strURL];
-		model.onEvents(events);
-	}
-
-	public acceptRemovedModel(strURL: string): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		delete this._models[strURL];
-	}
+	protected abstract _getModel(uri:string): ICommonModel;
+	protected abstract _getModels(): ICommonModel[];
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
 	public computeDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean): TPromise<editorCommon.ILineChange[]> {
-		let original = this._models[originalUrl];
-		let modified = this._models[modifiedUrl];
+		let original = this._getModel(originalUrl);
+		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
 			return null;
 		}
@@ -202,8 +205,8 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 	}
 
 	public computeDirtyDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<editorCommon.IChange[]> {
-		let original = this._models[originalUrl];
-		let modified = this._models[modifiedUrl];
+		let original = this._getModel(originalUrl);
+		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
 			return null;
 		}
@@ -221,7 +224,7 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 	// ---- END diff --------------------------------------------------------------------------
 
 	public computeLinks(modelUrl:string):TPromise<ILink[]> {
-		let model = this._models[modelUrl];
+		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
@@ -232,7 +235,7 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
 	public textualSuggest(modelUrl:string, position: editorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<ISuggestResult[]> {
-		let model = this._models[modelUrl];
+		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
@@ -240,7 +243,7 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 		return TPromise.as(this._suggestFiltered(model, position, new RegExp(wordDef, wordDefFlags)));
 	}
 
-	private _suggestFiltered(model:MirrorModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult[] {
+	private _suggestFiltered(model:ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult[] {
 		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
 
 		// filter suggestions
@@ -251,7 +254,7 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 		}];
 	}
 
-	private _suggestUnfiltered(model:MirrorModel, position:editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
+	private _suggestUnfiltered(model:ICommonModel, position:editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
 		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
 		let allWords = model.getAllUniqueWords(wordDefRegExp, currentWord);
 
@@ -275,7 +278,7 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 	// ---- END suggest --------------------------------------------------------------------------
 
 	public navigateValueSet(modelUrl:string, range:editorCommon.IRange, up:boolean, wordDef:string, wordDefFlags:string): TPromise<IInplaceReplaceSupportResult> {
-		let model = this._models[modelUrl];
+		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
@@ -304,7 +307,12 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 		return new TPromise<any>((c, e) => {
 			// Use the global require to be sure to get the global config
 			(<any>self).require([moduleId], (foreignModule) => {
-				this._foreignModule = foreignModule.create(createData);
+				let ctx: IWorkerContext = {
+					getMirrorModels: ():IMirrorModel[] => {
+						return this._getModels();
+					}
+				};
+				this._foreignModule = foreignModule.create(ctx, createData);
 
 				let methods: string[] = [];
 				for (let prop in this._foreignModule) {
@@ -335,13 +343,51 @@ export class EditorSimpleWorkerImpl implements IRequestHandler {
 	// ---- END foreign module support --------------------------------------------------------------------------
 }
 
-const instance = new EditorSimpleWorkerImpl();
-
 /**
- * Get all available mirror models in this worker.
+ * @internal
  */
-export function getMirrorModels(): IMirrorModel[] {
-	return instance.getModels();
+export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IRequestHandler, IDisposable {
+	_requestHandlerTrait: any;
+
+	private _models:{[uri:string]:MirrorModel;};
+
+	constructor() {
+		super();
+		this._models = Object.create(null);
+	}
+
+	public dispose(): void {
+		this._models = Object.create(null);
+	}
+
+	protected _getModel(uri:string): ICommonModel {
+		return this._models[uri];
+	}
+
+	protected _getModels(): ICommonModel[] {
+		let all: MirrorModel[] = [];
+		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
+		return all;
+	}
+
+	public acceptNewModel(data:IRawModelData): void {
+		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.value.lines, data.value.EOL, data.versionId);
+	}
+
+	public acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
+		if (!this._models[strURL]) {
+			return;
+		}
+		let model = this._models[strURL];
+		model.onEvents(events);
+	}
+
+	public acceptRemovedModel(strURL: string): void {
+		if (!this._models[strURL]) {
+			return;
+		}
+		delete this._models[strURL];
+	}
 }
 
 /**
@@ -349,15 +395,11 @@ export function getMirrorModels(): IMirrorModel[] {
  * @internal
  */
 export function create(): IRequestHandler {
-	return instance;
-}
-
-function createMonacoWorkerAPI(): typeof monaco.worker {
-	return {
-		getMirrorModels: getMirrorModels
-	};
+	return new EditorSimpleWorkerImpl();
 }
 
 var global:any = self;
-global.monaco = createMonacoBaseAPI();
-global.monaco.worker = createMonacoWorkerAPI();
+let isWebWorker = (typeof global.importScripts === 'function');
+if (isWebWorker) {
+	global.monaco = createMonacoBaseAPI();
+}

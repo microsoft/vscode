@@ -329,8 +329,8 @@ export default class URI {
 			path: this.path,
 			fsPath: this.fsPath,
 			query: this.query,
-			fragment: this.fragment.replace(/URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
-			external: this.toString().replace(/#?URL_MARSHAL_REMOVE.*$/, ''), // TODO@Alex: implement derived resources (embedded mirror models) better
+			fragment: this.fragment,
+			external: this.toString(),
 			$mid: 1
 		};
 	}

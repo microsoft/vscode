@@ -589,22 +589,50 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 	};
 }
 
-export interface IDomNodePosition {
+export interface IDomNodePagePosition {
 	left: number;
 	top: number;
 	width: number;
 	height: number;
 }
 
-export function getDomNodePosition(domNode: HTMLElement): IDomNodePosition {
-	let r = getTopLeftOffset(domNode);
+/**
+ * Returns the position of a dom node relative to the entire page.
+ */
+export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
+	let bb = domNode.getBoundingClientRect();
 	return {
-		left: r.left,
-		top: r.top,
-		width: domNode.clientWidth,
-		height: domNode.clientHeight
+		left: bb.left + StandardWindow.scrollX,
+		top: bb.top + StandardWindow.scrollY,
+		width: bb.width,
+		height: bb.height
 	};
 }
+
+export interface IStandardWindow {
+	scrollX: number;
+	scrollY: number;
+}
+
+export const StandardWindow:IStandardWindow = new class {
+	get scrollX(): number {
+		if (typeof window.scrollX === 'number') {
+			// modern browsers
+			return window.scrollX;
+		} else {
+			return document.body.scrollLeft + document.documentElement.scrollLeft;
+		}
+	}
+
+	get scrollY(): number {
+		if (typeof window.scrollY === 'number') {
+			// modern browsers
+			return window.scrollY;
+		} else {
+			return document.body.scrollTop + document.documentElement.scrollTop;
+		}
+	}
+};
 
 // Adapted from WinJS
 // Gets the width of the content of the specified element. The content width does not include borders or padding.
@@ -637,7 +665,7 @@ export function getTotalHeight(element: HTMLElement): number {
 }
 
 // Gets the left coordinate of the specified element relative to the specified parent.
-export function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
+function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 	if (element === null) {
 		return 0;
 	}
@@ -645,17 +673,6 @@ export function getRelativeLeft(element: HTMLElement, parent: HTMLElement): numb
 	let elementPosition = getTopLeftOffset(element);
 	let parentPosition = getTopLeftOffset(parent);
 	return elementPosition.left - parentPosition.left;
-}
-
-// Gets the top coordinate of the element relative to the specified parent.
-export function getRelativeTop(element: HTMLElement, parent: HTMLElement): number {
-	if (element === null) {
-		return 0;
-	}
-
-	let elementPosition = getTopLeftOffset(element);
-	let parentPosition = getTopLeftOffset(parent);
-	return parentPosition.top - elementPosition.top;
 }
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {

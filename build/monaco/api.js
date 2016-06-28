@@ -340,3 +340,7 @@ function run(out) {
     };
 }
 exports.run = run;
+function complainErrors() {
+    logErr('Not running monaco.d.ts generation due to compile errors');
+}
+exports.complainErrors = complainErrors;

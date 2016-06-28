@@ -15,7 +15,8 @@ ModesRegistry.registerCompatMode({
 	aliases: ['HTML', 'htm', 'html', 'xhtml'],
 	mimetypes: ['text/html', 'text/x-jshtm', 'text/template', 'text/ng-template'],
 	moduleId: 'vs/languages/html/common/html',
-	ctorName: 'HTMLMode'
+	ctorName: 'HTMLMode',
+	deps: ['text/css', 'text/javascript']
 });
 
 var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);
@@ -24,7 +25,7 @@ configurationRegistry.registerConfiguration({
 	'id': 'html',
 	'order': 20,
 	'type': 'object',
-	'title': nls.localize('htmlConfigurationTitle', "HTML configuration"),
+	'title': nls.localize('htmlConfigurationTitle', "HTML"),
 	'properties': {
 		'html.format.wrapLineLength': {
 			'type': 'integer',

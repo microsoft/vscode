@@ -4,6 +4,7 @@
 	"description": "Markdown for VS Code",
 	"version": "0.2.0",
 	"publisher": "Microsoft",
+	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "^1.0.0"
 	},
@@ -13,7 +14,8 @@
 	],
 	"activationEvents": [
 		"onCommand:markdown.showPreview",
-		"onCommand:markdown.showPreviewToSide"
+		"onCommand:markdown.showPreviewToSide",
+		"onCommand:markdown.showSource"
 	],
 	"contributes": {
 		"languages": [
@@ -42,40 +44,53 @@
 		"commands": [
 			{
 				"command": "markdown.showPreview",
-				"title": "%markdown.openPreview%",
-				"category": "%markdown.category%",
-				"where": ["explorer/context"],
-				"when": "markdown"
-			},
-			{
-				"command": "markdown.showPreview",
-				"title": "%markdown.previewMarkdown.title%",
+				"title": "%markdown.preview.title%",
 				"category": "%markdown.category%",
 				"icon": {
 					"light": "./media/Preview.svg",
 					"dark": "./media/Preview_inverse.svg"
-				},
-				"where": ["editor/primary"],
-				"when": "markdown"
+				}
+			},
+			{
+				"command": "markdown.showPreviewToSide",
+				"title": "%markdown.previewSide.title%",
+				"icon": {
+					"light": "./media/Preview.svg",
+					"dark": "./media/Preview_inverse.svg"
+				}
 			},
 			{
 				"command": "markdown.showSource",
-				"title": "%markdown.previewMarkdown.title%",
+				"title": "%markdown.showSource.title%",
 				"category": "%markdown.category%",
 				"icon": {
 					"light": "./media/ViewSource.svg",
 					"dark": "./media/ViewSource_inverse.svg"
-				},
-				"where": ["editor/primary"],
-				"when": { "scheme": "markdown" }
-			},
-			{
-				"command": "markdown.showPreviewToSide",
-				"title": "%markdown.previewMarkdownSide.title%",
-				"where": "editor/secondary",
-				"when": "markdown"
+				}
 			}
 		],
+		"menus": {
+			"editor/title": [
+				{
+					"when": "resourceLangId == markdown",
+					"command": "markdown.showPreview",
+					"alt": "markdown.showPreviewToSide",
+					"group": "navigation"
+				},
+				{
+					"when": "resourceScheme == markdown",
+					"command": "markdown.showSource",
+					"group": "navigation"
+				}
+			],
+			"explorer/context": [
+				{
+					"when": "resourceLangId == markdown",
+					"command": "markdown.showPreview",
+					"group": "navigation"
+				}
+			]
+		},
 		"keybindings": [
 			{
 				"command": "markdown.showPreview",
@@ -88,17 +103,20 @@
 				"mac": "cmd+k v"
 			}
 		],
-		"snippets": [{
-			"language": "markdown",
-			"path": "./snippets/markdown.json"
-		}],
+		"snippets": [
+			{
+				"language": "markdown",
+				"path": "./snippets/markdown.json"
+			}
+		],
 		"configuration": {
 			"type": "object",
-			"title": "Markdown preview configuration",
+			"title": "Markdown",
+			"order": 20,
 			"properties": {
 				"markdown.styles": {
-					"type": "array",
-					"default" : null,
+					"type": ["array", "null"],
+					"default": null,
 					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
 				}
 			}
@@ -110,6 +128,7 @@
 	"dependencies": {
 		"highlight.js": "^9.3.0",
 		"markdown-it": "^6.0.1",
-		"markdown-it-named-headers": "0.0.4"
+		"markdown-it-named-headers": "0.0.4",
+		"vscode-extension-telemetry": "^0.0.5"
 	}
 }

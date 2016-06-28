@@ -140,7 +140,11 @@ function processDefaultValues(withConfig: (config: configurationRegistry.IConfig
 		if (typeof c2.order !== 'number') {
 			return -1;
 		}
-
+		if (c1.order === c2.order) {
+			let title1 = c1.title || '';
+			let title2 = c2.title || '';
+			return title1.localeCompare(title2);
+		}
 		return c1.order - c2.order;
 	}).forEach((config) => {
 		visit(config, 0);
@@ -182,7 +186,7 @@ export function getDefaultValuesContent(indent: string): string {
 			handled = true;
 			if (isTop) {
 				result.push('');
-				result.push('//-------- ' + config.title + ' --------');
+				result.push('// ' + config.title);
 			} else {
 				result.push(indent + '// ' + config.title);
 			}

@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {
 	EventType, IModel, ITextModelCreationOptions, IModeSupportChangedEvent, IModelDecorationsChangedEvent,
-	IModelOptionsChangedEvent, IModelModeChangedEvent
+	IModelOptionsChangedEvent, IModelModeChangedEvent, IRawText
 } from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
 import {TextModel} from 'vs/editor/common/model/textModel';
@@ -56,7 +56,10 @@ export class Model extends EditableTextModel implements IModel {
 		return super.addBulkListener(listener);
 	}
 
-	public static DEFAULT_CREATION_OPTIONS: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS;
+	public static createFromString(text:string, options:ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, mode:IMode|TPromise<IMode> = null, uri:URI = null): Model {
+		let rawText = TextModel.toRawText(text, options);
+		return new Model(rawText, mode, uri);
+	}
 
 	public id:string;
 
@@ -76,10 +79,10 @@ export class Model extends EditableTextModel implements IModel {
 	 *   The resource associated with this model. If the value is not provided an
 	 *   unique in memory URL is constructed as the associated resource.
 	 */
-	constructor(rawText:string, options:ITextModelCreationOptions, modeOrPromise:IMode|TPromise<IMode>, associatedResource:URI=null) {
+	constructor(rawText:IRawText, modeOrPromise:IMode|TPromise<IMode>, associatedResource:URI=null) {
 		super([
 			EventType.ModelDispose
-		], TextModel.toRawText(rawText, options), modeOrPromise);
+		], rawText, modeOrPromise);
 
 		// Generate a new unique model id
 		MODEL_ID++;

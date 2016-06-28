@@ -60,6 +60,10 @@ export class RowCache<T> implements IDisposable {
 	 * scrolling).
 	 */
 	release(row: IRow): void {
+		if (!row.domNode) {
+			return;
+		}
+
 		var lastScrollTime = getLastScrollTime(row.domNode);
 
 		if (!lastScrollTime) {

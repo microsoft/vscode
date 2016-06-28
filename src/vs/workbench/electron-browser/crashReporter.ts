@@ -19,9 +19,8 @@ let TELEMETRY_SECTION_ID = 'telemetry';
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 20,
+	'order': 110.5,
 	'type': 'object',
-	'title': nls.localize('telemetryConfigurationTitle', "Telemetry configuration"),
 	'properties': {
 		'telemetry.enableCrashReporter': {
 			'type': 'boolean',

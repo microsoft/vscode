@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionsModel } from './extensionsModel';
+import { IExtension, IExtensionsWorkbenchService } from './extensions';
 import { append, emmet as $, addClass } from 'vs/base/browser/dom';
 
 export interface IOptions {
@@ -20,13 +20,13 @@ export class Label implements IDisposable {
 
 	constructor(
 		element: HTMLElement,
-		model: ExtensionsModel,
 		extension: IExtension,
-		fn: (extension: IExtension) => string
+		fn: (extension: IExtension) => string,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		const render = () => element.textContent = fn(extension);
 		render();
-		this.listener = model.onChange(render);
+		this.listener = extensionsWorkbenchService.onChange(render);
 	}
 
 	dispose(): void {
@@ -34,19 +34,60 @@ export class Label implements IDisposable {
 	}
 }
 
-export class RatingsWidget implements IDisposable {
-
-	static ID: string = 'workbench.editor.extension';
+export class InstallWidget implements IDisposable {
 
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private container: HTMLElement,
-		private model: ExtensionsModel,
 		private extension: IExtension,
-		options: IOptions = {}
+		private options: IOptions,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		this.disposables.push(this.model.onChange(() => this.render()));
+		this.disposables.push(extensionsWorkbenchService.onChange(() => this.render()));
+		addClass(container, 'extension-install-count');
+		this.render();
+	}
+
+	private render(): void {
+		const installCount = this.extension.installCount;
+		this.container.innerHTML = '';
+
+		if (installCount === null) {
+			return;
+		}
+
+		let installLabel: string;
+
+		if (this.options.small) {
+			if (installCount > 1000000) {
+				installLabel = `${ Math.floor(installCount / 1000000) }M`;
+			} else if (installCount > 1000) {
+				installLabel = `${ Math.floor(installCount / 1000) }K`;
+			}
+		}
+
+		append(this.container, $('span.octicon.octicon-cloud-download'));
+		const count = append(this.container, $('span.count'));
+		count.textContent = installLabel || String(installCount);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class RatingsWidget implements IDisposable {
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private container: HTMLElement,
+		private extension: IExtension,
+		private options: IOptions,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		this.disposables.push(extensionsWorkbenchService.onChange(() => this.render()));
 		addClass(container, 'extension-ratings');
 
 		if (options.small) {
@@ -74,8 +115,10 @@ export class RatingsWidget implements IDisposable {
 			}
 		}
 
-		const count = append(this.container, $('span.count'));
-		count.textContent = String(this.extension.ratingCount);
+		if (!this.options.small) {
+			const count = append(this.container, $('span.count'));
+			count.textContent = String(this.extension.ratingCount);
+		}
 	}
 
 	dispose(): void {

@@ -7,6 +7,7 @@
 import {RunOnceScheduler} from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
+import * as Set from 'vs/base/common/set';
 import paths = require('vs/base/common/paths');
 import lifecycle = require('vs/base/common/lifecycle');
 import collections = require('vs/base/common/collections');
@@ -68,20 +69,23 @@ export class EmptyMatch extends Match {
 	}
 }
 
-export class FileMatch implements lifecycle.IDisposable {
+export class FileMatch extends EventEmitter implements lifecycle.IDisposable {
 
 	private _parent: SearchResult;
 	private _resource: URI;
+	_removedMatches: Set.ArraySet<string>;
 	_matches: { [key: string]: Match };
 
 	constructor(parent: SearchResult, resource: URI) {
+		super();
 		this._resource = resource;
 		this._parent = parent;
 		this._matches = Object.create(null);
+		this._removedMatches= new Set.ArraySet<string>();
 	}
 
 	public dispose(): void {
-		// nothing
+		this.emit('disposed', this);
 	}
 
 	public id(): string {
@@ -98,6 +102,10 @@ export class FileMatch implements lifecycle.IDisposable {
 
 	public remove(match: Match): void {
 		delete this._matches[match.id()];
+		this._removedMatches.set(match.id());
+		if (this.count() === 0) {
+			this.add(new EmptyMatch(this));
+		}
 	}
 
 	public matches(): Match[] {
@@ -122,6 +130,8 @@ export class FileMatch implements lifecycle.IDisposable {
 		return paths.basename(this.resource().fsPath);
 	}
 }
+
+export type FileMatchOrMatch = FileMatch | Match;
 
 export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 
@@ -148,6 +158,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		this._query = query;
 		this._model = model;
 		this._diskFileMatch = fileMatch;
+		this._removedMatches= fileMatch._removedMatches;
 		this._updateScheduler = new RunOnceScheduler(this._updateMatches.bind(this), 250);
 		this._unbind.push(this._model.onDidChangeContent(_ => this._updateScheduler.schedule()));
 		this._updateMatches();
@@ -158,6 +169,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		if (!this._isTextModelDisposed()) {
 			this._model.deltaDecorations(this._modelDecorations, []);
 		}
+		super.dispose();
 	}
 
 	private _updateMatches(): void {
@@ -170,10 +182,15 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
 
-		if (matches.length === 0) {
+		matches.forEach(range => {
+			let match= new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
+			if (!this._removedMatches.contains(match.id())) {
+				this.add(match);
+			}
+		});
+
+		if (this.count() === 0) {
 			this.add(new EmptyMatch(this));
-		} else {
-			matches.forEach(range => this.add(new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn)));
 		}
 
 		this.parent().emit('changed', this);
@@ -199,12 +216,14 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 	private _isTextModelDisposed(): boolean {
 		return !this._model || (<ITextModel>this._model).isDisposed();
 	}
+
 }
 
 export class SearchResult extends EventEmitter {
 
 	private _modelService: IModelService;
 	private _query: Search.IPatternInfo;
+	private _replace: string= null;
 	private _disposables: lifecycle.IDisposable[] = [];
 	private _matches: { [key: string]: FileMatch; } = Object.create(null);
 
@@ -219,6 +238,26 @@ export class SearchResult extends EventEmitter {
 			this._modelService.onModelAdded(this._onModelAdded, this, this._disposables);
 			this._modelService.onModelRemoved(this._onModelRemoved, this, this._disposables);
 		}
+	}
+
+	/**
+	 * Return true if replace is enabled otherwise false
+	 */
+	public isReplaceActive():boolean {
+		return this.replaceText !== null && this.replaceText !== void 0;
+	}
+
+	/**
+	 * Returns the text to replace.
+	 * Can be null if replace is not enabled. Use replace() before.
+	 * Can be empty.
+	 */
+	public get replaceText(): string {
+		return this._replace;
+	}
+
+	public set replaceText(replace: string) {
+		this._replace= replace;
 	}
 
 	private _onModelAdded(model: IModel): void {

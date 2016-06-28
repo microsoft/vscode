@@ -26,6 +26,7 @@ import {toThenable} from 'vs/base/common/async';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {IMarkerData} from 'vs/platform/markers/common/markers';
 
 /**
  * Register information about a new language.
@@ -148,8 +149,17 @@ export function registerCodeLensProvider(languageId:string, provider:modes.CodeL
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId:string, provider:modes.CodeActionProvider): IDisposable {
-	return modes.CodeActionProviderRegistry.register(languageId, provider);
+export function registerCodeActionProvider(languageId:string, provider:CodeActionProvider): IDisposable {
+	return modes.CodeActionProviderRegistry.register(languageId, {
+		provideCodeActions: (model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]> => {
+			startup.initStaticServicesIfNecessary();
+			var markerService = ensureStaticPlatformServices(null).markerService;
+			let markers = markerService.read({resource: model.uri }).filter(m => {
+				return Range.areIntersectingOrTouching(m, range);
+			});
+			return provider.provideCodeActions(model, range, { markers }, token);
+		}
+	});
 }
 
 /**
@@ -195,6 +205,31 @@ export function registerCompletionItemProvider(languageId:string, provider:Compl
 			return adapter.resolveCompletionItem(model, position, suggestion, token);
 		}
 	});
+}
+
+/**
+ * Contains additional diagnostic information about the context in which
+ * a [code action](#CodeActionProvider.provideCodeActions) is run.
+ */
+export interface CodeActionContext {
+
+	/**
+	 * An array of diagnostics.
+	 *
+	 * @readonly
+	 */
+	markers: IMarkerData[];
+}
+
+/**
+ * The code action interface defines the contract between extensions and
+ * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+ */
+export interface CodeActionProvider {
+	/**
+	 * Provide commands for the given document and range.
+	 */
+	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, context: CodeActionContext, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]>;
 }
 
 /**

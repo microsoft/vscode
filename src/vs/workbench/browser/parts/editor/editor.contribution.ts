@@ -17,9 +17,10 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
@@ -270,9 +271,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextRecentlyUsedEd
 	}
 }), 'Open Next Recently Used Editor in Group');
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction.ID, OpenPreviousRecentlyUsedEditorInGroupAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift |  KeyCode.Tab,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
 	mac: {
-		primary: KeyMod.WinCtrl | KeyMod.Shift |  KeyCode.Tab
+		primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab
 	}
 }), 'Open Previous Recently Used Editor in Group');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllEditorsAction, ShowAllEditorsAction.ID, ShowAllEditorsAction.LABEL, { primary: null, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors', category);
@@ -300,7 +301,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBetweenGroupsA
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus Left Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus Center Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus Right Editor Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusLastEditorInStackAction, FocusLastEditorInStackAction.ID, FocusLastEditorInStackAction.LABEL, { primary: KeyMod.WinCtrl | KeyCode.KEY_0 }), 'View: Focus Last Editor in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusLastEditorInStackAction, FocusLastEditorInStackAction.ID, FocusLastEditorInStackAction.LABEL, { primary: KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_0 } }), 'View: Focus Last Editor in Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EvenGroupWidthsAction.ID, EvenGroupWidthsAction.LABEL), 'View: Even Editor Group Widths', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MaximizeGroupAction.ID, MaximizeGroupAction.LABEL), 'View: Maximize Editor Group and Hide Sidebar', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Minimize Other Editor Groups', category);
@@ -338,7 +339,8 @@ for (let i = 0; i < 9; i++) {
 		id: 'workbench.action.openEditorAtIndex' + visibleIndex,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
-		primary: KeyMod.WinCtrl | toKeyCode(visibleIndex),
+		primary: KeyMod.Alt | toKeyCode(visibleIndex),
+		mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
 		handler: accessor => {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const editorGroupService = accessor.get(IEditorGroupService);
@@ -376,7 +378,7 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExt
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
-	'title': nls.localize('workbenchConfigurationTitle', "Workbench configuration"),
+	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
 	'properties': {
 		'workbench.editor.showTabs': {
@@ -401,4 +403,52 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		}
 	}
+});
+
+// TODO@Ben remove me next version
+
+const mapDeprecatedCommands = {
+	'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
+	'workbench.action.focusSecondEditor': 'workbench.action.focusSecondEditorGroup',
+	'workbench.action.focusThirdEditor': 'workbench.action.focusThirdEditorGroup',
+	'workbench.action.focusLeftEditor': 'workbench.action.focusPreviousGroup',
+	'workbench.action.focusRightEditor': 'workbench.action.focusNextGroup',
+	'workbench.action.moveActiveEditorLeft': 'workbench.action.moveActiveEditorGroupLeft',
+	'workbench.action.moveActiveEditorRight': 'workbench.action.moveActiveEditorGroupRight',
+	'workbench.action.openPreviousEditor': 'workbench.action.openPreviousEditorFromHistory',
+	'workbench.files.action.addToWorkingFiles': 'workbench.action.keepEditor',
+	'workbench.files.action.closeAllFiles': 'workbench.action.closeAllEditors',
+	'workbench.files.action.closeFile': 'workbench.action.closeActiveEditor',
+	'workbench.files.action.closeOtherFiles': 'workbench.action.closeOtherEditors',
+	'workbench.files.action.focusWorkingFiles': 'workbench.files.action.focusOpenEditorsView',
+	'workbench.files.action.openNextWorkingFile': 'workbench.action.nextEditor',
+	'workbench.files.action.openPreviousWorkingFile': 'workbench.action.previousEditor',
+	'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
+	'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
+	'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups'
+};
+
+Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
+	const newCommandId = mapDeprecatedCommands[deprecatedCommandId];
+
+	KeybindingsRegistry.registerCommandDesc({
+		id: deprecatedCommandId,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		handler(accessor: ServicesAccessor) {
+			const messageService = accessor.get(IMessageService);
+			const keybindingService = accessor.get(IKeybindingService);
+
+			messageService.show(Severity.Warning, {
+				message: nls.localize('commandDeprecated', "Command **{0}** is now deprecated. You can use **{1}** instead", deprecatedCommandId, newCommandId),
+				actions: [
+					CloseAction,
+					new Action('openKeybindings', nls.localize('openKeybindings', "Configure Keyboard Shortcuts"), null, true, () => {
+						return keybindingService.executeCommand('workbench.action.openGlobalKeybindings');
+					})
+				]
+			});
+		},
+		when: undefined,
+		primary: undefined
+	});
 });

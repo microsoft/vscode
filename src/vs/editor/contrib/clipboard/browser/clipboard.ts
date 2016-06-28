@@ -12,7 +12,7 @@ import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as browser from 'vs/base/browser/browser';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -136,7 +136,8 @@ function registerClipboardAction(desc:IClipboardCommand, alias:string) {
 		secondary: desc.secondary,
 		win: desc.win,
 		linux: desc.linux,
-		mac: desc.mac
+		mac: desc.mac,
+		kbExpr: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)
 	}, alias));
 }
 

@@ -222,9 +222,9 @@ export interface IActionItemOptions {
 
 export class ActionItem extends BaseActionItem {
 
-	$e: Builder;
+	protected $e: Builder;
+	protected options: IActionItemOptions;
 	private cssClass: string;
-	private options: IActionItemOptions;
 
 	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
 		super(context, action);

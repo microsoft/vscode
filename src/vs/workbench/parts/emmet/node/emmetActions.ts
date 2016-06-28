@@ -9,111 +9,92 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {EditorAccessor} from './editorAccessor';
-import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import nls = require('vs/nls');
+
+import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
+import * as fileAccessor from 'vs/workbench/parts/emmet/node/fileAccessor';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+
+interface IEmmetConfiguration {
+	emmet: {
+		preferences: any;
+		syntaxProfiles: any;
+		triggerExpansionOnTab: boolean
+	};
+}
 
 export abstract class EmmetEditorAction extends EditorAction {
 
 	protected editorAccessor: EditorAccessor;
+	private configurationService: IConfigurationService = null;
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, configurationService: IConfigurationService) {
 		super(descriptor, editor, Behaviour.TextFocus);
 		this.editorAccessor = new EditorAccessor(editor);
+		this.configurationService = configurationService;
 	}
 
-	abstract runEmmetAction(_module: any);
+	private updateEmmetPreferences(_emmet: any) {
+		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
+		for (let key in preferences) {
+			try {
+				_emmet.preferences.set(key, preferences[key]);
+			} catch (err) {
+				_emmet.preferences.define(key, preferences[key]);
+			}
+		}
+		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
+		if (Object.keys(syntaxProfile).length !== 0) {
+			_emmet.profile.reset();
+			_emmet.loadProfiles(syntaxProfile);
+		}
+	}
+
+	private resetEmmetPreferences(_emmet: any) {
+		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
+		for (let key in preferences) {
+			try {
+				_emmet.preferences.remove(key);
+			} catch (err) {
+			}
+		}
+	}
+
+	abstract runEmmetAction(_emmet: any);
 
 	public run(): TPromise<boolean> {
 		return new TPromise((c, e) => {
-			require(['emmet'], (_module) => {
+			require(['emmet'], (_emmet) => {
+				_emmet.file(fileAccessor);
+
 				try {
 					if (!this.editorAccessor.isEmmetEnabledMode()) {
 						this.editorAccessor.noExpansionOccurred();
 						return;
 					}
-					this.runEmmetAction(_module);
+					this.updateEmmetPreferences(_emmet);
+					this.runEmmetAction(_emmet);
 				} catch (err) {
 					//
 				} finally {
-					this.editorAccessor.flushCache();
+					this.resetEmmetPreferences(_emmet);
 				}
 			}, e);
 		});
 	}
 }
 
-export class ExpandAbbreviationAction extends EmmetEditorAction {
-	static ID = 'editor.emmet.action.expandAbbreviation';
+export class BasicEmmetEditorAction extends EmmetEditorAction {
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor);
+	private emmetActionName: string;
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService, actionName: string) {
+		super(descriptor, editor, configurationService);
+		this.editorAccessor = new EditorAccessor(editor);
+		this.emmetActionName = actionName;
 	}
 
-	public runEmmetAction(_module) {
-		if (!_module.run('expand_abbreviation', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
-	}
-}
-
-export class RemoveTagAction extends EmmetEditorAction {
-	static ID = 'editor.emmet.action.removeTag';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor);
-	}
-
-	public runEmmetAction(_module) {
-		if (!_module.run('remove_tag', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
-	}
-}
-
-export class UpdateTagAction extends EmmetEditorAction {
-	static ID = 'editor.emmet.action.updateTag';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService private quickOpenService: IQuickOpenService) {
-		super(descriptor, editor);
-	}
-
-	public runEmmetAction(_module) {
-		let options: IInputOptions = {
-			prompt: nls.localize('enterTag', "Enter Tag"),
-			placeHolder: nls.localize('tag', "Tag")
-		};
-		this.quickOpenService.input(options).then(tag => {
-			this.wrapAbbreviation(_module, tag);
-		});
-	}
-
-	private wrapAbbreviation(_module: any, tag) {
-		if (!_module.run('update_tag', this.editorAccessor, tag)) {
-			this.editorAccessor.noExpansionOccurred();
-		}
-	}
-}
-
-export class WrapWithAbbreviationAction extends EmmetEditorAction {
-	static ID = 'editor.emmet.action.wrapWithAbbreviation';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService private quickOpenService: IQuickOpenService) {
-		super(descriptor, editor);
-	}
-
-	public runEmmetAction(_module) {
-		let options: IInputOptions = {
-			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
-			placeHolder: nls.localize('abbreviation', "Abbreviation")
-		};
-		this.quickOpenService.input(options).then(abbreviation => {
-			this.wrapAbbreviation(_module, abbreviation);
-		});
-	}
-
-	private wrapAbbreviation(_module: any, abbreviation) {
-		if (!_module.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
+	public runEmmetAction(_emmet) {
+		if (!_emmet.run(this.emmetActionName, this.editorAccessor)) {
 			this.editorAccessor.noExpansionOccurred();
 		}
 	}

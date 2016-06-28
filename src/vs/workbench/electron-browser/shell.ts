@@ -27,7 +27,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
-import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
+import {WorkspaceStats} from 'vs/workbench/services/telemetry/common/workspaceStats';
 import {IWindowService, WindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {MessageService} from 'vs/workbench/services/message/electron-browser/messageService';
 import {RequestService} from 'vs/workbench/services/request/node/requestService';
@@ -36,14 +36,16 @@ import {FileService} from 'vs/workbench/services/files/electron-browser/fileServ
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
-import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {MainProcessExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
+import {MainProcessExtensionService} from 'vs/workbench/api/node/mainThreadExtensionService';
 import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -56,7 +58,7 @@ import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
@@ -275,7 +277,7 @@ export class WorkbenchShell {
 		let requestService = disposables.add(instantiationService.createInstance(RequestService));
 		serviceCollection.set(IRequestService, requestService);
 
-		let markerService = instantiationService.createInstance(MainProcessMarkerService);
+		let markerService = instantiationService.createInstance(MarkerService);
 		serviceCollection.set(IMarkerService, markerService);
 
 		let modeService = instantiationService.createInstance(MainThreadModeServiceImpl);
@@ -283,6 +285,9 @@ export class WorkbenchShell {
 
 		let modelService = instantiationService.createInstance(ModelServiceImpl);
 		serviceCollection.set(IModelService, modelService);
+
+		let compatWorkerService = instantiationService.createInstance(MainThreadCompatWorkerService);
+		serviceCollection.set(ICompatWorkerService, compatWorkerService);
 
 		let editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
 		serviceCollection.set(IEditorWorkerService, editorWorkerService);
@@ -344,7 +349,7 @@ export class WorkbenchShell {
 	}
 
 	private writeTimers(): void {
-		let timers = (<any>window).GlobalEnvironment.timers;
+		let timers = (<any>window).MonacoEnvironment.timers;
 		if (timers) {
 			let events: timer.IExistingTimerEvent[] = [];
 

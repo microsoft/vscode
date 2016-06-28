@@ -41,6 +41,7 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -59,6 +60,8 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 	private explorerImportDelayer: ThrottledDelayer<void>;
+
+	private resourceContext: ResourceContextKey;
 
 	private shouldRefresh: boolean;
 
@@ -96,6 +99,8 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
 		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
+
+		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -348,6 +353,9 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Update Viewer based on File Change Events
 		this.toDispose.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+
+		// Update resource context based on focused element
+		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => this.resourceContext.set(e.focus && e.focus.resource)));
 
 		return this.explorerViewer;
 	}

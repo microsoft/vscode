@@ -22,7 +22,7 @@ function editOp(startLineNumber: number, startColumn: number, endLineNumber: num
 
 suite('FormatCommand.trimEdit', () => {
 	function testTrimEdit(lines: string[], edit:ISingleEditOperation, expected:ISingleEditOperation): void {
-		let model = new Model(lines.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		let model = Model.createFromString(lines.join('\n'));
 		let actual = EditOperationsCommand.trimEdit(edit, model);
 		assert.deepEqual(actual, expected);
 		model.dispose();

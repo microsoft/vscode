@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError, transformErrorForSerialization} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {parse, stringify} from 'vs/base/common/marshalling';
-import {IRemoteCom} from 'vs/base/common/remote';
-import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as workerProtocol from 'vs/base/common/worker/workerProtocol';
 
@@ -17,12 +15,21 @@ export interface IWorker {
 	dispose():void;
 }
 
+let webWorkerWarningLogged = false;
+export function logOnceWebWorkerWarning(err:any): void {
+	if (!webWorkerWarningLogged) {
+		webWorkerWarningLogged = true;
+		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/Microsoft/monaco-editor#faq');
+	}
+	console.warn(err.message);
+}
+
 export interface IWorkerCallback {
 	(message:string):void;
 }
 
 export interface IWorkerFactory {
-	create(moduleId:string, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
+	create(moduleId:string, callback:IWorkerCallback, onErrorCallback:(err:any)=>void):IWorker;
 }
 
 interface IActiveRequest {
@@ -42,24 +49,26 @@ export class WorkerClient {
 	private _messagesQueue:workerProtocol.IClientMessage[];
 	private _processQueueTimeout:number;
 	private _waitingForWorkerReply:boolean;
-	private _lastTimerEvent:timer.ITimerEvent;
-
-	private _remoteCom: workerProtocol.RemoteCom;
-	private _decodeMessageName: (msg: workerProtocol.IClientMessage) => string;
 
 	public onModuleLoaded:TPromise<void>;
 
-	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:workerProtocol.IClientMessage)=>string) {
-		this._decodeMessageName = decodeMessageName;
+	constructor(workerFactory:IWorkerFactory, moduleId:string) {
 		this._lastMessageId = 0;
 		this._promises = {};
 
 		this._messagesQueue = [];
 		this._processQueueTimeout = -1;
 		this._waitingForWorkerReply = false;
-		this._lastTimerEvent = null;
 
-		this._worker = workerFactory.create('vs/base/common/worker/workerServer', (msg) => this._onSerializedMessage(msg));
+		this._worker = workerFactory.create(
+			'vs/base/common/worker/workerServer',
+			(msg) => this._onSerializedMessage(msg),
+			(err) => {
+				// reject the onModuleLoaded promise, this signals that things are bad
+				let promiseEntry:IActiveRequest = this._promises[1];
+				delete this._promises[1];
+				promiseEntry.error(err);
+			});
 
 		let loaderConfiguration:any = null;
 
@@ -72,28 +81,14 @@ export class WorkerClient {
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
 
-		let GlobalEnvironment = (<any>window).GlobalEnvironment || null;
-
 		this.onModuleLoaded = this._sendMessage(workerProtocol.MessageType.INITIALIZE, {
 			id: this._worker.getId(),
 			moduleId: moduleId,
-			loaderConfiguration: loaderConfiguration,
-			GlobalEnvironment: GlobalEnvironment
+			loaderConfiguration: loaderConfiguration
 		});
-		this.onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
-
-		this._remoteCom = new workerProtocol.RemoteCom(this);
 	}
 
-	public getRemoteCom(): IRemoteCom {
-		return this._remoteCom;
-	}
-
-	public getQueueSize(): number {
-		return this._messagesQueue.length + (this._waitingForWorkerReply ? 1 : 0);
-	}
-
-	public request(requestName:string, payload:any, forceTimestamp?:number): TPromise<any> {
+	public request(requestName:string, payload:any): TPromise<any> {
 
 		if (requestName.charAt(0) === '$') {
 			throw new Error('Illegal requestName: ' + requestName);
@@ -108,7 +103,7 @@ export class WorkerClient {
 			// promise so that it won't be canceled by accident
 			this.onModuleLoaded.then(() => {
 				if (!shouldCancelPromise) {
-					messagePromise = this._sendMessage(requestName, payload, forceTimestamp).then(c, e, p);
+					messagePromise = this._sendMessage(requestName, payload).then(c, e, p);
 				}
 			}, e, p);
 
@@ -120,10 +115,6 @@ export class WorkerClient {
 				shouldCancelPromise = true;
 			}
 		});
-	}
-
-	public destroy(): void {
-		this.dispose();
 	}
 
 	public dispose(): void {
@@ -140,12 +131,12 @@ export class WorkerClient {
 		this._worker.dispose();
 	}
 
-	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {
+	private _sendMessage(type:string, payload:any):TPromise<any> {
 
 		let msg = {
 			id: ++this._lastMessageId,
 			type: type,
-			timestamp: forceTimestamp,
+			timestamp: Date.now(),
 			payload: payload
 		};
 
@@ -226,7 +217,6 @@ export class WorkerClient {
 			}
 			this._waitingForWorkerReply = true;
 			let msg = this._messagesQueue.shift();
-			this._lastTimerEvent = timer.start(timer.Topic.WORKER, this._decodeMessageName(msg));
 			this._postMessage(msg);
 		}, delayUntilNextMessage);
 	}
@@ -260,9 +250,6 @@ export class WorkerClient {
 				let serverReplyMessage = <workerProtocol.IServerReplyMessage>msg;
 
 				this._waitingForWorkerReply = false;
-				if(this._lastTimerEvent) {
-					this._lastTimerEvent.stop();
-				}
 
 				if (!this._promises.hasOwnProperty(String(serverReplyMessage.id))) {
 					this._onError('Received unexpected message from Worker:', msg);
@@ -298,57 +285,10 @@ export class WorkerClient {
 				break;
 
 			default:
-				this._dispatchRequestFromWorker(msg);
+				this._onError('Received unexpected message from worker:', msg);
 		}
 
 		this._processMessagesQueue();
-	}
-
-	private _dispatchRequestFromWorker(msg:workerProtocol.IServerMessage): void {
-		this._handleWorkerRequest(msg).then((result) => {
-			let reply: workerProtocol.IClientReplyMessage = {
-				id: 0,
-				type: workerProtocol.MessageType.REPLY,
-				timestamp: (new Date()).getTime(),
-
-				seq: msg.req,
-				payload: (result instanceof Error ? transformErrorForSerialization(result) : result),
-				err: null
-			};
-			this._postMessage(reply);
-		}, (err) => {
-			let reply: workerProtocol.IClientReplyMessage = {
-				id: 0,
-				type: workerProtocol.MessageType.REPLY,
-				timestamp: (new Date()).getTime(),
-
-				seq: msg.req,
-				payload: null,
-				err: (err instanceof Error ? transformErrorForSerialization(err) : err)
-			};
-			this._postMessage(reply);
-		});
-	}
-
-	private _handleWorkerRequest(msg:workerProtocol.IServerMessage): TPromise<any> {
-		if (msg.type === '_proxyObj') {
-			return this._remoteCom.handleMessage(msg.payload);
-		}
-
-		if (typeof this[msg.type] === 'function') {
-			return this._invokeHandler(this[msg.type], this, msg.payload);
-		}
-
-		this._onError('Received unexpected message from Worker:', msg);
-		return TPromise.wrapError(new Error('No handler found'));
-	}
-
-	private _invokeHandler(handler:Function, handlerCtx:any, payload:any): TPromise<any> {
-		try {
-			return TPromise.as(handler.call(handlerCtx, payload));
-		} catch (err) {
-			return TPromise.wrapError(err);
-		}
 	}
 
 	_consoleLog(level:string, payload:any): void {

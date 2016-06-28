@@ -6,112 +6,32 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
-import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IFileService} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IProgressService} from 'vs/platform/progress/common/progress';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {ISearchService} from 'vs/platform/search/common/search';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {MockExtensionService} from 'vs/editor/test/common/mocks/mockExtensionService';
-
-export interface IMockPlatformServices {
-	threadService?:IThreadService;
-	extensionService?:IExtensionService;
-	instantiationService?:IInstantiationService;
-	lifecycleService?: ILifecycleService;
-	messageService?:IMessageService;
-	markerService?: IMarkerService;
-	editorService?:IEditorService;
-	requestService?:IRequestService;
-	keybindingService?:IKeybindingService;
-	contextService?:IWorkspaceContextService;
-	contextViewService?:IContextViewService;
-	contextMenuService?:IContextMenuService;
-	telemetryService?:ITelemetryService;
-	eventService?:IEventService;
-	storageService?:IStorageService;
-	searchService?:ISearchService;
-	configurationService?:IConfigurationService;
-	progressService?:IProgressService;
-	fileService?:IFileService;
-}
-
-function createMockPlatformServices(mockPlatformServices:IMockPlatformServices = {}): any {
-	return {
-		threadService: mockPlatformServices.threadService,
-		extensionService: mockPlatformServices.extensionService,
-		instantiationService: mockPlatformServices.instantiationService,
-		lifecycleService: mockPlatformServices.lifecycleService,
-		messageService: mockPlatformServices.messageService,
-		markerService:mockPlatformServices.markerService,
-		editorService: mockPlatformServices.editorService,
-		requestService: mockPlatformServices.requestService,
-		keybindingService: mockPlatformServices.keybindingService,
-		contextService: mockPlatformServices.contextService,
-		contextViewService: mockPlatformServices.contextViewService,
-		contextMenuService: mockPlatformServices.contextMenuService,
-		telemetryService: mockPlatformServices.telemetryService,
-		eventService: mockPlatformServices.eventService,
-		storageService: mockPlatformServices.storageService,
-		configurationService: mockPlatformServices.configurationService,
-		searchService: mockPlatformServices.searchService,
-		progressService: mockPlatformServices.progressService,
-		fileService: mockPlatformServices.fileService
-	};
-}
-
-export interface IMockEditorServices extends IMockPlatformServices {
-	modelService?: IModelService;
-	modeService?: IModeService;
-}
-
-export interface IMockEditorWorkerServices extends IMockPlatformServices {
-	resourceService?: IResourceService;
-}
-
-export function createMockEditorWorkerServices(mockEditorWorkerServices: IMockEditorWorkerServices = {}):any {
-	var ret = createMockPlatformServices(mockEditorWorkerServices);
-	ret['resourceService'] = mockEditorWorkerServices.resourceService;
-	return ret;
-}
 
 class MockModeService extends ModeServiceImpl {}
 
 class MockModelService extends ModelServiceImpl { }
 
 export function createMockModeService(): IModeService {
-	var threadService = NULL_THREAD_SERVICE;
+	let services = new ServiceCollection();
+	let inst = new InstantiationService(services);
+
 	var extensionService = new MockExtensionService();
-	var modeService = new MockModeService(threadService, extensionService);
-	var services = new ServiceCollection();
-	services.set(IThreadService, threadService);
 	services.set(IExtensionService, extensionService);
+
+	var modeService = new MockModeService(inst, extensionService);
 	services.set(IModeService, modeService);
-	var inst = new InstantiationService(services);
-	threadService.setInstantiationService(inst);
+
 	return modeService;
 }
 
@@ -123,24 +43,12 @@ export function createMockModelService(): IModelService {
 		uid: null,
 		mtime: null
 	}, {});
+
 	let eventService = new EventService();
+
 	let configurationService = new MockConfigurationService(contextService, eventService);
-	var threadService = NULL_THREAD_SERVICE;
-	var extensionService = new MockExtensionService();
-	var modeService = new MockModeService(threadService, extensionService);
-	var modelService = new MockModelService(threadService, null, modeService, configurationService, null);
 
-	var services = new ServiceCollection();
-	services.set(IThreadService, threadService);
-	services.set(IExtensionService, extensionService);
-	services.set(IModeService, modeService);
-	services.set(IWorkspaceContextService, contextService);
-	services.set(IEventService, eventService);
-	services.set(IConfigurationService, configurationService);
-	var inst = new InstantiationService(services);
-
-	threadService.setInstantiationService(inst);
-	return modelService;
+	return new MockModelService(null, configurationService, null);
 }
 
 export class MockConfigurationService extends ConfigurationService {

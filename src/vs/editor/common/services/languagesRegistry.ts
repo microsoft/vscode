@@ -16,6 +16,7 @@ var hasOwnProperty = Object.prototype.hasOwnProperty;
 export interface ICompatModeDescriptor {
 	moduleId: string;
 	ctorName: string;
+	deps: string[];
 }
 
 export class LanguagesRegistry {
@@ -67,7 +68,8 @@ export class LanguagesRegistry {
 
 			this.compatModes[def.id] = {
 				moduleId: def.moduleId,
-				ctorName: def.ctorName
+				ctorName: def.ctorName,
+				deps: def.deps
 			};
 
 			addedModes.push(def.id);

@@ -14,25 +14,175 @@
 	<array>
 		<dict>
 			<key>begin</key>
-			<string>&lt;#</string>
+			<string>(--%)</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.powershell</string>
+				</dict>
+			</dict>
+			<key>comment</key>
+			<string>Stop Parsing</string>
+			<key>end</key>
+			<string>$</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#lineComment</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>(.)</string>
+					<key>name</key>
+					<string>support.other.powershell</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#illegalBacktick</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#lineComment</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#blockComment</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#stringDoubleQuoted</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#stringSingleQuoted</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#stringDoubleQuotedHeredoc</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#stringSingleQuotedHeredoc</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#switch</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#scriptBlock</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#subExpression</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#arrayDeclaration</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#redirection</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#numericConstant</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#operators</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#type</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#function</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#enum</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#class</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#reservedWords</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#controlWords</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#commands</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#executableFiles</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#illegalVariable</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#variable</string>
+		</dict>
+	</array>
+	<key>repository</key>
+	<dict>
+		<key>arrayDeclaration</key>
+		<dict>
+			<key>begin</key>
+			<string>(\@?\()</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.start.definition.comment.block.powershell</string>
+					<string>keyword.other.powershell</string>
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>#&gt;</string>
+			<string>(\))((\.[\w"']+)*)</string>
 			<key>endCaptures</key>
 			<dict>
-				<key>0</key>
+				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.end.definition.comment.block.powershell</string>
+					<string>keyword.other.powershell</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>entity.other.attribute-name.powershell</string>
 				</dict>
 			</dict>
+			<key>name</key>
+			<string>meta.array.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>$self</string>
+				</dict>
+			</array>
+		</dict>
+		<key>blockComment</key>
+		<dict>
+			<key>begin</key>
+			<string>(&lt;#)</string>
+			<key>end</key>
+			<string>(#&gt;)</string>
 			<key>name</key>
 			<string>comment.block.powershell</string>
 			<key>patterns</key>
@@ -43,213 +193,589 @@
 				</dict>
 			</array>
 		</dict>
+		<key>class</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;![\\-])#</string>
-			<key>end</key>
-			<string>$</string>
-			<key>name</key>
-			<string>comment.line.number-sign.powershell</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>#commentEmbeddedDocs</string>
-				</dict>
-			</array>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>[2-6]&gt;&amp;1|&gt;&gt;|&gt;|&lt;&lt;|&lt;|&gt;|&gt;\||[1-6]&gt;|[1-6]&gt;&gt;</string>
-			<key>name</key>
-			<string>keyword.operator.redirection.powershell</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#commands</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#variable</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#interpolatedStringContent</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#function</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#attribute</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#type</string>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>(?&lt;!(?&lt;!`)")"</string>
-			<key>end</key>
-			<string>"(?!")</string>
-			<key>name</key>
-			<string>string.quoted.double.powershell</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>#variableNoProperty</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#doubleQuotedStringEscapes</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#interpolation</string>
-				</dict>
-				<dict>
-					<key>match</key>
-					<string>`\s*$</string>
-					<key>name</key>
-					<string>keyword.other.powershell</string>
-				</dict>
-			</array>
-		</dict>
-		<dict>
-			<key>comment</key>
-			<string>Needed to parse stuff correctly in 'argument mode'. (See about_parsing.)</string>
-			<key>include</key>
-			<string>#doubleQuotedStringEscapes</string>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>(?&lt;!')'</string>
-			<key>end</key>
-			<string>'(?!')</string>
-			<key>name</key>
-			<string>string.quoted.single.powershell</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>match</key>
-					<string>''</string>
-					<key>name</key>
-					<string>constant.character.escape.powershell</string>
-				</dict>
-			</array>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>\@"(?=$)</string>
-			<key>end</key>
-			<string>^"@</string>
-			<key>name</key>
-			<string>string.quoted.double.heredoc.powershell</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>#variableNoProperty</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#doubleQuotedStringEscapes</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#interpolation</string>
-				</dict>
-			</array>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>\@'(?=$)</string>
-			<key>end</key>
-			<string>^'@</string>
-			<key>name</key>
-			<string>string.quoted.single.heredoc.powershell</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>match</key>
-					<string>''</string>
-					<key>name</key>
-					<string>constant.character.escape.powershell</string>
-				</dict>
-			</array>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#numericConstant</string>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>@\(</string>
-			<key>captures</key>
+			<string>(?&lt;!\w|-)(?i:(class))\s+(\w+)(?:\s*(:)\s*(\w+))?\s*\{</string>
+			<key>beginCaptures</key>
 			<dict>
-				<key>0</key>
+				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.other.powershell</string>
+					<string>storage.type.powershell</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.powershell</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.powershell</string>
+				</dict>
+				<key>4</key>
+				<dict>
+					<key>name</key>
+					<string>entity.other.inherited-class.powershell</string>
 				</dict>
 			</dict>
+			<key>comment</key>
+			<string>Class</string>
 			<key>end</key>
-			<string>\)</string>
+			<string>\}</string>
 			<key>name</key>
-			<string>meta.group.array-expression.powershell</string>
+			<string>meta.class.powershell</string>
 			<key>patterns</key>
 			<array>
+				<dict>
+					<key>include</key>
+					<string>#classReservedWords</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#classBaseKeyword</string>
+				</dict>
 				<dict>
 					<key>include</key>
 					<string>$self</string>
 				</dict>
 			</array>
 		</dict>
+		<key>classBaseKeyword</key>
 		<dict>
-			<key>begin</key>
-			<string>\$\(</string>
 			<key>captures</key>
 			<dict>
-				<key>0</key>
+				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.other.powershell</string>
+					<string>keyword.operator.powershell</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.control.class.powershell</string>
 				</dict>
 			</dict>
 			<key>comment</key>
-			<string>TODO: move to repo; make recursive.</string>
-			<key>end</key>
-			<string>\)</string>
+			<string>The base keyword used in classes.</string>
+			<key>match</key>
+			<string>(:)\s*(?i:(base))\s*(?=\()</string>
+		</dict>
+		<key>classReservedWords</key>
+		<dict>
+			<key>comment</key>
+			<string>Reserved words for classes.</string>
+			<key>match</key>
+			<string>\b(?i:(hidden|static))\b</string>
 			<key>name</key>
-			<string>meta.group.complex.subexpression.powershell</string>
+			<string>keyword.other.powershell</string>
+		</dict>
+		<key>commandParameter</key>
+		<dict>
 			<key>patterns</key>
 			<array>
 				<dict>
-					<key>include</key>
-					<string>$self</string>
+					<key>comment</key>
+					<string>-Parameter value</string>
+					<key>match</key>
+					<string>\s(-\w+)(:)?</string>
+					<key>name</key>
+					<string>variable.parameter.powershell</string>
 				</dict>
 			</array>
 		</dict>
+		<key>commands</key>
 		<dict>
-			<key>match</key>
-			<string>(?&lt;!\w)-([ci]?[lg][te]|eq|ne)</string>
-			<key>name</key>
-			<string>keyword.operator.logical.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>(?&lt;!\\)\b((?i:(Add|Approve|Assert|Backup|Block|Checkpoint|Clear|Close|Compare|Complete|Compress|Confirm|Connect|Convert|ConvertFrom|ConvertTo|Copy|Debug|Deny|Disable|Disconnect|Dismount|Edit|Enable|Enter|Exit|Expand|Export|Find|Format|Get|Grant|Group|Hide|Import|Initialize|Install|Invoke|Join|Limit|Lock|Measure|Merge|Mount|Move|New|Open|Optimize|Out|Ping|Pop|Protect|Publish|Push|Read|Receive|Redo|Register|Remove|Rename|Repair|Request|Reset|Resize|Resolve|Restart|Restore|Resume|Revoke|Save|Search|Select|Send|Set|Show|Skip|Split|Start|Step|Stop|Submit|Suspend|Switch|Sync|Test|Trace|Unblock|Undo|Uninstall|Unlock|Unprotect|Unpublish|Unregister|Update|Use|Wait|Watch|Write))-(\w+))\b(?!\.|\\)</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Generic function match based on Verb-Noun pair using list of approved verbs.</string>
+					<key>end</key>
+					<string>((?=\))|(?=\})|(?&lt;!`)\n|(?&lt;!`)\r|(\|))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.powershell</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.command.powershell</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#scriptblock</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#commandParameter</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#lineComment</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#redirection</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#numericConstant</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#operators</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#variable</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringDoubleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringSingleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#arrayDeclaration</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalBacktick</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalVariable</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>(?&lt;!\\)\b(?i:foreach-object|tee-object|where-object|sort-object)\b(?!\.|\\)</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Built-in commands that don't adhere to the approved verbs standard.</string>
+					<key>end</key>
+					<string>((?=\))|(?=\})|(?&lt;!`)\n|(?&lt;!`)\r|(\|))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.powershell</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.command.powershell</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#scriptblock</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#commandParameter</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#lineComment</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#redirection</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#numericConstant</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#operators</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#variable</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringDoubleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringSingleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#arrayDeclaration</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalBacktick</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalVariable</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>(?&lt;!\\|\[)\b(?i:ac|asnp|cat|cd|cfs|chdir|clc|clear|clhy|cli|clp|cls|clv|cnsn|compare|copy|cp|cpi|cpp|curl|cvpa|dbp|del|diff|dir|dnsn|ebp|echo|epal|epcsv|epsn|erase|etsn|exsn|fc|fhx|fl|ft|fw|gal|gbp|gc|gcb|gci|gcm|gcs|gdr|ghy|gi|gjb|gl|gm|gmo|gp|gps|gpv|group|gsn|gsnp|gsv|gu|gv|gwmi|h|history|icm|iex|ihy|ii|ipal|ipcsv|ipmo|ipsn|irm|ise|iwmi|iwr|kill|lp|ls|man|md|measure|mi|mount|move|mp|mv|nal|ndr|ni|nmo|npssc|nsn|nv|ogv|oh|popd|ps|pushd|r|rbp|rcjb|rcsn|rd|rdr|ren|ri|rjb|rm|rmdir|rmo|rni|rnp|rp|rsn|rsnp|rujb|rv|rvpa|rwmi|sajb|sal|saps|sasv|sbp|sc|scb|select|set|shcm|si|sl|sleep|sls|sort|sp|spjb|spps|spsv|start|sujb|sv|swmi|tee|trcm|type|wget|wjb|write)\b(?!\.|\\|\])</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Built-in aliases</string>
+					<key>end</key>
+					<string>((?=\))|(?=\})|(?&lt;!`)\n|(?&lt;!`)\r|(\|))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.powershell</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.command.powershell</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#scriptblock</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#commandParameter</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#lineComment</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#redirection</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#numericConstant</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#operators</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#variable</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringDoubleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringSingleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#arrayDeclaration</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalBacktick</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalVariable</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>(\b(([A-Za-z0-9\-_\.]+).(?i:ps1))\b)</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>External script</string>
+					<key>end</key>
+					<string>((?=\))|(?=\})|(?&lt;!`)\n|(?&lt;!`)\r|(\|))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.powershell</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.command.powershell</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#scriptblock</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#commandParameter</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#lineComment</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#redirection</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#numericConstant</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#operators</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#variable</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringDoubleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#stringSingleQuoted</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#arrayDeclaration</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalBacktick</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegalVariable</string>
+						</dict>
+					</array>
+				</dict>
+			</array>
 		</dict>
+		<key>commentEmbeddedDocs</key>
 		<dict>
-			<key>match</key>
-			<string>(?i:[a-z][a-z0-9]+-?[a-z][a-z0-9]+)(?i:\.(?i:exe|cmd|bat|ps1))</string>
-			<key>name</key>
-			<string>support.function.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+					</dict>
+					<key>match</key>
+					<string>(?i:(\.)(SYNOPSIS|DESCRIPTION|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT|FUNCTIONALITY|ROLE)\b)</string>
+					<key>name</key>
+					<string>comment.documentation.embedded.powershell</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>constant.string.documentation.powershell</string>
+						</dict>
+					</dict>
+					<key>match</key>
+					<string>(?i:(\.)(PARAMETER|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE|EXTERNALHELP)\s+(.+))</string>
+					<key>name</key>
+					<string>comment.documentation.embedded.powershell</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>constant.string.documentation.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Requires -Version</string>
+					<key>match</key>
+					<string>(?i:(requires))\s(-(?i:version)\s\d+(\.\d+)?)</string>
+					<key>name</key>
+					<string>comment.documentation.embedded.powershell</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>constant.string.documentation.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Requires -PSSnapin</string>
+					<key>match</key>
+					<string>(?i:(requires))\s(-(?i:pssnapin)\s\w+(\s*-(?i:version)\s\d+(\.\d+)?)?)</string>
+					<key>name</key>
+					<string>comment.documentation.embedded.powershell</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>constant.string.documentation.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Requires -Modules</string>
+					<key>match</key>
+					<string>(?i:(requires))\s(-(?i:modules)\s.*)</string>
+					<key>name</key>
+					<string>comment.documentation.embedded.powershell</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>constant.string.documentation.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Requires -ShellId</string>
+					<key>match</key>
+					<string>(?i:(requires))\s(-(?i:shellid)\s.*)</string>
+					<key>name</key>
+					<string>comment.documentation.embedded.powershell</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.operator.documentation.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>constant.string.documentation.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Requires -RunAsAdministrator</string>
+					<key>match</key>
+					<string>(?i:(requires))\s(-(?i:runasadministrator))</string>
+					<key>name</key>
+					<string>comment.documentation.embedded.powershell</string>
+				</dict>
+			</array>
 		</dict>
+		<key>controlWords</key>
 		<dict>
 			<key>match</key>
-			<string>(?&lt;!\w)((?i:begin|break|catch|continue|data|define|do|dynamicparam|else|elseif|end|exit|finally|for|foreach(?!-object)|from|if|in|inlinescript|parallel|param|process|return|switch|throw|trap|try|until|using|var|where(?!=-object)|while)|%|\?)(?!\w)</string>
+			<string>(\b(?&lt;!-|\$)(?i:begin|exit|break|return|catch|finally|for|continue|foreach|throw|from|trap|try|do|if|until|in|using|else|elseif|while|end|where)\b(?!-|\.))</string>
 			<key>name</key>
 			<string>keyword.control.powershell</string>
 		</dict>
+		<key>defaultKeyword</key>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.other.powershell</string>
+				</dict>
+			</dict>
+			<key>comment</key>
+			<string>Default is a reserved word when used in Switch statements. This is kind of a work-around - it will highlight only inside scriptblocks.</string>
+			<key>match</key>
+			<string>(?i:(default))\s*(?=\{)</string>
+		</dict>
+		<key>enum</key>
 		<dict>
 			<key>captures</key>
 			<dict>
@@ -267,262 +793,21 @@
 			<key>comment</key>
 			<string>capture should be entity.name.type, but it doesn't provide a good color in the default schema.</string>
 			<key>match</key>
-			<string>(?&lt;!\w)((?i:class)|%|\?)(?:\s)+((?:\p{L}|\d|_|-|)+)\b</string>
+			<string>(?&lt;!\w|-)(?i:(enum))\s+(\w+)\s+</string>
 		</dict>
-		<dict>
-			<key>match</key>
-			<string>(?&lt;!\w)-(?i:is(?:not)?|as)\b</string>
-			<key>name</key>
-			<string>keyword.operator.comparison.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>(?&lt;!\w)-(?i:[ic]?(?:eq|ne|[gl][te]|(?:not)?(?:like|match|contains|in)|replace))(?!\p{L})</string>
-			<key>name</key>
-			<string>keyword.operator.comparison.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>(?&lt;!\w)-(?i:join|split)(?!\p{L})|!</string>
-			<key>name</key>
-			<string>keyword.operator.unary.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>(?&lt;!\w)-(?i:and|or|not|xor)(?!\p{L})|!</string>
-			<key>name</key>
-			<string>keyword.operator.logical.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>(?&lt;!\w)-(?i:band|bor|bnot|bxor)(?!\p{L})</string>
-			<key>name</key>
-			<string>keyword.operator.bitwise.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>(?&lt;!\w)-(?i:f)(?!\p{L})</string>
-			<key>name</key>
-			<string>keyword.operator.string-format.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>[+%*/-]?=|[+/*%-]</string>
-			<key>name</key>
-			<string>keyword.operator.assignment.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>\|{2}|&amp;{2}|;</string>
-			<key>name</key>
-			<string>keyword.other.statement-separator.powershell</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>&amp;|(?&lt;!\w)\.(?= )|`|,|\|</string>
-			<key>name</key>
-			<string>keyword.operator.other.powershell</string>
-		</dict>
+		<key>executableFiles</key>
 		<dict>
 			<key>comment</key>
-			<string>This is very imprecise, is there a syntax for 'must come after...' </string>
+			<string>Executable files, like exe, com, cmd and bat</string>
 			<key>match</key>
-			<string>(?&lt;!\s|^)\.\.(?=\d|\(|\$)</string>
+			<string>(\b(([A-Za-z0-9\-_\.]+).(?i:exe|com|cmd|bat))\b)</string>
 			<key>name</key>
-			<string>keyword.operator.range.powershell</string>
-		</dict>
-	</array>
-	<key>repository</key>
-	<dict>
-		<key>attribute</key>
-		<dict>
-			<key>begin</key>
-			<string>\[(\p{L}|\.|``\d+)+(?=\()</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.tag</string>
-				</dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.tag</string>
-				</dict>
-			</dict>
-			<key>end</key>
-			<string>\]</string>
-			<key>endCaptures</key>
-			<dict>
-				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.tag</string>
-				</dict>
-			</dict>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>begin</key>
-					<string>\(</string>
-					<key>end</key>
-					<string>\)</string>
-					<key>name</key>
-					<string>entity.other.attribute-name</string>
-					<key>patterns</key>
-					<array>
-						<dict>
-							<key>captures</key>
-							<dict>
-								<key>0</key>
-								<dict>
-									<key>name</key>
-									<string>entity.other.attribute.parameter.powershell</string>
-								</dict>
-								<key>1</key>
-								<dict>
-									<key>name</key>
-									<string>constant.language.powershell</string>
-								</dict>
-								<key>2</key>
-								<dict>
-									<key>name</key>
-									<string>variable.other.powershell</string>
-								</dict>
-							</dict>
-							<key>comment</key>
-							<string>really we should match the known attributes first</string>
-							<key>match</key>
-							<string>(\w+)\s*=?([^"']*?|'[^']*?'|"[^"]*?")?(?=,|\))</string>
-							<key>name</key>
-							<string>entity.other.attribute-name.powershell</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>#variable</string>
-						</dict>
-					</array>
-				</dict>
-			</array>
-		</dict>
-		<key>commands</key>
-		<dict>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>comment</key>
-					<string>Verb-Noun pattern:</string>
-					<key>match</key>
-					<string>(?:(\p{L}|\d|_|-|\\|\:)*\\)?\b(?i:Add|Approve|Assert|Backup|Block|Checkpoint|Clear|Close|Compare|Complete|Compress|Confirm|Connect|Convert|ConvertFrom|ConvertTo|Copy|Debug|Deny|Disable|Disconnect|Dismount|Edit|Enable|Enter|Exit|Expand|Export|Find|Format|Get|Grant|Group|Hide|Import|Initialize|Install|Invoke|Join|Limit|Lock|Measure|Merge|Mount|Move|New|Open|Optimize|Out|Ping|Pop|Protect|Publish|Push|Read|Receive|Redo|Register|Remove|Rename|Repair|Request|Reset|Resize|Resolve|Restart|Restore|Resume|Revoke|Save|Search|Select|Send|Set|Show|Skip|Split|Start|Step|Stop|Submit|Suspend|Switch|Sync|Test|Trace|Unblock|Undo|Uninstall|Unlock|Unprotect|Unpublish|Unregister|Update|Use|Wait|Watch|Write)\-.+?(?:\.(?i:exe|cmd|bat|ps1))?\b</string>
-					<key>name</key>
-					<string>support.function.powershell</string>
-				</dict>
-				<dict>
-					<key>comment</key>
-					<string>Builtin cmdlets with reserved verbs</string>
-					<key>match</key>
-					<string>(?&lt;!\w)(?i:foreach-object)(?!\w)</string>
-					<key>name</key>
-					<string>support.function.powershell</string>
-				</dict>
-			</array>
-		</dict>
-		<key>commentEmbeddedDocs</key>
-		<dict>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>constant.string.documentation.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.operator.documentation.powershell</string>
-						</dict>
-					</dict>
-					<key>match</key>
-					<string>(?i:\s*(\.)(SYNOPSIS|DESCRIPTION|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT|FUNCTIONALITY))</string>
-					<key>name</key>
-					<string>comment.documentation.embedded.powershell</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>constant.string.documentation.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.operator.documentation.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.operator.documentation.powershell</string>
-						</dict>
-					</dict>
-					<key>match</key>
-					<string>(?i:\s*(\.)(PARAMETER|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE|EXTERNALHELP)\s+([a-z0-9-_]+))</string>
-					<key>name</key>
-					<string>comment.documentation.embedded.powershell</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>constant.string.documentation.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.operator.documentation.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>string.quoted.double.heredoc.powershell</string>
-						</dict>
-					</dict>
-					<key>match</key>
-					<string>(?i:requires\s+-(Version\s+\d(.\d+)?|Assembly\s+(.*)|Module\s+(.*)|PsSnapIn\s+(.*)|ShellId\s+(.*)))</string>
-					<key>name</key>
-					<string>comment.documentation.embedded.powershell</string>
-				</dict>
-			</array>
-		</dict>
-		<key>doubleQuotedStringEscapes</key>
-		<dict>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>match</key>
-					<string>`[0abnfrvt"'$`]</string>
-					<key>name</key>
-					<string>constant.character.escape.powershell</string>
-				</dict>
-				<dict>
-					<key>match</key>
-					<string>""</string>
-					<key>name</key>
-					<string>constant.character.escape.powershell</string>
-				</dict>
-			</array>
+			<string>support.function.powershell</string>
 		</dict>
 		<key>function</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\S)(?i)(function|filter|configuration|workflow)\s+(?:(global|local|script|private):)?((?:\p{L}|\d|_|-|\.)+)</string>
+			<string>(?&lt;!\S)(?i)(function|filter|workflow|configuration)\s+(?:(global|local|script|private):)?((?:\p{L}|\d|_|-|\.)+)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>0</key>
@@ -548,84 +833,61 @@
 			</dict>
 			<key>end</key>
 			<string>\{|\(</string>
-		</dict>
-		<key>interpolatedStringContent</key>
-		<dict>
-			<key>begin</key>
-			<string>\(</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.other.powershell</string>
-				</dict>
-			</dict>
-			<key>contentName</key>
-			<string>interpolated.simple.source.powershell</string>
-			<key>end</key>
-			<string>\)</string>
-			<key>endCaptures</key>
-			<dict>
-				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.other.powershell</string>
-				</dict>
-			</dict>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>include</key>
-					<string>$self</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#interpolation</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#interpolatedStringContent</string>
+					<string>#lineComment</string>
 				</dict>
 			</array>
 		</dict>
-		<key>interpolation</key>
+		<key>hashTable</key>
 		<dict>
 			<key>begin</key>
-			<string>(\$)\(</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.other.powershell</string>
-				</dict>
-			</dict>
-			<key>contentName</key>
-			<string>interpolated.complex.source.powershell</string>
+			<string>(@\{)</string>
 			<key>end</key>
-			<string>\)</string>
-			<key>endCaptures</key>
-			<dict>
-				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.other.powershell</string>
-				</dict>
-			</dict>
+			<string>(\})</string>
+			<key>name</key>
+			<string>meta.hashtable.powershell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>include</key>
 					<string>$self</string>
 				</dict>
+			</array>
+		</dict>
+		<key>illegalBacktick</key>
+		<dict>
+			<key>comment</key>
+			<string>Any characters (other than new line) after a back-tick, is illegal in PowerShell.</string>
+			<key>match</key>
+			<string>(`(?!$))</string>
+			<key>name</key>
+			<string>invalid.illegal.powershell</string>
+		</dict>
+		<key>illegalVariable</key>
+		<dict>
+			<key>match</key>
+			<string>\$\w+:\s</string>
+			<key>name</key>
+			<string>invalid.illegal.powershell</string>
+		</dict>
+		<key>lineComment</key>
+		<dict>
+			<key>begin</key>
+			<string>(^#|\s#)</string>
+			<key>comment</key>
+			<string>Line comment - must start with new line or at least one whitespace character before the '#'.</string>
+			<key>end</key>
+			<string>$</string>
+			<key>name</key>
+			<string>comment.line.number-sign.powershell</string>
+			<key>patterns</key>
+			<array>
 				<dict>
 					<key>include</key>
-					<string>#interpolation</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#interpolatedStringContent</string>
+					<string>#commentEmbeddedDocs</string>
 				</dict>
 			</array>
 		</dict>
@@ -634,71 +896,192 @@
 			<key>patterns</key>
 			<array>
 				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.operator.math.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>support.constant.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-					</dict>
+					<key>comment</key>
+					<string>Real [(+|-)] digits . digits [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]</string>
 					<key>match</key>
-					<string>(?&lt;!\w)(?i:(0x)([a-f0-9]+)((?i:L)?(?i:[kmgtp]b)?))(?!\w)</string>
+					<string>(?&lt;!\w)([-+]?)\d+\.\d+(?i:e(\+|-){0,1}\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\w|\d)</string>
+					<key>name</key>
+					<string>constant.numeric.real.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Real [(+|-)] . digits [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]</string>
+					<key>match</key>
+					<string>(?&lt;!\.|\d|\w)([-+]?)\.\d+(?i:e(\+|-){0,1}\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\w|\d)</string>
+					<key>name</key>
+					<string>constant.numeric.real.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Real [(+|-)] digits . [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]</string>
+					<key>match</key>
+					<string>(?&lt;!\w)([-+]?)(?&lt;!\d)\d+\.(?i:e(\+|-){0,1}\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\w|\d|\.)</string>
+					<key>name</key>
+					<string>constant.numeric.real.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Integer [(+|-)] digits [(d|l)] [(kb|mb|gb|tb|pb)]</string>
+					<key>match</key>
+					<string>(?&lt;!\w|\w\.)([-+]?)\d+(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\w|\d)</string>
+					<key>name</key>
+					<string>constant.numeric.integer.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Real [(+|-)] digits [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]</string>
+					<key>match</key>
+					<string>(?&lt;!\w|\.)([-+]?)(?&lt;!\d)\d+(?i:e(\+|-){0,1}\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\w|\d|\.)</string>
+					<key>name</key>
+					<string>constant.numeric.real.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Hexadecimal 0x 0-f [l] [kb|mb|gb|tb|pb]</string>
+					<key>match</key>
+					<string>(?&lt;!\w|\d)([-+]?)(?i:0x)(?i:[0-9a-f])+(?i:l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\w|\d)</string>
 					<key>name</key>
 					<string>constant.numeric.hexadecimal.powershell</string>
 				</dict>
+			</array>
+		</dict>
+		<key>operators</key>
+		<dict>
+			<key>patterns</key>
+			<array>
 				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>support.constant.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.operator.math.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>support.constant.powershell</string>
-						</dict>
-						<key>4</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>5</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-					</dict>
+					<key>comment</key>
+					<string>Comparison</string>
 					<key>match</key>
-					<string>(?&lt;!\w)(?i:(\d*\.?\d+)(?:((?i:E)[+-]?)(\d+))?((?i:[DL])?)((?i:[kmgtp]b)?))(?!\w)</string>
+					<string>(?&lt;=\d|\s|^)-(?i:as|is|isnot|in|notin|join|((c|i)?(eq|ne|gt|lt|ge|le|like|notlike|split|replace|contains|notcontains|match|notmatch))|shl|shr)\b(?!\.|\\)</string>
 					<key>name</key>
-					<string>constant.numeric.scientific.powershell</string>
+					<string>keyword.operator.comparison.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Bitwise</string>
+					<key>match</key>
+					<string>(?&lt;=\d|\s|^)-(?i:band|bor|bxor|bnot|shr|shl)\b</string>
+					<key>name</key>
+					<string>keyword.operator.bitwise.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Logical</string>
+					<key>match</key>
+					<string>(?&lt;=\d|\s|^)-(?i:and|or|xor)\b</string>
+					<key>name</key>
+					<string>keyword.operator.logical.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Format</string>
+					<key>match</key>
+					<string>(?&lt;=\d|\s|^)-(?i:f)\b</string>
+					<key>name</key>
+					<string>keyword.operator.format.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Assignment</string>
+					<key>match</key>
+					<string>(=|-=|\+=|\*=|/=|%=)</string>
+					<key>name</key>
+					<string>keyword.operator.assignment.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Logical NOT</string>
+					<key>match</key>
+					<string>(?&lt;=\d|\s|^)((?i:-not)|!)</string>
+					<key>name</key>
+					<string>keyword.operator.unary.logical-not.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Multiplicative</string>
+					<key>match</key>
+					<string>([*/%])(?!\.)</string>
+					<key>name</key>
+					<string>keyword.operator.multiplicative.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Unary Plus</string>
+					<key>match</key>
+					<string>([+](?=\$|\(|"))</string>
+					<key>name</key>
+					<string>keyword.operator.unary-plus.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Unary Minus</string>
+					<key>match</key>
+					<string>([-](?=\$|\(|"))</string>
+					<key>name</key>
+					<string>keyword.operator.unary-minus.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Additive</string>
+					<key>match</key>
+					<string>([+-])(?!\{|\p{L}|@)</string>
+					<key>name</key>
+					<string>keyword.operator.additive.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Range</string>
+					<key>match</key>
+					<string>(\.\.)</string>
+					<key>name</key>
+					<string>keyword.operator.range.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Command invocation (Call)</string>
+					<key>match</key>
+					<string>(&amp;|\|)</string>
+					<key>name</key>
+					<string>keyword.operator.other.powershell</string>
 				</dict>
 			</array>
 		</dict>
-		<key>scriptblock</key>
+		<key>redirection</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>comment</key>
+					<string>Merging redirection</string>
+					<key>match</key>
+					<string>(?&lt;=\s|^)([2-6\*]?&gt;&amp;1)</string>
+					<key>name</key>
+					<string>keyword.operator.redirection.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>File redirection</string>
+					<key>match</key>
+					<string>(?&lt;=\s|^)(([1-6\*]?&gt;{1,2})|(&lt;))</string>
+					<key>name</key>
+					<string>keyword.operator.redirection.powershell</string>
+				</dict>
+			</array>
+		</dict>
+		<key>reservedWords</key>
+		<dict>
+			<key>match</key>
+			<string>(\b(?&lt;!-|\$)(?i:configuration|node|process|enum|filter|sequence|class|data|define|function|dynamicparam|inlinescript|var|parallel|param|workflow)\b(?!-|\.))</string>
+			<key>name</key>
+			<string>keyword.other.powershell</string>
+		</dict>
+		<key>scriptBlock</key>
 		<dict>
 			<key>begin</key>
-			<string>\{</string>
+			<string>(\{)</string>
 			<key>end</key>
-			<string>\}</string>
+			<string>(\})</string>
 			<key>name</key>
 			<string>meta.scriptblock.powershell</string>
 			<key>patterns</key>
@@ -706,6 +1089,216 @@
 				<dict>
 					<key>include</key>
 					<string>$self</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#defaultKeyword</string>
+				</dict>
+			</array>
+		</dict>
+		<key>stringDoubleQuoted</key>
+		<dict>
+			<key>begin</key>
+			<string>((?&lt;!\")\")</string>
+			<key>end</key>
+			<string>(\"(?!\"))</string>
+			<key>name</key>
+			<string>string.quoted.double.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#illegalVariable</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#stringEscapeChars</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#variableWithoutPropertyHighlighting</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#subExpression</string>
+				</dict>
+			</array>
+		</dict>
+		<key>stringDoubleQuotedHeredoc</key>
+		<dict>
+			<key>begin</key>
+			<string>(\@"\s*$)</string>
+			<key>end</key>
+			<string>^"\@</string>
+			<key>name</key>
+			<string>string.quoted.double.heredoc.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#illegalVariable</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#stringEscapeChars</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#variableWithoutPropertyHighlighting</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#subExpression</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#scriptBlock</string>
+				</dict>
+			</array>
+		</dict>
+		<key>stringEscapeChars</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>match</key>
+					<string>(`[0abfnrtv"'$`])</string>
+					<key>name</key>
+					<string>constant.character.escape.powershell</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>("")</string>
+					<key>name</key>
+					<string>constant.character.escape.powershell</string>
+				</dict>
+			</array>
+		</dict>
+		<key>stringSingleQuoted</key>
+		<dict>
+			<key>begin</key>
+			<string>((?&lt;!')')</string>
+			<key>end</key>
+			<string>('(?!'))</string>
+			<key>name</key>
+			<string>string.quoted.single.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#stringSingleQuotedDouble</string>
+				</dict>
+			</array>
+		</dict>
+		<key>stringSingleQuotedDouble</key>
+		<dict>
+			<key>match</key>
+			<string>('')</string>
+			<key>name</key>
+			<string>constant.character.escape.powershell</string>
+		</dict>
+		<key>stringSingleQuotedHeredoc</key>
+		<dict>
+			<key>begin</key>
+			<string>(\@'\s*$)</string>
+			<key>end</key>
+			<string>^'\@</string>
+			<key>name</key>
+			<string>string.quoted.single.heredoc.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#stringSingleQuotedDouble</string>
+				</dict>
+			</array>
+		</dict>
+		<key>subExpression</key>
+		<dict>
+			<key>begin</key>
+			<string>(\$\()</string>
+			<key>captures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.other.powershell</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(\))</string>
+			<key>name</key>
+			<string>meta.subexpression.powershell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>$self</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>(.)</string>
+					<key>name</key>
+					<string>source.powershell</string>
+				</dict>
+			</array>
+		</dict>
+		<key>switch</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.control.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>variable.parameter.powershell</string>
+						</dict>
+						<key>4</key>
+						<dict>
+							<key>name</key>
+							<string>variable.parameter.powershell</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>variable.parameter.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>switch [-regex|-wildcard|-exact][-casesensitive] -file filename</string>
+					<key>match</key>
+					<string>\b(?i:(switch))\b\s+(?i:(-regex|-wildcard|-exact){0,1})\s*(?i:(-casesensitive){0,1})\s*(?i:(-file))\s+</string>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.control.powershell</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>variable.parameter.powershell</string>
+						</dict>
+						<key>3</key>
+						<dict>
+							<key>name</key>
+							<string>variable.parameter.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>switch [-regex|-wildcard|-exact][-casesensitive] (&lt;value&gt;)</string>
+					<key>match</key>
+					<string>\b(?i:(switch))\b\s+(?i:(-regex|-wildcard|-exact){0,1})\s*(?i:(-casesensitive){0,1})\s*</string>
 				</dict>
 			</array>
 		</dict>
@@ -718,32 +1311,81 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>entity.other.attribute-name</string>
+					<string>keyword.other.powershell</string>
 				</dict>
 			</dict>
 			<key>comment</key>
-			<string>name should be entity.name.type but default schema doesn't have a good color for it</string>
+			<string>Type []</string>
 			<key>end</key>
-			<string>\]</string>
+			<string>(\])(::[\w]+)*((\.[\w"']+)*)</string>
 			<key>endCaptures</key>
 			<dict>
-				<key>0</key>
+				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>entity.other.attribute-name</string>
+					<string>keyword.other.powershell</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>meta.method.powershell</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>entity.other.attribute-name.powershell</string>
 				</dict>
 			</dict>
 			<key>patterns</key>
 			<array>
 				<dict>
-					<key>match</key>
-					<string>(\p{L}|\.|``\d+)+?</string>
-					<key>name</key>
-					<string>entity.other.attribute-name</string>
+					<key>begin</key>
+					<string>\(</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.other.powershell</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Parenthesis ()</string>
+					<key>end</key>
+					<string>\)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.other.powershell</string>
+						</dict>
+					</dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>$self</string>
+						</dict>
+						<dict>
+							<key>comment</key>
+							<string>Reserved words within [( )]</string>
+							<key>match</key>
+							<string>\b(?i)(mandatory|valuefrompipeline|valuefrompipelinebypropertyname|valuefromremainingarguments|position|parametersetname|defaultparametersetname|supportsshouldprocess|positionalbinding|helpuri|confirmimpact)\b</string>
+							<key>name</key>
+							<string>entity.other.attribute-name.powershell</string>
+						</dict>
+					</array>
 				</dict>
 				<dict>
 					<key>include</key>
 					<string>$self</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>(.(`){0,2}(\d){0,2})</string>
+					<key>name</key>
+					<string>entity.name.type</string>
 				</dict>
 			</array>
 		</dict>
@@ -752,122 +1394,36 @@
 			<key>patterns</key>
 			<array>
 				<dict>
+					<key>comment</key>
+					<string>Invalid variable name</string>
+					<key>match</key>
+					<string>(\$)(\w+-\w+)\b</string>
+					<key>name</key>
+					<string>invalid.illegal.powershell</string>
+				</dict>
+				<dict>
 					<key>captures</key>
 					<dict>
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>keyword.other.powershell</string>
+							<string>constant.language.powershell</string>
 						</dict>
 						<key>2</key>
 						<dict>
 							<key>name</key>
 							<string>constant.language.powershell</string>
 						</dict>
-					</dict>
-					<key>comment</key>
-					<string>These are special constants.</string>
-					<key>match</key>
-					<string>(\$)(?i:(False|Null|True))\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>support.constant.variable.powershell</string>
-						</dict>
 						<key>3</key>
 						<dict>
 							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
+							<string>entity.other.attribute-name.powershell</string>
 						</dict>
 					</dict>
 					<key>comment</key>
-					<string>These are the other built-in constants.</string>
+					<string>Automatic variables - read-only.</string>
 					<key>match</key>
-					<string>(\$)(?i:(Error|ExecutionContext|Host|Home|PID|PsHome|PsVersionTable|ShellID))((?:\.(?:\p{L}|\d|_)+)*\b)?\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>support.constant.automatic.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
-					</dict>
-					<key>comment</key>
-					<string>Automatic variables are not constants, but they are read-only. In monokai (default) color schema support.variable doesn't have color, so we use constant.</string>
-					<key>match</key>
-					<string>(\$)(?i:(\$|\^|\?|_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This))((?:\.(?:\p{L}|\d|_)+)*\b)?\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>variable.language.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
-					</dict>
-					<key>comment</key>
-					<string>Style preference variables as language variables so that they stand out.</string>
-					<key>match</key>
-					<string>(\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))((?:\.(?:\p{L}|\d|_)+)*\b)?\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>storage.modifier.scope.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>variable.other.normal.powershell</string>
-						</dict>
-						<key>4</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
-					</dict>
-					<key>match</key>
-					<string>(?i:(\$)(global|local|private|script|using|workflow):((?:\p{L}|\d|_)+))((?:\.(?:\p{L}|\d|_)+)*\b)?</string>
+					<string>(\$)(?i:(_|args|consolefilename|error|event|eventsubscriber|executioncontext|false|foreach|home|host|input|lastexitcode|matches|myinvocation|nestedpromptlevel|null|pid|psboundparameters|pscmdlet|psculture|psdebugcontext|pshome|psitem|psscriptroot|psuiculture|psversiontable|pwd|sender|shellid|sourceargs|sourceeventargs|switch|this|true))\b((\.[\w"']+)*)</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -890,16 +1446,18 @@
 						<key>4</key>
 						<dict>
 							<key>name</key>
-							<string>keyword.other.powershell</string>
+							<string>variable.other.readwrite.powershell</string>
 						</dict>
 						<key>5</key>
 						<dict>
 							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
+							<string>entity.other.attribute-name.powershell</string>
 						</dict>
 					</dict>
+					<key>comment</key>
+					<string>$var, $local:var</string>
 					<key>match</key>
-					<string>(?i:(\$\{)(global|local|private|script|using|workflow):([^}]*[^}`])(\}))((?:\.(?:\p{L}|\d|_)+)*\b)?</string>
+					<string>(\$)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(\w+)(:\w+)?((\.[\w"']+)*)</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -912,21 +1470,33 @@
 						<key>2</key>
 						<dict>
 							<key>name</key>
-							<string>support.variable.drive.powershell</string>
+							<string>keyword.other.powershell</string>
 						</dict>
 						<key>3</key>
 						<dict>
 							<key>name</key>
-							<string>variable.other.readwrite.powershell</string>
+							<string>storage.modifier.scope.powershell</string>
 						</dict>
 						<key>4</key>
 						<dict>
 							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
+							<string>variable.other.readwrite.powershell</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.other.powershell</string>
+						</dict>
+						<key>6</key>
+						<dict>
+							<key>name</key>
+							<string>entity.other.attribute-name.powershell</string>
 						</dict>
 					</dict>
+					<key>comment</key>
+					<string>${var}, ${script:var}</string>
 					<key>match</key>
-					<string>(?i:(\$)((?:\p{L}|\d|_)+:)?((?:\p{L}|\d|_)+))((?:\.(?:\p{L}|\d|_)+)*\b)?</string>
+					<string>(\$)(\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+)(\})((\.[\w"']+)*)</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -939,40 +1509,35 @@
 						<key>2</key>
 						<dict>
 							<key>name</key>
-							<string>support.variable.drive.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
 							<string>variable.other.readwrite.powershell</string>
 						</dict>
-						<key>4</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>5</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
 					</dict>
+					<key>comment</key>
+					<string>Splatting</string>
 					<key>match</key>
-					<string>(?i:(\$\{)((?:\p{L}|\d|_)+:)?([^}]*[^}`])(\}))((?:\.(?:\p{L}|\d|_)+)*\b)?</string>
+					<string>(@)(\w+)</string>
 				</dict>
 			</array>
 		</dict>
-		<key>variableNoProperty</key>
+		<key>variableWithoutPropertyHighlighting</key>
 		<dict>
 			<key>patterns</key>
 			<array>
 				<dict>
+					<key>comment</key>
+					<string>Invalid variable name</string>
+					<key>match</key>
+					<string>(\$)(\w+-\w+)\b</string>
+					<key>name</key>
+					<string>invalid.illegal.powershell</string>
+				</dict>
+				<dict>
 					<key>captures</key>
 					<dict>
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>keyword.other.powershell</string>
+							<string>constant.language.powershell</string>
 						</dict>
 						<key>2</key>
 						<dict>
@@ -981,108 +1546,9 @@
 						</dict>
 					</dict>
 					<key>comment</key>
-					<string>These are special constants.</string>
+					<string>Automatic variables - read-only.</string>
 					<key>match</key>
-					<string>(\$)(?i:(False|Null|True))\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>support.constant.variable.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
-					</dict>
-					<key>comment</key>
-					<string>These are the other built-in constants.</string>
-					<key>match</key>
-					<string>(\$)(?i:(Error|ExecutionContext|Host|Home|PID|PsHome|PsVersionTable|ShellID))\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>support.variable.automatic.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
-					</dict>
-					<key>comment</key>
-					<string>Automatic variables are not constants, but they are read-only...</string>
-					<key>match</key>
-					<string>(\$)(?i:(\$|\^|\?|_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This))\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>variable.language.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
-					</dict>
-					<key>comment</key>
-					<string>Style preference variables as language variables so that they stand out.</string>
-					<key>match</key>
-					<string>(\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))\b</string>
-				</dict>
-				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>storage.modifier.scope.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
-							<string>variable.other.normal.powershell</string>
-						</dict>
-						<key>4</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
-					</dict>
-					<key>match</key>
-					<string>(?i:(\$)(global|local|private|script|using|workflow):((?:\p{L}|\d|_)+))</string>
+					<string>(\$)(?i:(_|args|consolefilename|error|event|eventsubscriber|executioncontext|false|foreach|home|host|input|lastexitcode|matches|myinvocation|nestedpromptlevel|null|pid|psboundparameters|pscmdlet|psculture|psdebugcontext|pshome|psitem|psscriptroot|psuiculture|psversiontable|pwd|sender|shellid|sourceargs|sourceeventargs|switch|this|true))\b</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -1105,16 +1571,13 @@
 						<key>4</key>
 						<dict>
 							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>5</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
+							<string>variable.other.readwrite.powershell</string>
 						</dict>
 					</dict>
+					<key>comment</key>
+					<string>$var, $local:var</string>
 					<key>match</key>
-					<string>(?i:(\$\{)(global|local|private|script|using|workflow):([^}]*[^}`])(\}))</string>
+					<string>(\$)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(\w+)(:\w+)?</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -1127,21 +1590,28 @@
 						<key>2</key>
 						<dict>
 							<key>name</key>
-							<string>support.variable.drive.powershell</string>
+							<string>keyword.other.powershell</string>
 						</dict>
 						<key>3</key>
 						<dict>
 							<key>name</key>
-							<string>variable.other.readwrite.powershell</string>
+							<string>storage.modifier.scope.powershell</string>
 						</dict>
 						<key>4</key>
 						<dict>
 							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
+							<string>variable.other.readwrite.powershell</string>
+						</dict>
+						<key>5</key>
+						<dict>
+							<key>name</key>
+							<string>keyword.other.powershell</string>
 						</dict>
 					</dict>
+					<key>comment</key>
+					<string>${var}, ${script:var}</string>
 					<key>match</key>
-					<string>(?i:(\$)((?:\p{L}|\d|_)+:)?((?:\p{L}|\d|_)+))</string>
+					<string>(\$)(\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+)(\})</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -1154,26 +1624,13 @@
 						<key>2</key>
 						<dict>
 							<key>name</key>
-							<string>support.variable.drive.powershell</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>name</key>
 							<string>variable.other.readwrite.powershell</string>
 						</dict>
-						<key>4</key>
-						<dict>
-							<key>name</key>
-							<string>keyword.other.powershell</string>
-						</dict>
-						<key>5</key>
-						<dict>
-							<key>name</key>
-							<string>entity.name.function.invocation.powershell</string>
-						</dict>
 					</dict>
+					<key>comment</key>
+					<string>Splatting</string>
 					<key>match</key>
-					<string>(?i:(\$\{)((?:\p{L}|\d|_)+:)?([^}]*[^}`])(\}))</string>
+					<string>(@)(\w+)</string>
 				</dict>
 			</array>
 		</dict>

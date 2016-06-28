@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -256,8 +256,6 @@ export interface ILineTokens {
  */
 export interface ITokenizationSupport {
 
-	shouldGenerateEmbeddedModels: boolean;
-
 	getInitialState():IState;
 
 	// add offsetDelta to each of the returned indices
@@ -321,7 +319,7 @@ export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
-	htmlContent: IHTMLContentElement[];
+	contents: MarkedString[];
 
 	/**
 	 * The range to which this hover applies. When missing, the
@@ -418,6 +416,7 @@ export interface CodeAction {
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+ * @internal
  */
 export interface CodeActionProvider {
 	/**

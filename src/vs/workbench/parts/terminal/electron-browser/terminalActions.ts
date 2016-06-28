@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Action} from 'vs/base/common/actions';
+import {Action, IAction} from 'vs/base/common/actions';
 import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 export class ToggleTerminalAction extends Action {
 
@@ -25,17 +26,17 @@ export class ToggleTerminalAction extends Action {
 	}
 }
 
-export class CloseTerminalAction extends Action {
+export class KillTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.close';
-	public static LABEL = nls.localize('workbench.action.terminal.close', "Terminal: Close the current terminal");
+	public static ID = 'workbench.action.terminal.kill';
+	public static LABEL = nls.localize('workbench.action.terminal.kill', "Terminal: Kill the Active Terminal Instance");
 
 	constructor(
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
-		this.class = 'terminal-action close';
+		this.class = 'terminal-action kill';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -88,7 +89,6 @@ export class FocusNextTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
-		this.class = 'terminal-action focus-next';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -106,10 +106,62 @@ export class FocusPreviousTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
-		this.class = 'terminal-action focus-previous';
 	}
 
 	public run(event?: any): TPromise<any> {
 		return this.terminalService.focusPrevious();
+	}
+}
+
+export class RunSelectedTextInTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.runSelectedText';
+	public static LABEL = nls.localize('workbench.action.terminal.runSelectedText', "Terminal: Run Selected Text In Active Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.runSelectedText();
+	}
+}
+
+export class SwitchTerminalInstanceAction extends Action {
+
+	public static ID = 'workbench.action.terminal.switchTerminalInstance';
+	public static LABEL = nls.localize('workbench.action.terminal.switchTerminalInstance', "Terminal: Switch Terminal Instance");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL);
+		this.class = 'terminal-action switch-terminal-instance';
+	}
+
+	public run(item?: string): TPromise<any> {
+		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
+		return this.terminalService.setActiveTerminal(selectedTerminalIndex);
+	}
+}
+
+export class SwitchTerminalInstanceActionItem extends SelectActionItem {
+
+	constructor(
+		action: IAction,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(null, action, terminalService.getTerminalInstanceTitles(), terminalService.getActiveTerminalIndex());
+		this.toDispose.push(this.terminalService.onInstancesChanged(this.updateItems, this));
+		this.toDispose.push(this.terminalService.onActiveInstanceChanged(this.updateItems, this));
+		this.toDispose.push(this.terminalService.onInstanceTitleChanged(this.updateItems, this));
+	}
+
+	private updateItems(): void {
+		this.setOptions(this.terminalService.getTerminalInstanceTitles(), this.terminalService.getActiveTerminalIndex());
 	}
 }

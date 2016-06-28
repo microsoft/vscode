@@ -71,6 +71,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
 		data.name.textContent = variable.name + ':';
+		data.name.title = variable.type ? variable.type : '';
 	}
 
 	if (variable.value) {

@@ -6,7 +6,7 @@
 
 import * as flags from 'vs/base/common/flags';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
+import {logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
 import * as dom from 'vs/base/browser/dom';
 
 function defaultGetWorkerUrl(workerId:string, label:string): string {
@@ -24,13 +24,16 @@ class WebWorker implements IWorker {
 	private id:number;
 	private worker:Worker;
 
-	constructor(moduleId:string, id:number, label:string, onMessageCallback:IWorkerCallback) {
+	constructor(moduleId:string, id:number, label:string, onMessageCallback:IWorkerCallback, onErrorCallback:(err:any)=>void) {
 		this.id = id;
 		this.worker = new Worker(getWorkerUrl('workerMain.js', label));
 		this.postMessage(moduleId);
 		this.worker.onmessage = function (ev:any) {
 			onMessageCallback(ev.data);
 		};
+		if (typeof this.worker.addEventListener === 'function') {
+			this.worker.addEventListener('error', onErrorCallback);
+		}
 	}
 
 	public getId(): number {
@@ -125,11 +128,41 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 
 	private static LAST_WORKER_ID = 0;
 
-	public create(moduleId:string, onMessageCallback:IWorkerCallback):IWorker {
-		var workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
-		if (typeof WebWorker !== 'undefined') {
-			return new WebWorker(moduleId, workerId, 'service' + workerId, onMessageCallback);
+	private _fallbackToIframe:boolean;
+	private _webWorkerFailedBeforeError:any;
+
+	constructor(fallbackToIframe:boolean) {
+		this._fallbackToIframe = fallbackToIframe;
+		this._webWorkerFailedBeforeError = false;
+	}
+
+	public create(moduleId:string, onMessageCallback:IWorkerCallback, onErrorCallback:(err:any)=>void):IWorker {
+		let workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
+		if (this._fallbackToIframe) {
+			if (this._webWorkerFailedBeforeError) {
+				// Avoid always trying to create web workers if they would just fail...
+				return new FrameWorker(moduleId, workerId, onMessageCallback);
+			}
+
+			try {
+				return new WebWorker(moduleId, workerId, 'service' + workerId, onMessageCallback, (err) => {
+					logOnceWebWorkerWarning(err);
+					this._webWorkerFailedBeforeError = err;
+					onErrorCallback(err);
+				});
+			} catch(err) {
+				logOnceWebWorkerWarning(err);
+				return new FrameWorker(moduleId, workerId, onMessageCallback);
+			}
 		}
-		return new FrameWorker(moduleId, workerId, onMessageCallback);
+
+		if (this._webWorkerFailedBeforeError) {
+			throw this._webWorkerFailedBeforeError;
+		}
+		return new WebWorker(moduleId, workerId, 'service' + workerId, onMessageCallback, (err) => {
+			logOnceWebWorkerWarning(err);
+			this._webWorkerFailedBeforeError = err;
+			onErrorCallback(err);
+		});
 	}
 }

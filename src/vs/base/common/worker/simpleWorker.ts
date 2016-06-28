@@ -165,9 +165,21 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 	constructor(workerFactory:IWorkerFactory, moduleId:string) {
 		super();
-		this._worker = this._register(workerFactory.create('vs/base/common/worker/simpleWorker', (msg:string) => {
-			this._protocol.handleMessage(msg);
-		}));
+
+		let lazyProxyFulfill : (v:T)=>void = null;
+		let lazyProxyReject: (err:any)=>void = null;
+
+		this._worker = this._register(workerFactory.create(
+			'vs/base/common/worker/simpleWorker',
+			(msg:string) => {
+				this._protocol.handleMessage(msg);
+			},
+			(err:any) => {
+				// in Firefox, web workers fail lazily :(
+				// we will reject the proxy
+				lazyProxyReject(err);
+			}
+		));
 
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg:string): void => {
@@ -190,9 +202,6 @@ export class SimpleWorkerClient<T> extends Disposable {
 			// Get the configuration from requirejs
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
-
-		let lazyProxyFulfill : (v:T)=>void = null;
-		let lazyProxyReject: (err:any)=>void = null;
 
 		this._lazyProxy = new TPromise((c, e, p) => {
 			lazyProxyFulfill = c;

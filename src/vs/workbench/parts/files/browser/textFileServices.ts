@@ -10,10 +10,10 @@ import errors = require('vs/base/common/errors');
 import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ITextFileService, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
+import {IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -21,6 +21,8 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {ModelBuilder} from 'vs/editor/node/model/modelBuilder';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -45,7 +47,9 @@ export abstract class TextFileService implements ITextFileService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IEventService private eventService: IEventService
+		@IEventService private eventService: IEventService,
+		@IFileService protected fileService: IFileService,
+		@IModelService private modelService: IModelService
 	) {
 		this.listenerToUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
@@ -58,6 +62,24 @@ export abstract class TextFileService implements ITextFileService {
 		this.onConfigurationChange(configuration);
 
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
+	}
+
+	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+		return this.fileService.resolveStreamContent(resource, options).then((streamContent) => {
+			return ModelBuilder.fromStringStream(streamContent.value, this.modelService.getCreationOptions()).then((res) => {
+				let r: IRawTextContent = {
+					resource: streamContent.resource,
+					name: streamContent.name,
+					mtime: streamContent.mtime,
+					etag: streamContent.etag,
+					mime: streamContent.mime,
+					encoding: streamContent.encoding,
+					value: res.rawText,
+					valueLogicalHash: res.hash
+				};
+				return r;
+			});
+		});
 	}
 
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {

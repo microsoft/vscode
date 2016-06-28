@@ -54,6 +54,7 @@
 .monaco-shell.vs select:focus,
 .monaco-shell.vs input[type="button"]:focus,
 .monaco-shell.vs input[type="submit"]:focus,
+.monaco-shell.vs input[type="search"]:focus,
 .monaco-shell.vs input[type="text"]:focus, .monaco-shell.vs textarea:focus,
 .monaco-shell.vs input[type="checkbox"]:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4);
@@ -61,11 +62,27 @@
 	opacity: 1 !important;
 }
 
+.monaco-shell input[type="search"]::-webkit-search-decoration,
+.monaco-shell input[type="search"]::-webkit-search-results-button,
+.monaco-shell input[type="search"]::-webkit-search-results-decoration {
+	display: none;
+}
+
+.monaco-shell input[type="search"]::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+	height: 18px;
+	width: 18px;
+	background-image: url('clear.svg');
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
 .monaco-shell.vs-dark [tabindex="0"]:focus,
 .monaco-shell.vs-dark .synthetic-focus,
 .monaco-shell.vs-dark select:focus,
 .monaco-shell.vs-dark input[type="button"]:focus,
 .monaco-shell.vs-dark input[type="submit"]:focus,
+.monaco-shell.vs-dark input[type="search"]:focus,
 .monaco-shell.vs-dark input[type="text"]:focus, .monaco-shell.vs-dark textarea:focus,
 .monaco-shell.vs-dark input[type="checkbox"]:focus {
 	outline: 1px solid rgba(14, 99, 156, 0.6);
@@ -77,21 +94,21 @@
 .monaco-shell.hc-black .synthetic-focus,
 .monaco-shell.hc-black select:focus,
 .monaco-shell.hc-black input[type="button"]:focus,
-.monaco-shell.hc-black input[type="submit"]:focus,
 .monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
+.monaco-shell.hc-black input[type="search"]:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
 	outline: 2px solid #f38518;
 	outline-offset: -1px;
 }
 
-.monaco-shell.vs .monaco-button:focus,
-.monaco-shell.vs-dark .monaco-button:focus,
+.monaco-shell.vs .monaco-text-button:focus,
+.monaco-shell.vs-dark .monaco-text-button:focus,
 .monaco-shell.vs .action-button:focus,
 .monaco-shell.vs-dark .action-button:focus {
 	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
 }
 
-.monaco-shell.vs .monaco-button:focus,
+.monaco-shell.vs .monaco-text-button:focus,
 .monaco-shell.vs .action-button:focus {
 	outline-offset: -2px; /* Inset outline so it stands out on light background. */
 }

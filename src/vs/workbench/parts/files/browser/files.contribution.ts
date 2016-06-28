@@ -162,7 +162,7 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExt
 configurationRegistry.registerConfiguration({
 	'id': 'files',
 	'order': 9,
-	'title': nls.localize('filesConfigurationTitle', "Files configuration"),
+	'title': nls.localize('filesConfigurationTitle', "Files"),
 	'type': 'object',
 	'properties': {
 		'files.exclude': {
@@ -235,7 +235,7 @@ configurationRegistry.registerConfiguration({
 configurationRegistry.registerConfiguration({
 	'id': 'explorer',
 	'order': 10,
-	'title': nls.localize('explorerConfigurationTitle', "File Explorer configuration"),
+	'title': nls.localize('explorerConfigurationTitle', "File Explorer"),
 	'type': 'object',
 	'properties': {
 		'explorer.openEditors.visible': {

@@ -7,23 +7,23 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from "vscode";
+import { ExtensionContext, TextDocumentContentProvider, EventEmitter, Event, Uri, ViewColumn } from 'vscode';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
-const hljs = require('highlight.js');
-const mdnh = require('markdown-it-named-headers');
-const md = require('markdown-it')({
-	html: true,
-	highlight: function (str, lang) {
-		if (lang && hljs.getLanguage(lang)) {
-			try {
-				return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
-			} catch (error) { }
-		}
-		return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
-	}
-}).use(mdnh, {});
+
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
+}
+
+var telemetryReporter: TelemetryReporter;
 
 export function activate(context: ExtensionContext) {
+
+	let packageInfo = getPackageInfo(context);
+	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+
 	let provider = new MDDocumentContentProvider(context);
 	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
 
@@ -66,8 +66,9 @@ function getMarkdownUri(uri: Uri) {
 	return uri.with({ scheme: 'markdown', path: uri.path + '.rendered', query: uri.toString() });
 }
 
-function showPreview(resource?: Uri, sideBySide: boolean = false) {
+function showPreview(uri?: Uri, sideBySide: boolean = false) {
 
+	let resource = uri;
 	if (!(resource instanceof Uri)) {
 		if (vscode.window.activeTextEditor) {
 			// we are relaxed and don't check for markdown files
@@ -76,14 +77,25 @@ function showPreview(resource?: Uri, sideBySide: boolean = false) {
 	}
 
 	if (!(resource instanceof Uri)) {
-		// nothing found that could be shown
+		if (!vscode.window.activeTextEditor) {
+			// this is most likely toggling the preview
+			return vscode.commands.executeCommand('markdown.showSource');
+		}
+		// nothing found that could be shown or toggled
 		return;
 	}
 
-	return vscode.commands.executeCommand('vscode.previewHtml',
+	let thenable = vscode.commands.executeCommand('vscode.previewHtml',
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
 		`Preview '${path.basename(resource.fsPath)}'`);
+
+	telemetryReporter.sendTelemetryEvent('openPreview', {
+		where : sideBySide ? 'sideBySide' : 'inPlace',
+		how : (uri instanceof Uri) ? 'action' : 'pallete'
+	});
+
+	return thenable;
 }
 
 function getViewColumn(sideBySide): ViewColumn {
@@ -107,6 +119,10 @@ function getViewColumn(sideBySide): ViewColumn {
 }
 
 function showSource(mdUri: Uri) {
+	if (!mdUri) {
+		return vscode.commands.executeCommand('workbench.action.navigateBack');
+	}
+
 	const docUri = Uri.parse(mdUri.query);
 
 	for (let editor of vscode.window.visibleTextEditors) {
@@ -120,14 +136,50 @@ function showSource(mdUri: Uri) {
 	});
 }
 
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	if (extensionPackage) {
+		return {
+			name: extensionPackage.name,
+			version: extensionPackage.version,
+			aiKey: extensionPackage.aiKey
+		};
+	}
+	return null;
+}
+
+
+interface IRenderer {
+	render(text: string) : string;
+}
+
 class MDDocumentContentProvider implements TextDocumentContentProvider {
 	private _context: ExtensionContext;
 	private _onDidChange = new EventEmitter<Uri>();
 	private _waiting : boolean;
+	private _renderer : IRenderer;
 
 	constructor(context: ExtensionContext) {
 		this._context = context;
 		this._waiting = false;
+		this._renderer = this.createRenderer();
+	}
+
+	private createRenderer() : IRenderer {
+		const hljs = require('highlight.js');
+		const mdnh = require('markdown-it-named-headers');
+		const md = require('markdown-it')({
+			html: true,
+			highlight: function (str, lang) {
+				if (lang && hljs.getLanguage(lang)) {
+					try {
+						return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+					} catch (error) { }
+				}
+				return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
+			}
+		}).use(mdnh, {});
+		return md;
 	}
 
 	private getMediaPath(mediaFile) {
@@ -167,11 +219,12 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
 				this.computeCustomStyleSheetIncludes(uri),
+				`<base href="${document.uri.toString(true)}">`,
 				'</head>',
 				'<body>'
 			).join('\n');
 
-			const body = md.render(document.getText());
+			const body = this._renderer.render(document.getText());
 
 			const tail = [
 				'</body>',

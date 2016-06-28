@@ -18,10 +18,8 @@ import {IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import {ICodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 
-export function registerApiCommands(threadService: IThreadService) {
-	const commands = threadService.getRemotable(ExtHostCommands);
+export function registerApiCommands(commands:ExtHostCommands) {
 	new ExtHostApiCommands(commands).registerCommands();
 }
 
@@ -210,6 +208,16 @@ class ExtHostApiCommands {
 				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
 			]
 		});
+
+		this._register('vscode.open', (resource: URI, column: vscode.ViewColumn) => {
+			return this._commands.executeCommand('_workbench.open', [resource, typeConverters.fromViewColumn(column)]);
+		}, {
+				description: 'Opens the provided resource in the editor. Can be a text or binary file.',
+				args: [
+					{ name: 'resource', description: 'Resource to open', constraint: URI },
+					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
+				]
+			});
 	}
 
 	// --- command impl

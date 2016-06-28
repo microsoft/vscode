@@ -7,7 +7,6 @@
 
 // include these in the editor bundle because they are widely used by many languages
 import 'vs/editor/common/languages.common';
-import 'vs/editor/common/worker/validationHelper';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
@@ -17,36 +16,19 @@ import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensio
 import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {ModeServiceImpl, ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
+import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
+import {IModeService, ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-
+import {CompatWorkerServiceWorker} from 'vs/editor/common/services/compatWorkerServiceWorker';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {ILegacyLanguageDefinition} from 'vs/editor/common/modes/modesRegistry';
 
 export interface IInitData {
-	contextService: {
-		workspace:any;
-		configuration:any;
-		options:any;
+	modesRegistryData?: {
+		compatModes: ILegacyLanguageDefinition[];
+		languages: ILanguageExtensionPoint[];
 	};
-}
-
-interface IWorkspaceWithTelemetry extends IWorkspace {
-	telemetry?:string;
-}
-
-interface IWorkspaceWithSearch extends IWorkspace {
-	search?:string;
 }
 
 export interface ICallback {
@@ -82,12 +64,11 @@ class WorkerExtensionService extends AbstractExtensionService<ActivatedExtension
 	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		throw new Error('unexpected');
 	}
-
 }
 
 export class EditorWorkerServer {
 
-	private threadService:WorkerThreadService;
+	private compatWorkerService:CompatWorkerServiceWorker;
 
 	constructor() {
 	}
@@ -95,37 +76,33 @@ export class EditorWorkerServer {
 	public initialize(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, initData:IInitData):void {
 
 		const services = new ServiceCollection();
+		const instantiationService = new InstantiationService(services);
 
 		const extensionService = new WorkerExtensionService();
-		const contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
-		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
-		this.threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, this.threadService])));
-		const resourceService = new ResourceService();
-		const markerService = new SecondaryMarkerService(this.threadService);
-		const modeService = new ModeServiceImpl(this.threadService, extensionService);
-		const requestService = new BaseRequestService(contextService, NullTelemetryService);
-
 		services.set(IExtensionService, extensionService);
-		services.set(IThreadService, this.threadService);
-		services.set(IModeService, modeService);
-		services.set(IWorkspaceContextService, contextService);
-		services.set(IEventService, new EventService());
+
+		const resourceService = new ResourceService();
 		services.set(IResourceService, resourceService);
-		services.set(IMarkerService, markerService);
-		services.set(IRequestService, requestService);
 
-		const instantiationService = new InstantiationService(services);
-		this.threadService.setInstantiationService(instantiationService);
+		services.set(IEventService, new EventService());
 
-		// Instantiate thread actors
-		this.threadService.getRemotable(ModeServiceWorkerHelper);
-		this.threadService.getRemotable(ModelServiceWorkerHelper);
+		const modeService = new ModeServiceImpl(instantiationService, extensionService);
+		services.set(IModeService, modeService);
+
+		this.compatWorkerService = new CompatWorkerServiceWorker(resourceService, modeService, initData.modesRegistryData);
+		services.set(ICompatWorkerService, this.compatWorkerService);
 
 		complete(undefined);
 	}
 
 	public request(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, data:any):void {
-		this.threadService.dispatch(data).then(complete, error, progress);
+		try {
+			TPromise.as(
+				this.compatWorkerService.handleMainRequest(data.target, data.methodName, data.args)
+			).then(complete, error);
+		} catch (err) {
+			error(err);
+		}
 	}
 }
 

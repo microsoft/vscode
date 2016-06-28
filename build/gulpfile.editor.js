@@ -23,7 +23,6 @@ var headerVersion = semver + '(' + sha1 + ')';
 var editorEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/editor/editor.main'),
 	buildfile.base,
-	buildfile.standaloneLanguages2,
 	buildfile.editor,
 	buildfile.languages
 ]);
@@ -54,17 +53,11 @@ var BUNDLED_FILE_HEADER = [
 	''
 ].join('\n');
 
-function editorLoaderConfig(removeAllOSS) {
+function editorLoaderConfig() {
 	var result = common.loaderConfig();
 
-	// never ship marked in editor
-	result.paths['vs/base/common/marked/marked'] = 'out-build/vs/base/common/marked/marked.mock';
 	// never ship octicons in editor
 	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
-
-	if (removeAllOSS) {
-		result.paths['vs/languages/lib/common/beautify-html'] = 'out-build/vs/languages/lib/common/beautify-html.mock';
-	}
 
 	result['vs/css'] = { inlineResources: true };
 
@@ -76,7 +69,7 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
-	loaderConfig: editorLoaderConfig(false),
+	loaderConfig: editorLoaderConfig(),
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
 	out: 'out-editor'
@@ -91,6 +84,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 		// other assets
 		es.merge(
 			gulp.src('build/monaco/LICENSE'),
+			gulp.src('build/monaco/CHANGELOG.md'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
 		).pipe(gulp.dest('out-monaco-editor-core')),

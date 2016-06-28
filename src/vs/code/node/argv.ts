@@ -72,7 +72,7 @@ const options: minimist.Opts = {
 	}
 };
 
-export function parseArgs(args: string[]) {
+export function parseArgs(args: string[]): ParsedArgs {
 	return minimist(args, options) as ParsedArgs;
 }
 

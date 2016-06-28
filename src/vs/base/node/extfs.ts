@@ -16,7 +16,57 @@ import paths = require('path');
 
 const loop = flow.loop;
 
+const ASAR_EXT = '.asar';
+
+export interface IRawStat {
+	size: number;
+	mtime: Date;
+	atime: Date;
+	mode: number;
+	isDirectory(): boolean;
+	isSymbolicLink(): boolean;
+	isFile(): boolean;
+}
+
+class FakeAsarStat implements IRawStat {
+	size = 1024;
+	mode = 0;
+	mtime = new Date(0);
+	atime = new Date(0);
+
+	isDirectory(): boolean { return false; }
+	isSymbolicLink(): boolean { return false; }
+	isFile(): boolean { return true; }
+}
+
+export function stat(path: string, callback: (error: Error, stat: IRawStat) => void): void {
+	if (path && paths.extname(path) === ASAR_EXT) {
+		return callback(null, new FakeAsarStat()); // https://github.com/Microsoft/vscode/issues/646
+	}
+
+	return fs.stat(path, callback);
+}
+
+export function statSync(path: string): IRawStat {
+	if (path && paths.extname(path) === ASAR_EXT) {
+		return new FakeAsarStat(); // https://github.com/Microsoft/vscode/issues/646
+	}
+
+	return fs.statSync(path);
+}
+
+export function lstat(path: string, callback: (error: Error, stat: IRawStat) => void): void {
+	if (path && paths.extname(path) === ASAR_EXT) {
+		return callback(null, new FakeAsarStat()); // https://github.com/Microsoft/vscode/issues/646
+	}
+
+	return fs.lstat(path, callback);
+}
+
 export function readdir(path: string, callback: (error: Error, files: string[]) => void): void {
+	if (path && paths.extname(path) === ASAR_EXT) {
+		return callback(null, []); // https://github.com/Microsoft/vscode/issues/646
+	}
 
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
@@ -83,7 +133,7 @@ export function mkdirp(path: string, mode: number, callback: (error: Error) => v
 }
 
 function isDirectory(path: string, callback: (error: Error, isDirectory?: boolean) => void): void {
-	fs.stat(path, (error: Error, stat: fs.Stats) => {
+	stat(path, (error: Error, stat: IRawStat) => {
 		if (error) { return callback(error); }
 
 		callback(null, stat.isDirectory());
@@ -95,7 +145,7 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 		copiedSources = Object.create(null);
 	}
 
-	fs.stat(source, (error, stat) => {
+	stat(source, (error, stat) => {
 		if (error) { return callback(error); }
 		if (!stat.isDirectory()) { return pipeFs(source, target, stat.mode & 511, callback); }
 
@@ -159,7 +209,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error) =>
 			return callback(null);
 		}
 
-		fs.stat(path, (err, stat) => {
+		stat(path, (err, stat) => {
 			if (err || !stat) {
 				return callback(err);
 			}
@@ -203,7 +253,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 		if (!exists) {
 			callback(null);
 		} else {
-			fs.lstat(path, (err, stat) => {
+			lstat(path, (err, stat) => {
 				if (err || !stat) {
 					callback(err);
 				} else if (!stat.isDirectory() || stat.isSymbolicLink() /* !!! never recurse into links when deleting !!! */) {
@@ -262,7 +312,7 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 			return callback(err);
 		}
 
-		fs.stat(target, (error: Error, stat: fs.Stats) => {
+		stat(target, (error: Error, stat: IRawStat) => {
 			if (error) {
 				return callback(error);
 			}

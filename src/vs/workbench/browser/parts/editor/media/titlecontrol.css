@@ -7,7 +7,6 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label,
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
-	line-height: 35px;
 	white-space: nowrap;
 	flex: 1;
 	font-style: italic;

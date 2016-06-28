@@ -27,6 +27,9 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {OpenSearchViewletAction} from 'vs/workbench/parts/search/browser/searchActions';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
+import { registerContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
+
+registerContributions();
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',
@@ -157,7 +160,7 @@ const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationE
 configurationRegistry.registerConfiguration({
 	'id': 'search',
 	'order': 13,
-	'title': nls.localize('searchConfigurationTitle', "Search configuration"),
+	'title': nls.localize('searchConfigurationTitle', "Search"),
 	'type': 'object',
 	'properties': {
 		'search.exclude': {

@@ -38,6 +38,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -46,6 +47,8 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
+import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -354,6 +357,8 @@ export class FileController extends DefaultController {
 	private didCatchEnterDown: boolean;
 	private state: FileViewletState;
 
+	private contributedContextMenu: IMenu;
+
 	private workspace: IWorkspace;
 
 	constructor(state: FileViewletState,
@@ -363,9 +368,13 @@ export class FileController extends DefaultController {
 		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
+
+		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, keybindingService);
 
 		this.workspace = contextService.getWorkspace();
 
@@ -474,7 +483,12 @@ export class FileController extends DefaultController {
 		let anchor = { x: event.posx + 1, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this.state.actionProvider.getSecondaryActions(tree, stat),
+			getActions: () => {
+				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
+					fillInActions(this.contributedContextMenu, actions);
+					return actions;
+				});
+			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
 			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
 			getActionsContext: () => {

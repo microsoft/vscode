@@ -116,12 +116,15 @@ declare module 'emmet' {
 		 * Ask user to enter something
 		 * @param {String} title Dialog title
 		 * @return {String} Entered data
-		 * @since 0.65
 		 */
-		prompt(title: string): void
+		prompt(title: string): string;
 
 		getSelection(): string;
 
+		/**
+		 * Returns current editor's file path
+		 * @return {String}
+		 */
 		getFilePath(): string;
 	}
 

@@ -12,29 +12,33 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
-import {TestThreadService} from './testThreadService';
+import {TestThreadService} from 'vs/workbench/test/node/api/testThreadService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
 import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
-import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
+import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHostProtocol';
+import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = new EditorModel(
+const model: EditorCommon.IModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
-	EditorModel.DEFAULT_CREATION_OPTIONS,
+	undefined,
 	undefined,
 	URI.parse('far://testing/file.b'));
 
@@ -54,7 +58,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		let services = new ServiceCollection();
 		let instantiationService = new InstantiationService(services);
-		threadService = new TestThreadService(instantiationService);
+		threadService = new TestThreadService();
 
 		services.set(IKeybindingService, <IKeybindingService>{
 			executeCommand(id, args): any {
@@ -62,7 +66,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
-		services.set(IMarkerService, new MainProcessMarkerService(threadService));
+		services.set(IMarkerService, new MarkerService());
 		services.set(IThreadService, threadService);
 		services.set(IModelService, <IModelService>{
 			serviceId: IModelService,
@@ -76,7 +80,9 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			getCreationOptions(): any { throw new Error(); }
 		});
 
-		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
+		const extHostDocuments = new ExtHostDocuments(threadService);
+		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
+		extHostDocuments._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -95,13 +101,19 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			},
 		});
 
-		threadService.getRemotable(MainThreadCommands);
-		commands = threadService.getRemotable(ExtHostCommands);
+		commands = new ExtHostCommands(threadService, null);
+		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		ExtHostTypeConverters.Command.initialize(commands);
+		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
+		registerApiCommands(commands);
 
-		registerApiCommands(threadService);
-		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
-		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
+		const diagnostics = new ExtHostDiagnostics(threadService);
+		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
+
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics);
+		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
+
+		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
 
 		threadService.sync().then(done, done);
 	});

@@ -28,6 +28,7 @@
 		"configuration": {
 			"title": "%configuration.title%",
 			"type": "object",
+			"order": 20,
 			"properties": {
 				"php.validate.enable": {
 					"type": "boolean",

@@ -1217,7 +1217,7 @@ export class TreeView extends HeightMap {
 
 			var id = this.context.dataSource.getId(this.context.tree, element);
 			var viewItem = this.items[id];
-			var position = DOM.getDomNodePosition(viewItem.element);
+			var position = DOM.getDomNodePagePosition(viewItem.element);
 
 			resultEvent = new _.KeyboardContextMenuEvent(position.left + position.width, position.top, keyboardEvent);
 

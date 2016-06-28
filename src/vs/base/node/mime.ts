@@ -6,6 +6,7 @@
 'use strict';
 
 import streams = require('stream');
+import paths = require('path');
 
 import mime = require('vs/base/common/mime');
 
@@ -51,6 +52,7 @@ import encoding = require('vs/base/node/encoding');
  */
 
 const BUFFER_READ_MAX_LEN = 512; // max buffer len to use when detecting encoding/mime
+const ASAR_EXT = '.asar';
 
 export interface IMimeAndEncoding {
 	encoding: string;
@@ -64,6 +66,10 @@ function doDetectMimesFromStream(instream: streams.Readable, callback: (error: E
 }
 
 function doDetectMimesFromFile(absolutePath: string, callback: (error: Error, result: IMimeAndEncoding) => void): void {
+	if (paths.extname(absolutePath) === ASAR_EXT) {
+		return callback(null, { encoding: encoding.UTF8, mimes: [mime.MIME_BINARY] }); // https://github.com/Microsoft/vscode/issues/646
+	}
+
 	stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN, (err, buffer, bytesRead) => {
 		handleReadResult(err, buffer, bytesRead, callback);
 	});

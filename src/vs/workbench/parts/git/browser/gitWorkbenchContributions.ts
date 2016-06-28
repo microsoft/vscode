@@ -510,7 +510,7 @@ export function registerContributions(): void {
 	configurationRegistry.registerConfiguration({
 		id: 'git',
 		order: 15,
-		title: nls.localize('gitConfigurationTitle', "Git configuration"),
+		title: nls.localize('gitConfigurationTitle', "Git"),
 		type: 'object',
 		properties: {
 			'git.enabled': {

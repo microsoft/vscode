@@ -4,21 +4,105 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import Actions = require('vs/base/common/actions');
 import WinJS = require('vs/base/common/winjs.base');
 import Assert = require('vs/base/common/assert');
-
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
-export let IActionsService = createDecorator<IActionsService>('actionsService');
+export interface CommandAction {
+	id: string;
+	title: string;
+	category?: string;
+	iconClass?: string;
+}
 
-export interface IActionsService {
-	serviceId: ServiceIdentifier<any>;
-	getActions(): Actions.IAction[];
+export interface IMenu extends IDisposable {
+	onDidChange: Event<IMenu>;
+	getActions(): [string, Actions.IAction[]][];
+}
+
+export interface IMenuItem {
+	command: CommandAction;
+	alt?: CommandAction;
+	when?: KbExpr;
+	group?: string;
+}
+
+export enum MenuId {
+	EditorTitle = 1,
+	EditorContext = 2,
+	ExplorerContext = 3
+}
+
+export const IMenuService = createDecorator<IMenuService>('menuService');
+
+export interface IMenuService {
+
+	serviceId: any;
+
+	createMenu(id: MenuId, scopedKeybindingService: IKeybindingService): IMenu;
+
+	getCommandActions(): CommandAction[];
+}
+
+export class MenuItemAction extends Actions.Action {
+
+	private static _getMenuItemId(item: IMenuItem): string {
+		let result = item.command.id;
+		if (item.alt) {
+			result += `||${item.alt.id}`;
+		}
+		return result;
+	}
+
+	constructor(
+		private _item: IMenuItem,
+		private _resource: URI,
+		@IKeybindingService private _keybindingService: IKeybindingService
+	) {
+		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
+
+		this.order = 100000; //TODO@Ben order is menu item property, not an action property
+	}
+
+	get command() {
+		return this._item.command;
+	}
+
+	get altCommand() {
+		return this._item.alt;
+	}
+
+	get selectedCommand() {
+		return this.command;
+	}
+
+	run(alt: boolean) {
+		const {id} = alt && this._item.alt || this._item.command;
+		return this._keybindingService.executeCommand(id, this._resource);
+	}
+}
+
+
+export class ExecuteCommandAction extends Actions.Action {
+
+	constructor(
+		id: string,
+		label: string,
+		@IKeybindingService private _keybindingService: IKeybindingService) {
+
+		super(id, label);
+	}
+
+	run(...args: any[]): WinJS.TPromise<any> {
+		return this._keybindingService.executeCommand(this.id, ...args);
+	}
 }
 
 export class SyncActionDescriptor {

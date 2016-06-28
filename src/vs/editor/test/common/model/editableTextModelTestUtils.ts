@@ -88,7 +88,7 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel1 = new MirrorModel(null, model.getVersionId(), model.toRawText(), null);
+	var mirrorModel1 = new MirrorModel(model.getVersionId(), model.toRawText(), null);
 	assertLineMapping(mirrorModel1, 'mirrorModel1');
 	var mirrorModel1PrevVersionId = model.getVersionId();
 

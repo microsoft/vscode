@@ -573,7 +573,17 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 
 	// File
 	let fileInput = asFileEditorInput(input, supportDiff);
-	return fileInput && fileInput.getResource();
+	return fileInput && fileInput && fileInput.getResource();
+}
+
+export function getResource(input: IEditorInput): URI {
+	if (input && typeof (<any> input).getResource === 'function') {
+		let candidate = (<any>input).getResource();
+		if (candidate instanceof URI) {
+			return candidate;
+		}
+	}
+	return getUntitledOrFileResource(input, true);
 }
 
 /**

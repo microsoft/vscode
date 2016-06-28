@@ -37,7 +37,7 @@ export class Mode extends MockMode {
 		super();
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
-		}, false, false);
+		}, false);
 	}
 }
 
@@ -101,7 +101,7 @@ export class SwitchingMode extends MockMode {
 	constructor(id:string, descriptor:IModeSwitchingDescriptor) {
 		super(id);
 		this._switchingModeDescriptor = descriptor;
-		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
+		this.tokenizationSupport = new TokenizationSupport(this, this, true);
 	}
 
 	setTokenizationSupport<T>(callback:(mode:modes.IMode)=>T): IDisposable {

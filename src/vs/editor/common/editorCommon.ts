@@ -6,7 +6,7 @@
 
 import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {MarkedString} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {IndentRange} from 'vs/editor/common/model/indentRanges';
 
 /**
  * @internal
@@ -352,7 +353,7 @@ export interface IEditorOptions {
 	 */
 	mouseWheelScrollSensitivity?: number;
 	/**
-	 * Enable quick suggestions (shaddow suggestions)
+	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
 	quickSuggestions?:boolean;
@@ -415,6 +416,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	renderWhitespace?: boolean;
+	/**
+	 * Enable rendering of control characters.
+	 * Defaults to false.
+	 */
+	renderControlCharacters?: boolean;
 	/**
 	 * Enable rendering of indent guides.
 	 * Defaults to true.
@@ -611,6 +617,7 @@ export class InternalEditorViewOptions {
 	editorClassName: string;
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
+	renderControlCharacters: boolean;
 	indentGuides: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
@@ -636,6 +643,7 @@ export class InternalEditorViewOptions {
 		editorClassName: string;
 		stopRenderingLineAfter: number;
 		renderWhitespace: boolean;
+		renderControlCharacters: boolean;
 		indentGuides: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
@@ -657,6 +665,7 @@ export class InternalEditorViewOptions {
 		this.editorClassName = String(source.editorClassName);
 		this.stopRenderingLineAfter = source.stopRenderingLineAfter|0;
 		this.renderWhitespace = Boolean(source.renderWhitespace);
+		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.indentGuides = Boolean(source.indentGuides);
 		this.scrollbar = source.scrollbar.clone();
 	}
@@ -712,6 +721,7 @@ export class InternalEditorViewOptions {
 			&& this.editorClassName === other.editorClassName
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
+			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.indentGuides === other.indentGuides
 			&& this.scrollbar.equals(other.scrollbar)
 		);
@@ -740,6 +750,7 @@ export class InternalEditorViewOptions {
 			editorClassName: this.editorClassName !== newOpts.editorClassName,
 			stopRenderingLineAfter: this.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter,
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
+			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
 			indentGuides: this.indentGuides !== newOpts.indentGuides,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
 		};
@@ -772,6 +783,7 @@ export interface IViewConfigurationChangedEvent {
 	editorClassName:  boolean;
 	stopRenderingLineAfter:  boolean;
 	renderWhitespace:  boolean;
+	renderControlCharacters: boolean;
 	indentGuides:  boolean;
 	scrollbar: boolean;
 }
@@ -1022,13 +1034,14 @@ export interface IModelDecorationOptions {
 	 */
 	className?:string;
 	/**
-	 * Message to be rendered when hovering over the decoration.
+	 * Message to be rendered when hovering over the glyph margin decoration.
+	 * @internal
 	 */
-	hoverMessage?:string;
+	glyphMarginHoverMessage?:string;
 	/**
-	 * Array of IHTMLContentElements to render as the decoration message.
+	 * Array of MarkedString to render as the decoration message.
 	 */
-	htmlMessage?:IHTMLContentElement[];
+	hoverMessage?:MarkedString | MarkedString[];
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
@@ -1550,6 +1563,21 @@ export interface ITextModel {
 	 * Get the text for a certain line.
 	 */
 	getLineContent(lineNumber:number): string;
+
+	/**
+	 * @internal
+	 */
+	getIndentLevel(lineNumber:number): number;
+
+	/**
+	 * @internal
+	 */
+	getIndentRanges(): IndentRange[];
+
+	/**
+	 * @internal
+	 */
+	getLineIndentGuide(lineNumber:number): number;
 
 	/**
 	 * Get the text for all lines.
@@ -2084,6 +2112,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
+	 * @internal
 	 */
 	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	/**
@@ -2206,9 +2235,6 @@ export interface IRangeWithText {
  * @internal
  */
 export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
-	getEmbeddedAtPosition(position:IPosition): IMirrorModel;
-	getAllEmbedded(): IMirrorModel[];
-
 	uri: URI;
 
 	getOffsetFromPosition(position:IPosition): number;
@@ -2272,6 +2298,7 @@ export interface IModelContentChangedEvent2 {
 }
 /**
  * An event describing a change in the text of a model.
+ * @internal
  */
 export interface IModelContentChangedEvent {
 	/**
@@ -2324,6 +2351,7 @@ export interface IRawText {
 
 /**
  * An event describing that a model has been reset to a new value.
+ * @internal
  */
 export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
 	/**
@@ -2333,6 +2361,7 @@ export interface IModelContentChangedFlushEvent extends IModelContentChangedEven
 }
 /**
  * An event describing that a line has changed in a model.
+ * @internal
  */
 export interface IModelContentChangedLineChangedEvent extends IModelContentChangedEvent {
 	/**
@@ -2346,6 +2375,7 @@ export interface IModelContentChangedLineChangedEvent extends IModelContentChang
 }
 /**
  * An event describing that line(s) have been deleted in a model.
+ * @internal
  */
 export interface IModelContentChangedLinesDeletedEvent extends IModelContentChangedEvent {
 	/**
@@ -2359,6 +2389,7 @@ export interface IModelContentChangedLinesDeletedEvent extends IModelContentChan
 }
 /**
  * An event describing that line(s) have been inserted in a model.
+ * @internal
  */
 export interface IModelContentChangedLinesInsertedEvent extends IModelContentChangedEvent {
 	/**
@@ -3395,6 +3426,7 @@ export interface IEditor {
 	/**
 	 * @deprecated. Please use `onDidChangeModelContent` instead.
 	 * An event emitted when the content of the current model has changed.
+	 * @internal
 	 */
 	onDidChangeModelRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	/**
@@ -3768,7 +3800,7 @@ export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstan
  */
 export interface IDecorationOptions {
 	range: IRange;
-	hoverMessage?: IHTMLContentElement[];
+	hoverMessage?: MarkedString | MarkedString[];
 	renderOptions? : IDecorationInstanceRenderOptions;
 }
 

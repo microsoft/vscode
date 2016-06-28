@@ -1,11 +1,13 @@
 {
 	"compilerOptions": {
 		"module": "amd",
+		"moduleResolution": "classic",
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
+		"declaration": true
 	}
 }

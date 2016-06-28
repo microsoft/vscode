@@ -11,7 +11,6 @@ import 'vs/editor/browser/widget/diffEditorWidget';
 import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codelens/browser/codelens';
-import 'vs/editor/contrib/color/browser/color';
 import 'vs/editor/contrib/comment/common/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/diffNavigator/common/diffNavigator';

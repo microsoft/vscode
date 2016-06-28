@@ -10,7 +10,6 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -77,7 +76,7 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		}
 
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, keybindingService.createScoped(domElement), telemetryService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
@@ -182,7 +181,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
 		}
 
-		super(domElement, options, editorWorkerService, instantiationService);
+		super(domElement, options, editorWorkerService, keybindingService, instantiationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
@@ -248,10 +247,7 @@ export var startup = (function() {
 				return;
 			}
 			modesRegistryInitialized = true;
-			var staticServices = getOrCreateStaticServices();
-
-			// Instantiate thread actors
-			staticServices.threadService.getRemotable(RemoteTelemetryServiceHelper);
+			getOrCreateStaticServices();
 		},
 
 		setupServices: function(services: IEditorOverrideServices): IEditorOverrideServices {

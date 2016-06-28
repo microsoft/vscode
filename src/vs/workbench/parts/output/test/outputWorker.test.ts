@@ -22,21 +22,13 @@ function toOSPath(p: string): string {
 suite('Workbench - OutputWorker', () => {
 
 	test('OutputWorker - Link detection', function () {
-		let patternsSlash = OutputWorker.createPatterns({
-			id: 'foo',
-			name: 'foo',
-			resource: URI.file('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala'),
-			uid: 0,
-			mtime: 0
-		});
+		let patternsSlash = OutputWorker.createPatterns(
+			URI.file('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala')
+		);
 
-		let patternsBackSlash = OutputWorker.createPatterns({
-			id: 'foo',
-			name: 'foo',
-			resource: URI.file('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala'),
-			uid: 0,
-			mtime: 0
-		});
+		let patternsBackSlash = OutputWorker.createPatterns(
+			URI.file('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala')
+		);
 
 		let contextService = new TestContextService();
 

@@ -28,7 +28,7 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Confi
 configurationRegistry.registerConfiguration({
 	'id': 'externalTerminal',
 	'order': 100,
-	'title': nls.localize('terminalConfigurationTitle', "External terminal configuration"),
+	'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
 	'type': 'object',
 	'properties': {
 		'terminal.external.windowsExec': {

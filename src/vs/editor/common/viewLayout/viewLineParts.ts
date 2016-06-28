@@ -14,7 +14,7 @@ function cmpLineDecorations(a:InlineDecoration, b:InlineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:InlineDecoration[], renderWhitespace:boolean, indentGuides:boolean): LineParts {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:InlineDecoration[], renderWhitespace:boolean, indentGuides:number): LineParts {
 	if (indentGuides || renderWhitespace) {
 		let oldLength = rawLineDecorations.length;
 		rawLineDecorations = insertCustomLineDecorations(indentGuides, renderWhitespace, lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
@@ -100,8 +100,8 @@ function insertOneCustomLineDecoration(dest:InlineDecoration[], lineNumber:numbe
 	dest.push(new InlineDecoration(new Range(lineNumber, startColumn, lineNumber, endColumn), className));
 }
 
-function insertCustomLineDecorations(indentGuides:boolean, renderWhitespace:boolean, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
-	if (!indentGuides && !renderWhitespace) {
+function insertCustomLineDecorations(indentGuides:number, renderWhitespace:boolean, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
+	if (indentGuides === 0 && !renderWhitespace) {
 		return rawLineDecorations;
 	}
 

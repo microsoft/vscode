@@ -33,10 +33,10 @@
 			"path": "./snippets/css.json"
 		}],
 		"configuration": {
+			"order": 20,
 			"allOf": [{
 				"id": "css",
-				"order": 20,
-				"title": "CSS configuration",
+				"title": "CSS",
 				"allOf": [
 					{
 						"title": "Controls CSS validation and problem severities.",
@@ -161,7 +161,7 @@
 			{
 				"id": "scss",
 				"order": 24,
-				"title": "SCSS (Sass) configuration",
+				"title": "SCSS (Sass)",
 				"allOf": [
 					{
 						"title": "Controls SCSS validation and problem severities.",
@@ -359,7 +359,7 @@
 				"id": "less",
 				"order": 22,
 				"type": "object",
-				"title": "LESS configuration",
+				"title": "LESS",
 				"allOf": [
 					{
 						"title": "Controls LESS validation and problem severities.",

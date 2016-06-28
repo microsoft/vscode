@@ -6,13 +6,9 @@
 
 import {clone} from 'vs/base/common/objects';
 import {illegalState} from 'vs/base/common/errors';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
 
-@Remotable.ExtHostContext('ExtHostConfiguration')
 export class ExtHostConfiguration {
 
 	private _config: any;
@@ -74,27 +70,5 @@ export class ExtHostConfiguration {
 		}
 
 		return node;
-	}
-}
-
-@Remotable.MainContext('MainProcessConfigurationServiceHelper')
-export class MainThreadConfiguration {
-
-	private _configurationService: IConfigurationService;
-	private _toDispose: IDisposable;
-	private _proxy: ExtHostConfiguration;
-
-	constructor(@IConfigurationService configurationService: IConfigurationService,
-		@IThreadService threadService: IThreadService) {
-
-		this._configurationService = configurationService;
-		this._proxy = threadService.getRemotable(ExtHostConfiguration);
-
-		this._toDispose = this._configurationService.onDidUpdateConfiguration(event => this._proxy.$acceptConfigurationChanged(event.config));
-		this._proxy.$acceptConfigurationChanged(this._configurationService.getConfiguration());
-	}
-
-	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
 	}
 }

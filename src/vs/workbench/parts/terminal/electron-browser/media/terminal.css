@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .panel.integrated-terminal {
+	align-content: flex-start;
+	align-items: baseline;
+	display: flex;
+	flex-direction: column;
+	background-color: transparent!important;
+	color: #333;
+	-webkit-user-select: initial;
+	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
+}
+.vs-dark .monaco-workbench .panel.integrated-terminal { color: #CCC; }
+.hc-black .monaco-workbench .panel.integrated-terminal { color: #FFF; }
+
+.monaco-workbench .panel.integrated-terminal .terminal-outer-container {
+	align-content: flex-start;
+	align-items: flex-end;
+	display: flex;
+	padding: 0 20px;
+	flex-grow: 1;
+}
+
+.monaco-workbench .panel.integrated-terminal .terminal-wrapper {
+	display: none;
+}
+.monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
+	display: block;
+}
+
+/* Terminal actions */
+
+/* Light theme */
+.monaco-workbench .terminal-action.kill { background: url('kill.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.new { background: url('new.svg') center center no-repeat; }
+/* Dark theme */
+.vs-dark .monaco-workbench .terminal-action.kill { background: url('kill-inverse.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.new { background: url('new-inverse.svg') center center no-repeat; }
+/* High contrast black theme */
+.hc-black .monaco-workbench .terminal-action { background: none; }
+.hc-black .monaco-workbench .terminal-action:before {
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+.hc-black .monaco-workbench .terminal-action.kill:before { content: url('kill-inverse.svg'); }
+.hc-black .monaco-workbench .terminal-action.new:before { content: url('new-inverse.svg'); }

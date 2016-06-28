@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {ILineTokens} from 'vs/editor/common/editorCommon';
-import * as modelLine from 'vs/editor/common/model/modelLine';
+import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
 import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {IToken} from 'vs/editor/common/modes';
@@ -17,15 +17,42 @@ function assertLineTokens(actual:ILineTokens, expected:IToken[]): void {
 	assert.deepEqual(inflatedActual, expected, 'Line tokens are equal');
 }
 
+const NO_TAB_SIZE = 0;
+
+suite('ModelLine - getIndentLevel', () => {
+	function assertIndentLevel(text:string, expected:number, tabSize:number = 4): void {
+		let modelLine = new ModelLine(1, text, tabSize);
+		let actual = modelLine.getIndentLevel();
+		assert.equal(actual, expected, text);
+	}
+
+	test('getIndentLevel', () => {
+		assertIndentLevel('', -1);
+		assertIndentLevel(' ', -1);
+		assertIndentLevel('   \t', -1);
+		assertIndentLevel('Hello', 0);
+		assertIndentLevel(' Hello', 1);
+		assertIndentLevel('   Hello', 3);
+		assertIndentLevel('\tHello', 4);
+		assertIndentLevel(' \tHello', 4);
+		assertIndentLevel('  \tHello', 4);
+		assertIndentLevel('   \tHello', 4);
+		assertIndentLevel('    \tHello', 8);
+		assertIndentLevel('     \tHello', 8);
+		assertIndentLevel('\t Hello', 5);
+		assertIndentLevel('\t \tHello', 8);
+	});
+});
+
 suite('Editor Model - modelLine.applyEdits text', () => {
 
-	function testEdits(initial:string, edits:modelLine.ILineEdit[], expected:string): void {
-		var line = new modelLine.ModelLine(1, initial);
-		line.applyEdits({}, edits);
+	function testEdits(initial:string, edits:ILineEdit[], expected:string): void {
+		var line = new ModelLine(1, initial, NO_TAB_SIZE);
+		line.applyEdits({}, edits, NO_TAB_SIZE);
 		assert.equal(line.text, expected);
 	}
 
-	function editOp(startColumn: number, endColumn: number, text:string): modelLine.ILineEdit {
+	function editOp(startColumn: number, endColumn: number, text:string): ILineEdit {
 		return {
 			startColumn: startColumn,
 			endColumn: endColumn,
@@ -167,8 +194,8 @@ suite('Editor Model - modelLine.applyEdits text', () => {
 suite('Editor Model - modelLine.split text', () => {
 
 	function testLineSplit(initial:string, splitColumn:number, expected1:string, expected2:string): void {
-		var line = new modelLine.ModelLine(1, initial);
-		var newLine = line.split({}, splitColumn, false);
+		var line = new ModelLine(1, initial, NO_TAB_SIZE);
+		var newLine = line.split({}, splitColumn, false, NO_TAB_SIZE);
 		assert.equal(line.text, expected1);
 		assert.equal(newLine.text, expected2);
 	}
@@ -204,9 +231,9 @@ suite('Editor Model - modelLine.split text', () => {
 suite('Editor Model - modelLine.append text', () => {
 
 	function testLineAppend(a:string, b:string, expected:string): void {
-		var line1 = new modelLine.ModelLine(1, a);
-		var line2 = new modelLine.ModelLine(2, b);
-		line1.append({}, line2);
+		var line1 = new ModelLine(1, a, NO_TAB_SIZE);
+		var line2 = new ModelLine(2, b, NO_TAB_SIZE);
+		line1.append({}, line2, NO_TAB_SIZE);
 		assert.equal(line1.text, expected);
 	}
 
@@ -236,25 +263,25 @@ suite('Editor Model - modelLine.append text', () => {
 });
 
 suite('Editor Model - modelLine.applyEdits text & tokens', () => {
-	function testLineEditTokens(initialText:string, initialTokens: LineToken[], edits:modelLine.ILineEdit[], expectedText:string, expectedTokens: LineToken[]): void {
-		var line = new modelLine.ModelLine(1, initialText);
+	function testLineEditTokens(initialText:string, initialTokens: LineToken[], edits:ILineEdit[], expectedText:string, expectedTokens: LineToken[]): void {
+		var line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.setTokens(new TokensInflatorMap(), initialTokens, null, []);
 
-		line.applyEdits({}, edits);
+		line.applyEdits({}, edits, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText);
 		assertLineTokens(line.getTokens(), expectedTokens);
 	}
 
 	test('insertion on empty line', () => {
-		var line = new modelLine.ModelLine(1, 'some text');
+		var line = new ModelLine(1, 'some text', NO_TAB_SIZE);
 		var map = new TokensInflatorMap();
 		line.setTokens(map, [new LineToken(0, 'bar')], null, []);
 
-		line.applyEdits({}, [{startColumn:1, endColumn:10, text:'', forceMoveMarkers: false}]);
+		line.applyEdits({}, [{startColumn:1, endColumn:10, text:'', forceMoveMarkers: false}], NO_TAB_SIZE);
 		line.setTokens(map, [], null, []);
 
-		line.applyEdits({}, [{startColumn:1, endColumn:1, text:'a', forceMoveMarkers: false}]);
+		line.applyEdits({}, [{startColumn:1, endColumn:1, text:'a', forceMoveMarkers: false}], NO_TAB_SIZE);
 		assertLineTokens(line.getTokens(), [{
 			startIndex: 0,
 			type:''
@@ -811,10 +838,10 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 
 suite('Editor Model - modelLine.split text & tokens', () => {
 	function testLineSplitTokens(initialText:string, initialTokens: LineToken[], splitColumn:number, expectedText1:string, expectedText2:string, expectedTokens: LineToken[]): void {
-		var line = new modelLine.ModelLine(1, initialText);
+		var line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.setTokens(new TokensInflatorMap(), initialTokens, null, []);
 
-		var other = line.split({}, splitColumn, false);
+		var other = line.split({}, splitColumn, false, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText1);
 		assert.equal(other.text, expectedText2);
@@ -895,13 +922,13 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 	function testLineAppendTokens(aText:string, aTokens: LineToken[], bText:string, bTokens:LineToken[], expectedText:string, expectedTokens:IToken[]): void {
 		var inflator = new TokensInflatorMap();
 
-		var a = new modelLine.ModelLine(1, aText);
+		var a = new ModelLine(1, aText, NO_TAB_SIZE);
 		a.setTokens(inflator, aTokens, null, []);
 
-		var b = new modelLine.ModelLine(2, bText);
+		var b = new ModelLine(2, bText, NO_TAB_SIZE);
 		b.setTokens(inflator, bTokens, null, []);
 
-		a.append({}, b);
+		a.append({}, b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText);
 		assertLineTokens(a.getTokens(), expectedTokens);
@@ -1024,7 +1051,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker:modelLine.ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -1032,12 +1059,12 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 		};
 	}
 
-	function testLineEditMarkers(initialText:string, initialMarkers: LineMarker[], edits:modelLine.ILineEdit[], expectedText:string, expectedChangedMarkers:number[], _expectedMarkers: LineMarker[]): void {
-		var line = new modelLine.ModelLine(1, initialText);
+	function testLineEditMarkers(initialText:string, initialMarkers: LineMarker[], edits:ILineEdit[], expectedText:string, expectedChangedMarkers:number[], _expectedMarkers: LineMarker[]): void {
+		var line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
 		var changedMarkers = Object.create(null);
-		line.applyEdits(changedMarkers, edits);
+		line.applyEdits(changedMarkers, edits, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText, 'text');
 
@@ -1840,7 +1867,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker:modelLine.ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -1849,11 +1876,11 @@ suite('Editor Model - modelLine.split text & markers', () => {
 	}
 
 	function testLineSplitMarkers(initialText:string, initialMarkers: LineMarker[], splitColumn:number, forceMoveMarkers:boolean, expectedText1:string, expectedText2:string, expectedChangedMarkers:number[], _expectedMarkers1: LineMarker[], _expectedMarkers2: LineMarker[]): void {
-		var line = new modelLine.ModelLine(1, initialText);
+		var line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
 		var changedMarkers = Object.create(null);
-		var otherLine = line.split(changedMarkers, splitColumn, forceMoveMarkers);
+		var otherLine = line.split(changedMarkers, splitColumn, forceMoveMarkers, NO_TAB_SIZE);
 
 		assert.equal(line.text, expectedText1, 'text');
 		assert.equal(otherLine.text, expectedText2, 'text');
@@ -2108,7 +2135,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker:modelLine.ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -2117,14 +2144,14 @@ suite('Editor Model - modelLine.append text & markers', () => {
 	}
 
 	function testLinePrependMarkers(aText:string, aMarkers: LineMarker[], bText:string, bMarkers: LineMarker[], expectedText:string, expectedChangedMarkers:number[], _expectedMarkers: LineMarker[]): void {
-		var a = new modelLine.ModelLine(1, aText);
+		var a = new ModelLine(1, aText, NO_TAB_SIZE);
 		a.addMarkers(aMarkers);
 
-		var b = new modelLine.ModelLine(1, bText);
+		var b = new ModelLine(1, bText, NO_TAB_SIZE);
 		b.addMarkers(bMarkers);
 
 		var changedMarkers = Object.create(null);
-		a.append(changedMarkers, b);
+		a.append(changedMarkers, b, NO_TAB_SIZE);
 
 		assert.equal(a.text, expectedText, 'text');
 

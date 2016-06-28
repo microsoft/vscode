@@ -146,7 +146,7 @@ let confRegistry = <IConfigurationRegistry>platform.Registry.as(Extensions.Confi
 confRegistry.registerConfiguration({
 	id: 'http',
 	order: 15,
-	title: nls.localize('httpConfigurationTitle', "HTTP configuration"),
+	title: nls.localize('httpConfigurationTitle', "HTTP"),
 	type: 'object',
 	properties: {
 		'http.proxy': {

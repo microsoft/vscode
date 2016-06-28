@@ -142,7 +142,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	function createModel(text:string): Model {
-		return new Model(text, Model.DEFAULT_CREATION_OPTIONS, mode);
+		return Model.createFromString(text, undefined, mode);
 	}
 
 	test('Apply changes to model - no changes', () => {

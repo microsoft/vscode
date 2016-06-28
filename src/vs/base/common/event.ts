@@ -152,11 +152,36 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 }
 
 export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
-	return (listener, thisArgs?, disposables?) => event(i => listener(map(i)), thisArgs, disposables);
+	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
 
 export function filterEvent<T>(event: Event<T>, filter: (e:T)=>boolean): Event<T> {
-	return (listener, thisArgs?, disposables?) => event(e => filter(e) && listener(e), thisArgs, disposables);
+	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100): Event<O> {
+
+	let subscription: IDisposable;
+	let output: O;
+	let handle: number;
+
+	const emitter = new Emitter<O>({
+		onFirstListenerAdd() {
+			subscription = event(cur => {
+				output = merger(output, cur);
+				clearTimeout(handle);
+				handle = setTimeout(() => {
+					emitter.fire(output);
+					output = undefined;
+				}, delay);
+			});
+		},
+		onLastListenerRemove() {
+			subscription.dispose();
+		}
+	});
+
+	return emitter.event;
 }
 
 enum EventDelayerState {

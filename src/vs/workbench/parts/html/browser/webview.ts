@@ -43,9 +43,7 @@ KeybindingsRegistry.registerCommandDesc({
 	}
 });
 
-const LIGHT = 'vscode-light';
-const DARK = 'vscode-dark';
-const HIGH_CONTRAST = 'vscode-high-contrast';
+type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
 export default class Webview {
 
@@ -159,9 +157,8 @@ export default class Webview {
 			height: 10px;
 		}`;
 
-		let bodyClasses = {
-			remove: [LIGHT, DARK, HIGH_CONTRAST]
-		};
+
+		let activeTheme: ApiThemeClassName;
 
 		if (isLightTheme(themeId)) {
 			value += `
@@ -175,7 +172,7 @@ export default class Webview {
 				background-color: rgba(0, 0, 0, 0.6);
 			}`;
 
-			bodyClasses['add'] = LIGHT;
+			activeTheme = 'vscode-light';
 
 		} else if (isDarkTheme(themeId)){
 			value += `
@@ -189,7 +186,7 @@ export default class Webview {
 				background-color: rgba(85, 85, 85, 0.8);
 			}`;
 
-			bodyClasses['add'] = DARK;
+			activeTheme = 'vscode-dark';
 
 		} else {
 			value += `
@@ -203,9 +200,9 @@ export default class Webview {
 				background-color: rgba(111, 195, 223, 0.8);
 			}`;
 
-			bodyClasses['add'] = HIGH_CONTRAST;
+			activeTheme = 'vscode-high-contrast';
 		}
 
-		this._send('styles', value, bodyClasses);
+		this._send('styles', value, activeTheme);
 	}
 }

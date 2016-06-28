@@ -137,7 +137,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
-		this._keybindingService = keybindingService.createScoped(domElement);
+		this._keybindingService = keybindingService;
 		this._editorIdContextKey = this._keybindingService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS, undefined);
 		this._editorTabMovesFocusKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS, false);
@@ -672,7 +672,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			}
 			let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
 			if (decorationOption.hoverMessage) {
-				opts.htmlMessage = decorationOption.hoverMessage;
+				opts.hoverMessage = decorationOption.hoverMessage;
 			}
 			newModelDecorations.push({ range: decorationOption.range, options: opts });
 		}

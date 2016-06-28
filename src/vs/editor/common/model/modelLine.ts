@@ -71,6 +71,35 @@ enum MarkerMoveSemantics {
 	ForceStay = 2
 }
 
+/**
+ * Returns:
+ *  - 0 => the line consists of whitespace
+ *  - otherwise => the indent level is returned value - 1
+ */
+function computePlusOneIndentLevel(line: string, tabSize: number): number {
+	let indent = 0;
+	let i = 0;
+	let len = line.length;
+
+	while (i < len) {
+		let chCode = line.charCodeAt(i);
+		if (chCode === 32 /*space*/) {
+			indent++;
+		} else if (chCode === 9 /*\t*/) {
+			indent = indent - indent % tabSize + tabSize;
+		} else {
+			break;
+		}
+		i++;
+	}
+
+	if (i === len) {
+		return 0; // line only consists of whitespace
+	}
+
+	return indent + 1;
+}
+
 export class ModelLine {
 	private _lineNumber:number;
 	public get lineNumber():number { return this._lineNumber; }
@@ -78,19 +107,51 @@ export class ModelLine {
 	private _text:string;
 	public get text():string { return this._text; }
 
-	private _isInvalid:boolean;
-	public get isInvalid():boolean { return this._isInvalid; }
-	public set isInvalid(value:boolean) { this._isInvalid = value; }
+	/**
+	 * bits 31 - 1 => indentLevel
+	 * bit 0 => isInvalid
+	 */
+	private _metadata:number;
+
+	public get isInvalid(): boolean {
+		return (this._metadata & 0x00000001) ? true : false;
+	}
+
+	public set isInvalid(value:boolean) {
+		this._metadata = (this._metadata & 0xfffffffe) | (value ? 1 : 0);
+	}
+
+	/**
+	 * Returns:
+	 *  - -1 => the line consists of whitespace
+	 *  - otherwise => the indent level is returned value
+	 */
+	public getIndentLevel(): number {
+		return ((this._metadata & 0xfffffffe) >> 1) - 1;
+	}
+
+	private _setPlusOneIndentLevel(value:number): void {
+		this._metadata = (this._metadata & 0x00000001) | ((value & 0xefffffff) << 1);
+	}
+
+	public updateTabSize(tabSize:number): void {
+		if (tabSize === 0) {
+			// don't care mark
+			this._metadata = this._metadata & 0x00000001;
+		} else {
+			this._setPlusOneIndentLevel(computePlusOneIndentLevel(this._text, tabSize));
+		}
+	}
 
 	private _state:IState;
 	private _modeTransitions: ModeTransition[];
 	private _lineTokens: LineTokens;
 	private _markers:ILineMarker[];
 
-	constructor(lineNumber:number, text:string) {
+	constructor(lineNumber:number, text:string, tabSize:number) {
 		this._lineNumber = lineNumber|0;
-		this._text = text;
-		this._isInvalid = false;
+		this._metadata = 0;
+		this._setText(text, tabSize);
 		this._state = null;
 		this._modeTransitions = null;
 		this._lineTokens = null;
@@ -207,8 +268,14 @@ export class ModelLine {
 		};
 	}
 
-	private _setText(text:string): void {
+	private _setText(text:string, tabSize:number): void {
 		this._text = text;
+		if (tabSize === 0) {
+			// don't care mark
+			this._metadata = this._metadata & 0x00000001;
+		} else {
+			this._setPlusOneIndentLevel(computePlusOneIndentLevel(text, tabSize));
+		}
 
 		if (this._lineTokens) {
 			let map = this._lineTokens.getBinaryEncodedTokensMap(),
@@ -342,7 +409,7 @@ export class ModelLine {
 		};
 	}
 
-	public applyEdits(changedMarkers: IChangedMarkers, edits:ILineEdit[]): number {
+	public applyEdits(changedMarkers: IChangedMarkers, edits:ILineEdit[], tabSize:number): number {
 		let deltaColumn = 0;
 		let resultText = this._text;
 
@@ -393,12 +460,12 @@ export class ModelLine {
 		markersAdjuster.finish(deltaColumn, resultText.length);
 
 		// Save the resulting text
-		this._setText(resultText);
+		this._setText(resultText, tabSize);
 
 		return deltaColumn;
 	}
 
-	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean): ModelLine {
+	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean, tabSize:number): ModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this._text.substring(0, splitColumn - 1);
 		var otherText = this._text.substring(splitColumn - 1);
@@ -439,20 +506,20 @@ export class ModelLine {
 			}
 		}
 
-		this._setText(myText);
+		this._setText(myText, tabSize);
 
-		var otherLine = new ModelLine(this._lineNumber + 1, otherText);
+		var otherLine = new ModelLine(this._lineNumber + 1, otherText, tabSize);
 		if (otherMarkers) {
 			otherLine.addMarkers(otherMarkers);
 		}
 		return otherLine;
 	}
 
-	public append(changedMarkers: IChangedMarkers, other:ModelLine): void {
+	public append(changedMarkers: IChangedMarkers, other:ModelLine, tabSize:number): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this._text.length;
-		this._setText(this._text + other._text);
+		this._setText(this._text + other._text, tabSize);
 
 		let otherLineTokens = other._lineTokens;
 		if (otherLineTokens) {

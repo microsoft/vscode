@@ -16,6 +16,9 @@ import 'vs/editor/browser/editor.all';
 // Languages
 import 'vs/languages/languages.main';
 
+// Menus/Actions
+import 'vs/platform/actions/browser/menusExtensionPoint';
+
 // Workbench
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarVisibility';
@@ -44,6 +47,8 @@ import 'vs/workbench/parts/markers/markers.contribution';
 import 'vs/workbench/parts/html/browser/html.contribution';
 
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
+import 'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen';
+
 
 import 'vs/workbench/parts/output/browser/output.contribution';
 

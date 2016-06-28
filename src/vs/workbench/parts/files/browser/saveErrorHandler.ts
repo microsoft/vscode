@@ -22,7 +22,7 @@ import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platfo
 import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -167,7 +167,8 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		@IModelService modelService: IModelService,
 		@IModeService private modeService: IModeService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		// We create a new resource URI here that is different from the file resource because we represent the state of
 		// the file as it is on disk and not as it is (potentially cached) in Code. That allows us to have a different
@@ -185,7 +186,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 
 		// Make sure our file from disk is resolved up to date
-		return this.fileService.resolveContent(this.fileResource).then(content => {
+		return this.textFileService.resolveTextContent(this.fileResource).then(content => {
 			this.lastModified = content.mtime;
 
 			const codeEditorModel = this.modelService.getModel(this.resource);
@@ -193,7 +194,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
 				this.createdEditorModel = true;
 			} else {
-				codeEditorModel.setValue(content.value);
+				codeEditorModel.setValueFromRawText(content.value);
 			}
 
 			return super.resolve(refresh);

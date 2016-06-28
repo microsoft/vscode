@@ -16,12 +16,14 @@ import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {TestThreadService} from './testThreadService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
+import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
-import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
+import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
+import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {DocumentSymbolProviderRegistry, DocumentHighlightKind} from 'vs/editor/common/modes';
 import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
@@ -36,15 +38,17 @@ import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/para
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
 import {asWinJsPromise} from 'vs/base/common/async';
+import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHostProtocol';
+import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = new EditorModel(
+const model: EditorCommon.IModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
-	EditorModel.DEFAULT_CREATION_OPTIONS,
+	undefined,
 	undefined,
 	URI.parse('far://testing/file.a'));
 
@@ -60,14 +64,16 @@ suite('ExtHostLanguageFeatures', function() {
 
 		let services = new ServiceCollection();
 		let instantiationService = new InstantiationService(services);
-		threadService = new TestThreadService(instantiationService);
-		services.set(IMarkerService, new MainProcessMarkerService(threadService));
+		threadService = new TestThreadService();
+		services.set(IMarkerService, new MarkerService());
 		services.set(IThreadService, threadService);
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
+		const extHostDocuments = new ExtHostDocuments(threadService);
+		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
+		extHostDocuments._acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -86,10 +92,17 @@ suite('ExtHostLanguageFeatures', function() {
 			},
 		});
 
-		threadService.getRemotable(ExtHostCommands);
-		threadService.getRemotable(MainThreadCommands);
-		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
-		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
+		const commands = new ExtHostCommands(threadService, null);
+		threadService.set(ExtHostContext.ExtHostCommands, commands);
+		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
+
+		const diagnostics = new ExtHostDiagnostics(threadService);
+		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
+
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics);
+		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
+
+		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
 	});
 
 	suiteTeardown(() => {
@@ -383,8 +396,8 @@ suite('ExtHostLanguageFeatures', function() {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value;
-				assert.equal(first.htmlContent[0].markdown, 'registered second');
-				assert.equal(second.htmlContent[0].markdown, 'registered first');
+				assert.equal(first.contents[0], 'registered second');
+				assert.equal(second.contents[0], 'registered first');
 			});
 		});
 	});
