@@ -72,7 +72,7 @@ suite('commands namespace tests', () => {
 		let virtualDocumentUri = Uri.parse('speciale://authority/path');
 		let title = 'A title';
 
-		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri, title).then(success => {
+		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri, ViewColumn.Three, title).then(success => {
 			assert.ok(success);
 			registration.dispose();
 		});

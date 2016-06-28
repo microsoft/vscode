@@ -236,7 +236,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
-		this.toUnhook.push(this.editor.onDidChangeCursorSelection((e) => this.resetHandler())); // https://github.com/Microsoft/vscode/issues/7827
+		this.toUnhook.push(this.editor.onDidChangeCursorSelection((e) => this.onDidChangeCursorSelection(e)));
 		this.toUnhook.push(this.editor.onDidChangeModel((e) => this.resetHandler()));
 		this.toUnhook.push(this.editor.onDidChangeModelContent(() => this.resetHandler()));
 		this.toUnhook.push(this.editor.onDidScrollChange((e) => {
@@ -244,6 +244,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 				this.resetHandler();
 			}
 		}));
+	}
+
+	private onDidChangeCursorSelection(e: editorCommon.ICursorSelectionChangedEvent): void {
+		if (e.selection && e.selection.startColumn !== e.selection.endColumn) {
+			this.resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/Microsoft/vscode/issues/7827)
+		}
 	}
 
 	private onEditorMouseMove(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {

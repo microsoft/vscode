@@ -239,7 +239,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 
-		// Ensure active tab is always revealed
+		// Ensure the active tab is always revealed
 		this.layout();
 	}
 
