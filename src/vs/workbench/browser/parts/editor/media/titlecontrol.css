@@ -34,8 +34,8 @@
 	color: rgba(51, 51, 51, 0.5);
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab .tab-label a {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .title-label a,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab .tab-label a {
 	color: #333333;
 }
 
@@ -44,8 +44,8 @@
 	color: rgba(255, 255, 255, 0.5);
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-label a,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab .tab-label a {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .title-label a,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab .tab-label a {
 	color: white;
 }
 
@@ -73,17 +73,17 @@
 }
 
 /* Drag Cursor */
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label span {
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container > .title,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container > .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container > .title .title-label span {
 	cursor: -webkit-grab;
 }
 
 #monaco-workbench-editor-move-overlay,
 .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label span,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged > .title,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged > .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged > .title .title-label span,
 .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .monaco-editor .view-lines {
 	cursor: -webkit-grabbing;
 }
