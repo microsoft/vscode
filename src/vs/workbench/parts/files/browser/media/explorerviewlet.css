@@ -111,11 +111,10 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
 	font-style: italic;
-	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor.preview {
-	margin-left: 0px; /* accomodate for 1px padding */
+.monaco-workbench.mac .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
+	font-weight: 300; /* makes the italic font appear the same as normal */
 }
 
 /* Theming */

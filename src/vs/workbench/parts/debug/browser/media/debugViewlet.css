@@ -197,6 +197,11 @@
 	overflow: hidden;
 }
 
+.monaco-workbench.mac .debug-viewlet .debug-call-stack .load-more,
+.monaco-workbench.mac .debug-viewlet .debug-call-stack .error {
+	font-weight: 300; /* makes the italic font appear the same as normal */
+}
+
 /* Variables & Expression view */
 
 .debug-viewlet .scope {
