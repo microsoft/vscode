@@ -13,6 +13,7 @@ import * as modes from 'vs/editor/common/modes';
 import {CompatMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class OutputMode extends CompatMode {
 
@@ -21,7 +22,8 @@ export class OutputMode extends CompatMode {
 	constructor(
 		descriptor: IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ICompatWorkerService compatWorkerService: ICompatWorkerService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
+		@IWorkspaceContextService contextService:IWorkspaceContextService
 	) {
 		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
@@ -31,10 +33,22 @@ export class OutputMode extends CompatMode {
 				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
 		});
+
+		if (compatWorkerService.isInMainThread) {
+			let workspace = contextService.getWorkspace();
+			if (workspace) {
+				this._configure(workspace.resource);
+			}
+		}
 	}
 
 	private _worker<T>(runner: (worker: OutputWorker) => TPromise<T>): TPromise<T> {
 		return this._modeWorkerManager.worker(runner);
+	}
+
+	static $_configure = CompatWorkerAttr(OutputMode, OutputMode.prototype._configure);
+	private _configure(workspaceResource: URI): TPromise<void> {
+		return this._worker((w) => w.configure(workspaceResource));
 	}
 
 	static $_provideLinks = CompatWorkerAttr(OutputMode, OutputMode.prototype._provideLinks);
