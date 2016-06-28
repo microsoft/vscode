@@ -59,6 +59,8 @@ import Severity from 'vs/base/common/severity';
 
 export class SearchViewlet extends Viewlet {
 
+	private static MAX_TEXT_RESULTS = 2048;
+
 	private isDisposed: boolean;
 	private toDispose: lifecycle.IDisposable[];
 
@@ -643,8 +645,8 @@ export class SearchViewlet extends Viewlet {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
+			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
 			includePattern: includes
-			// maxResults: SearchViewlet.MAX_TEXT_RESULTS,
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
