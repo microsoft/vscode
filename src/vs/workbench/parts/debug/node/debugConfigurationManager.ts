@@ -30,7 +30,6 @@ import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { SettingsVariables } from 'vs/workbench/parts/lib/node/settingsVariables';
 
 // debuggers extension point
 
@@ -156,7 +155,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public configuration: debug.IConfig;
 	private systemVariables: SystemVariables;
-	private settingsVariables: SettingsVariables;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
 	private _onDidConfigurationChange: Emitter<string>;
@@ -173,7 +171,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	) {
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
-		this.settingsVariables = new SettingsVariables(this.configurationService.getConfiguration<any>());
 		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();
@@ -327,12 +324,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				if (this.systemVariables) {
 					Object.keys(this.configuration).forEach(key => {
 						this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
-					});
-				}
-				// massage configuration attributes - substitute settings (from settings.json) variables.
-				if (this.systemVariables) {
-					Object.keys(this.configuration).forEach(key => {
-						this.configuration[key] = this.settingsVariables.resolveAny(this.configuration[key]);
 					});
 				}
 			}
