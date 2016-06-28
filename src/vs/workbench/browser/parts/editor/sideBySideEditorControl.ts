@@ -190,7 +190,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private onExtensionsReady(): void {
 
 		// Up to date title areas
-		POSITIONS.forEach(position => this.titleAreaControl[position].refresh());
+		POSITIONS.forEach(position => this.titleAreaControl[position].update());
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
