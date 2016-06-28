@@ -90,30 +90,30 @@
 
 /* Tab Close */
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab > .tab-close {
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab > .tab-close {
 	margin-top: auto;
 	margin-bottom: auto;
 	width: 28px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab.active > .tab-close .action-label,				/* always show it for active tab */
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab > .tab-close .action-label:focus,				/* always show it on focus */
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab:hover > .tab-close .action-label,				/* always show it on hover */
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.active .tabs-container > .tab.active:hover > .tab-close .action-label,		/* always show it on hover */
-.monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab.dirty > .tab-close .action-label {					/* always show it for dirty tabs */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active > .tab-close .action-label,				/* always show it for active tab */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab > .tab-close .action-label:focus,				/* always show it on focus */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab:hover > .tab-close .action-label,				/* always show it on hover */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active:hover > .tab-close .action-label,		/* always show it on hover */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty > .tab-close .action-label {					/* always show it for dirty tabs */
 	opacity: 1;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab.active > .tab-close .action-label,					/* show dimmed for inactive group */
-.monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab.active:hover > .tab-close .action-label {				/* show dimmed for inactive group */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active > .tab-close .action-label,					/* show dimmed for inactive group */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active:hover > .tab-close .action-label {				/* show dimmed for inactive group */
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab:hover > .tab-close .action-label {					/* show more dimmed for inactive group and tab */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:hover > .tab-close .action-label {					/* show more dimmed for inactive group and tab */
 	opacity: 0.4;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title .tabs-container > .tab > .tab-close .action-label {
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab > .tab-close .action-label {
 	opacity: 0;
 	display: block;
 	height: 16px;

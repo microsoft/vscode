@@ -58,6 +58,6 @@
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container .title.active .title-actions {
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .title-actions {
 	opacity: 1;
 }
