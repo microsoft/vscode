@@ -96,12 +96,10 @@
 }
 
 .markers-panel .icon {
-	float: left;
-	display: block;
-	width: 16px;
 	height: 22px;
-	margin-right: 4px;
-	margin-left: 4px;
+    margin-right: 4px;
+    margin-left: 4px;
+    flex: 0 0 16px;
 }
 
 .markers-panel .icon.warning {
