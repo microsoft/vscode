@@ -5,5 +5,8 @@
 
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry.editor-preview {
 	font-style: italic;
-	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
+}
+
+.monaco-workbench.mac .quick-open-widget .quick-open-tree .quick-open-entry.editor-preview {
+	font-weight: 300; /* makes the italic font appear the same as normal */
 }
