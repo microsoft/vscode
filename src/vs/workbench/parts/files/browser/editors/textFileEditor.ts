@@ -230,13 +230,7 @@ export class TextFileEditor extends BaseTextEditor {
 	private openAsFolder(input: EditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		let handleEditorPromise: TPromise<any> = this.editorService.closeEditor(this.position, this.input);
-		let previousInput = this.historyService.getHistory()[1];
-		if (previousInput) {
-			handleEditorPromise = handleEditorPromise.then(() => this.editorService.openEditor(previousInput, null, this.position));
-		}
-
-		handleEditorPromise.done(() => {
+		this.editorService.closeEditor(this.position, this.input).done(() => {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (input instanceof FileEditorInput) {
