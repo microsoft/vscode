@@ -29,6 +29,10 @@
 	margin-left: 17px;
 }
 
+.search-viewlet .search-widget .input-box .monaco-inputbox {
+	height: 25px;
+}
+
 .search-viewlet .search-widget .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
