@@ -34,7 +34,6 @@ export class SearchWidget extends Widget {
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
 	private replaceInput: InputBox;
-	private searchSubmitted: boolean= false;
 
 	private replaceInputContainer: HTMLElement;
 	private toggleReplaceButton: Button;
@@ -91,9 +90,9 @@ export class SearchWidget extends Widget {
 	}
 
 	public clear() {
-		this.searchSubmitted= false;
 		this.searchInput.clear();
 		this.replaceInput.value= '';
+		this.setReplaceAllActionState(false);
 	}
 
 	public isReplaceActive(): boolean {
@@ -163,7 +162,6 @@ export class SearchWidget extends Widget {
 		this.onkeyup(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyUp(keyboardEvent));
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());
 		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());
-		this.onSearchSubmit(() => this.updateReplaceActionState());
 	}
 
 	private onToggleReplaceButton():void {
@@ -171,12 +169,7 @@ export class SearchWidget extends Widget {
 		dom.toggleClass(this.toggleReplaceButton.getElement(), 'collapse');
 		dom.toggleClass(this.toggleReplaceButton.getElement(), 'expand');
 		this._onReplaceToggled.fire();
-		this.updateReplaceActionState();
-	}
-
-	private updateReplaceActionState():void {
-		let enabled= this.isReplaceShown() && this.searchSubmitted;
-		this.setReplaceAllActionState(enabled);
+		this._onReplaceState.fire();
 	}
 
 	private validatSearchInput(value: string): any {
@@ -198,8 +191,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputChanged(): void {
-		this.searchSubmitted= false;
-		this.updateReplaceActionState();
+		this.setReplaceAllActionState(false);
 	}
 
 	private onSearchInputKeyUp(keyboardEvent: IKeyboardEvent) {
@@ -259,7 +251,6 @@ export class SearchWidget extends Widget {
 
 	private submitSearch(refresh: boolean= true): void {
 		if (this.searchInput.getValue()) {
-			this.searchSubmitted= true;
 			this._onSearchSubmit.fire(refresh);
 		}
 	}

@@ -315,6 +315,10 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private replaceAll(): void {
+		if (this.viewModel.count() === 0) {
+			return;
+		}
+
 		let progressRunner= this.progressService.show(100);
 
 		let occurrences= this.viewModel.count();
@@ -325,7 +329,7 @@ export class SearchViewlet extends Viewlet {
 
 		let confirmation= {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
-			message: replaceValue ? nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences with '{1}' across {2} files?", occurrences, replaceValue, fileCount)
+			message: replaceValue ? nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue)
 									: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
 			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
 		};
@@ -811,6 +815,7 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			doneTimer.stop();
+			this.searchWidget.setReplaceAllActionState(this.viewModel.count() > 0);
 		};
 
 		let onError = (e: any) => {
