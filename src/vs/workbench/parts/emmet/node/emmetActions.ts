@@ -15,11 +15,9 @@ import * as fileAccessor from 'vs/workbench/parts/emmet/node/fileAccessor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 interface IEmmetConfiguration {
-	emmet: {
-		preferences: any;
-		syntaxProfiles: any;
-		triggerExpansionOnTab: boolean
-	};
+	preferences: any;
+	syntaxProfiles: any;
+	triggerExpansionOnTab: boolean
 }
 
 export abstract class EmmetEditorAction extends EditorAction {
@@ -34,11 +32,9 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	private updateEmmetPreferences(_emmet: any) {
-		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		_emmet.loadPreferences(preferences);
-
-		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
-		_emmet.loadProfiles(syntaxProfile);
+		let emmetConfiguration = this.configurationService.getConfiguration<IEmmetConfiguration>('emmet');
+		_emmet.loadPreferences(emmetConfiguration.preferences);
+		_emmet.loadProfiles(emmetConfiguration.syntaxProfiles);
 	}
 
 	private resetEmmetPreferences(_emmet: any) {
