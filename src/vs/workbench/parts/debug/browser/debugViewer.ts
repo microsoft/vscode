@@ -683,6 +683,11 @@ export class VariablesAccessibilityProvider implements tree.IAccessibilityProvid
 
 export class VariablesController extends BaseDebugController {
 
+	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
+		super(debugService, contextMenuService, actionProvider);
+		this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.setSelectedExpression.bind(this));
+	}
+
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof model.Variable && event.detail === 2) {
@@ -696,16 +701,14 @@ export class VariablesController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onSpace(tree: tree.ITree, event: IKeyboardEvent): boolean {
+	protected setSelectedExpression(tree: tree.ITree, event: KeyboardEvent): boolean {
 		const element = tree.getFocus();
-		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
-		if (element instanceof model.Variable && element.reference === 0 && element !== selectedExpression) {
-			event.stopPropagation();
-			event.preventDefault();
+		if (element instanceof model.Variable && element.reference === 0) {
 			this.debugService.getViewModel().setSelectedExpression(element);
+			return true;
 		}
 
-		return super.onSpace(tree, event);
+		return false;
 	}
 }
 
