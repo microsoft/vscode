@@ -173,18 +173,11 @@ export class SearchRenderer extends ActionsRenderer {
 			elements.push(strings.escape(preview.before));
 
 			let input= <SearchResult>tree.getInput();
+			elements.push('</span><span class="' + (input.isReplaceActive() ? 'replace ' : '') + 'findInFileMatch">');
+			elements.push(strings.escape(preview.inside));
 			if (input.isReplaceActive()) {
-				let replaceValue= input.replaceText;
-				if (replaceValue) {
-					elements.push('</span><span class="findInFileMatch replaceMatch">');
-					elements.push(strings.escape(replaceValue));
-				} else {
-					elements.push('</span><span class="findInFileMatch replaceMatch removeMatch">');
-					elements.push(strings.escape(preview.inside));
-				}
-			} else {
-				elements.push('</span><span class="findInFileMatch">');
-				elements.push(strings.escape(preview.inside));
+				elements.push('</span><span class="replaceMatch">');
+				elements.push(strings.escape(input.replaceText));
 			}
 			elements.push('</span><span>');
 			elements.push(strings.escape(preview.after));

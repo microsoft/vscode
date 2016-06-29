@@ -292,6 +292,16 @@
 	animation-name: inherit !important;
 }
 
+.search-viewlet .replace.findInFileMatch {
+	text-decoration: line-through;
+	background-color: rgba(255, 0, 0, 0.2);
+}
+
+.search-viewlet .replaceMatch {
+	background-color: rgba(155, 185, 85, 0.5);
+}
+
+.hc-black .monaco-workbench .search-viewlet .replaceMatch,
 .hc-black .monaco-workbench .search-viewlet .findInFileMatch,
 .monaco-editor.hc-black .findInFileMatch {
 	background: none !important;
@@ -299,18 +309,12 @@
 	box-sizing: border-box;
 }
 
-
-.search-viewlet .replaceMatch {
-	background-color: rgba(234, 92, 0, 0.45);
+.hc-black .monaco-workbench .search-viewlet .replace.findInFileMatch {
+	border: 1px dashed #FF008F;
 }
 
-.search-viewlet .removeMatch {
-	text-decoration: line-through;
-}
-
-.hc-black .monaco-workbench .search-viewlet .replaceMatch,
-.monaco-editor.hc-black .replaceMatch {
-	border-color: #F44336;
+.hc-black .monaco-workbench .search-viewlet .replaceMatch {
+	border: 1px dashed rgb(51, 255, 46);
 }
 
 /* Theming */

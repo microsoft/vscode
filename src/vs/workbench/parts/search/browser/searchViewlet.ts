@@ -319,18 +319,21 @@ export class SearchViewlet extends Viewlet {
 
 		let occurrences= this.viewModel.count();
 		let fileCount= this.viewModel.fileCount();
-		let afterReplaceAllMessage= nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files.", occurrences, fileCount);
+		let replaceValue= this.searchWidget.getReplaceValue() || '';
+		let afterReplaceAllMessage= replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
+													: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
 
 		let confirmation= {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
-			message: nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences across {1} files?", occurrences, fileCount),
+			message: replaceValue ? nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences with '{1}' across {2} files?", occurrences, replaceValue, fileCount)
+									: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
 			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
 		};
 
 		if (this.messageService.confirm(confirmation)) {
 			let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
 			this.replacingAll= true;
-			this.replaceService.replace(this.viewModel.matches(), this.viewModel.replaceText, progressRunner).then(() => {
+			this.replaceService.replace(this.viewModel.matches(), replaceValue, progressRunner).then(() => {
 				replaceAllTimer.stop();
 				this.replacingAll= false;
 				setTimeout(() => {
