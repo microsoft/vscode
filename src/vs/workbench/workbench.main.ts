@@ -83,10 +83,3 @@ import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/electron-browser/main';
 
 import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
-
-// require.config({
-// 	ignoreDuplicateModules: [
-// 		'vs/workbench/parts/search/common/searchModel',
-// 		'vs/workbench/parts/search/common/searchQuery'
-// 	]
-// });
