@@ -84,7 +84,7 @@ export class MenuItemAction extends Actions.Action {
 	}
 
 	run(alt: boolean) {
-		const {id} = alt && this._item.alt || this._item.command;
+		const {id} = alt === true && this._item.alt || this._item.command;
 		return this._keybindingService.executeCommand(id, this._resource);
 	}
 }
