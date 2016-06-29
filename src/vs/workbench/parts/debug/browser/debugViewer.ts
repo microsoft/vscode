@@ -695,6 +695,18 @@ export class VariablesController extends BaseDebugController {
 
 		return super.onLeftClick(tree, element, event);
 	}
+
+	protected onSpace(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
+		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
+		if (element instanceof model.Variable && element.reference === 0 && element !== selectedExpression) {
+			event.stopPropagation();
+			event.preventDefault();
+			this.debugService.getViewModel().setSelectedExpression(element);
+		}
+
+		return super.onSpace(tree, event);
+	}
 }
 
 // watch expressions
