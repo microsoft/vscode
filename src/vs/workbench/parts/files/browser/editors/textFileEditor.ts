@@ -30,7 +30,7 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, Severity, CancelAction} from 'vs/platform/message/common/message';
+import {IMessageService, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
@@ -198,13 +198,6 @@ export class TextFileEditor extends BaseTextEditor {
 						})
 					]
 				}));
-			}
-
-			// Inform the user if the file is too large to open
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				this.messageService.show(Severity.Info, nls.localize('fileTooLarge', "We are sorry, but the file is too large to open it inside an editor."));
-
-				return;
 			}
 
 			// Otherwise make sure the error bubbles up
