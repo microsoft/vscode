@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import editorCommon = require('vs/editor/common/editorCommon');
@@ -21,8 +20,13 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 
 	static ID = 'editor.emmet.action.expandAbbreviation';
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
 		super(descriptor, editor, configurationService, 'expand_abbreviation');
+	}
+
+	public noExpansionOccurred(actionId?: string): void {
+		// forward the tab key back to the editor
+		this.editor.trigger('emmet', editorCommon.Handler.Tab, {});
 	}
 }
 
