@@ -124,11 +124,6 @@ export class CompletionModel {
 			item.highlights = filter(word, suggestion.label);
 			match = item.highlights !== null;
 
-			// no match on label -> check on codeSnippet
-			if (!match && suggestion.codeSnippet !== suggestion.label) {
-				match = !isFalsyOrEmpty((filter(word, suggestion.codeSnippet.replace(/{{.+?}}/g, '')))); // filters {{text}}-snippet syntax
-			}
-
 			// no match on label nor codeSnippet -> check on filterText
 			if(!match && typeof suggestion.filterText === 'string') {
 				match = !isFalsyOrEmpty(filter(word, suggestion.filterText));
