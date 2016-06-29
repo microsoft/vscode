@@ -38,9 +38,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		_emmet.loadPreferences(preferences);
 
 		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
-		if (Object.keys(syntaxProfile).length !== 0) {
-			_emmet.loadProfiles(syntaxProfile);
-		}
+		_emmet.loadProfiles(syntaxProfile);
 	}
 
 	private resetEmmetPreferences(_emmet: any) {
