@@ -245,7 +245,7 @@ export class SearchViewlet extends Viewlet {
 			}).hide();
 		}).getHTMLElement();
 
-		this.messages = this.searchWidgetsContainer.div({ 'class': 'messages' }).hide().clone();
+		this.messages = builder.div({ 'class': 'messages' }).hide().clone();
 
 		this.createSearchResultsView(builder);
 
