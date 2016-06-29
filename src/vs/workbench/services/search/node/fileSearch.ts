@@ -116,7 +116,7 @@ export class FileWalker {
 			return clb(false);
 		}
 
-		return extfs.stat(this.filePattern, (error, stat) => {
+		return fs.stat(this.filePattern, (error, stat) => {
 			return clb(!error && !stat.isDirectory(), stat && stat.size); // only existing files
 		});
 	}
@@ -128,7 +128,7 @@ export class FileWalker {
 
 		const absolutePath = paths.join(basePath, this.filePattern);
 
-		return extfs.stat(absolutePath, (error, stat) => {
+		return fs.stat(absolutePath, (error, stat) => {
 			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
 		});
 	}
@@ -159,12 +159,12 @@ export class FileWalker {
 
 			// Use lstat to detect links
 			let currentAbsolutePath = [absolutePath, file].join(paths.sep);
-			extfs.lstat(currentAbsolutePath, (error, lstat) => {
+			fs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
 					return clb(null);
 				}
 
-				// If the path is a link, we must instead use extfs.stat() to find out if the
+				// If the path is a link, we must instead use fs.stat() to find out if the
 				// link is a directory or not because lstat will always return the stat of
 				// the link which is always a file.
 				this.statLinkIfNeeded(currentAbsolutePath, lstat, (error, stat) => {
@@ -255,15 +255,15 @@ export class FileWalker {
 		return true;
 	}
 
-	private statLinkIfNeeded(path: string, lstat: extfs.IRawStat, clb: (error: Error, stat: extfs.IRawStat) => void): void {
+	private statLinkIfNeeded(path: string, lstat: fs.Stats, clb: (error: Error, stat: fs.Stats) => void): void {
 		if (lstat.isSymbolicLink()) {
-			return extfs.stat(path, clb); // stat the target the link points to
+			return fs.stat(path, clb); // stat the target the link points to
 		}
 
 		return clb(null, lstat); // not a link, so the stat is already ok for us
 	}
 
-	private realPathIfNeeded(path: string, lstat: extfs.IRawStat, clb: (error: Error, realpath?: string) => void): void {
+	private realPathIfNeeded(path: string, lstat: fs.Stats, clb: (error: Error, realpath?: string) => void): void {
 		if (lstat.isSymbolicLink()) {
 			return fs.realpath(path, (error, realpath) => {
 				if (error) {
