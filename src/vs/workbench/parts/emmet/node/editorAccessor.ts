@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {IPosition, Handler, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {IPosition, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import {Range} from 'vs/editor/common/core/range';
