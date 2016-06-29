@@ -54,19 +54,16 @@ const _altKey = new class extends Emitter<boolean> {
 	private _subscriptions: IDisposable[] = [];
 
 	constructor() {
-		super({
-			onFirstListenerAdd: () => {
-				domEvent(document.body, 'keydown')(this._key, this, this._subscriptions);
-				domEvent(document.body, 'keyup')(this._key, this, this._subscriptions);
-			},
-			onLastListenerRemove: () => {
-				this._subscriptions = dispose(this._subscriptions);
-			}
-		});
+		super();
+
+		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.fire(e.altKey)));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
+		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
 	}
 
-	private _key(e: KeyboardEvent) {
-		this.fire(e.type === 'keydown' && e.altKey);
+	dispose() {
+		super.dispose();
+		this._subscriptions = dispose(this._subscriptions);
 	}
 };
 
@@ -102,21 +99,25 @@ class MenuItemActionItem extends ActionItem {
 		let altSubscription: IDisposable;
 		let mouseOver: boolean;
 		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
-			if (!this._altKeyDown) {
-				dispose(altSubscription);
-			}
 			mouseOver = false;
+			if (!this._altKeyDown) {
+				// stop listen on ALT
+				altSubscription.dispose();
+			}
 		}));
 		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
 			mouseOver = true;
 			altSubscription = _altKey.event(value => {
-				if (!mouseOver) {
-					dispose(altSubscription);
-				}
+
 				this._altKeyDown = value;
 				this._updateLabel();
 				this._updateTooltip();
 				this._updateClass();
+
+				if (!mouseOver) {
+					// stop listening on ALT
+					altSubscription.dispose();
+				}
 			});
 		}));
 	}
