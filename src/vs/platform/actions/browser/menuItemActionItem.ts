@@ -8,6 +8,8 @@
 import {localize} from 'vs/nls';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMenu, MenuItemAction} from 'vs/platform/actions/common/actions';
+import {IMessageService} from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import {IAction} from 'vs/base/common/actions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -40,9 +42,9 @@ export function fillInActions(menu: IMenu, target: IAction[] | { primary: IActio
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService): ActionItem {
+export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService): ActionItem {
 	if (action instanceof MenuItemAction) {
-		return new MenuItemActionItem(action, keybindingService);
+		return new MenuItemActionItem(action, keybindingService, messageService);
 	}
 }
 
@@ -74,7 +76,8 @@ class MenuItemActionItem extends ActionItem {
 
 	constructor(
 		action: MenuItemAction,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IMessageService private _messageService: IMessageService
 	) {
 		super(undefined, action, { icon: !!action.command.iconClass, label: !action.command.iconClass });
 	}
@@ -88,7 +91,9 @@ class MenuItemActionItem extends ActionItem {
 		event.preventDefault();
 		event.stopPropagation();
 
-		(<MenuItemAction>this._action).run(this._altKeyDown).done(undefined, console.error);
+		(<MenuItemAction>this._action).run(this._altKeyDown).done(undefined, err => {
+			this._messageService.show(Severity.Error, err);
+		});
 	}
 
 	render(container: HTMLElement): void {

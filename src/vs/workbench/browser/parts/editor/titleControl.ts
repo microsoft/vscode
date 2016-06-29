@@ -268,7 +268,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		// Check extensions
 		if (!actionItem) {
-			actionItem = createActionItem(action, this.keybindingService);
+			actionItem = createActionItem(action, this.keybindingService, this.messageService);
 		}
 
 		return actionItem;
