@@ -254,10 +254,10 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }
 
 			for (let item of entry.value) {
 				if (!MenuRegistry.hasCommand(item.command)) {
-					collector.warn(localize('missing.command', "Menu item references command `{0}` but is not defined in the `commands` section.", item.command));
+					collector.warn(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
 				}
 				if (item.alt && !MenuRegistry.hasCommand(item.alt)) {
-					collector.warn(localize('missing.altCommand', "Menu item references alt-command `{0}` but is not defined in the `commands` section.", item.alt));
+					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));
 				}
 				if (item.command || item.alt) {
 					collector.info(localize('dupe.command', "Menu item references the same command as default and alternative command"));
