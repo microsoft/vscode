@@ -17,7 +17,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 interface IEmmetConfiguration {
 	preferences: any;
 	syntaxProfiles: any;
-	triggerExpansionOnTab: boolean
+	triggerExpansionOnTab: boolean;
 }
 
 export abstract class EmmetEditorAction extends EditorAction {
