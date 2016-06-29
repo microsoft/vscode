@@ -61,14 +61,27 @@ export class MenuItemAction extends Actions.Action {
 		return result;
 	}
 
+	private _resource: URI;
+
 	constructor(
 		private _item: IMenuItem,
-		private _resource: URI,
 		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 
 		this.order = 100000; //TODO@Ben order is menu item property, not an action property
+	}
+
+	set resource(value: URI) {
+		this._resource = value;
+	}
+
+	get resource() {
+		return this._resource;
+	}
+
+	get item(): IMenuItem {
+		return this._item;
 	}
 
 	get command() {
@@ -77,10 +90,6 @@ export class MenuItemAction extends Actions.Action {
 
 	get altCommand() {
 		return this._item.alt;
-	}
-
-	get selectedCommand() {
-		return this.command;
 	}
 
 	run(alt: boolean) {

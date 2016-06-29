@@ -93,7 +93,7 @@ export class MenuService implements IMenuService {
 	}
 }
 
-type MenuItemGroup = [string, IMenuItem[]];
+type MenuItemGroup = [string, MenuItemAction[]];
 
 class Menu implements IMenu {
 
@@ -121,7 +121,7 @@ class Menu implements IMenu {
 					group = [groupName, []];
 					this._menuGroups.push(group);
 				}
-				group[1].push(item);
+				group[1].push(new MenuItemAction(item, this._keybindingService));
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
@@ -151,19 +151,18 @@ class Menu implements IMenu {
 	}
 
 	getActions(): [string, IAction[]][] {
-		const result: [string, IAction[]][] = [];
+		const result: MenuItemGroup[] = [];
 		for (let group of this._menuGroups) {
-			const [id, items] = group;
-			const actions: IAction[] = [];
-			for (let item of items) {
-				if (this._keybindingService.contextMatchesRules(item.when)) {
-					actions.push(new MenuItemAction(item,
-						this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource),
-						this._keybindingService));
+			const [id, actions] = group;
+			const activeActions: MenuItemAction[] = [];
+			for (let action of actions) {
+				if (this._keybindingService.contextMatchesRules(action.item.when)) {
+					action.resource = this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource);
+					activeActions.push(action);
 				}
 			}
 			if (actions.length > 0) {
-				result.push([id, actions]);
+				result.push([id, activeActions]);
 			}
 		}
 		return result;
