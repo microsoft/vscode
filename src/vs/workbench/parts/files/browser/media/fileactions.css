@@ -118,16 +118,16 @@
 	background: url('saveall_inverse.svg') center center no-repeat;
 }
 
-.hc-black .monaco-workbench .explorer-action.new-file:before {
-	content: url('AddFile_inverse.svg');
+.hc-black .monaco-workbench .explorer-action.new-file {
+	background: url('AddFile_inverse.svg') center center no-repeat;
 }
 
-.hc-black .monaco-workbench .explorer-action.new-folder:before {
-	content: url('AddFolder_inverse.svg');
+.hc-black .monaco-workbench .explorer-action.new-folder {
+	background: url('AddFolder_inverse.svg') center center no-repeat;
 }
 
-.hc-black .monaco-workbench .explorer-action.refresh-explorer:before {
-	content: url('Refresh_inverse.svg');
+.hc-black .monaco-workbench .explorer-action.refresh-explorer {
+	background: url('Refresh_inverse.svg') center center no-repeat;
 }
 
 .hc-black .monaco-workbench .explorer-action.collapse-explorer {
