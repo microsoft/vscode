@@ -34,7 +34,7 @@ class UpdateTagAction extends EmmetEditorAction {
 	}
 
 	private wrapAbbreviation(_emmet: any, tag) {
-		if (!_emmet.run('update_tag', this.editorAccessor, tag)) {
+		if (tag && !_emmet.run('update_tag', this.editorAccessor, tag)) {
 			this.editorAccessor.noExpansionOccurred();
 		}
 	}

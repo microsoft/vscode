@@ -68,7 +68,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 				try {
 					if (!this.editorAccessor.isEmmetEnabledMode()) {
-						this.editorAccessor.noExpansionOccurred();
+						this.editorAccessor.noExpansionOccurred(this.id);
 						return;
 					}
 					this.updateEmmetPreferences(_emmet);
