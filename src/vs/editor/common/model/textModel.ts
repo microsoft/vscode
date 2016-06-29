@@ -502,8 +502,14 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		for (let i = indentRanges.length - 1; i >= 0; i--) {
 			let rng = indentRanges[i];
 
+			if (rng.startLineNumber === lineNumber) {
+				return  Math.ceil(rng.indent / this._options.tabSize);
+			}
 			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
 				return 1 + Math.floor(rng.indent / this._options.tabSize);
+			}
+			if (rng.endLineNumber + 1 === lineNumber) {
+				return  Math.ceil(rng.indent / this._options.tabSize);
 			}
 		}
 
