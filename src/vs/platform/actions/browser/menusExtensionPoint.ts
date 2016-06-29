@@ -263,8 +263,8 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }
 					collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
 				}
 
-				if (item.alt && menu !== MenuId.EditorTitle) {
-					collector.info(localize('nosupport.altCommand', "Sorry, but currently only 'editor/title' supports alt-commands"));
+				if (item.alt && menu !== MenuId.EditorTitle && item.group !== 'navigation') {
+					collector.info(localize('nosupport.altCommand', "Sorry, but currently only the 'navigation' group of the 'editor/title' menu supports alt-commands"));
 				}
 			}
 
