@@ -97,10 +97,11 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		return getStatus(this.gitService, this.contextService, <filesCommon.FileEditorInput> this.input);
 	}
 
-	public run(event?: any): TPromise<any> {
-		var sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		var editor = <editorbrowser.ICodeEditor> this.editorService.getActiveEditor().getControl();
-		var viewState = editor ? editor.saveViewState() : null;
+	public run(context?: WorkbenchEditorCommon.IEditorContext): TPromise<any> {
+		const event = context ? context.event : null;
+		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
+		const editor = <editorbrowser.ICodeEditor> this.editorService.getActiveEditor().getControl();
+		const viewState = editor ? editor.saveViewState() : null;
 
 		return this.gitService.getInput(this.getStatus()).then((input) => {
 			var promise = TPromise.as(null);
@@ -176,9 +177,10 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		return true;
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(context?: WorkbenchEditorCommon.IEditorContext): TPromise<any> {
 		const model = this.gitService.getModel();
 		const resource = URI.file(paths.join(model.getRepositoryRoot(), this.getRepositoryRelativePath()));
+		const event = context ? context.event : null;
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		const modifiedViewState = this.saveTextViewState();
 
