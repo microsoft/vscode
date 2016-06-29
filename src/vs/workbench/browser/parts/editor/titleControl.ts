@@ -286,7 +286,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const control = this.editorService.getVisibleEditors()[position];
-		if (this.stacks.isActive(group) && control instanceof BaseEditor && control.input && typeof control.position === 'number') {
+		if (control instanceof BaseEditor && control.input && typeof control.position === 'number') {
 
 			// Editor Control Actions
 			let editorActions = this.mapActionsToEditors[control.getId()];

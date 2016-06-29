@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/notabstitle';
+import {IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
@@ -162,12 +163,16 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Update Editor Actions Toolbar
-		const editorActions = this.getEditorActions({ group, editor });
-		const primaryEditorActions = prepareActions(editorActions.primary);
-		if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
-			primaryEditorActions.push(this.splitEditorAction);
+		let primaryEditorActions: IAction[] = [];
+		let secondaryEditorActions: IAction[] = [];
+		if (isActive) {
+			const editorActions = this.getEditorActions({ group, editor });
+			primaryEditorActions = prepareActions(editorActions.primary);
+			if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
+				primaryEditorActions.push(this.splitEditorAction);
+			}
+			secondaryEditorActions = prepareActions(editorActions.secondary);
 		}
-		const secondaryEditorActions = prepareActions(editorActions.secondary);
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		primaryEditorActionIds.push(this.closeEditorAction.id);
