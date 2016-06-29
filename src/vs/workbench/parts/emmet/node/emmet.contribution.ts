@@ -16,6 +16,7 @@ import './actions/matchingPair';
 import './actions/wrapWithAbbreviation';
 import './actions/editPoints';
 import './actions/selectItem';
+import './actions/toggleComment';
 import './actions/splitJoinTag';
 import './actions/removeTag';
 import './actions/mergeLines';
