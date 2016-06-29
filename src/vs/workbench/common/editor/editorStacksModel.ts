@@ -251,8 +251,8 @@ export class EditorGroup implements IEditorGroup {
 				// Replace existing preview with this editor if we have a preview
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
-					if (targetIndex >= indexOfPreview) {
-						targetIndex--;
+					if (targetIndex > indexOfPreview) {
+						targetIndex--; // accomodate for the fact that the preview editor closes
 					}
 
 					this.closeEditor(this.preview, !makeActive); // optimization to prevent multiple setActive() in one call

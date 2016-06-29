@@ -29,7 +29,7 @@ function create(): EditorStacksModel {
 	services.set(IWorkspaceContextService, new TestContextService());
 
 	const config = new TestConfigurationService();
-	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
+	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 	services.set(IConfigurationService, config);
 
 	let inst = new InstantiationService(services);
@@ -644,7 +644,7 @@ suite('Editor Stacks Model', () => {
 
 		const config = new TestConfigurationService();
 		services.set(IConfigurationService, config);
-		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' }});
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
 		let inst = new InstantiationService(services);
 
@@ -1177,7 +1177,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1221,7 +1221,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1303,7 +1303,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1353,7 +1353,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1395,7 +1395,7 @@ suite('Editor Stacks Model', () => {
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' }});
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		services.set(IConfigurationService, config);
 
 		let inst = new InstantiationService(services);
@@ -1715,5 +1715,22 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.changed[5].group, group1);
 		assert.ok(events.changed[5].structural); // close
 		assert.equal(events.changed[5].editor, input1);
+	});
+
+	test('Preview tab does not have a stable position (https://github.com/Microsoft/vscode/issues/8245)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('first');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input2, { active: true });
+		group1.setActive(input1);
+
+		group1.openEditor(input3, { active: true });
+		assert.equal(group1.indexOf(input3), 1);
 	});
 });
