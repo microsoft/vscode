@@ -406,12 +406,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
 
 		// Call into Editor
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Set Editor Input: {0}', input.getName()));
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Set Editor Input: {0}', input.getName()));
 		return editor.setInput(input, options).then(() => {
-			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			// Stop loading promise if any
 			monitor.cancel();
+
+			const position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
+			if (position === -1) {
+				return null; // in theory a call to editor.setInput() could have resulted in the editor being closed due to an error, so we guard against it here
+			}
 
 			// Focus (unless prevented)
 			const focus = !options || !options.preserveFocus;
