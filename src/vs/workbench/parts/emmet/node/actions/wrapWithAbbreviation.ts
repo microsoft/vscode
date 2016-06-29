@@ -34,7 +34,7 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 	}
 
 	private wrapAbbreviation(_emmet: any, abbreviation) {
-		if (!_emmet.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
+		if (abbreviation && !_emmet.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
 			this.editorAccessor.noExpansionOccurred();
 		}
 	}
