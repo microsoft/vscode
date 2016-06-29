@@ -10,8 +10,10 @@ import nls = require('vs/nls');
 import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
+import arrays = require('vs/base/common/arrays');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, EditorOptions, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {Position} from 'vs/platform/editor/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
@@ -39,6 +41,9 @@ export class FileTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
+	private pendingDirtyResources: URI[];
+	private pendingDirtyHandle: number;
+
 	constructor(
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -51,6 +56,7 @@ export class FileTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
+		this.pendingDirtyResources = [];
 
 		this.registerListeners();
 	}
@@ -88,11 +94,32 @@ export class FileTracker implements IWorkbenchContribution {
 		// Since it might be the intent of whoever created the model to show it shortly
 		// after, we delay this a little bit and check again if the editor has not been
 		// opened meanwhile
-		setTimeout(() => {
-			if (!this.stacks.isOpen(e.resource) && this.textFileService.isDirty(e.resource)) {
-				this.editorService.openEditor({ resource: e.resource, options: { inactive: true } }).done(null, errors.onUnexpectedError);
-			}
-		}, 500);
+		this.pendingDirtyResources.push(e.resource);
+		if (!this.pendingDirtyHandle) {
+			this.pendingDirtyHandle = setTimeout(() => this.doOpenDirtyResources(), 250);
+		}
+	}
+
+	private doOpenDirtyResources(): void {
+		const dirtyNotOpenedResources = arrays.distinct(this.pendingDirtyResources.filter(r => !this.stacks.isOpen(r) && this.textFileService.isDirty(r)), r => r.toString());
+
+		// Reset
+		this.pendingDirtyHandle = void 0;
+		this.pendingDirtyResources = [];
+
+		const activeEditor = this.editorService.getActiveEditor();
+		const activePosition = activeEditor ? activeEditor.position : Position.LEFT;
+
+		// Open
+		this.editorService.openEditors(dirtyNotOpenedResources.map(resource => {
+			return {
+				input: {
+					resource,
+					options: { inactive: true, pinned: true, preserveFocus: true }
+				},
+				position: activePosition
+			};
+		})).done(null, errors.onUnexpectedError);
 	}
 
 	private onTextFileSaveError(e: TextFileChangeEvent): void {
