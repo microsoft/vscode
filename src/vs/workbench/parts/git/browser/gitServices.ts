@@ -212,7 +212,6 @@ class EditorInputCache
 
 		if (editorInputPromise) {
 			editorInputPromise.done((editorInput) => { this.eventuallyDispose(editorInput); });
-			delete this.cache[id];
 		}
 	}
 
@@ -232,7 +231,7 @@ class EditorInputCache
 	}
 
 	private maybeDispose(editorInput: WorkbenchEditorCommon.EditorInput): boolean {
-		if (!this.editorService.getVisibleEditors().some((editor) => editor.input && editor.input.matches(editorInput))) {
+		if (!editorInput.isDirty() && !this.editorService.getVisibleEditors().some((editor) => editor.input && editor.input.matches(editorInput))) {
 			editorInput.dispose();
 			return true;
 		}
