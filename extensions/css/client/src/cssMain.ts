@@ -86,7 +86,7 @@ export function activate(context: ExtensionContext) {
 	});
 
 	languages.setLanguageConfiguration('scss', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
+		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#$!.:]?[\w-?]+%?)|[@#!.]/g,
 		comments: {
 			blockComment: ['/*', '*/'],
 			lineComment: '//'
