@@ -92,6 +92,10 @@
 	height: 36px;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
+	height: 35px;
+}
+
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
 	border: 1px solid #DDDDDD;
 }
