@@ -41,14 +41,14 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 
 		if (!this.workspaceContext.getWorkspace()) {
-			const message = nls.localize('noWorkspace', "Decoding **data:url** image are only available on a workspace folder.");
-			this.messageService.show(Severity.Warning, message);
+			const message = nls.localize('noWorkspace', "Decoding a data:URL image is only available inside a workspace folder.");
+			this.messageService.show(Severity.Info, message);
 			return;
 		}
 
 		let options: IInputOptions = {
-			prompt: nls.localize('enterImagePath', "Enter path to file (absolute or relative)"),
-			placeHolder: nls.localize('path', "Path to file")
+			prompt: nls.localize('enterImagePath', "Enter file path (absolute or relative)"),
+			placeHolder: nls.localize('path', "File path")
 		};
 
 		const quickPromise = this.quickOpenService.input(options)
@@ -58,7 +58,6 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 				}
 
 				this.imageFilePath = path;
-
 				const fullpath = createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
@@ -86,7 +85,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		};
 
 		if (!_emmet.run('encode_decode_data_url', this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
+			this.noExpansionOccurred();
 		}
 	}
 
