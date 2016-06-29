@@ -758,7 +758,7 @@ class SnippetController implements ISnippetController {
 
 		if (snippet.placeHolders.length === 0) {
 			// No placeholders => execute for all editor selections
-			this._runForAllSelections(snippet, overwriteBefore, overwriteAfter);
+			this._runForAllSelections(snippet, overwriteBefore, overwriteAfter, stripPrefix);
 		} else {
 			this._runForPrimarySelection(snippet, overwriteBefore, overwriteAfter, stripPrefix);
 		}
@@ -824,12 +824,12 @@ class SnippetController implements ISnippetController {
 		}
 	}
 
-	private _runForAllSelections(snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number): void {
+	private _runForAllSelections(snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix?:boolean): void {
 		let selections = this._editor.getSelections(),
 			edits:editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		for (let i = 0; i < selections.length; i++) {
-			let prepared = SnippetController._prepareSnippet(this._editor, selections[i], snippet, overwriteBefore, overwriteAfter);
+			let prepared = SnippetController._prepareSnippet(this._editor, selections[i], snippet, overwriteBefore, overwriteAfter, stripPrefix);
 			SnippetController._addCommandForSnippet(this._editor.getModel(), prepared.adaptedSnippet, prepared.typeRange, edits);
 		}
 
