@@ -396,7 +396,7 @@ class SuggestAdapter {
 	}
 
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
-		const ran = model.getWordAtPosition(position);
+		const ran = model.getWordUntilPosition(position);
 
 		return toThenable<CompletionItem[]|CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
 			let list: CompletionList;
@@ -417,7 +417,7 @@ class SuggestAdapter {
 
 			let defaultSuggestions: modes.ISuggestResult = {
 				suggestions: [],
-				currentWord: ran ? model.getValueInRange(new Range(position.lineNumber, ran.startColumn, position.lineNumber, ran.endColumn)) : '',
+				currentWord: ran ? ran.word : '',
 			};
 			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
 
