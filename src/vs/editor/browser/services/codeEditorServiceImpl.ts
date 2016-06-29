@@ -267,7 +267,7 @@ class DecorationRenderHelper {
 		gutterIconSize: 'background-size:{0};',
 
 		contentText: 'content:\'{0}\';',
-		contentIconPath: 'content:url(\'{0}\')',
+		contentIconPath: 'content:url(\'{0}\');',
 		margin: 'margin:{0};',
 		width: 'width:{0};',
 		height: 'height:{0};'
