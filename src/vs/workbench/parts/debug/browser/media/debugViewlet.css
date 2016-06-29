@@ -272,6 +272,11 @@
 	animation-name: debugViewletValueChanged;
 }
 
+.vs-dark .debug-viewlet .monaco-inputbox > .wrapper > .input,
+.hc-black .debug-viewlet .monaco-inputbox > .wrapper > .input {
+	color: #CCC;
+}
+
 /* Breakpoints */
 
 .debug-viewlet .debug-breakpoints .breakpoint {
