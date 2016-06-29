@@ -23,10 +23,12 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 class EditorInputCache {
 
 	private cache: Map.SimpleMap<URI, TPromise<DiffEditorInput>>;
+	private replaceTextcache: Map.SimpleMap<URI, string>;
 
 	constructor(private replaceService: ReplaceService, private editorService: IWorkbenchEditorService,
 					private modelService: IModelService) {
 		this.cache= new Map.SimpleMap<URI, TPromise<DiffEditorInput>>();
+		this.replaceTextcache= new Map.SimpleMap<URI, string>();
 	}
 
 	public getInput(fileMatch: FileMatch, text: string): TPromise<DiffEditorInput> {
@@ -36,6 +38,7 @@ class EditorInputCache {
 			this.cache.set(fileMatch.resource(), editorInputPromise);
 			this.refreshInput(fileMatch, text, true);
 			fileMatch.addListener2('disposed', fileMatch => this.disposeInput(fileMatch));
+			fileMatch.addListener2('changed', fileMatch => this.refreshInput(fileMatch, this.replaceTextcache.get(fileMatch.resource()), false));
 		}
 		return editorInputPromise;
 	}
@@ -55,6 +58,7 @@ class EditorInputCache {
 					this.modelService.getModel(replaceResource).undo();
 					this.replaceService.replace(fileMatch, text, null, replaceResource);
 				}
+				this.replaceTextcache.set(fileMatch.resource(), text);
 			});
 		}
 	}
@@ -69,6 +73,7 @@ class EditorInputCache {
 				editorInputPromise.done((diffInput) => {
 					this.disposeReplaceInput(this.getReplaceResource(resourceUri), diffInput);
 					this.cache.delete(resourceUri);
+					this.replaceTextcache.delete(resourceUri);
 				});
 			}
 		}
@@ -141,9 +146,11 @@ export class ReplaceService implements IReplaceService {
 		if (arg instanceof Array) {
 			arg.forEach(element => {
 				let fileMatch = <FileMatch>element;
-				fileMatch.matches().forEach(match => {
-					bulkEdit.add([this.createEdit(match, text, resource)]);
-				});
+				if (fileMatch.count() > 0) {
+					fileMatch.matches().forEach(match => {
+						bulkEdit.add([this.createEdit(match, text, resource)]);
+					});
+				}
 			});
 		}
 
