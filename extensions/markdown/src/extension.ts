@@ -49,8 +49,9 @@ export function activate(context: ExtensionContext) {
 	});
 
 	vscode.workspace.onDidChangeConfiguration(() => {
-		vscode.workspace.textDocuments.forEach((document) => {
-			if (isMarkdownFile) {
+		vscode.workspace.textDocuments.forEach(document => {
+			if (document.uri.scheme === 'markdown') {
+				// update all generated md documents
 				provider.update(document.uri);
 			}
 		});
