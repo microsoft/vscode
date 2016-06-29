@@ -202,7 +202,7 @@ class InternalEditorOptionsHelper {
 			stopRenderingLineAfter: stopRenderingLineAfter,
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
-			indentGuides: toBoolean(opts.indentGuides),
+			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			scrollbar: scrollbar,
 		});
 
@@ -697,11 +697,11 @@ let editorConfiguration:IConfigurationNode = {
 			default: DefaultConfig.editor.renderControlCharacters,
 			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters")
 		},
-		// 'editor.indentGuides': {
-		// 	'type': 'boolean',
-		// 	default: DefaultConfig.editor.indentGuides,
-		// 	description: nls.localize('indentGuides', "Controls whether the editor should render indent guides")
-		// },
+		'editor.renderIndentGuides': {
+			'type': 'boolean',
+			default: DefaultConfig.editor.renderIndentGuides,
+			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
+		},
 		'editor.referenceInfos' : {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.referenceInfos,

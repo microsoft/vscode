@@ -24,7 +24,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		this._enabled = this._context.configuration.editor.viewInfo.indentGuides;
+		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -56,8 +56,8 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		}
-		if (e.viewInfo.indentGuides) {
-			this._enabled = this._context.configuration.editor.viewInfo.indentGuides;
+		if (e.viewInfo.renderIndentGuides) {
+			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		}
 		return true;
 	}

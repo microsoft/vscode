@@ -425,7 +425,7 @@ export interface IEditorOptions {
 	 * Enable rendering of indent guides.
 	 * Defaults to true.
 	 */
-	indentGuides?: boolean;
+	renderIndentGuides?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -618,7 +618,7 @@ export class InternalEditorViewOptions {
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
-	indentGuides: boolean;
+	renderIndentGuides: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
 	/**
@@ -644,7 +644,7 @@ export class InternalEditorViewOptions {
 		stopRenderingLineAfter: number;
 		renderWhitespace: boolean;
 		renderControlCharacters: boolean;
-		indentGuides: boolean;
+		renderIndentGuides: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
 		this.theme = String(source.theme);
@@ -666,7 +666,7 @@ export class InternalEditorViewOptions {
 		this.stopRenderingLineAfter = source.stopRenderingLineAfter|0;
 		this.renderWhitespace = Boolean(source.renderWhitespace);
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
-		this.indentGuides = Boolean(source.indentGuides);
+		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.scrollbar = source.scrollbar.clone();
 	}
 
@@ -722,7 +722,7 @@ export class InternalEditorViewOptions {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
-			&& this.indentGuides === other.indentGuides
+			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.scrollbar.equals(other.scrollbar)
 		);
 	}
@@ -751,7 +751,7 @@ export class InternalEditorViewOptions {
 			stopRenderingLineAfter: this.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter,
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
 			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
-			indentGuides: this.indentGuides !== newOpts.indentGuides,
+			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
 		};
 	}
@@ -784,7 +784,7 @@ export interface IViewConfigurationChangedEvent {
 	stopRenderingLineAfter:  boolean;
 	renderWhitespace:  boolean;
 	renderControlCharacters: boolean;
-	indentGuides:  boolean;
+	renderIndentGuides:  boolean;
 	scrollbar: boolean;
 }
 

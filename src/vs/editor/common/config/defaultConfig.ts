@@ -89,7 +89,7 @@ class ConfigClass implements IConfiguration {
 			folding: true,
 			renderWhitespace: false,
 			renderControlCharacters: false,
-			indentGuides: false,
+			renderIndentGuides: false,
 			useTabStops: true,
 
 			fontFamily: (
