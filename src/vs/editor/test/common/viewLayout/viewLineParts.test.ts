@@ -55,8 +55,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
-	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace:boolean, indentGuides:number, expected:ViewLineToken[]): void {
-		let lineParts = createLineParts(1, 1, lineContent, 4, new ViewLineTokens(tokens, fauxIndentLength, lineContent.length), [], renderWhitespace, indentGuides);
+	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace:boolean, expected:ViewLineToken[]): void {
+		let lineParts = createLineParts(1, 1, lineContent, 4, new ViewLineTokens(tokens, fauxIndentLength, lineContent.length), [], renderWhitespace);
 		let actual = lineParts.getParts();
 
 		assert.deepEqual(actual, expected);
@@ -70,7 +70,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			0,
 			[
 				new ViewLineToken(0, '')
 			]
@@ -85,7 +84,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			false,
-			0,
 			[
 				new ViewLineToken(0, 'a'),
 				new ViewLineToken(6, 'b')
@@ -102,7 +100,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(4, 'a'),
@@ -121,7 +118,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(4, ' leading whitespace'),
@@ -142,7 +138,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(1, ' leading whitespace'),
@@ -162,7 +157,6 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			0,
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(3, ' leading whitespace'),
@@ -176,84 +170,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			]
 		);
 	});
-	test('createLineParts render indent guides - 4 leading spaces', () => {
-		testCreateLineParts(
-			'    Hello world!    ',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
-			],
-			0,
-			false,
-			1,
-			[
-				new ViewLineToken(0, ' indent-guide'),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
-			]
-		);
-	});
-	test('createLineParts render indent guides - 8 leading spaces', () => {
-		testCreateLineParts(
-			'        Hello world!        ',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(8, 'a'),
-				new ViewLineToken(10, 'b')
-			],
-			0,
-			false,
-			2,
-			[
-				new ViewLineToken(0, ' indent-guide'),
-				new ViewLineToken(4, ' indent-guide'),
-				new ViewLineToken(8, 'a'),
-				new ViewLineToken(10, 'b')
-			]
-		);
-	});
-	test('createLineParts render indent guides - 2 leading tabs', () => {
-		testCreateLineParts(
-			'\t\tHello world!\t',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(2, 'a'),
-				new ViewLineToken(4, 'b')
-			],
-			0,
-			false,
-			2,
-			[
-				new ViewLineToken(0, ' indent-guide'),
-				new ViewLineToken(1, ' indent-guide'),
-				new ViewLineToken(2, 'a'),
-				new ViewLineToken(4, 'b'),
-			]
-		);
-	});
-	test('createLineParts render indent guides - mixed leading spaces and tabs', () => {
-		testCreateLineParts(
-			'  \t\t  Hello world! \t  \t   \t    ',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b')
-			],
-			0,
-			false,
-			2,
-			[
-				new ViewLineToken(0, ' indent-guide'),
-				new ViewLineToken(3, ' indent-guide'),
-				new ViewLineToken(4, ' indent-guide'),
-				new ViewLineToken(6, 'a'),
-				new ViewLineToken(8, 'b'),
-			]
-		);
-	});
-
-	test('createLineParts render whitespace and indent guides - mixed leading spaces and tabs', () => {
+	test('createLineParts render whitespace - mixed leading spaces and tabs', () => {
 		testCreateLineParts(
 			'  \t\t  Hello world! \t  \t   \t    ',
 			[
@@ -263,11 +180,10 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			0,
 			true,
-			2,
 			[
-				new ViewLineToken(0, ' leading whitespace indent-guide'),
-				new ViewLineToken(3, ' leading whitespace indent-guide'),
-				new ViewLineToken(4, ' leading whitespace indent-guide'),
+				new ViewLineToken(0, ' leading whitespace'),
+				new ViewLineToken(3, ' leading whitespace'),
+				new ViewLineToken(4, ' leading whitespace'),
 				new ViewLineToken(6, 'a'),
 				new ViewLineToken(8, 'b'),
 				new ViewLineToken(18, 'b trailing whitespace'),
@@ -288,55 +204,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			],
 			2,
 			true,
-			0,
 			[
 				new ViewLineToken(0, ''),
-				new ViewLineToken(2, ' leading whitespace'),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b'),
-				new ViewLineToken(16, 'b trailing whitespace'),
-				new ViewLineToken(18, 'b trailing whitespace'),
-				new ViewLineToken(21, 'b trailing whitespace'),
-				new ViewLineToken(25, 'b trailing whitespace'),
-			]
-		);
-	});
-
-	test('createLineParts render indent guides uses faux indent', () => {
-		testCreateLineParts(
-			'\t\t  Hello world! \t  \t   \t    ',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
-			],
-			2,
-			false,
-			2,
-			[
-				new ViewLineToken(0, ' indent-guide'),
-				new ViewLineToken(1, ' indent-guide'),
-				new ViewLineToken(2, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
-			]
-		);
-	});
-
-	test('createLineParts render whitespace and indent guides for line with faux indent', () => {
-		testCreateLineParts(
-			'\t\t  Hello world! \t  \t   \t    ',
-			[
-				new ViewLineToken(0, ''),
-				new ViewLineToken(4, 'a'),
-				new ViewLineToken(6, 'b')
-			],
-			2,
-			true,
-			2,
-			[
-				new ViewLineToken(0, ' indent-guide'),
-				new ViewLineToken(1, ' indent-guide'),
 				new ViewLineToken(2, ' leading whitespace'),
 				new ViewLineToken(4, 'a'),
 				new ViewLineToken(6, 'b'),

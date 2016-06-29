@@ -28,6 +28,7 @@ import {CurrentLineHighlightOverlay} from 'vs/editor/browser/viewParts/currentLi
 import {DecorationsOverlay} from 'vs/editor/browser/viewParts/decorations/decorations';
 import {GlyphMarginOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import {LineNumbersOverlay} from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import {IndentGuidesOverlay} from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import {ViewLines} from 'vs/editor/browser/viewParts/lines/viewLines';
 import {LinesDecorationsOverlay} from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
 import {ViewOverlayWidgets} from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
@@ -235,6 +236,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context, this.layoutProvider));
 		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 
 		var marginViewOverlays = new MarginViewOverlays(this._context, this.layoutProvider);
 		this.viewParts.push(marginViewOverlays);
