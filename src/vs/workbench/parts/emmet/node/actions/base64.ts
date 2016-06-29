@@ -16,8 +16,9 @@ import {Action} from 'vs/base/common/actions';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
@@ -26,6 +27,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceContextService private workspaceContext: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService) {
 		super(descriptor, editor, configurationService);
@@ -35,6 +37,12 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		const currentLine = this.editorAccessor.getCurrentLine();
 		if (!this.isDataURI(currentLine)) {
 			this.encodeDecode(_emmet);
+			return;
+		}
+
+		if (!this.workspaceContext.getWorkspace()) {
+			const message = nls.localize('noWorkspace', "Decoding **data:url** image are only available on a workspace folder.");
+			this.messageService.show(Severity.Warning, message);
 			return;
 		}
 
