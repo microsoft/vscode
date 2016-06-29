@@ -260,7 +260,11 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }
 					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));
 				}
 				if (item.command === item.alt) {
-					collector.info(localize('dupe.command', "Menu item references the same command as default and alternative command"));
+					collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
+				}
+
+				if (item.alt && menu !== MenuId.EditorTitle) {
+					collector.info(localize('nosupport.altCommand', "Sorry, but currently only 'editor/title' supports alt-commands"));
 				}
 			}
 
