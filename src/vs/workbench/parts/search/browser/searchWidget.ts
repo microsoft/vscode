@@ -28,9 +28,13 @@ export interface ISearchWidgetOptions {
 
 export class SearchWidget extends Widget {
 
+	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('file.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
+	private static REPLACE_ALL_ENABLED_LABEL= nls.localize('file.replaceAll.enabled.label', "Replace All");
+
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
 	private replaceInput: InputBox;
+	private searchSubmitted: boolean= false;
 
 	private replaceInputContainer: HTMLElement;
 	private toggleReplaceButton: Button;
@@ -87,12 +91,13 @@ export class SearchWidget extends Widget {
 	}
 
 	public clear() {
+		this.searchSubmitted= false;
 		this.searchInput.clear();
 		this.replaceInput.value= '';
 	}
 
 	public isReplaceActive(): boolean {
-		return this.isReplaceShown() && this.replaceAllAction.enabled;
+		return this.isReplaceShown() && this.replaceAllAction.enabled && !!this.replaceInput.value;
 	}
 
 	public isReplaceShown(): boolean {
@@ -101,6 +106,14 @@ export class SearchWidget extends Widget {
 
 	public getReplaceValue():string {
 		return this.isReplaceActive() ? this.replaceInput.value : null;
+	}
+
+	public setReplaceAllActionState(enabled:boolean):void {
+		if (this.replaceAllAction.enabled !== enabled) {
+			this.replaceAllAction.enabled= enabled;
+			this.replaceAllAction.label= enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+			this._onReplaceState.fire();
+		}
 	}
 
 	private render(container: Builder, options: ISearchWidgetOptions): void {
@@ -133,12 +146,10 @@ export class SearchWidget extends Widget {
 		this.searchInput.setRegex(!!options.isRegex);
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
 		this.searchInput.setWholeWords(!!options.isWholeWords);
-		this._register(dom.addDisposableListener(this.searchInput.inputBox.inputElement, dom.EventType.FOCUS, () => this.updateReplaceActionState()));
-		this._register(dom.addDisposableListener(this.searchInput.inputBox.inputElement, dom.EventType.BLUR, () => this.updateReplaceActionState()));
 	}
 
 	private renderReplaceInput(parent: HTMLElement): void {
-		this.replaceAllAction = new Action('action-replace-all', nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all', false, () => {
+		this.replaceAllAction = new Action('action-replace-all', SearchWidget.REPLACE_ALL_DISABLED_LABEL, 'action-replace-all', false, () => {
 			this._onReplaceAll.fire();
 			return TPromise.as(null);
 		});
@@ -151,6 +162,8 @@ export class SearchWidget extends Widget {
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
 		this.onkeyup(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyUp(keyboardEvent));
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());
+		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());
+		this.onSearchSubmit(() => this.updateReplaceActionState());
 	}
 
 	private onToggleReplaceButton():void {
@@ -161,14 +174,9 @@ export class SearchWidget extends Widget {
 		this.updateReplaceActionState();
 	}
 
-	private updateReplaceActionState():boolean {
-		let enabled= this.isReplaceShown() && !this.searchInput.inputBox.hasFocus();
-		if (this.replaceAllAction.enabled !== enabled) {
-			this.replaceAllAction.enabled= enabled;
-			this._onReplaceState.fire();
-			return true;
-		}
-		return false;
+	private updateReplaceActionState():void {
+		let enabled= this.isReplaceShown() && this.searchSubmitted;
+		this.setReplaceAllActionState(enabled);
 	}
 
 	private validatSearchInput(value: string): any {
@@ -187,6 +195,11 @@ export class SearchWidget extends Widget {
 		if (strings.regExpLeadsToEndlessLoop(regExp)) {
 			return { content: nls.localize('regexp.validationFailure', "Expression matches everything") };
 		}
+	}
+
+	private onSearchInputChanged(): void {
+		this.searchSubmitted= false;
+		this.updateReplaceActionState();
 	}
 
 	private onSearchInputKeyUp(keyboardEvent: IKeyboardEvent) {
@@ -246,6 +259,7 @@ export class SearchWidget extends Widget {
 
 	private submitSearch(refresh: boolean= true): void {
 		if (this.searchInput.getValue()) {
+			this.searchSubmitted= true;
 			this._onSearchSubmit.fire(refresh);
 		}
 	}
