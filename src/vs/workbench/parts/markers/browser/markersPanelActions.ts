@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import { CommonKeybindings, KeyCode } from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -114,13 +114,16 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
 		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeFilter;
-		this.toDispose.push(filterInputBox.onDidChange((filter: string) => {
-			this.markersPanel.markersModel.update(new FilterOptions(filter));
-			this.markersPanel.refreshPanel();
-			this.delayer.trigger(this.reportFilteringUsed.bind(this));
-		}));
+		this.toDispose.push(filterInputBox.onDidChange((filter: string) => this.updateFilter(filter)));
+		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBox.inputElement, 'keyup', (keyboardEvent) => this.onInputKeyUp(keyboardEvent, filterInputBox)));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
+	}
+
+	private updateFilter(filter: string) {
+		this.markersPanel.markersModel.update(new FilterOptions(filter));
+		this.markersPanel.refreshPanel();
+		this.delayer.trigger(this.reportFilteringUsed.bind(this));
 	}
 
 	private reportFilteringUsed(): void {
@@ -142,8 +145,19 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			case CommonKeybindings.SPACE:
 			case CommonKeybindings.LEFT_ARROW:
 			case CommonKeybindings.RIGHT_ARROW:
+			case CommonKeybindings.ESCAPE:
 				e.stopPropagation();
 				break;
+		}
+	}
+
+	private onInputKeyUp(keyboardEvent: IKeyboardEvent, filterInputBox: InputBox ) {
+		switch (keyboardEvent.keyCode) {
+			case KeyCode.Escape:
+				filterInputBox.value= '';
+				return;
+			default:
+				return;
 		}
 	}
 }
