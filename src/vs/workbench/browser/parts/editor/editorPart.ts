@@ -955,13 +955,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			const input = editor.input;
 
 			// Resolve editor options
-			const preserveFocus = activePosition !== position;
+			const preserveFocus = (activePosition !== position);
 			let options: EditorOptions;
 			if (editor.options) {
 				options = editor.options;
-				options.preserveFocus = preserveFocus;
+				if (typeof options.preserveFocus !== 'boolean') {
+					options.preserveFocus = preserveFocus;
+				}
 			} else {
-				options = EditorOptions.create({ preserveFocus: preserveFocus });
+				options = EditorOptions.create({ preserveFocus });
 			}
 
 			promises.push(this.openEditor(input, options, position, widthRatios));
