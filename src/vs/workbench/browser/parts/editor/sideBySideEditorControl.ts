@@ -967,8 +967,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Let a dropped file open inside Code (only if dropped over editor area)
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.EventHelper.stop(e, true);
-			onDrop(e, Position.LEFT);
+			if (e.target === node) {
+				DOM.EventHelper.stop(e, true);
+				onDrop(e, Position.LEFT);
+			}
 		}));
 
 		// Drag over
