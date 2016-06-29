@@ -23,13 +23,6 @@ export class EditorAccessor implements emmet.Editor {
 		this.editor = editor;
 	}
 
-	public noExpansionOccurred(actionId?: string): void {
-		// return the tab key handling back to the editor only for Expand Abbreviation command
-		if (actionId === 'editor.emmet.action.expandAbbreviation') {
-			this.editor.trigger('emmet', Handler.Tab, {});
-		}
-	}
-
 	public isEmmetEnabledMode(): boolean {
 		let syntax = this.getSyntax();
 		return (this.emmetSupportedModes.indexOf(syntax) !== -1);

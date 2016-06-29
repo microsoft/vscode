@@ -61,6 +61,10 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	abstract runEmmetAction(_emmet: any);
 
+	protected noExpansionOccurred() {
+		// default do nothing
+	}
+
 	public run(): TPromise<boolean> {
 		return new TPromise((c, e) => {
 			require(['emmet'], (_emmet) => {
@@ -68,7 +72,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 				try {
 					if (!this.editorAccessor.isEmmetEnabledMode()) {
-						this.editorAccessor.noExpansionOccurred(this.id);
+						this.noExpansionOccurred();
 						return;
 					}
 					this.updateEmmetPreferences(_emmet);
@@ -95,7 +99,7 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 
 	public runEmmetAction(_emmet) {
 		if (!_emmet.run(this.emmetActionName, this.editorAccessor)) {
-			this.editorAccessor.noExpansionOccurred();
+			this.noExpansionOccurred();
 		}
 	}
 }
