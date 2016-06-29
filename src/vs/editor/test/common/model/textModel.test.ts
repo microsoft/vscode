@@ -599,7 +599,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, '  A'],
 			[1, '    A'],
 			[2, '      A'],
-			[0, 'A'],
+			[1, 'A'],
 		]);
 	});
 
@@ -613,19 +613,19 @@ suite('TextModel.getLineIndentGuide', () => {
 
 	test('getLineIndentGuide Java', () => {
 		assertIndentGuides([
-			[0, 'class A {'],
-			[1, '  void foo() {'],
-			[1, '    console.log(1);'],
-			[1, '    console.log(2);'],
-			[1, '  }'],
-			[1, ''],
-			[1, '  void bar() {'],
-			[1, '    console.log(3);'],
-			[1, '  }'],
-			[0, '}'],
-			[0, 'interface B {'],
-			[1, '  void bar();'],
-			[0, '}'],
+			/* 1*/[0, 'class A {'],
+			/* 2*/[1, '  void foo() {'],
+			/* 3*/[1, '    console.log(1);'],
+			/* 4*/[1, '    console.log(2);'],
+			/* 5*/[1, '  }'],
+			/* 6*/[1, ''],
+			/* 7*/[1, '  void bar() {'],
+			/* 8*/[1, '    console.log(3);'],
+			/* 9*/[1, '  }'],
+			/*10*/[0, '}'],
+			/*11*/[0, 'interface B {'],
+			/*12*/[1, '  void bar();'],
+			/*13*/[0, '}'],
 		]);
 	});
 
@@ -686,6 +686,15 @@ suite('TextModel.getLineIndentGuide', () => {
 			/*15*/[ 2, '        return node.id;'],
 			/*16*/[ 1, '    }'],
 			/*17*/[ 0, '}'],
+		]);
+	});
+
+	test('issue #8425 - Missing indentation lines for first level indentation', () => {
+		assertIndentGuides([
+			[1, '\tindent1'],
+			[2, '\t\tindent2'],
+			[2, '\t\tindent2'],
+			[1, '\tindent1'],
 		]);
 	});
 });
