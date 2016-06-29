@@ -6,13 +6,13 @@
 'use strict';
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import pkg from 'vs/platform/package';
-import extfs = require('vs/base/node/extfs');
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
@@ -811,7 +811,7 @@ export class WindowsManager implements IWindowsService {
 
 		let candidate = path.normalize(anyPath);
 		try {
-			let candidateStat = extfs.statSync(candidate);
+			let candidateStat = fs.statSync(candidate);
 			if (candidateStat) {
 				return candidateStat.isFile() ?
 					{
