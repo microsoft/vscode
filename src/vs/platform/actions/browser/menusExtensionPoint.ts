@@ -259,7 +259,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }
 				if (item.alt && !MenuRegistry.hasCommand(item.alt)) {
 					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));
 				}
-				if (item.command || item.alt) {
+				if (item.command === item.alt) {
 					collector.info(localize('dupe.command', "Menu item references the same command as default and alternative command"));
 				}
 			}
