@@ -116,6 +116,23 @@ class BuildAction extends AbstractTaskAction {
 	}
 }
 
+class RerunBuildAction extends AbstractTaskAction {
+	public static ID = 'workbench.action.tasks.rerunbuild';
+	public static TEXT = nls.localize('ReRunBuildAction.label', "Rerun Build Task");
+
+	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(id, label, taskService, telemetryService, messageService, contextService);
+	}
+
+	public run(): TPromise<ITaskSummary> {
+		if (!this.canRun()) {
+			return TPromise.as(undefined);
+		}
+		return this.taskService.build();
+	}
+}
+
 class TestAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.test';
 	public static TEXT = nls.localize('TestAction.label', "Run Test Task");
@@ -509,20 +526,35 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
+	public buildTaskIdentifier(): string {
+		return undefined;
+	}
 	public rebuild(): ITaskRunResult {
 		return {
 			promise: TPromise.as<ITaskSummary>({})
 		};
+	}
+	public rebuildTaskIdentifier(): string {
+		return undefined;
 	}
 	public clean(): ITaskRunResult {
 		return {
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
+	public cleanTaskIdentifier(): string {
+		return undefined;
+	}
 	public runTest(): ITaskRunResult {
 		return {
 			promise: TPromise.as<ITaskSummary>({})
 		};
+	}
+	public testTaskIdentifier(): string {
+		return undefined;
+	}
+	public isRunning(taskIdentifier: string): boolean {
+		return false;
 	}
 	public run(taskIdentifier: string): ITaskRunResult {
 		return {
@@ -569,6 +601,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
+	private _taskRunResult: ITaskRunResult;
 	private taskSystemListeners: IDisposable[];
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
@@ -603,7 +636,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
 		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-	this.configurationService.onDidUpdateConfiguration(() => {
+		this.configurationService.onDidUpdateConfiguration(() => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {
 				this.clearTaskSystemPromise = true;
@@ -746,35 +779,47 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public build(): TPromise<ITaskSummary> {
-		return this.executeTarget(taskSystem => taskSystem.build());
+		return this.executeTarget(taskSystem => taskSystem.build(), taskSystem => taskSystem.buildTaskIdentifier());
 	}
 
 	public rebuild(): TPromise<ITaskSummary> {
-		return this.executeTarget(taskSystem => taskSystem.rebuild());
+		return this.executeTarget(taskSystem => taskSystem.rebuild(), taskSystem => taskSystem.rebuildTaskIdentifier());
 	}
 
 	public clean(): TPromise<ITaskSummary> {
-		return this.executeTarget(taskSystem => taskSystem.clean());
+		return this.executeTarget(taskSystem => taskSystem.clean(), taskSystem => taskSystem.cleanTaskIdentifier());
 	}
 
 	public runTest(): TPromise<ITaskSummary> {
-		return this.executeTarget(taskSystem => taskSystem.runTest());
+		return this.executeTarget(taskSystem => taskSystem.runTest(), taskSystem => taskSystem.testTaskIdentifier());
 	}
 
 	public run(taskIdentifier: string): TPromise<ITaskSummary> {
-		return this.executeTarget(taskSystem => taskSystem.run(taskIdentifier));
+		return this.executeTarget(taskSystem => taskSystem.run(taskIdentifier), taskSystem => taskIdentifier);
 	}
 
-	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
+	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult, identifier: (taskSystem: ITaskSystem) => string): TPromise<ITaskSummary> {
 		return this.textFileService.saveAll().then((value) => { 				// make sure all dirty files are saved
 			return this.configurationService.loadConfiguration().then(() => { 	// make sure configuration is up to date
 				return this.taskSystemPromise.
 					then((taskSystem) => {
 						return taskSystem.isActive().then((active) => {
 							if (!active) {
+								this._taskRunResult = fn(taskSystem);
 								return fn(taskSystem);
 							} else {
-								throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+								let taskIdentifier = identifier(taskSystem);
+								if (taskSystem.isRunning(taskIdentifier)) {
+									return taskSystem.tasks().then((tasks) => {
+										if (tasks.some(task => task.id === taskIdentifier ? task.isWatching : false)) {
+											return this._taskRunResult;
+										} else {
+											throw new TaskError(Severity.Info, nls.localize('TaskSystem.sameActive', 'The task is already running. Ignoring run request.'), TaskErrors.SameTaskRunning);
+										}
+									});
+								} else  {
+									throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+								}
 							}
 						});
 					}).
@@ -789,7 +834,7 @@ class TaskService extends EventEmitter implements ITaskService {
 									this.terminate().done(() => {
 										// We need to give the child process a change to stop.
 										setTimeout(() => {
-											this.executeTarget(fn);
+											this.executeTarget(fn, identifier);
 										}, 2000);
 									});
 								}
@@ -803,6 +848,7 @@ class TaskService extends EventEmitter implements ITaskService {
 							return value;
 						});
 					}, (err: any) => {
+						this._taskRunResult = null;
 						this.handleError(err);
 					});
 			});

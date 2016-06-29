@@ -90,13 +90,22 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		}
 		return this.executeTask(this.defaultBuildTaskIdentifier, Triggers.shortcut);
 	}
+	public buildTaskIdentifier(): string {
+		return this.defaultBuildTaskIdentifier;
+	}
 
 	public rebuild(): ITaskRunResult {
 		throw new Error('Task - Rebuild: not implemented yet');
 	}
+	public rebuildTaskIdentifier(): string {
+		return undefined;
+	}
 
 	public clean(): ITaskRunResult {
 		throw new Error('Task - Clean: not implemented yet');
+	}
+	public cleanTaskIdentifier(): string {
+		return undefined;
 	}
 
 	public runTest(): ITaskRunResult {
@@ -105,9 +114,16 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		}
 		return this.executeTask(this.defaultTestTaskIdentifier, Triggers.shortcut);
 	}
+	public testTaskIdentifier(): string {
+		return this.defaultTestTaskIdentifier;
+	}
 
 	public run(taskIdentifier: string): ITaskRunResult {
 		return this.executeTask(taskIdentifier);
+	}
+
+	public isRunning(taskIdentifier: string): boolean {
+		return taskIdentifier === this.activeTaskIdentifier;
 	}
 
 	public isActive(): TPromise<boolean> {

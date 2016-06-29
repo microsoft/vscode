@@ -14,6 +14,7 @@ import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 export enum TaskErrors {
 	NotConfigured,
 	RunningTask,
+	SameTaskRunning,
 	NoBuildTask,
 	NoTestTask,
 	ConfigValidationError,
@@ -211,10 +212,15 @@ export interface TaskEvent {
 
 export interface ITaskSystem extends IEventEmitter {
 	build(): ITaskRunResult;
+	buildTaskIdentifier(): string;
 	rebuild(): ITaskRunResult;
+	rebuildTaskIdentifier(): string;
 	clean(): ITaskRunResult;
+	cleanTaskIdentifier(): string;
 	runTest(): ITaskRunResult;
+	testTaskIdentifier(): string;
 	run(taskIdentifier: string): ITaskRunResult;
+	isRunning(taskIdentifier: string): boolean;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	canAutoTerminate(): boolean;

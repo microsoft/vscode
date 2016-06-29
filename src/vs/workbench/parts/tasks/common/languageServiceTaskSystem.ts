@@ -38,11 +38,17 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 			return null;
 		}, 'build', Triggers.shortcut);
 	}
+	public buildTaskIdentifier(): string {
+		return 'build';
+	}
 
 	public rebuild(): ITaskRunResult {
 		return this.processMode((mode) => {
 			return null;
 		}, 'rebuild', Triggers.shortcut);
+	}
+	public rebuildTaskIdentifier(): string {
+		return 'rebuild';
 	}
 
 	public clean(): ITaskRunResult {
@@ -50,13 +56,23 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 			return null;
 		}, 'clean', Triggers.shortcut);
 	}
+	public cleanTaskIdentifier(): string {
+		return 'clean';
+	}
 
 	public runTest(): ITaskRunResult {
 		return { promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
 	}
 
+	public testTaskIdentifier(): string {
+		return 'test';
+	}
 	public run(taskIdentifier:string): ITaskRunResult {
 		return { promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
+	}
+
+	public isRunning(taskIdentifier:string): boolean {
+		return false;
 	}
 
 	public isActive(): TPromise<boolean> {
