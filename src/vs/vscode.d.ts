@@ -1071,7 +1071,8 @@ declare namespace vscode {
 		/**
 		 * Derive a new Uri from this Uri.
 		 *
-		 * @param change An object that describes a change to this Uri.
+		 * @param change An object that describes a change to this Uri. To unset components use `null` or
+		 *  the empty string.
 		 * @return A new Uri that reflects the given change. Will return `this` Uri if the change
 		 *  is not changing anything.
 		 * @sample ```

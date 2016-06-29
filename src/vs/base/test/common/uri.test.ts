@@ -84,6 +84,16 @@ suite('URI', () => {
 		assert.equal(URI.from({}).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
 	});
 
+	test('with, remove components #8465', () => {
+		assert.equal(URI.parse('scheme://authority/path').with({ authority: '' }).toString(), 'scheme:/path');
+		assert.equal(URI.parse('scheme:/path').with({ authority: 'authority' }).with({ authority: '' }).toString(), 'scheme:/path');
+		assert.equal(URI.parse('scheme:/path').with({ authority: 'authority' }).with({ authority: null }).toString(), 'scheme:/path');
+		assert.equal(URI.parse('scheme:/path').with({ authority: 'authority' }).with({ path: '' }).toString(), 'scheme://authority');
+		assert.equal(URI.parse('scheme:/path').with({ authority: 'authority' }).with({ path: null }).toString(), 'scheme://authority');
+		assert.equal(URI.parse('scheme:/path').with({ authority: '' }).toString(), 'scheme:/path');
+		assert.equal(URI.parse('scheme:/path').with({ authority: null }).toString(), 'scheme:/path');
+	});
+
 	test('parse', () => {
 		var value = URI.parse('http:/api/files/test.me?t=1234');
 		assert.equal(value.scheme, 'http');
