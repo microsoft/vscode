@@ -129,7 +129,7 @@ class Snapper {
 	public captureSyntaxTokens(fileName: string, content: string) : TPromise<Data[]> {
 		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
 			let result : Data[] = [];
-			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), false, mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), mode);
 			model.tokenIterator({lineNumber: 1, column: 1}, iterator => {
 				while (iterator.hasNext()) {
 					let tokenInfo = iterator.next();

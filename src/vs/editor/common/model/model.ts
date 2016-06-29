@@ -135,6 +135,10 @@ export class Model extends EditableTextModel implements IModel {
 		// Intentional empty (for now)
 	}
 
+	protected _shouldAutoTokenize(): boolean {
+		return this.isAttachedToEditor();
+	}
+
 	public isAttachedToEditor(): boolean {
 		return this._attachedEditorCount > 0;
 	}
