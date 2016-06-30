@@ -229,6 +229,33 @@ export class InstallExtensionsAction extends OpenExtensionsViewletAction {
 	static LABEL = localize('installExtensions', "Install Extensions");
 }
 
+export class ShowInstalledExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showInstalledExtensions';
+	static LABEL = localize('showInstalledExtensions', "Show Installed Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('', true);
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ListOutdatedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.listOutdatedExtensions';
@@ -267,7 +294,7 @@ export class ShowPopularExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, 'show-popular-extensions octicon octicon-flame', true);
+		super(id, label, null, true);
 	}
 
 	run(): TPromise<void> {
@@ -294,7 +321,7 @@ export class ShowExtensionRecommendationsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, 'show-extension-recommendations octicon octicon-gift', true);
+		super(id, label, null, true);
 	}
 
 	run(): TPromise<void> {
@@ -304,6 +331,28 @@ export class ShowExtensionRecommendationsAction extends Action {
 				viewlet.search('@recommended', true);
 				viewlet.focus();
 			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class FilterExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.filterExtensions';
+	static LABEL = localize('filterExtensions', "Filter Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return TPromise.as(null);
 	}
 
 	protected isEnabled(): boolean {
