@@ -53,16 +53,17 @@
 
 .monaco-action-bar .action-item .action-label.extension-action.enable {
 	color: white;
-	background-color: #B78C4C;
-	border-color: #946E36;
+	background-color: #007ACC;
+	border-color: #3F8BCE;
+
 }
 
 .monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action.enable {
-	background-color: #A27C44;
+	background-color: #2584C4;
 }
 
 .monaco-action-bar .action-item:not(.disabled):active .action-label.extension-action.enable {
-	background-color: #966C2F;
+	background-color: #4294CC
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
