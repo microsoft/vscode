@@ -90,9 +90,6 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(this.terminalContainer);
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
-		this.toDispose.push(DOM.addDisposableListener(this.terminalContainer, 'wheel', (event: WheelEvent) => {
-			this.terminalInstances[this.terminalService.getActiveTerminalIndex()].dispatchEvent(new WheelEvent(event.type, event));
-		}));
 
 		return this.terminalService.createNew();
 	}
