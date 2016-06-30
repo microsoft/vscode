@@ -201,7 +201,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 
 	private computeCustomStyleSheetIncludes(uri: Uri): string[] {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
-		if (styles && Array.isArray(styles)) {
+		if (styles && Array.isArray(styles) && styles.length > 0) {
 			return styles.map((style) => {
 				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			});
