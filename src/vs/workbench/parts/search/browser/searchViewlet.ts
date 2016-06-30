@@ -375,7 +375,7 @@ export class SearchViewlet extends Viewlet {
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
-				controller: new SearchController(this),
+				controller: new SearchController(this, this.instantiationService),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
