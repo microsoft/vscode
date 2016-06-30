@@ -146,8 +146,6 @@ declare module 'emmet' {
 	 */
 	export function run(action: string, editor: Editor, arg?: string): boolean;
 
-	export function file(fileAccessor:any): void;
-
 	export var preferences: Preferences;
 
 	export var profile: Profiles;
