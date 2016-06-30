@@ -10,7 +10,7 @@ declare module "vscode-textmate" {
  */
 export interface IGrammarLocator {
 	getFilePath(scopeName:string): string;
-	getInjections(scopeName:string): string[];
+	getInjections?(scopeName:string): string[];
 }
 
 /**
@@ -18,10 +18,10 @@ export interface IGrammarLocator {
  */
 export class Registry {
 
-	public static readGrammarInfo(path:string, callback:(err:any, grammarInfo:IGrammarInfo)=>void): void;
-	public static readGrammarInfoSync(path:string): IGrammarInfo;
+	public static readGrammarInfo(path:string, callback:(err:any, grammarInfo:IGrammarInfo)=>void, useExperimentalParser?:boolean): void;
+	public static readGrammarInfoSync(path:string, useExperimentalParser?:boolean): IGrammarInfo;
 
-	constructor(locator?:IGrammarLocator);
+	constructor(locator?:IGrammarLocator, useExperimentalParser?:boolean);
 
 	/**
 	 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
@@ -77,11 +77,13 @@ export interface StackElement {
 	ruleId: number;
 	enterPos: number;
 	endRule: string;
+	whileRule: string;
 	scopeName: string;
 	contentName: string;
 
 	clone(): StackElement;
 }
+
 
 
 }
