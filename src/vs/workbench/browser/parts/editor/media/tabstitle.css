@@ -92,16 +92,31 @@
 	height: 36px;
 }
 
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
+	border-left-color: #DDDDDD;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:last-child  {
+	border-right-color: #DDDDDD;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
+	border-left-color: #403F3F;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:last-child  {
+	border-right-color: #403F3F;
+}
+
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
 	height: 35px;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
-	border: 1px solid #DDDDDD;
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child {
+	border-left-color: transparent;
 }
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
-	border: 1px solid #383838;
-}
+
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
 	border: 1px solid #f38518;
 }
