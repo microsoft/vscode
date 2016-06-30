@@ -57,8 +57,8 @@ export class TerminalPanel extends Panel {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchTerminalInstanceAction, SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL),
-				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL),
-				this.instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL)
+				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
+				this.instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
 
 			this.actions.forEach(a => {
