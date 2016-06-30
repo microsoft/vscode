@@ -7,10 +7,12 @@ import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
+import severity from 'vs/base/common/severity';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -52,7 +54,9 @@ export class UninstallAction extends Action {
 
 	constructor(
 		private extension: IExtension,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super('extensions.uninstall', localize('uninstall', "Uninstall"), 'extension-action uninstall', false);
 
@@ -70,7 +74,12 @@ export class UninstallAction extends Action {
 			return TPromise.as(null);
 		}
 
-		return this.extensionsWorkbenchService.uninstall(this.extension);
+		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
+			this.messageService.show(severity.Info, {
+				message: localize('postUninstallMessage', "{0} was successfully uninstalled. Restart to deactivate it.", this.extension.displayName),
+				actions: [CloseAction, this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"))]
+			});
+		});
 	}
 
 	dispose(): void {
