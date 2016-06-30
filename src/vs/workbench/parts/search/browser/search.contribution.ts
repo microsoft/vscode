@@ -25,7 +25,7 @@ import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingServ
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {OpenSearchViewletAction} from 'vs/workbench/parts/search/browser/searchActions';
+import {OpenSearchViewletAction, ReplaceInFilesAction} from 'vs/workbench/parts/search/browser/searchActions';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
 import { registerContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 
@@ -118,6 +118,14 @@ const openSearchViewletKb: IKeybindings = {
 	new SyncActionDescriptor(OpenSearchViewletAction, OpenSearchViewletAction.ID, OpenSearchViewletAction.LABEL, openSearchViewletKb),
 	'View: Show Search',
 	nls.localize('view', "View")
+);
+
+(<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).registerWorkbenchAction(
+	new SyncActionDescriptor(ReplaceInFilesAction, ReplaceInFilesAction.ID, ReplaceInFilesAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H
+	}),
+	'Edit: Replace in Files',
+	nls.localize('edit', "Edit")
 );
 
 // Contribute to Explorer Viewer

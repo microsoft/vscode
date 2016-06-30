@@ -38,7 +38,7 @@ import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
 import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import {ISearchProgressItem, IFileMatch, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -306,6 +306,10 @@ export class SearchViewlet extends Viewlet {
 		this.searchWidget.onReplaceAll(() => this.replaceAll());
 	}
 
+	public showReplace(): void {
+		this.searchWidget.showReplace();
+	}
+
 	private refreshInputs(): void {
 		if (this.viewModel) {
 			this.viewModel.matches().forEach((fileMatch) => {
@@ -462,6 +466,11 @@ export class SearchViewlet extends Viewlet {
 			this.searchWidget.searchInput.setValue(selectedText);
 		}
 		this.searchWidget.focus();
+
+		if (this.storageService.getBoolean('show.replace.firstTime', StorageScope.GLOBAL, true)) {
+			this.searchWidget.showReplace();
+			this.storageService.store('show.replace.firstTime', false, StorageScope.GLOBAL);
+		}
 	}
 
 	public moveFocusFromResults(): void {
@@ -911,6 +920,7 @@ export class SearchViewlet extends Viewlet {
 			}
 		}, 200);
 
+		this.searchWidget.setReplaceAllActionState(false);
 		this.replaceService.disposeAllInputs();
 		this.currentRequest = this.searchService.search(query);
 		this.currentRequest.then(onComplete, onError, onProgress);

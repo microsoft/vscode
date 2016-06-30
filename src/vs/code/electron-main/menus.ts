@@ -501,6 +501,7 @@ export class VSCodeMenu {
 		let find = this.createMenuItem(nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"), 'actions.find');
 		let replace = this.createMenuItem(nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"), 'editor.action.startFindReplaceAction');
 		let findInFiles = this.createMenuItem(nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"), 'workbench.view.search');
+		let replaceInFiles = this.createMenuItem(nls.localize({ key: 'miReplaceInFiles', comment: ['&& denotes a mnemonic'] }, "Replace &&in Files"), 'workbench.action.replaceInFiles');
 
 		[
 			undo,
@@ -514,7 +515,8 @@ export class VSCodeMenu {
 			find,
 			replace,
 			__separator__(),
-			findInFiles
+			findInFiles,
+			replaceInFiles
 		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
