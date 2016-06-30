@@ -8,6 +8,7 @@ import {clone} from 'vs/base/common/objects';
 import {illegalState} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
+import {SystemVariables} from "vs/workbench/parts/lib/node/systemVariables";
 
 export class ExtHostConfiguration {
 
@@ -15,7 +16,7 @@ export class ExtHostConfiguration {
 	private _hasConfig: boolean;
 	private _onDidChangeConfiguration: Emitter<void>;
 
-	constructor() {
+	constructor(private systemVariables: SystemVariables) {
 		this._onDidChangeConfiguration = new Emitter<void>();
 	}
 
@@ -29,7 +30,7 @@ export class ExtHostConfiguration {
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
-	public getConfiguration(section?: string): WorkspaceConfiguration {
+	public getConfiguration(section?: string, resolve: boolean = false): WorkspaceConfiguration {
 		if (!this._hasConfig) {
 			throw illegalState('missing config');
 		}
@@ -49,14 +50,15 @@ export class ExtHostConfiguration {
 		result.has = function(key: string): boolean {
 			return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
 		};
+		let that = this;
 		result.get = function <T>(key: string, defaultValue?: T): T {
 			let result = ExtHostConfiguration._lookUp(key, config);
 			if (typeof result === 'undefined') {
 				result = defaultValue;
 			}
-			return result;
+			return resolve ? that.systemVariables.resolveAny(result) : result;
 		};
-		return result;
+		return resolve ? that.systemVariables.resolveAny(result) : result;
 	}
 
 	private static _lookUp(section: string, config: any) {
