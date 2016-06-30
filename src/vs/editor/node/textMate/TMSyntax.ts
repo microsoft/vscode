@@ -14,6 +14,7 @@ import {LineTokens, Token} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IGrammar, Registry} from 'vscode-textmate';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -54,6 +55,10 @@ let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtens
 	}
 });
 
+interface MyEditorConfig {
+	useExperimentalParser: boolean;
+}
+
 export class MainProcessTextMateSyntax {
 	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
@@ -61,11 +66,20 @@ export class MainProcessTextMateSyntax {
 	private _injections: { [scopeName:string]: string[]; };
 
 	constructor(
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this._modeService = modeService;
 		this._scopeNameToFilePath = {};
 		this._injections = {};
+
+		let editorConfig = configurationService.getConfiguration<MyEditorConfig>('editor');
+		let useExperimentalParser = true;
+		if (typeof editorConfig.useExperimentalParser !== 'undefined') {
+			if (Boolean(editorConfig.useExperimentalParser) === false) {
+				useExperimentalParser = false;
+			}
+		}
 
 		this._grammarRegistry = new Registry({
 			getFilePath: (scopeName:string) => {
@@ -74,7 +88,7 @@ export class MainProcessTextMateSyntax {
 			getInjections: (scopeName:string) => {
 				return this._injections[scopeName];
 			}
-		});
+		}, useExperimentalParser);
 
 		grammarsExtPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
