@@ -89,6 +89,8 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 
 			$window.on('mousemove', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
+				// Prevent default to stop editor selecting text #8524
+				mouseMoveEvent.preventDefault();
 				this.setXCoordinate(mouseMoveEvent.posx);
 			}).once('mouseup', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
