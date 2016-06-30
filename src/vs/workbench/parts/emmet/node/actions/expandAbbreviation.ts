@@ -24,7 +24,7 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 		super(descriptor, editor, configurationService, 'expand_abbreviation');
 	}
 
-	public noExpansionOccurred(actionId?: string): void {
+	protected noExpansionOccurred(): void {
 		// forward the tab key back to the editor
 		this.editor.trigger('emmet', editorCommon.Handler.Tab, {});
 	}

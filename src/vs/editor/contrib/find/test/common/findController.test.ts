@@ -65,8 +65,10 @@ suite('FindController', () => {
 			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
 
 			// I hit delete to remove it and change the text to XYZ.
+			editor.pushUndoStop();
 			editor.executeEdits('test', [EditOperation.delete(new Range(1, 1, 1, 4))]);
 			editor.executeEdits('test', [EditOperation.insert(new Position(1, 1), 'XYZ')]);
+			editor.pushUndoStop();
 
 			// At this point the text editor looks like this:
 			//   XYZ

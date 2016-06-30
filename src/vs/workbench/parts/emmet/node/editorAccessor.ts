@@ -9,18 +9,19 @@ import {IPosition, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import {Range} from 'vs/editor/common/core/range';
-import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 
 import emmet = require('emmet');
 
 export class EditorAccessor implements emmet.Editor {
 
 	editor: ICommonCodeEditor;
+	private _hasMadeEdits: boolean;
 
 	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'scss', 'stylus', 'xml', 'xsl', 'jade', 'handlebars', 'ejs', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig'];
 
 	constructor(editor: ICommonCodeEditor) {
 		this.editor = editor;
+		this._hasMadeEdits = false;
 	}
 
 	public isEmmetEnabledMode(): boolean {
@@ -58,6 +59,10 @@ export class EditorAccessor implements emmet.Editor {
 		return this.editor.getModel().getLineContent(selectionStart.lineNumber);
 	}
 
+	public onBeforeEmmetAction(): void {
+		this._hasMadeEdits = false;
+	}
+
 	public replaceContent(value: string, start: number, end: number, no_indent: boolean): void {
 		//console.log('value', value);
 		let startPosition = this.getPositionFromOffset(start);
@@ -74,15 +79,23 @@ export class EditorAccessor implements emmet.Editor {
 			}
 		}
 
-		// shift column by +1 since they are 1 based
+		// If this is the first edit in this "transaction", push an undo stop before them
+		if (!this._hasMadeEdits) {
+			this._hasMadeEdits = true;
+			this.editor.pushUndoStop();
+		}
+
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-
-		let command = new ReplaceCommand(range, '');
-		this.editor.executeCommand('emmet', command);
-
 		let snippet = snippets.CodeSnippet.convertExternalSnippet(value, snippets.ExternalSnippetType.EmmetSnippet);
 		let codeSnippet = new snippets.CodeSnippet(snippet);
-		snippets.getSnippetController(this.editor).run(codeSnippet, 0, 0, false);
+		snippets.getSnippetController(this.editor).runWithReplaceRange(codeSnippet, range, false);
+	}
+
+	public onAfterEmmetAction(): void {
+		// If there were any edits in this "transaction", push an undo stop after them
+		if (this._hasMadeEdits) {
+			this.editor.pushUndoStop();
+		}
 	}
 
 	public getContent(): string {

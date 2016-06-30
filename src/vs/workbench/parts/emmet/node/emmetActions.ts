@@ -13,6 +13,7 @@ import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
 import * as fileAccessor from 'vs/workbench/parts/emmet/node/fileAccessor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import * as emmet from 'emmet';
 
 interface IEmmetConfiguration {
 	emmet: {
@@ -28,7 +29,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 	private configurationService: IConfigurationService = null;
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, configurationService: IConfigurationService) {
-		super(descriptor, editor, Behaviour.TextFocus);
+		super(descriptor, editor, Behaviour.Writeable);
 		this.editorAccessor = new EditorAccessor(editor);
 		this.configurationService = configurationService;
 	}
@@ -66,24 +67,36 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		return new TPromise((c, e) => {
-			require(['emmet'], (_emmet) => {
-				_emmet.file(fileAccessor);
+		if (!this.editorAccessor.isEmmetEnabledMode()) {
+			this.noExpansionOccurred();
+			return ;
+		}
 
-				try {
-					if (!this.editorAccessor.isEmmetEnabledMode()) {
-						this.noExpansionOccurred();
-						return;
-					}
-					this.updateEmmetPreferences(_emmet);
-					this.runEmmetAction(_emmet);
-				} catch (err) {
-					//
-				} finally {
-					this.resetEmmetPreferences(_emmet);
-				}
-			}, e);
+		return this._withEmmet().then((_emmet) => {
+			_emmet.file(fileAccessor);
+			this._withEmmetPreferences(_emmet, () => {
+				this.editorAccessor.onBeforeEmmetAction();
+				this.runEmmetAction(_emmet);
+				this.editorAccessor.onAfterEmmetAction();
+			});
+
+			return true;
 		});
+	}
+
+	private _withEmmet(): TPromise<typeof emmet> {
+		return new TPromise<typeof emmet>((c, e) => {
+			require(['emmet'], c, e);
+		});
+	}
+
+	private _withEmmetPreferences(_emmet:typeof emmet, callback:() => void): void {
+		try {
+			this.updateEmmetPreferences(_emmet);
+			callback();
+		} finally {
+			this.resetEmmetPreferences(_emmet);
+		}
 	}
 }
 
