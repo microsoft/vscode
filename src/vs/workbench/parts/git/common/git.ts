@@ -54,6 +54,11 @@ export interface IRawStatus {
 	remotes: IRemote[];
 }
 
+export interface ICommitInfo {
+	template?: string;
+	lastCommitMsg?: string;
+}
+
 // Model enums
 
 export enum StatusType {
@@ -222,7 +227,8 @@ export var ServiceOperations = {
 	BACKGROUND_FETCH: 'backgroundfetch',
 	PULL: 'pull',
 	PUSH: 'push',
-	SYNC: 'sync'
+	SYNC: 'sync',
+	GET_COMMIT_INFO: 'getCommitInfo'
 };
 
 // Service config
@@ -284,6 +290,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
+	getCommitInfo(): TPromise<ICommitInfo>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -320,6 +327,7 @@ export interface IGitService extends IEventEmitter {
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
+	getCommitInfo(): TPromise<ICommitInfo>;
 }
 
 export interface IAskpassService {

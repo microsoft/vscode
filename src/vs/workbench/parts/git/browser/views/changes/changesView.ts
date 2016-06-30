@@ -236,12 +236,64 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		if (visible) {
 			this.tree.onVisible();
-			return this.onEditorsChanged(this.editorService.getActiveEditorInput());
+			return this.onCommitInputShown().then((_) =>
+				this.onEditorsChanged(this.editorService.getActiveEditorInput()));
 
+			// return this.onEditorsChanged(this.editorService.getActiveEditorInput());
 		} else {
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
 		}
+	}
+
+	public onCommitInputShown(): WinJS.TPromise<void> {
+		console.log('onCommitInputShown');
+		if (!this.commitInputBox.value) {
+			// let commitMsg = this.storageService.get(ChangesView.WorkingCommitMsgStorageKey, null, "");
+			let commitMsg = "";
+
+			if (!commitMsg) {
+				// return WinJS.TPromise.as(null);
+				// debugger;
+				let getInfoTask = this.gitService.getCommitInfo();
+				// let getInfoTask = this.gitService.status();
+				return getInfoTask.then((info) => {
+					console.log('getInfoTask returned.');
+					// debugger;
+					// if (info.template) {
+					// 	this.commitInputBox.value = info.template;
+					// }
+				});
+			} else {
+				return WinJS.TPromise.as(null);
+			}
+			// this.commitInputBox.value = 'Hey, this is some test initial value inside of `loadCommitInput`.';
+		} else {
+			return WinJS.TPromise.as(null);
+		}
+	}
+
+	private _lastKeyTimestamp: number;
+
+	/** Simple debounce method to limit rate of firing `fn`. */
+	private debounce(fn: Function, ms: number) {
+		this._lastKeyTimestamp = Date.now();
+		setTimeout(() => {
+			if (!this._lastKeyTimestamp) { return; }
+
+			let elapsed = Date.now() - this._lastKeyTimestamp;
+
+			console.warn(`lasttime: ${this._lastKeyTimestamp}, elapsed: ${elapsed}`);
+			if (elapsed >= ms) {
+				try {
+					fn();
+				} catch (error) {
+					throw error;
+				} finally {
+					this._lastKeyTimestamp = null;
+				}
+			}
+		}, ms);
 	}
 
 	public getControl(): Tree.ITree {

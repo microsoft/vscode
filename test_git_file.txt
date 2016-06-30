@@ -1,0 +1,2 @@
+I'm just trying to load the git template into the git window.
+This file is just a test file to have something to stage/commit.

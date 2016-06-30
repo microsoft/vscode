@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions, ICommitInfo } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
@@ -190,5 +190,14 @@ export class RawGitService implements IRawGitService {
 
 			return TPromise.wrapError<string>(e);
 		});
+	}
+
+	getCommitInfo(): TPromise<ICommitInfo> {
+		console.log('RawGitService.getCommitInfo');
+
+		return TPromise.as(<ICommitInfo>{
+			template: "This is a test template in rawGitService.ts (ICommitInfo)",
+			lastCommitMsg: "This is a test lastCommitMsg in\n\n rawGitService.ts (ICommitInfo)"
+		}); // .then(() => this.status());
 	}
 }
