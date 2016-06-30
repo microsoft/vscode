@@ -138,7 +138,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
-		nls.localize('openAnythingHandlerDescription', "Open Files and Symbols by Name")
+		nls.localize('openAnythingHandlerDescription', "Open Files and Global Symbols by Name")
 	)
 );
 
@@ -151,7 +151,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 			{
 				prefix: ALL_SYMBOLS_PREFIX,
 				needsEditor: false,
-				description: nls.localize('openSymbolDescriptionNormal', "Open Symbol By Name")
+				description: nls.localize('openSymbolDescriptionNormal', "Open Any Symbol By Name")
 			}
 		]
 	)

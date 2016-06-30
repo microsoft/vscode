@@ -100,12 +100,18 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	}
 }
 
+export interface IOpenSymbolOptions {
+	skipSorting: boolean;
+	skipLocalSymbols: boolean;
+	skipDelay: boolean;
+}
+
 export class OpenSymbolHandler extends QuickOpenHandler {
 
 	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
-	private isStandalone: boolean;
+	private options: IOpenSymbolOptions;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -116,12 +122,11 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		super();
 
 		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY);
-		this.isStandalone = true;
+		this.options = Object.create(null);
 	}
 
-	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY) : null;
-		this.isStandalone = standalone;
+	public setOptions(options: IOpenSymbolOptions) {
+		this.options = options;
 	}
 
 	public canRun(): boolean | string {
@@ -136,7 +141,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		// Respond directly to empty search
 		if (!searchValue) {
 			promise = TPromise.as([]);
-		} else if (this.delayer) {
+		} else if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => this.doGetResults(searchValue)); // Run search with delay as needed
 		} else {
 			promise = this.doGetResults(searchValue);
@@ -146,7 +151,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	}
 
 	private doGetResults(searchValue: string): TPromise<QuickOpenEntry[]> {
-
 		return getNavigateToItems(searchValue).then(bearings => {
 			return this.toQuickOpenEntries(bearings, searchValue);
 		});
@@ -157,6 +161,9 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 		// Convert to Entries
 		types.forEach(element => {
+			if (this.options.skipLocalSymbols && !!element.containerName) {
+				return; // ignore local symbols if we are told so
+			}
 
 			// Find Highlights
 			let highlights = filters.matchesFuzzy(searchValue, element.name);
@@ -193,7 +200,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		});
 
 		// Sort (Standalone only)
-		if (this.isStandalone) {
+		if (!this.options.skipSorting) {
 			return results.sort(this.sort.bind(this, searchValue.toLowerCase()));
 		}
 
