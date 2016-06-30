@@ -11,6 +11,7 @@ import {IAction, IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
+import {TreeDecorator} from 'vs/workbench/parts/decorators/treeDecorator';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -93,6 +94,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		const dataSource = this.instantiationService.createInstance(DataSource);
 		const actionProvider = this.instantiationService.createInstance(ActionProvider, this.model);
 		const renderer = this.instantiationService.createInstance(Renderer, actionProvider, this.model);
+		const decorator = this.instantiationService.createInstance(TreeDecorator);
 		const controller = this.instantiationService.createInstance(Controller, actionProvider, this.model);
 		const accessibilityProvider = this.instantiationService.createInstance(AccessibilityProvider);
 		const dnd = this.instantiationService.createInstance(DragAndDrop);
@@ -100,6 +102,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.tree = new Tree(this.treeContainer, {
 			dataSource,
 			renderer,
+			decorator,
 			controller,
 			accessibilityProvider,
 			dnd

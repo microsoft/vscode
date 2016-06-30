@@ -24,12 +24,6 @@ import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import {KeyCode} from 'vs/base/common/keyCodes';
 
-export interface IRow {
-	element: HTMLElement;
-	templateId: string;
-	templateData: any;
-}
-
 function getLastScrollTime(element: HTMLElement): number {
 	var value = element.getAttribute('last-scroll-time');
 	return value ? parseInt(value, 10) : 0;
@@ -45,15 +39,15 @@ function removeFromParent(element: HTMLElement): void {
 
 export class RowCache implements Lifecycle.IDisposable {
 
-	private _cache: { [templateId:string]: IRow[]; };
-	private scrollingRow: IRow;
+	private _cache: { [templateId:string]: _.IRow[]; };
+	private scrollingRow: _.IRow;
 
 	constructor(private context: _.ITreeContext) {
 		this._cache = { '': [] };
 		this.scrollingRow = null;
 	}
 
-	public alloc(templateId: string): IRow {
+	public alloc(templateId: string): _.IRow {
 		var result = this.cache(templateId).pop();
 
 		if (!result) {
@@ -73,7 +67,7 @@ export class RowCache implements Lifecycle.IDisposable {
 		return result;
 	}
 
-	public release(templateId: string, row: IRow): void {
+	public release(templateId: string, row: _.IRow): void {
 		var lastScrollTime = getLastScrollTime(row.element);
 
 		if (!lastScrollTime) {
@@ -102,7 +96,7 @@ export class RowCache implements Lifecycle.IDisposable {
 		DOM.addClass(this.scrollingRow.element, 'scrolling');
 	}
 
-	private cache(templateId: string): IRow[] {
+	private cache(templateId: string): _.IRow[] {
 		return this._cache[templateId] || (this._cache[templateId] = []);
 	}
 
@@ -142,7 +136,7 @@ export class ViewItem implements IViewItem {
 
 	public model: Model.Item;
 	public id: string;
-	protected row: IRow;
+	protected row: _.IRow;
 
 	public top: number;
 	public height: number;
@@ -284,6 +278,9 @@ export class ViewItem implements IViewItem {
 
 		if (!skipUserRender) {
 			this.context.renderer.renderElement(this.context.tree, this.model.getElement(), this.templateId, this.row.templateData);
+			if (this.context.decorator) {
+				this.context.decorator.decorate(this.context.tree, this.model.getElement(), this.templateId, this.row);
+			}
 		}
 	}
 
@@ -451,6 +448,7 @@ export class TreeView extends HeightMap {
 			filter: context.filter,
 			sorter: context.sorter,
 			tree: context.tree,
+			decorator: context.decorator,
 			accessibilityProvider: context.accessibilityProvider,
 			options: context.options,
 			cache: new RowCache(context)

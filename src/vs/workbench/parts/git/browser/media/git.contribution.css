@@ -229,3 +229,60 @@
 .monaco-shell .monaco-workbench.mac .git-statusbar-group > .git-statusbar-branch-item.headless {
 	font-weight: 300; /* makes the italic font appear the same as normal */
 }
+
+
+.monaco-tree-row:not(.selected):not(.highlighted) .index-renamed,
+.monaco-tree-row:not(.selected):not(.highlighted) .modified,
+.monaco-tree-row:not(.selected):not(.highlighted) .index-modified,
+.monaco-tree-row:not(.selected):not(.highlighted) .both-modified {
+	color:  rgba(0, 122, 204, 1);
+	font-weight: 500;
+}
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .index-renamed,
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .modified,
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .index-modified,
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .both-modified,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .index-renamed,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .modified,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .index-modified,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .both-modified {
+	color:  rgba(0, 188, 242, 1);
+	font-weight: 500;
+}
+
+.monaco-tree-row:not(.selected):not(.highlighted) .index-copied,
+.monaco-tree-row:not(.selected):not(.highlighted) .added_by-us,
+.monaco-tree-row:not(.selected):not(.highlighted) .added_by-them,
+.monaco-tree-row:not(.selected):not(.highlighted) .index-added,
+.monaco-tree-row:not(.selected):not(.highlighted) .both-added {
+	color: rgba(45, 136, 62, 1);
+	font-weight: 500;
+}
+
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .index-copied,
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .added_by-us,
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .added_by-them,
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .index-added,
+.vs-dark .monaco-tree-row:not(.selected):not(.highlighted) .both-added,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .index-copied,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .added_by-us,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .added_by-them,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .index-added,
+.hc-black .monaco-tree-row:not(.selected):not(.highlighted) .both-added {
+	color: rgba(127, 186, 0, 1);
+	font-weight: 500;
+}
+
+.monaco-tree-row:not(.selected):not(.highlighted) .untracked,
+.monaco-tree-row:not(.selected):not(.highlighted) .ignored {
+	font-weight: 500;
+}
+
+.monaco-tree-row:not(.selected):not(.highlighted) .deleted,
+.monaco-tree-row:not(.selected):not(.highlighted) .index-deleted,
+.monaco-tree-row:not(.selected):not(.highlighted) .deleted-by-us,
+.monaco-tree-row:not(.selected):not(.highlighted) .deleted-by-them,
+.monaco-tree-row:not(.selected):not(.highlighted) .both-deleted  {
+	color: rgba(185, 19, 26, 1);
+	font-weight: 500;
+}

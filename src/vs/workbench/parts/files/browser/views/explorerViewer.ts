@@ -261,6 +261,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	constructor(
 		state: FileViewletState,
 		actionRunner: IActionRunner,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextViewService private contextViewService: IContextViewService
 	) {
 		super({

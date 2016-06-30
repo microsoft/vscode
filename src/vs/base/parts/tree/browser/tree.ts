@@ -12,6 +12,12 @@ import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
 import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
+export interface IRow {
+	element: HTMLElement;
+	templateId: string;
+	templateData: any;
+}
+
 export interface ITree extends Events.IEventEmitter {
 
 	emit(eventType:string, data?:any):void;
@@ -355,6 +361,12 @@ export interface IDataSource {
 	getParent(tree: ITree, element: any): WinJS.Promise;
 }
 
+export interface IDecorator {
+	onActivate(tree: ITree): void;
+	decorate(tree: ITree, element: any, templateId: string, row: IRow): void;
+	dispose(): void;
+}
+
 export interface IRenderer {
 
 	/**
@@ -614,6 +626,7 @@ export interface IHighlightEvent {
 export interface ITreeConfiguration {
 	dataSource: IDataSource;
 	renderer?: IRenderer;
+	decorator?: IDecorator;
 	controller?: IController;
 	dnd?: IDragAndDrop;
 	filter?: IFilter;

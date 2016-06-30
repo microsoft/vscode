@@ -15,6 +15,7 @@ import paths = require('vs/base/common/paths');
 import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
+import {TreeDecorator} from 'vs/workbench/parts/decorators/treeDecorator';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {EditorOptions} from 'vs/workbench/common/editor';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
@@ -330,6 +331,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		let dataSource = this.instantiationService.createInstance(FileDataSource);
 		let renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
 		let controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		let decorator = this.instantiationService.createInstance(TreeDecorator);
 		let sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);
 		let dnd = this.instantiationService.createInstance(FileDragAndDrop);
@@ -340,6 +342,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			renderer: renderer,
 			controller: controller,
 			sorter: sorter,
+			decorator: decorator,
 			filter: this.filter,
 			dnd: dnd,
 			accessibilityProvider: accessibility
