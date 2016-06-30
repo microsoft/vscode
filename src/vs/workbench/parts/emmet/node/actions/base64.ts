@@ -7,11 +7,10 @@
 
 import nls = require('vs/nls');
 
-import * as emmet from 'emmet'
+import * as emmet from 'emmet';
 import {fileExists} from 'vs/base/node/pfs';
 import fs = require('fs');
 import {dirname, join, normalize, isValidBasename} from 'vs/base/common/paths';
-import {mkdirp, writeFile} from 'vs/base/node/pfs';
 
 import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 import {Action} from 'vs/base/common/actions';
