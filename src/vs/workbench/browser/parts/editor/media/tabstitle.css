@@ -27,7 +27,7 @@
 	position: absolute;
 	top: 34px;
 	width: 100%;
-	border-top:1px solid #333333;
+	border-top:1px solid #403F3F;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .monaco-scrollable-element {
@@ -39,11 +39,12 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
-	background-color: #F3F3F3;
+	background: linear-gradient(to bottom, #ECECEC 0%,#F3F3F3 100%);
+	mix-blend-mode: luminosity;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
-	background-color: #252526;
+	background: linear-gradient(to bottom, #333333 0%,#252526 100%);
 	mix-blend-mode: luminosity;
 }
 
