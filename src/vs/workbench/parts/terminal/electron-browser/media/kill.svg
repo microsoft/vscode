@@ -5,6 +5,6 @@
 <style type="text/css">
 	.st0{fill:#424242;}
 </style>
-<path id="iconBg" class="st0" d="M6,12H5V6h1V12z M8,6H7v6h1V6z M10,6H9v6h1V6z M13,3v1h-1v10c0,0.6-0.4,1-1,1H4c-0.6,0-1-0.4-1-1V4
-	H2V3h3V2c0-0.6,0.4-1,1-1h3c0.6,0,1,0.4,1,1v1H13z M6,3h3V2H6V3z M11,4H4v10h7V4z"/>
+<path class="st0" d="M10,3V2c0-0.6-0.4-1-1-1H6C5.4,1,5,1.4,5,2v1H2v1h1v10c0,0.6,0.4,1,1,1h7c0.6,0,1-0.4,1-1V4h1V3H10z M6,12H5V6
+	h1V12z M6,2h3v1H6V2z M8,12H7V6h1V12z M10,12H9V6h1V12z"/>
 </svg>
