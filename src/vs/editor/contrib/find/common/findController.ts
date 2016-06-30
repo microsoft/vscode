@@ -35,7 +35,7 @@ export interface IFindStartOptions {
 	shouldAnimate:boolean;
 }
 
-const CONTEXT_FIND_WIDGET_VISIBLE = 'findWidgetVisible';
+export const CONTEXT_FIND_WIDGET_VISIBLE = 'findWidgetVisible';
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 

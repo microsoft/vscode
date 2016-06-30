@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
@@ -20,6 +21,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+export function isSearchViewletFocussed(viewletService: IViewletService):boolean {
+	let activeViewlet= viewletService.getActiveViewlet();
+	let activeElement= document.activeElement;
+	return activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID && activeElement && DOM.isAncestor(activeElement, (<SearchViewlet>activeViewlet).getContainer().getHTMLElement());
+}
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
@@ -43,11 +50,11 @@ export class ReplaceInFilesAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet) => {
-			(<SearchViewlet>viewlet).showReplace();
+			let searchAndReplaceWidget= (<SearchViewlet>viewlet).searchAndReplaceWidget;
+			searchAndReplaceWidget.toggleReplace(true);
+			searchAndReplaceWidget.focus(false, true);
 		});
 	}
-
-
 }
 
 export class FindInFolderAction extends Action {
