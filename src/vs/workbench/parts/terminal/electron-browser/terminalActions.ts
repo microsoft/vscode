@@ -30,6 +30,7 @@ export class KillTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.kill';
 	public static LABEL = nls.localize('workbench.action.terminal.kill', "Terminal: Kill the Active Terminal Instance");
+	public static PANEL_LABEL = nls.localize('workbench.action.terminal.kill.short', "Kill Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -48,6 +49,7 @@ export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
 	public static LABEL = nls.localize('workbench.action.terminal.new', "Terminal: Create New Integrated Terminal");
+	public static PANEL_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
 
 	constructor(
 		id: string, label: string,
