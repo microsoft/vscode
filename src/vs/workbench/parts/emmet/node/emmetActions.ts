@@ -16,11 +16,9 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import * as emmet from 'emmet';
 
 interface IEmmetConfiguration {
-	emmet: {
-		preferences: any;
-		syntaxProfiles: any;
-		triggerExpansionOnTab: boolean
-	};
+	preferences: any;
+	syntaxProfiles: any;
+	triggerExpansionOnTab: boolean;
 }
 
 export abstract class EmmetEditorAction extends EditorAction {
@@ -35,29 +33,14 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	private updateEmmetPreferences(_emmet: any) {
-		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.set(key, preferences[key]);
-			} catch (err) {
-				_emmet.preferences.define(key, preferences[key]);
-			}
-		}
-		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
-		if (Object.keys(syntaxProfile).length !== 0) {
-			_emmet.profile.reset();
-			_emmet.loadProfiles(syntaxProfile);
-		}
+		let emmetConfiguration = this.configurationService.getConfiguration<IEmmetConfiguration>('emmet');
+		_emmet.loadPreferences(emmetConfiguration.preferences);
+		_emmet.loadProfiles(emmetConfiguration.syntaxProfiles);
 	}
 
 	private resetEmmetPreferences(_emmet: any) {
-		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.remove(key);
-			} catch (err) {
-			}
-		}
+		_emmet.preferences.reset();
+		_emmet.profile.reset();
 	}
 
 	abstract runEmmetAction(_emmet: any);
