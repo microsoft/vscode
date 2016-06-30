@@ -10,6 +10,16 @@ declare module 'emmet' {
 		end: number;
 	}
 
+	export interface Preferences {
+		set(key:string, value: string);
+		define(key:string, value: string);
+		remove(key:string);
+	}
+
+	export interface Profiles {
+		reset();
+	}
+
 	export interface Editor {
 		/**
 		 * Returns character indexes of selected text: object with <code>start</code>
@@ -134,7 +144,11 @@ declare module 'emmet' {
 	 * @param  {IEmmetEditor} editor Editor instance
 	 * @return {Boolean} Returns true if action was performed successfully
 	 */
-	export function run(action: string, editor: Editor): boolean;
+	export function run(action: string, editor: Editor, arg?: string): boolean;
 
-	export function file(fileAccessor:any): void;
+	export var preferences: Preferences;
+
+	export var profile: Profiles;
+
+	export function loadProfiles(profiles: any);
 }

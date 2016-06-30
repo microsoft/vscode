@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
+import * as emmet from 'emmet';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
@@ -23,7 +24,7 @@ class UpdateTagAction extends EmmetEditorAction {
 		super(descriptor, editor, configurationService);
 	}
 
-	public runEmmetAction(_emmet) {
+	public runEmmetAction(_emmet: typeof emmet) {
 		let options: IInputOptions = {
 			prompt: nls.localize('enterTag', 'Enter Tag'),
 			placeHolder: nls.localize('tag', 'Tag')
@@ -33,7 +34,7 @@ class UpdateTagAction extends EmmetEditorAction {
 		});
 	}
 
-	private wrapAbbreviation(_emmet: any, tag) {
+	private wrapAbbreviation(_emmet: typeof emmet, tag) {
 		if (tag && !_emmet.run('update_tag', this.editorAccessor, tag)) {
 			this.noExpansionOccurred();
 		}

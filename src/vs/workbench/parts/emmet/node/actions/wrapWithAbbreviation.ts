@@ -7,6 +7,7 @@
 
 import nls = require('vs/nls');
 import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
+import * as emmet from 'emmet';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
@@ -23,7 +24,7 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 		super(descriptor, editor, configurationService);
 	}
 
-	public runEmmetAction(_emmet) {
+	public runEmmetAction(_emmet: typeof emmet) {
 		let options: IInputOptions = {
 			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
 			placeHolder: nls.localize('abbreviation', "Abbreviation")
@@ -33,7 +34,7 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 		});
 	}
 
-	private wrapAbbreviation(_emmet: any, abbreviation) {
+	private wrapAbbreviation(_emmet: typeof emmet, abbreviation) {
 		if (abbreviation && !_emmet.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
 			this.noExpansionOccurred();
 		}
