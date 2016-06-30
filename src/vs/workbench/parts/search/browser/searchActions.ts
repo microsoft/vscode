@@ -21,11 +21,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
 export function isSearchViewletFocussed(viewletService: IViewletService):boolean {
 	let activeViewlet= viewletService.getActiveViewlet();
 	let activeElement= document.activeElement;
 	return activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID && activeElement && DOM.isAncestor(activeElement, (<SearchViewlet>activeViewlet).getContainer().getHTMLElement());
+}
+
+export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, keyBindingService: IKeybindingService):string
+export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService: IKeybindingService):string
+export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService: IKeybindingService):string {
+	keyBinding= typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
+	return label + ' (' + keyBindingService.getLabelFor(keyBinding) + ')';
 }
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
@@ -122,8 +131,7 @@ export class RemoveAction extends Action {
 		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
 	}
 
-	public run(retainFocus: boolean= true): TPromise<any> {
-
+	public run(completely:boolean= true): TPromise<any> {
 		if (this.element === this.viewer.getFocus()) {
 			let nextFocusElement= this.getNextFocusElement();
 			if (nextFocusElement) {
@@ -140,11 +148,11 @@ export class RemoveAction extends Action {
 			elementToRefresh= parent;
 		} else {
 			let parent: FileMatch= <FileMatch>this.element.parent();
-			parent.remove(<Match>this.element);
+			parent.remove(<Match>this.element, completely);
 			elementToRefresh= parent.count() === 0 ? parent.parent() : parent;
 		}
 
-		if (retainFocus && this.viewer.getFocus()) {
+		if (this.viewer.getFocus()) {
 			this.viewer.DOMFocus();
 		}
 		return this.viewer.refresh(elementToRefresh);
@@ -164,36 +172,44 @@ export class RemoveAction extends Action {
 
 export class ReplaceAllAction extends Action {
 
+	public static get KEY_BINDING(): number {
+		return KeyMod.Shift | CommonKeybindings.CTRLCMD_ENTER;
+	}
+
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
 							@IReplaceService private replaceService: IReplaceService,
+							@IKeybindingService keyBindingService: IKeybindingService,
 							@ITelemetryService private telemetryService: ITelemetryService) {
-		super('file-action-replace-all', nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
+		super('file-action-replace-all', appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), ReplaceAllAction.KEY_BINDING, keyBindingService), 'action-replace-all');
 	}
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replaceAll.action.selected');
 		return this.replaceService.replace([this.fileMatch], this.fileMatch.parent().replaceText).then(() => {
-			this.viewlet.open(this.fileMatch).done(() => {
-				new RemoveAction(this.viewer, this.fileMatch).run();
-			}, errors.onUnexpectedError);
+			new RemoveAction(this.viewer, this.fileMatch).run();
+			this.viewlet.open(this.fileMatch);
 		});
 	}
 }
 
 export class ReplaceAction extends Action {
 
+	public static get KEY_BINDING(): number {
+		return KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1;
+	}
+
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
 				@IReplaceService private replaceService: IReplaceService,
+				@IKeybindingService keyBindingService: IKeybindingService,
 				@ITelemetryService private telemetryService: ITelemetryService) {
-		super('action-replace', nls.localize('match.replace.label', "Replace"), 'action-replace');
+		super('action-replace', appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), ReplaceAction.KEY_BINDING, keyBindingService), 'action-replace');
 	}
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replace.action.selected');
 		return this.replaceService.replace(this.element, this.element.parent().parent().replaceText).then(() => {
-			this.viewlet.open(this.element).done(() => {
-				new RemoveAction(this.viewer, this.element).run(false);
-			}, errors.onUnexpectedError);
+			new RemoveAction(this.viewer, this.element).run(false);
+			this.viewlet.open(this.element);
 		});
 	}
 }

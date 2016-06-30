@@ -23,7 +23,7 @@ import { Match, EmptyMatch, SearchResult, FileMatch, FileMatchOrMatch } from 'vs
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CommonKeybindings}  from 'vs/base/common/keyCodes';
+import { CommonKeybindings }  from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -223,7 +223,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 export class SearchController extends DefaultController {
 
-	constructor(private viewlet: SearchViewlet) {
+	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
 		if (platform.isMacintosh) {
@@ -234,6 +234,8 @@ export class SearchController extends DefaultController {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
 		}
 
+		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
+		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
@@ -251,6 +253,28 @@ export class SearchController extends DefaultController {
 		if (element instanceof FileMatch ||
 				(element instanceof Match && tree.getInput().isReplaceActive() && !(element instanceof EmptyMatch))) {
 			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
+			result = true;
+		}
+
+		return result;
+	}
+
+	private onReplace(tree: ITree, event: IKeyboardEvent): boolean {
+		let result = false;
+		let element = tree.getFocus();
+		if (element instanceof Match && tree.getInput().isReplaceActive() && !(element instanceof EmptyMatch)) {
+			this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
+			result = true;
+		}
+
+		return result;
+	}
+
+	private onReplaceAll(tree: ITree, event: IKeyboardEvent): boolean {
+		let result = false;
+		let element = tree.getFocus();
+		if (element instanceof FileMatch && element.count() > 0) {
+			this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
 			result = true;
 		}
 

@@ -22,7 +22,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { isSearchViewletFocussed } from 'vs/workbench/parts/search/browser/searchActions';
+import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { CONTEXT_FIND_WIDGET_VISIBLE } from 'vs/editor/contrib/find/common/findController';
 
 export interface ISearchWidgetOptions {
@@ -68,7 +68,7 @@ export class SearchWidget extends Widget {
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService: IKeybindingService):string=>{
 		let keybindings = keyBindingService.lookupKeybindings(ReplaceAllAction.ID);
-		return nls.localize('search.action.replaceAll.enabled.label', "Replace All") +  ' (' + keyBindingService.getLabelFor(keybindings[0]) + ')';
+		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), keybindings[0], keyBindingService);
 	};
 
 	public domNode: HTMLElement;
