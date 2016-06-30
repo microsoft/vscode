@@ -3127,6 +3127,10 @@ declare module monaco.editor {
          */
         executeCommand(source: string, command: ICommand): void;
         /**
+         * Push an "undo stop" in the undo-redo stack.
+         */
+        pushUndoStop(): boolean;
+        /**
          * Execute a command on the editor.
          * @param source The source of the call.
          * @param command The command to execute

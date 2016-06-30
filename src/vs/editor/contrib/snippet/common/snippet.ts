@@ -717,6 +717,10 @@ class InsertSnippetController {
 
 export interface ISnippetController extends editorCommon.IEditorContribution {
 	run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?:boolean): void;
+	/**
+	 * Inserts once `snippet` at the start of `replaceRange`, after deleting `replaceRange`.
+	 */
+	runWithReplaceRange(snippet: CodeSnippet, replaceRange:Range, undoStops:boolean): void;
 	jumpToNextPlaceholder(): void;
 	jumpToPrevPlaceholder(): void;
 	acceptSnippet(): void;
@@ -725,6 +729,11 @@ export interface ISnippetController extends editorCommon.IEditorContribution {
 
 export function getSnippetController(editor: editorCommon.ICommonCodeEditor): ISnippetController {
 	return <ISnippetController>editor.getContribution(SnippetController.ID);
+}
+
+interface IPreparedSnippet {
+	typeRange: Range;
+	adaptedSnippet: ICodeSnippet;
 }
 
 class SnippetController implements ISnippetController {
@@ -753,15 +762,31 @@ class SnippetController implements ISnippetController {
 	}
 
 	public run(snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix?:boolean): void {
+		this._runAndRestoreController(() => {
+			if (snippet.placeHolders.length === 0) {
+				// No placeholders => execute for all editor selections
+				this._runForAllSelections(snippet, overwriteBefore, overwriteAfter, stripPrefix);
+			} else {
+				let prepared = SnippetController._prepareSnippet(this._editor, this._editor.getSelection(), snippet, overwriteBefore, overwriteAfter, stripPrefix);
+				this._runPreparedSnippetForPrimarySelection(prepared, true);
+			}
+		});
+	}
+
+	public runWithReplaceRange(snippet: CodeSnippet, replaceRange:Range, undoStops:boolean): void {
+		this._runAndRestoreController(() => {
+			this._runPreparedSnippetForPrimarySelection({
+				typeRange: replaceRange,
+				adaptedSnippet: SnippetController._getAdaptedSnippet(this._editor.getModel(), snippet, replaceRange)
+			}, undoStops);
+		});
+	}
+
+	private _runAndRestoreController(callback:()=>void): void {
 		let prevController = this._currentController;
 		this._currentController = null;
 
-		if (snippet.placeHolders.length === 0) {
-			// No placeholders => execute for all editor selections
-			this._runForAllSelections(snippet, overwriteBefore, overwriteAfter, stripPrefix);
-		} else {
-			this._runForPrimarySelection(snippet, overwriteBefore, overwriteAfter, stripPrefix);
-		}
+		callback();
 
 		if (!this._currentController) {
 			// we didn't end up in snippet mode again => restore previous controller
@@ -801,16 +826,21 @@ class SnippetController implements ISnippetController {
 		}
 	}
 
-	private _runForPrimarySelection(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?:boolean): void {
+	private _runPreparedSnippetForPrimarySelection(prepared: IPreparedSnippet, undoStops:boolean): void {
 		let initialAlternativeVersionId = this._editor.getModel().getAlternativeVersionId();
 
 		let edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
-		let prepared = SnippetController._prepareSnippet(this._editor, this._editor.getSelection(), snippet, overwriteBefore, overwriteAfter, stripPrefix);
 		SnippetController._addCommandForSnippet(this._editor.getModel(), prepared.adaptedSnippet, prepared.typeRange, edits);
 
 		if (edits.length > 0) {
+			if (undoStops) {
+				this._editor.pushUndoStop();
+			}
 			this._editor.executeEdits('editor.contrib.insertSnippetHelper', edits);
+			if (undoStops) {
+				this._editor.pushUndoStop();
+			}
 		}
 
 		let cursorOnly = SnippetController._getSnippetCursorOnly(prepared.adaptedSnippet);
@@ -834,7 +864,9 @@ class SnippetController implements ISnippetController {
 		}
 
 		if (edits.length > 0) {
+			this._editor.pushUndoStop();
 			this._editor.executeEdits('editor.contrib.insertSnippetHelper', edits);
+			this._editor.pushUndoStop();
 		}
 	}
 

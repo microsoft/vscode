@@ -595,7 +595,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommand, command);
 	}
 
-	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[]): boolean {
+	public pushUndoStop(): boolean {
 		if (!this.cursor) {
 			// no view, no cursor
 			return false;
@@ -605,10 +605,23 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			return false;
 		}
 		this.model.pushStackElement();
+		return true;
+	}
+
+	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[]): boolean {
+		if (!this.cursor) {
+			// no view, no cursor
+			return false;
+		}
+		if (this._configuration.editor.readOnly) {
+			// read only editor => sorry!
+			return false;
+		}
+
 		this.model.pushEditOperations(this.cursor.getSelections(), edits, () => {
 			return this.cursor.getSelections();
 		});
-		this.model.pushStackElement();
+
 		return true;
 	}
 

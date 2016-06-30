@@ -329,7 +329,11 @@ export class MainThreadTextEditor {
 					forceMoveMarkers: edit.forceMoveMarkers
 				};
 			});
-			return this._codeEditor.executeEdits('MainThreadTextEditor', transformedEdits) || true;
+
+			this._codeEditor.pushUndoStop();
+			this._codeEditor.executeEdits('MainThreadTextEditor', transformedEdits);
+			this._codeEditor.pushUndoStop();
+			return true;
 		}
 
 		console.warn('applyEdits on invisible editor');
