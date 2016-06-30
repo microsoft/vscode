@@ -963,6 +963,148 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('find next ^.*$', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: '^.*$', isRegex: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[ 1, 1,  1, 18],
+				[ 2, 1,  2, 18],
+				[ 3, 1,  3, 20],
+				[ 4, 1,  4, 1],
+				[ 5, 1,  5, 13],
+				[ 6, 1,  6, 43],
+				[ 7, 1,  7, 41],
+				[ 8, 1,  8, 41],
+				[ 9, 1,  9, 40],
+				[10, 1, 10, 2],
+				[11, 1, 11, 17],
+				[12, 1, 12, 1],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[ 1, 1,  1, 18],
+			[ 1, 1,  1, 18],
+			[
+				[ 1, 1,  1, 18],
+				[ 2, 1,  2, 18],
+				[ 3, 1,  3, 20],
+				[ 4, 1,  4, 1],
+				[ 5, 1,  5, 13],
+				[ 6, 1,  6, 43],
+				[ 7, 1,  7, 41],
+				[ 8, 1,  8, 41],
+				[ 9, 1,  9, 40],
+				[10, 1, 10, 2],
+				[11, 1, 11, 17],
+				[12, 1, 12, 1],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[ 2, 1,  2, 18],
+			[ 2, 1,  2, 18],
+			[
+				[ 1, 1,  1, 18],
+				[ 2, 1,  2, 18],
+				[ 3, 1,  3, 20],
+				[ 4, 1,  4, 1],
+				[ 5, 1,  5, 13],
+				[ 6, 1,  6, 43],
+				[ 7, 1,  7, 41],
+				[ 8, 1,  8, 41],
+				[ 9, 1,  9, 40],
+				[10, 1, 10, 2],
+				[11, 1, 11, 17],
+				[12, 1, 12, 1],
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('find prev ^.*$', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: '^.*$', isRegex: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[ 1, 1,  1, 18],
+				[ 2, 1,  2, 18],
+				[ 3, 1,  3, 20],
+				[ 4, 1,  4, 1],
+				[ 5, 1,  5, 13],
+				[ 6, 1,  6, 43],
+				[ 7, 1,  7, 41],
+				[ 8, 1,  8, 41],
+				[ 9, 1,  9, 40],
+				[10, 1, 10, 2],
+				[11, 1, 11, 17],
+				[12, 1, 12, 1],
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[12, 1, 12, 1],
+			[12, 1, 12, 1],
+			[
+				[ 1, 1,  1, 18],
+				[ 2, 1,  2, 18],
+				[ 3, 1,  3, 20],
+				[ 4, 1,  4, 1],
+				[ 5, 1,  5, 13],
+				[ 6, 1,  6, 43],
+				[ 7, 1,  7, 41],
+				[ 8, 1,  8, 41],
+				[ 9, 1,  9, 40],
+				[10, 1, 10, 2],
+				[11, 1, 11, 17],
+				[12, 1, 12, 1],
+			]
+		);
+
+		findModel.moveToPrevMatch();
+		assertFindState(
+			editor,
+			[11, 1, 11, 17],
+			[11, 1, 11, 17],
+			[
+				[ 1, 1,  1, 18],
+				[ 2, 1,  2, 18],
+				[ 3, 1,  3, 20],
+				[ 4, 1,  4, 1],
+				[ 5, 1,  5, 13],
+				[ 6, 1,  6, 43],
+				[ 7, 1,  7, 41],
+				[ 8, 1,  8, 41],
+				[ 9, 1,  9, 40],
+				[10, 1, 10, 2],
+				[11, 1, 11, 17],
+				[12, 1, 12, 1],
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('find prev ^$', (editor, cursor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: '^$', isRegex: true }, false);

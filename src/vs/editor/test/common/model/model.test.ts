@@ -701,6 +701,25 @@ suite('Editor Model - Find', () => {
 		);
 	});
 
+	test('issue #4836 - ^.*$', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'',
+				'some text again',
+				'',
+				'again some text'
+			].join('\n'),
+			'^.*$', true, false, false,
+			[
+				[1, 1, 1, 20],
+				[2, 1, 2, 1],
+				[3, 1, 3, 16],
+				[4, 1, 4, 1],
+				[5, 1, 5, 16],
+			]
+		);
+	});
 
 	function assertParseSearchResult(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:IParsedSearchRequest): void {
 		let actual = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
