@@ -174,33 +174,33 @@ export class FindModelBoundToEditorModel {
 		let {lineNumber,column} = before;
 		let model = this._editor.getModel();
 
-		if (this._state.isRegex) {
-			// Force advancing to the previous line if searching for $
-			if (this._state.searchString === '$') {
+		let position = new Position(lineNumber, column);
+
+		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+
+		if (prevMatch && prevMatch.isEmpty() && prevMatch.getStartPosition().equals(position)) {
+			// Looks like we're stuck at this position, unacceptable!
+
+			let isUsingLineStops = this._state.isRegex && (
+				this._state.searchString.indexOf('^') >= 0
+				|| this._state.searchString.indexOf('$') >= 0
+			);
+
+			if (isUsingLineStops || column === 1) {
 				if (lineNumber === 1) {
 					lineNumber = model.getLineCount();
 				} else {
 					lineNumber--;
 				}
 				column = model.getLineMaxColumn(lineNumber);
+			} else {
+				column--;
 			}
 
-			// Force advancing to the previous line if searching for ^ or ^$ and cursor is at the beginning
-			if (this._state.searchString === '^' || this._state.searchString === '^$') {
-				if (column === 1) {
-					if (lineNumber === 1) {
-						lineNumber = model.getLineCount();
-					} else {
-						lineNumber--;
-					}
-					column = model.getLineMaxColumn(lineNumber);
-				}
-			}
+			position = new Position(lineNumber, column);
+			prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 		}
 
-		let position = new Position(lineNumber, column);
-
-		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 		if (!prevMatch) {
 			// there is precisely one match and selection is on top of it
 			return;
@@ -241,33 +241,32 @@ export class FindModelBoundToEditorModel {
 		let {lineNumber,column} = after;
 		let model = this._editor.getModel();
 
-		if (this._state.isRegex) {
-			// Force advancing to the next line if searching for ^ or ^$
-			if (this._state.searchString === '^' || this._state.searchString === '^$') {
+		let position = new Position(lineNumber, column);
+
+		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+
+		if (nextMatch && nextMatch.isEmpty() && nextMatch.getStartPosition().equals(position)) {
+			// Looks like we're stuck at this position, unacceptable!
+
+			let isUsingLineStops = this._state.isRegex && (
+				this._state.searchString.indexOf('^') >= 0
+				|| this._state.searchString.indexOf('$') >= 0
+			);
+
+			if (isUsingLineStops || column === model.getLineMaxColumn(lineNumber)) {
 				if (lineNumber === model.getLineCount()) {
 					lineNumber = 1;
 				} else {
 					lineNumber++;
 				}
 				column = 1;
+			} else {
+				column++;
 			}
 
-			// Force advancing to the next line if searching for $ and at the end of the line
-			if (this._state.searchString === '$') {
-				if (column === model.getLineMaxColumn(lineNumber)) {
-					if (lineNumber === model.getLineCount()) {
-						lineNumber = 1;
-					} else {
-						lineNumber++;
-					}
-					column = 1;
-				}
-			}
+			position = new Position(lineNumber, column);
+			nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 		}
-
-		let position = new Position(lineNumber, column);
-
-		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 
 		if (!nextMatch) {
 			// there is precisely one match and selection is on top of it
