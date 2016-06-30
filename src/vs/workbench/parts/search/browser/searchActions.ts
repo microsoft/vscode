@@ -32,6 +32,24 @@ export class OpenSearchViewletAction extends ToggleViewletAction {
 
 }
 
+export class ReplaceInFilesAction extends Action {
+
+	public static ID = 'workbench.action.replaceInFiles';
+	public static LABEL = nls.localize('replaceInFiles', "Replace in Files");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet) => {
+			(<SearchViewlet>viewlet).showReplace();
+		});
+	}
+
+
+}
+
 export class FindInFolderAction extends Action {
 
 	private resource: URI;

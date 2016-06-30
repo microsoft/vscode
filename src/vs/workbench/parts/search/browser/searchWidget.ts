@@ -115,6 +115,12 @@ export class SearchWidget extends Widget {
 		}
 	}
 
+	public showReplace(): void {
+		if (!this.isReplaceShown()) {
+			this.onToggleReplaceButton();;
+		}
+	}
+
 	private render(container: Builder, options: ISearchWidgetOptions): void {
 		this.domNode = container.div({ 'class': 'search-widget' }).style({ position: 'relative' }).getHTMLElement();
 		this.renderToggleReplaceButton(this.domNode);
