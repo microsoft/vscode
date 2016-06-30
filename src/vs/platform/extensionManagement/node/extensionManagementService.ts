@@ -19,7 +19,6 @@ import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExten
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { UserSettings } from 'vs/workbench/node/userSettings';
@@ -89,8 +88,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	onDidUninstallExtension: Event<string> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
