@@ -55,16 +55,20 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		return this.client.execute('navto', args, token).then((response):SymbolInformation[] => {
 			let data = response.body;
 			if (data) {
-				return data.map((item) => {
-
+				let result: SymbolInformation[] = [];
+				for (let item of data) {
+					if (!item.containerName && item.kind === 'alias') {
+						continue;
+					}
 					let range = new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1);
 					let label = item.name;
 					if (item.kind === 'method' || item.kind === 'function') {
 						label += '()';
 					}
-					return new SymbolInformation(label, _kindMapping[item.kind], range,
-						this.client.asUrl(item.file), item.containerName);
-				});
+					result.push(new SymbolInformation(label, _kindMapping[item.kind], range,
+						this.client.asUrl(item.file), item.containerName));
+				}
+				return result;
 			} else {
 				return [];
 			}
