@@ -3,7 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor.vs .scroll-decoration {
+	box-shadow: #fff 0 6px 6px -6px inset; /* TODO: use a CSS custom property of the theme's `.monaco-editor-background` color here to blend better */
+}
+
+.monaco-editor.vs-dark .scroll-decoration {
+	box-shadow: #1E1E1E 0 6px 6px -6px inset; /* TODO: use a CSS custom property of the theme's `.monaco-editor-background` color here to blend better */
+}
+
 /* Tabs Container */
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title::before {
+	display: block;
+	content: '';
+	position: absolute;
+	top: 34px;
+	width: 100%;
+	border-top:1px solid #DDDDDD;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title::before {
+	display: block;
+	content: '';
+	position: absolute;
+	top: 34px;
+	width: 100%;
+	border-top:1px solid #403F3F;
+}
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title > .monaco-scrollable-element {
 	flex: 1;
@@ -11,8 +36,16 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container {
 	display: flex;
-	background-color: rgba(128, 128, 128, 0.2);
-	height: 35px;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+	background: linear-gradient(to bottom, #ECECEC 0%,#F3F3F3 100%);
+	mix-blend-mode: luminosity;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+	background: linear-gradient(to bottom, #333333 0%,#252526 100%);
+	mix-blend-mode: luminosity;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.scroll {
@@ -25,6 +58,11 @@
 
 /* Tab */
 
+.vs .monaco-workbench .tab.monaco-editor-background:not(.active),
+.vs-dark .monaco-workbench .tab.monaco-editor-background:not(.active) {
+	background-color: transparent;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab {
 	display: flex;
 	width: 120px;
@@ -32,32 +70,56 @@
 	overflow: hidden;
 	white-space: nowrap;
 	cursor: pointer;
-	border-left: 1px solid rgba(128, 128, 128, 0.2);
-	border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 	box-sizing: border-box;
 	padding-left: 10px;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
 	opacity: 0.7 !important;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
 	opacity: 0.5 !important;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active  {
-	border: 1px solid #f38518;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child {
-	border-left: 0;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active {
-	border-bottom-color: transparent;
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active .tab-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback .tab-label {
 	opacity: 1 !important;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
+	border: 1px solid transparent;
+	height: 36px;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
+	border-left-color: #DDDDDD;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:last-child  {
+	border-right-color: #DDDDDD;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
+	border-left-color: #403F3F;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:last-child  {
+	border-right-color: #403F3F;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
+	height: 35px;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child,
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:first-child {
+	border-left-color: transparent;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active  {
+	border: 1px solid #f38518;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback {
@@ -66,7 +128,6 @@
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
 	background-color: rgba(187, 230, 255, 0.5);
-	opacity: 1 !important;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
@@ -159,5 +220,5 @@
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .group-actions {
 	flex: initial;
 	padding-left: 4px;
-	background-color: rgba(128, 128, 128, 0.2);
 }
+
