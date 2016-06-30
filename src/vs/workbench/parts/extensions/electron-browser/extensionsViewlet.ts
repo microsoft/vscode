@@ -13,7 +13,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mapEvent, filterEvent } from 'vs/base/common/event';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { DropdownMenuActionItem } from 'vs/base/browser/ui/toolbar/toolbar';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -25,10 +26,11 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
-import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction } from './extensionsActions';
+import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ListOutdatedExtensionsAction, FilterExtensionsAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
@@ -48,7 +50,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -123,9 +126,21 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	getActions(): IAction[] {
 		return [
-			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL)
+			this.instantiationService.createInstance(FilterExtensionsAction, FilterExtensionsAction.ID, FilterExtensionsAction.LABEL)
 		];
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		if (action.id === FilterExtensionsAction.ID) {
+			return new DropdownMenuActionItem(action, [
+				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL),
+				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
+			], this.contextMenuService, (action: IAction) => this.getActionItem(action), this.actionRunner, null, 'filter-extensions');
+		}
+
+		return null;
 	}
 
 	search(text: string, immediate = false): void {

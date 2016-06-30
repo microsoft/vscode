@@ -58,6 +58,14 @@
 
 }
 
+.monaco-action-bar .action-item .action-label.filter-extensions {
+	background: url('filter-extensions.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-action-bar .action-item .action-label.filter-extensions {
+	background: url('filter-extensions-inverse.svg') center center no-repeat;
+}
+
 .monaco-action-bar .action-item:not(.disabled):hover .action-label.extension-action.enable {
 	background-color: #2584C4;
 }
@@ -69,4 +77,8 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable {
 	display: none;
+}
+
+.hc-black .monaco-action-bar .action-item .action-label.filter-extensions {
+	background: url('filter-extensions-inverse.svg') center center no-repeat;
 }
