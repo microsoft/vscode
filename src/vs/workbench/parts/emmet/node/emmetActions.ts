@@ -11,7 +11,6 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 
 import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
-import * as fileAccessor from 'vs/workbench/parts/emmet/node/fileAccessor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import * as emmet from 'emmet';
 
@@ -34,7 +33,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		this.configurationService = configurationService;
 	}
 
-	private updateEmmetPreferences(_emmet: any) {
+	private updateEmmetPreferences(_emmet: typeof emmet) {
 		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
 		for (let key in preferences) {
 			try {
@@ -50,7 +49,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		}
 	}
 
-	private resetEmmetPreferences(_emmet: any) {
+	private resetEmmetPreferences(_emmet: typeof emmet) {
 		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
 		for (let key in preferences) {
 			try {
@@ -60,7 +59,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		}
 	}
 
-	abstract runEmmetAction(_emmet: any);
+	abstract runEmmetAction(_emmet: typeof emmet);
 
 	protected noExpansionOccurred() {
 		// default do nothing
@@ -73,7 +72,6 @@ export abstract class EmmetEditorAction extends EditorAction {
 		}
 
 		return this._withEmmet().then((_emmet) => {
-			_emmet.file(fileAccessor);
 			this._withEmmetPreferences(_emmet, () => {
 				this.editorAccessor.onBeforeEmmetAction();
 				this.runEmmetAction(_emmet);
@@ -110,7 +108,7 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 		this.emmetActionName = actionName;
 	}
 
-	public runEmmetAction(_emmet) {
+	public runEmmetAction(_emmet: typeof emmet) {
 		if (!_emmet.run(this.emmetActionName, this.editorAccessor)) {
 			this.noExpansionOccurred();
 		}
