@@ -150,7 +150,6 @@ export class TerminalConfigHelper {
 		};
 		if (this.platform === Platform.Windows) {
 			shell.executable = config.terminal.integrated.shell.windows;
-			shell.args = config.terminal.integrated.shellArgs.windows;
 		} else if (this.platform === Platform.Mac) {
 			shell.executable = config.terminal.integrated.shell.osx;
 			shell.args = config.terminal.integrated.shellArgs.osx;
