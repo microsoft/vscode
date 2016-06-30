@@ -127,7 +127,7 @@ class ProblemMatcherBuilder {
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${cwd}',
 			pattern: undefined
-		}
+		};
 	}
 
 	public owner(value: string): ProblemMatcherBuilder {
@@ -170,11 +170,11 @@ class PatternBuilder {
 	constructor(public parent: ProblemMatcherBuilder, regExp: RegExp) {
 		this.result = {
 			regexp: regExp,
-			file: 1,
+			file: 0,
 			message: 4,
 			line: 2,
 			column : 3
-		}
+		};
 	}
 
 	public file(value: number): PatternBuilder {
@@ -242,7 +242,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc"
+				command: 'tsc'
 			}, builder);
 	});
 
@@ -254,7 +254,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				isShellCommand: true
 			},
 			builder);
@@ -269,7 +269,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				showOutput: 'silent'
 			},
 			builder
@@ -283,7 +283,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				promptOnClose: true
 			},
 			builder
@@ -298,12 +298,12 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				promptOnClose: false
 			},
 			builder
 		);
-	})
+	});
 
 	test('tasks: global promptOnClose default watching', () => {
 		let builder = new ConfiguationBuilder('tsc');
@@ -314,12 +314,12 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				isWatching: true
 			},
 			builder
 		);
-	})
+	});
 
 	test('tasks: global show output never', () => {
 		let builder = new ConfiguationBuilder('tsc');
@@ -330,7 +330,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				showOutput: 'never'
 			},
 			builder
@@ -346,7 +346,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				echoCommand: true
 			},
 			builder
@@ -362,7 +362,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				args: [
 					'--p'
 				]
@@ -375,16 +375,16 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.
 			options({
-					cwd: "myPath"
+					cwd: 'myPath'
 				}).
 			task('tsc').
 				suppressTaskName(true);
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				options: {
-					cwd: "myPath"
+					cwd: 'myPath'
 				}
 			},
 			builder
@@ -400,7 +400,7 @@ suite('Tasks Configuration parsing tests', () => {
 		testGobalCommand(
 			{
 				version: '0.1.0',
-				command: "tsc",
+				command: 'tsc',
 				options: {
 					env: {
 						key: 'value'
@@ -412,7 +412,7 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: os windows', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc'
+		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
 		let builder = new ConfiguationBuilder(name);
 		builder.
 			task(name).
@@ -428,7 +428,7 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: os windows & global isShellCommand', () => {
-		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc'
+		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
 		let builder = new ConfiguationBuilder(name);
 		builder.
 			shell(true).
@@ -446,7 +446,7 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: os mac', () => {
-		let name: string = Platform.isMacintosh ? 'tsc.osx' : 'tsc'
+		let name: string = Platform.isMacintosh ? 'tsc.osx' : 'tsc';
 		let builder = new ConfiguationBuilder(name);
 		builder.
 			task(name).
@@ -462,7 +462,7 @@ suite('Tasks Configuration parsing tests', () => {
 	});
 
 	test('tasks: os linux', () => {
-		let name: string = Platform.isLinux ? 'tsc.linux' : 'tsc'
+		let name: string = Platform.isLinux ? 'tsc.linux' : 'tsc';
 		let builder = new ConfiguationBuilder(name);
 		builder.
 			task(name).
@@ -882,7 +882,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let keys = Object.keys(config.tasks);
 		assert.strictEqual(keys.length, 1);
 		let task = config.tasks[keys[0]];
-		assert.ok(task)
+		assert.ok(task);
 		assert.strictEqual(task.problemMatchers.length, resolved);
 
 	}
