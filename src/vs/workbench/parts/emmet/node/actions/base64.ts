@@ -27,7 +27,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContext: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService) {
 		super(descriptor, editor, configurationService);
@@ -40,7 +40,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			return;
 		}
 
-		if (!this.workspaceContext.getWorkspace()) {
+		if (!this.contextService.getWorkspace()) {
 			const message = nls.localize('noWorkspace', "Decoding a data:URL image is only available inside a workspace folder.");
 			this.messageService.show(Severity.Info, message);
 			return;
@@ -53,12 +53,12 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 		const quickPromise = this.quickOpenService.input(options)
 			.then(path => {
-				if (!this.isValidInput(path)) {
+				const fullpath = createPath(this.editorAccessor.getFilePath(), path);
+				if (!this.isValidInput(path, fullpath)) {
 					quickPromise.cancel();
 				}
 
 				this.imageFilePath = path;
-				const fullpath = createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
 			.then(status => {
@@ -67,7 +67,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 					return;
 				}
 
-				const message = nls.localize('warnEscalation', "File **{0}** already exists.  Do you want to overwrite the existing file?", this.imageFilePath);
+				const message = nls.localize('warnEscalation', "File **{0}** already exists. Do you want to overwrite the existing file?", this.imageFilePath);
 				const actions = [
 					new Action('cancel', nls.localize('cancel', "Cancel"), '', true),
 					new Action('ok', nls.localize('ok', "OK"), '', true, () => {
@@ -89,8 +89,16 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 	}
 
-	private isValidInput(input: any): boolean {
+	private isValidInput(input: any, fullpath: string): boolean {
 		if (input === undefined) {
+			return false;
+		}
+
+		const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
+		const isInWorkspace = Paths.isEqualOrParent(fullpath, workspaceRoot);
+		if (!isInWorkspace) {
+			const message = nls.localize('outsideOfWorkspace', "The path **{0}** is located outside the current workspace.", input);
+			this.messageService.show(Severity.Error, message);
 			return false;
 		}
 
