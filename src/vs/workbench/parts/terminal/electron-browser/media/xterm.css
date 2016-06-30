@@ -9,7 +9,11 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:focus {
-	outline: none !important;
+	outline: none;
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
+	outline: 2px solid #f38518;
 }
 
 .monaco-workbench .panel.integrated-terminal .reverse-video { color: #1e1e1e; }
