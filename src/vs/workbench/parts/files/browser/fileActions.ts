@@ -1416,8 +1416,8 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				let selectionOfSource: Selection;
 				const activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
-					const activeResource = getUntitledOrFileResource(activeEditor.input);
-					if (activeResource.toString() === source.toString()) {
+					const activeResource = getUntitledOrFileResource(activeEditor.input, true);
+					if (activeResource && activeResource.toString() === source.toString()) {
 						selectionOfSource = <Selection>activeEditor.getSelection();
 					}
 				}
