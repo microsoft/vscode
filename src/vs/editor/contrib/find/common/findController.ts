@@ -30,7 +30,6 @@ export enum FindStartFocusAction {
 export interface IFindStartOptions {
 	forceRevealReplace:boolean;
 	seedSearchStringFromSelection:boolean;
-	seedSearchScopeFromSelection:boolean;
 	shouldFocus:FindStartFocusAction;
 	shouldAnimate:boolean;
 }
@@ -65,13 +64,16 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 			this.disposeModel();
 
+			this._state.change({
+				searchScope: null
+			}, false);
+
 			if (shouldRestartFind) {
 				this._start({
 					forceRevealReplace: false,
 					seedSearchStringFromSelection: false,
-					seedSearchScopeFromSelection: false,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
-					shouldAnimate: false
+					shouldAnimate: false,
 				});
 			}
 		}));
@@ -170,14 +172,6 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			}
 		}
 
-		let selection = this._editor.getSelection();
-
-		stateChanges.searchScope = null;
-		if (opts.seedSearchScopeFromSelection && selection.startLineNumber < selection.endLineNumber) {
-			// Take search scope into account only if it is more than one line.
-			stateChanges.searchScope = selection;
-		}
-
 		// Overwrite isReplaceRevealed
 		if (opts.forceRevealReplace) {
 			stateChanges.isReplaceRevealed = true;
@@ -247,7 +241,6 @@ export class StartFindAction extends EditorAction {
 		controller.start({
 			forceRevealReplace: false,
 			seedSearchStringFromSelection: true,
-			seedSearchScopeFromSelection: true,
 			shouldFocus: FindStartFocusAction.FocusFindInput,
 			shouldAnimate: true
 		});
@@ -266,7 +259,6 @@ export abstract class MatchFindAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
-				seedSearchScopeFromSelection: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true
 			});
@@ -305,7 +297,6 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: false,
-				seedSearchScopeFromSelection: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true
 			});
@@ -340,7 +331,6 @@ export class StartFindReplaceAction extends EditorAction {
 		controller.start({
 			forceRevealReplace: true,
 			seedSearchStringFromSelection: true,
-			seedSearchScopeFromSelection: true,
 			shouldFocus: FindStartFocusAction.FocusReplaceInput,
 			shouldAnimate: true
 		});
