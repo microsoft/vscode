@@ -150,7 +150,7 @@ export class TerminalService implements ITerminalService {
 			// TerminalPanel has been initialized. In this case, skip creating the terminal here
 			// data rely on TerminalPanel's constructor creating the new instance.
 			if (!terminalPanel) {
-				return;
+				return TPromise.as(void 0);
 			}
 
 			// Only create a new process if none have been created since toggling the terminal panel
@@ -161,12 +161,13 @@ export class TerminalService implements ITerminalService {
 			self.initConfigHelper(terminalPanel.getContainer());
 			terminalPanel.createNewTerminalInstance(self.createTerminalProcess());
 			self._onInstancesChanged.fire();
+			return TPromise.as(void 0);
 		});
 	}
 
 	public close(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
-			terminalPanel.closeActiveTerminal();
+			return terminalPanel.closeActiveTerminal();
 		});
 	}
 
@@ -178,8 +179,9 @@ export class TerminalService implements ITerminalService {
 					panel = this.panelService.getActivePanel();
 					complete(<TerminalPanel>panel);
 				});
+			} else {
+				complete(<TerminalPanel>panel);
 			}
-			complete(<TerminalPanel>panel);
 		});
 	}
 

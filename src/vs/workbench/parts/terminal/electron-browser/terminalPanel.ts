@@ -99,7 +99,7 @@ export class TerminalPanel extends Panel {
 
 	public createNewTerminalInstance(terminalProcess: ITerminalProcess): TPromise<void> {
 		return this.createTerminal(terminalProcess).then(() => {
-			this.updateFont();
+			this.updateConfig();
 			this.focus();
 		});
 	}
@@ -118,7 +118,7 @@ export class TerminalPanel extends Panel {
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
 			if (this.terminalInstances.length > 0) {
-				this.updateFont();
+				this.updateConfig();
 				this.updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
@@ -135,8 +135,9 @@ export class TerminalPanel extends Panel {
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
-			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
-			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateCursorBlink.bind(this)));
+			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateConfig.bind(this)));
+			this.updateTheme();
+			this.updateConfig();
 			resolve(terminalInstance);
 		});
 	}
@@ -189,6 +190,11 @@ export class TerminalPanel extends Panel {
 		let g = parseInt(hex.substr(3, 2), 16);
 		let b = parseInt(hex.substr(5, 2), 16);
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+
+	private updateConfig(): void {
+		this.updateFont();
+		this.updateCursorBlink();
 	}
 
 	private updateFont(): void {
