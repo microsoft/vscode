@@ -297,6 +297,11 @@
 	background-color: rgba(255, 0, 0, 0.2);
 }
 
+.search-viewlet .findInFileMatch,
+.search-viewlet .replaceMatch {
+	white-space: pre;
+}
+
 .search-viewlet .replaceMatch {
 	background-color: rgba(155, 185, 85, 0.5);
 }
