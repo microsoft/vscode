@@ -117,7 +117,7 @@
 				"markdown.styles": {
 					"type": ["array"],
 					"default": [],
-					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
+					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file."
 				}
 			}
 		}
