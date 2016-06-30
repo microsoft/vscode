@@ -126,9 +126,7 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 		this._parent = parent;
 		this._key = key;
 		this._defaultValue = defaultValue;
-		if (typeof this._defaultValue !== 'undefined') {
-			this._parent.setContext(this._key, this._defaultValue);
-		}
+		this.reset();
 	}
 
 	public set(value: T): void {
