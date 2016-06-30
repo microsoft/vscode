@@ -170,8 +170,8 @@ class PatternBuilder {
 	constructor(public parent: ProblemMatcherBuilder, regExp: RegExp) {
 		this.result = {
 			regexp: regExp,
-			file: 0,
-			message: 4,
+			file: 1,
+			message: 0,
 			line: 2,
 			column : 3
 		};

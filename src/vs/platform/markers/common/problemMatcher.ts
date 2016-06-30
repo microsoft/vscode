@@ -905,15 +905,15 @@ export class ProblemMatcherParser extends Parser {
 		if (setDefaults) {
 			if (result.location) {
 				result = Objects.mixin(result, {
-					file: 0,
-					message: 4
+					file: 1,
+					message: 0
 				}, false);
 			} else {
 				result = Objects.mixin(result, {
-					file: 0,
+					file: 1,
 					line: 2,
 					column: 3,
-					message: 4
+					message: 0
 				}, false);
 			}
 		}
