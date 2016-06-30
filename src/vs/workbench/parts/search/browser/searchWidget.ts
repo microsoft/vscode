@@ -13,11 +13,17 @@ import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findI
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
+import { KbExpr } from 'vs/platform/keybinding/common/keybindingService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { isSearchViewletFocussed } from 'vs/workbench/parts/search/browser/searchActions';
+import { CONTEXT_FIND_WIDGET_VISIBLE } from 'vs/editor/contrib/find/common/findController';
 
 export interface ISearchWidgetOptions {
 	value?:string;
@@ -26,10 +32,44 @@ export interface ISearchWidgetOptions {
 	isWholeWords?:boolean;
 }
 
+class ReplaceAllAction extends Action {
+
+	private static fgInstance:ReplaceAllAction= null;
+	public static ID:string= 'search.action.replaceAll';
+
+	static get INSTANCE():ReplaceAllAction {
+		if (ReplaceAllAction.fgInstance === null) {
+			ReplaceAllAction.fgInstance= new ReplaceAllAction();
+		}
+		return ReplaceAllAction.fgInstance;
+	}
+
+	private _searchWidget: SearchWidget= null;
+
+	constructor() {
+		super(ReplaceAllAction.ID, '', 'action-replace-all', false);
+	}
+
+	set searchWidget(searchWidget: SearchWidget) {
+		this._searchWidget= searchWidget;
+	}
+
+	run():TPromise<any> {
+		if (this._searchWidget) {
+			return this._searchWidget.triggerReplaceAll();
+		}
+		return TPromise.as(null);
+	}
+}
+
 export class SearchWidget extends Widget {
 
-	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('file.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
-	private static REPLACE_ALL_ENABLED_LABEL= nls.localize('file.replaceAll.enabled.label', "Replace All");
+	static REPLACE_ACTIVE_CONTEXT_KEY= 'replaceActive';
+	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
+	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService: IKeybindingService):string=>{
+		let keybindings = keyBindingService.lookupKeybindings(ReplaceAllAction.ID);
+		return nls.localize('search.action.replaceAll.enabled.label', "Replace All") +  ' (' + keyBindingService.getLabelFor(keybindings[0]) + ')';
+	};
 
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
@@ -37,7 +77,8 @@ export class SearchWidget extends Widget {
 
 	private replaceInputContainer: HTMLElement;
 	private toggleReplaceButton: Button;
-	private replaceAllAction: Action;
+	private replaceAllAction: ReplaceAllAction;
+	private replaceActive: IKeybindingContextKey<boolean>;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
 	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
@@ -48,8 +89,8 @@ export class SearchWidget extends Widget {
 	private _onReplaceToggled = this._register(new Emitter<void>());
 	public onReplaceToggled: Event<void> = this._onReplaceToggled.event;
 
-	private _onReplaceState = this._register(new Emitter<void>());
-	public onReplaceStateChange: Event<void> = this._onReplaceState.event;
+	private _onReplaceStateChange = this._register(new Emitter<void>());
+	public onReplaceStateChange: Event<void> = this._onReplaceStateChange.event;
 
 	private _onReplaceValueChanged = this._register(new Emitter<string>());
 	public onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
@@ -61,13 +102,15 @@ export class SearchWidget extends Widget {
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
-											@IInstantiationService private instantiationService: IInstantiationService) {
+					private keyBindingService: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
+		this.replaceActive = this.keyBindingService.createKey<boolean>(SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, false);
 		this.render(container, options);
 	}
 
 	public focus(select:boolean= true, focusReplace: boolean= false):void {
-		if (this.searchInput.inputBox.hasFocus() || this.replaceInput.hasFocus()) {
+		if ((!focusReplace && this.searchInput.inputBox.hasFocus())
+					|| (focusReplace && this.replaceInput.hasFocus())) {
 			return;
 		}
 
@@ -95,10 +138,6 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 	}
 
-	public isReplaceActive(): boolean {
-		return this.isReplaceShown() && this.replaceAllAction.enabled && !!this.replaceInput.value;
-	}
-
 	public isReplaceShown(): boolean {
 		return !dom.hasClass(this.replaceInputContainer, 'disabled');
 	}
@@ -107,17 +146,9 @@ export class SearchWidget extends Widget {
 		return this.isReplaceActive() ? this.replaceInput.value : null;
 	}
 
-	public setReplaceAllActionState(enabled:boolean):void {
-		if (this.replaceAllAction.enabled !== enabled) {
-			this.replaceAllAction.enabled= enabled;
-			this.replaceAllAction.label= enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
-			this._onReplaceState.fire();
-		}
-	}
-
-	public showReplace(): void {
-		if (!this.isReplaceShown()) {
-			this.onToggleReplaceButton();;
+	public toggleReplace(show?:boolean): void {
+		if (show === void 0 || show !== this.isReplaceShown()) {
+			this.onToggleReplaceButton();
 		}
 	}
 
@@ -154,10 +185,9 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderReplaceInput(parent: HTMLElement): void {
-		this.replaceAllAction = new Action('action-replace-all', SearchWidget.REPLACE_ALL_DISABLED_LABEL, 'action-replace-all', false, () => {
-			this._onReplaceAll.fire();
-			return TPromise.as(null);
-		});
+		this.replaceAllAction = ReplaceAllAction.INSTANCE;
+		this.replaceAllAction.searchWidget= this;
+		this.replaceAllAction.label= SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 		this.replaceInputContainer= dom.append(parent, dom.emmet('.replace-box.input-box.disabled'));
 		this.replaceInput = this._register(new InputBox(this.replaceInputContainer, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
@@ -170,12 +200,38 @@ export class SearchWidget extends Widget {
 		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());
 	}
 
+	triggerReplaceAll(): TPromise<any> {
+		this._onReplaceAll.fire();
+		return TPromise.as(null);
+	}
+
 	private onToggleReplaceButton():void {
 		dom.toggleClass(this.replaceInputContainer, 'disabled');
 		dom.toggleClass(this.toggleReplaceButton.getElement(), 'collapse');
 		dom.toggleClass(this.toggleReplaceButton.getElement(), 'expand');
+		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
-		this._onReplaceState.fire();
+	}
+
+	public setReplaceAllActionState(enabled:boolean):void {
+		if (this.replaceAllAction.enabled !== enabled) {
+			this.replaceAllAction.enabled= enabled;
+			this.replaceAllAction.label= enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+			this.updateReplaceActiveState();
+		}
+	}
+
+	private isReplaceActive(): boolean {
+		return <boolean>this.keyBindingService.getContextValue(SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY);
+	}
+
+	private updateReplaceActiveState(): void {
+		let currentState= this.isReplaceActive();
+		let newState= this.isReplaceShown() && this.replaceAllAction.enabled;
+		if (currentState !== newState) {
+			this.replaceActive.set(this.isReplaceShown() && this.replaceAllAction.enabled);
+			this._onReplaceStateChange.fire();
+		}
 	}
 
 	private validatSearchInput(value: string): any {
@@ -262,6 +318,22 @@ export class SearchWidget extends Widget {
 	}
 
 	public dispose(): void {
+		this.setReplaceAllActionState(false);
+		this.replaceAllAction.searchWidget= null;
+
 		super.dispose();
 	}
+}
+
+export function registerContributions() {
+	KeybindingsRegistry.registerCommandDesc({id: ReplaceAllAction.ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: KbExpr.and(KbExpr.has('searchViewletVisible'), KbExpr.has(SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY), KbExpr.not(CONTEXT_FIND_WIDGET_VISIBLE)),
+		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
+		handler: accessor => {
+			if (isSearchViewletFocussed(accessor.get(IViewletService))) {
+				ReplaceAllAction.INSTANCE.run();
+			}
+		}
+	});
 }

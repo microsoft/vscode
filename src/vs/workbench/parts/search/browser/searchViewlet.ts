@@ -100,7 +100,7 @@ export class SearchViewlet extends Viewlet {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IReplaceService private replaceService: IReplaceService
 	) {
 		super(VIEWLET_ID, telemetryService);
@@ -264,6 +264,10 @@ export class SearchViewlet extends Viewlet {
 		return TPromise.as(null);
 	}
 
+	public get searchAndReplaceWidget():SearchWidget {
+		return this.searchWidget;
+	}
+
 	private createSearchWidget(builder: Builder): void {
 		let contentPattern = this.viewletSettings['query.contentPattern'] || '';
 		let isRegex = this.viewletSettings['query.regex'] === true;
@@ -275,7 +279,7 @@ export class SearchViewlet extends Viewlet {
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords
-		}, this.instantiationService);
+		}, this.keybindingService, this.instantiationService);
 
 		this.searchWidget.onSearchSubmit((refresh) => this.onQueryChanged(refresh));
 		this.searchWidget.onSearchCancel(() => this.cancelSearch());
@@ -304,10 +308,6 @@ export class SearchViewlet extends Viewlet {
 			}
 		});
 		this.searchWidget.onReplaceAll(() => this.replaceAll());
-	}
-
-	public showReplace(): void {
-		this.searchWidget.showReplace();
 	}
 
 	private refreshInputs(): void {
@@ -468,7 +468,7 @@ export class SearchViewlet extends Viewlet {
 		this.searchWidget.focus();
 
 		if (this.storageService.getBoolean('show.replace.firstTime', StorageScope.GLOBAL, true)) {
-			this.searchWidget.showReplace();
+			this.searchWidget.toggleReplace(true);
 			this.storageService.store('show.replace.firstTime', false, StorageScope.GLOBAL);
 		}
 	}

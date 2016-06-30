@@ -27,9 +27,11 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {OpenSearchViewletAction, ReplaceInFilesAction} from 'vs/workbench/parts/search/browser/searchActions';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
-import { registerContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
+import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
+import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
 
-registerContributions();
+replaceContributions();
+searchWidgetContributions();
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',
@@ -124,8 +126,7 @@ const openSearchViewletKb: IKeybindings = {
 	new SyncActionDescriptor(ReplaceInFilesAction, ReplaceInFilesAction.ID, ReplaceInFilesAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H
 	}),
-	'Edit: Replace in Files',
-	nls.localize('edit', "Edit")
+	'Replace in Files'
 );
 
 // Contribute to Explorer Viewer
