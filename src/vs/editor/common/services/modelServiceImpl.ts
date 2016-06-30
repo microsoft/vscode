@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import network = require('vs/base/common/network');
 import Event, {Emitter} from 'vs/base/common/event';
 import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
@@ -340,6 +341,15 @@ export class ModelServiceImpl implements IModelService {
 		});
 	}
 
+	private _cleanUp(model: editorCommon.IModel): void {
+		// clean up markers for internal, transient models
+		if (model.uri.scheme === network.Schemas.inMemory
+						|| model.uri.scheme === network.Schemas.internal
+						|| model.uri.scheme === network.Schemas.vscode) {
+			this._markerService.read({resource: model.uri}).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+		}
+	}
+
 	// --- begin IModelService
 
 	private _createModelData(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ModelData {
@@ -423,6 +433,8 @@ export class ModelServiceImpl implements IModelService {
 	private _onModelDisposing(model: editorCommon.IModel): void {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
+
+		this._cleanUp(model);
 
 		delete this._models[modelId];
 		modelData.dispose();
