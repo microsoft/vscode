@@ -7,9 +7,11 @@
 
 import nls = require('vs/nls');
 
-import * as Paths from 'vs/base/common/paths';
+import * as emmet from 'emmet';
 import {fileExists} from 'vs/base/node/pfs';
-import {createPath} from 'vs/workbench/parts/emmet/node/fileAccessor';
+import fs = require('fs');
+import {dirname, join, normalize, isValidBasename} from 'vs/base/common/paths';
+
 import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 import {Action} from 'vs/base/common/actions';
 
@@ -19,6 +21,8 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IFileService} from 'vs/platform/files/common/files';
+
 
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
@@ -29,11 +33,21 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private workspaceContext: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IMessageService private messageService: IMessageService) {
+		@IMessageService private messageService: IMessageService,
+		@IFileService private fileService: IFileService) {
 		super(descriptor, editor, configurationService);
 	}
 
-	public runEmmetAction(_emmet) {
+	private createPath(parent: string, fileName: string): string {
+		// TO DO replace with IFileService
+		var stat = fs.statSync(parent);
+		if (stat && !stat.isDirectory()) {
+			parent = dirname(parent);
+		}
+		return join(parent, fileName);
+	};
+
+	public runEmmetAction(_emmet: typeof emmet) {
 		const currentLine = this.editorAccessor.getCurrentLine();
 		if (!this.isDataURI(currentLine)) {
 			this.encodeDecode(_emmet);
@@ -58,7 +72,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 				}
 
 				this.imageFilePath = path;
-				const fullpath = createPath(this.editorAccessor.getFilePath(), path);
+				const fullpath = this.createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
 			.then(status => {
@@ -97,12 +111,12 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		// Validate all segments of path without absolute and empty segments
 		// Valid: `images/test.png`, `./test.png`, `../images/test.png`, `\images\test.png`
 		let isValidFilePath = true;
-		const filePathSegments = Paths.normalize(input).split('/').filter(segment => {
+		const filePathSegments = normalize(input).split('/').filter(segment => {
 			return segment.length !== 0 && segment !== '..';
 		});
 
 		for (let i = 0; i < filePathSegments.length; i++) {
-			if (!Paths.isValidBasename(filePathSegments[i])) {
+			if (!isValidBasename(filePathSegments[i])) {
 				isValidFilePath = false;
 				break;
 			}

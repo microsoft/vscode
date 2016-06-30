@@ -55,14 +55,6 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		},
-		'terminal.integrated.shellArgs.windows': {
-			'description': nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
-			'type': 'array',
-			'items': {
-				'type': 'string'
-			},
-			'default': []
-		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
