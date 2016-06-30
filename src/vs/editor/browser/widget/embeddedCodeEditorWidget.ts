@@ -27,7 +27,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, keybindingService.createScoped(domElement), telemetryService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, keybindingService, telemetryService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

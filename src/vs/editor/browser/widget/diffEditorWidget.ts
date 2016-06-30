@@ -15,8 +15,6 @@ import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {ISashEvent, IVerticalSashLayoutProvider, Sash} from 'vs/base/browser/ui/sash/sash';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -203,18 +201,15 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _updateDecorationsRunner:RunOnceScheduler;
 
 	private _editorWorkerService: IEditorWorkerService;
-	private _keybindingService: IKeybindingService;
 
 	constructor(
 		domElement:HTMLElement,
 		options:editorCommon.IDiffEditorOptions,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 		this._editorWorkerService = editorWorkerService;
-		this._keybindingService = keybindingService;
 
 		this.id = (++DIFF_EDITOR_ID);
 
@@ -355,8 +350,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this._containerDomElement.appendChild(this._modifiedDomNode);
 	}
 
-	private _createLeftHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
-		instantiationService = instantiationService.createChild(new ServiceCollection([IKeybindingService, this._keybindingService.createScoped(this._originalDomNode)]));
+	private _createLeftHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
 		this.originalEditor = instantiationService.createInstance(CodeEditorWidget, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 		this._toDispose.push(this.originalEditor.addBulkListener2((events) => this._onOriginalEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.originalEditor));
