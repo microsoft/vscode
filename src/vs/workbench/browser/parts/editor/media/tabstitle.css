@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor.vs .scroll-decoration {
-	box-shadow: #fff 0 6px 6px -6px inset; /* TODO: use a CSS custom property of the theme's `.monaco-editor-background` color here to blend better */
-}
-
-.monaco-editor.vs-dark .scroll-decoration {
-	box-shadow: #1E1E1E 0 6px 6px -6px inset; /* TODO: use a CSS custom property of the theme's `.monaco-editor-background` color here to blend better */
-}
-
 /* Tabs Container */
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title::before {
 	display: block;
@@ -39,12 +31,12 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
-	background: linear-gradient(to bottom, #ECECEC 0%,#F3F3F3 100%);
+	background: #F3F3F3;
 	mix-blend-mode: luminosity;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title {
-	background: linear-gradient(to bottom, #333333 0%,#252526 100%);
+	background: #252526;
 	mix-blend-mode: luminosity;
 }
 
@@ -60,7 +52,16 @@
 
 .vs .monaco-workbench .tab.monaco-editor-background:not(.active),
 .vs-dark .monaco-workbench .tab.monaco-editor-background:not(.active) {
-	background-color: transparent;
+	height: 34px !important;
+	padding-top: 1px;
+}
+
+.vs .monaco-workbench .tab.monaco-editor-background:not(.active) {
+	background-color: #ECECEC;
+}
+
+.vs-dark .monaco-workbench .tab.monaco-editor-background:not(.active) {
+	background-color: #2D2D2D;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab {
@@ -97,7 +98,7 @@
 	border-left-color: #DDDDDD;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:last-child  {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active:last-child  {
 	border-right-color: #DDDDDD;
 }
 
@@ -105,7 +106,7 @@
 	border-left-color: #403F3F;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab:last-child  {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active:last-child  {
 	border-right-color: #403F3F;
 }
 
