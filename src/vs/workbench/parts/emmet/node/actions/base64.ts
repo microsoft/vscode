@@ -75,12 +75,13 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 				const fullpath = this.createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
-			.then(status => {
-				if (!status) {
+			.then(fileExist => {
+				if (!fileExist) {
 					this.encodeDecode(_emmet, this.imageFilePath);
 					return;
 				}
 
+				// If a file with the same name and location specified by path exists, give the user a choice
 				const message = nls.localize('warnEscalation', "File **{0}** already exists. Do you want to overwrite the existing file?", this.imageFilePath);
 				const actions = [
 					new Action('cancel', nls.localize('cancel', "Cancel"), '', true),
@@ -94,10 +95,18 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 	}
 
 	public encodeDecode(_emmet: any, filepath?: string) {
-		this.editorAccessor.prompt = (): string => {
-			return filepath;
-		};
-
+		/*
+		 * This function implements a standard method *prompt*.
+		 *
+		 * Link to the original source code:
+		 * https://github.com/emmetio/emmet/blob/afafbd27efa48e386513bfabf65756a10f4929ef/lib/action/base64.js#L78-L83
+		 *
+		 * Unfortunately, Emmet gets the path from the user using the *prompt*
+		 * method, and does not allow pass the path explicitly. It is therefore
+		 * necessary to replace the method so as to have the possibility
+		 * to return the path already obtained by us.
+		 */
+		this.editorAccessor.prompt = (): string => filepath;
 		if (!_emmet.run('encode_decode_data_url', this.editorAccessor)) {
 			this.noExpansionOccurred();
 		}
