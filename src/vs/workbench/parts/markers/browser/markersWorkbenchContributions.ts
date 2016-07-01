@@ -47,5 +47,6 @@ export function registerContributions(): void {
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M }
 	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
 
-	registry.registerWorkbenchAction(new SyncActionDescriptor(problemsPanelActions.ToggleErrorsAndWarningsAction, problemsPanelActions.ToggleErrorsAndWarningsAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL), Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL);
+	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
+	registry.registerWorkbenchAction(new SyncActionDescriptor(problemsPanelActions.ToggleErrorsAndWarningsAction, problemsPanelActions.ToggleErrorsAndWarningsAction.ID, ''), Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL);
 }
