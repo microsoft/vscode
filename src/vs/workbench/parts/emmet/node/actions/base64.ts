@@ -81,7 +81,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 					return;
 				}
 
-				const message = nls.localize('warnEscalation', "File **{0}** already exists.  Do you want to overwrite the existing file?", this.imageFilePath);
+				const message = nls.localize('warnEscalation', "File **{0}** already exists. Do you want to overwrite the existing file?", this.imageFilePath);
 				const actions = [
 					new Action('cancel', nls.localize('cancel', "Cancel"), '', true),
 					new Action('ok', nls.localize('ok', "OK"), '', true, () => {
