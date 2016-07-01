@@ -1118,6 +1118,11 @@ declare module monaco.editor {
          */
         cursorBlinking?: string;
         /**
+         * Zoom the font in the editor when using the mouse wheel in combination with holding Ctrl.
+         * Defaults to false.
+         */
+        mouseWheelZoom?: boolean;
+        /**
          * Control the cursor style, either 'block' or 'line'.
          * Defaults to 'line'.
          */
@@ -1362,6 +1367,7 @@ declare module monaco.editor {
         roundedSelection: boolean;
         overviewRulerLanes: number;
         cursorBlinking: string;
+        mouseWheelZoom: boolean;
         cursorStyle: TextEditorCursorStyle;
         hideCursorInOverviewRuler: boolean;
         scrollBeyondLastLine: boolean;
@@ -1386,6 +1392,7 @@ declare module monaco.editor {
         roundedSelection: boolean;
         overviewRulerLanes: boolean;
         cursorBlinking: boolean;
+        mouseWheelZoom: boolean;
         cursorStyle: boolean;
         hideCursorInOverviewRuler: boolean;
         scrollBeyondLastLine: boolean;

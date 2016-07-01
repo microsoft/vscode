@@ -195,6 +195,7 @@ class InternalEditorOptionsHelper {
 			roundedSelection: toBoolean(opts.roundedSelection),
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
+			mouseWheelZoom: toBoolean(opts.mouseWheelZoom),
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
@@ -670,6 +671,11 @@ let editorConfiguration:IConfigurationNode = {
 			'enum': ['blink', 'visible', 'hidden'],
 			'default': DefaultConfig.editor.cursorBlinking,
 			'description': nls.localize('cursorBlinking', "Controls the cursor blinking animation, accepted values are 'blink', 'visible', and 'hidden'")
+		},
+		'editor.mouseWheelZoom': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.mouseWheelZoom,
+			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl")
 		},
 		'editor.cursorStyle' : {
 			'type': 'string',
