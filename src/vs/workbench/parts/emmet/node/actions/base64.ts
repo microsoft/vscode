@@ -39,12 +39,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 	}
 
 	private createPath(parent: string, fileName: string): string {
-		// TO DO replace with IFileService
-		var stat = fs.statSync(parent);
-		if (stat && !stat.isDirectory()) {
-			parent = dirname(parent);
-		}
-		return join(parent, fileName);
+		return join(dirname(parent), fileName);
 	};
 
 	public runEmmetAction(_emmet: typeof emmet) {
