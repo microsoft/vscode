@@ -1063,9 +1063,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			let startX = mouseDownEvent.posx;
 			let oldNewLeft: number = null;
 
-			this.containers[position].style({
-				zIndex: 2000000
-			});
+			this.containers[position].addClass('drag');
+			this.parent.addClass('drag');
 
 			let $window = $(window);
 			$window.on(DOM.EventType.MOUSE_MOVE, (e: MouseEvent) => {
@@ -1168,8 +1167,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move the editor to provide feedback to the user and add class
 				if (newLeft !== null) {
 					this.containers[position].style({ left: newLeft + 'px' });
-					this.containers[position].addClass('dragged');
-					this.parent.addClass('dragged');
+					this.containers[position].addClass('dragging');
+					this.parent.addClass('dragging');
 				}
 			}).once(DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 				DOM.EventHelper.stop(e, false);
@@ -1181,8 +1180,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.dragging = false;
 
 				// Restore styles
-				this.parent.removeClass('dragged');
-				this.containers[position].removeClass('dragged');
+				this.parent.removeClass('drag');
+				this.containers[position].removeClass('drag');
+				this.parent.removeClass('dragging');
+				this.containers[position].removeClass('dragging');
 				this.containers[position].style({ zIndex: 'auto' });
 				POSITIONS.forEach((p) => this.containers[p].removeClass('draggedunder'));
 				this.containers[Position.LEFT].style({ left: 0, right: 'auto' });

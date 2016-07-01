@@ -80,11 +80,11 @@
 }
 
 #monaco-workbench-editor-move-overlay,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged > .title,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged > .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged > .title .title-label span,
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .monaco-editor .view-lines {
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.drag,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.drag > .title,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.drag > .title .title-label a,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.drag > .title .title-label span,
+.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.drag .monaco-editor .view-lines {
 	cursor: -webkit-grabbing;
 }
 

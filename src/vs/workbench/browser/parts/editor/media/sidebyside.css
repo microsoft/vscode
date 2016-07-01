@@ -40,12 +40,12 @@
 	outline-offset: -2px;
 }
 
-.vs .monaco-workbench .editor > .content.dragged {
+.vs .monaco-workbench .editor > .content.dragging {
 	border-left: 1px solid #E7E7E7;
 	border-right: 1px solid #E7E7E7;
 }
 
-.vs-dark .monaco-workbench .editor > .content.dragged {
+.vs-dark .monaco-workbench .editor > .content.dragging {
 	border-left: 1px solid #444;
 	border-right: 1px solid #444;
 }
@@ -63,16 +63,20 @@
 	right: 0;
 }
 
-.monaco-workbench .editor > .content > .one-editor-container.dragged {
+.monaco-workbench .editor > .content > .one-editor-container.drag {
+	z-index: 2000000;
+}
+
+.monaco-workbench .editor > .content > .one-editor-container.dragging {
 	box-sizing: content-box;
 }
 
-.vs .monaco-workbench .editor > .content > .one-editor-container.dragged {
+.vs .monaco-workbench .editor > .content > .one-editor-container.dragging {
 	border-left: 1px solid #E7E7E7;
 	border-right: 1px solid #E7E7E7;
 }
 
-.vs-dark .monaco-workbench .editor > .content > .one-editor-container.dragged {
+.vs-dark .monaco-workbench .editor > .content > .one-editor-container.dragging {
 	border-left: 1px solid #444;
 	border-right: 1px solid #444;
 }
