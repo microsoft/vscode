@@ -31,7 +31,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContext: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService) {
@@ -54,7 +54,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			return;
 		}
 
-		if (!this.workspaceContext.getWorkspace()) {
+		if (!this.contextService.getWorkspace()) {
 			const message = nls.localize('noWorkspace', "Decoding a data:URL image is only available inside a workspace folder.");
 			this.messageService.show(Severity.Info, message);
 			return;
