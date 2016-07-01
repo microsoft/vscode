@@ -1184,7 +1184,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.containers[position].removeClass('drag');
 				this.parent.removeClass('dragging');
 				this.containers[position].removeClass('dragging');
-				this.containers[position].style({ zIndex: 'auto' });
 				POSITIONS.forEach((p) => this.containers[p].removeClass('draggedunder'));
 				this.containers[Position.LEFT].style({ left: 0, right: 'auto' });
 				this.containers[Position.CENTER].style({ left: 'auto', right: 'auto', borderLeftWidth: '1px' });
