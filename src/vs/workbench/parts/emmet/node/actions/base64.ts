@@ -10,7 +10,7 @@ import nls = require('vs/nls');
 import * as emmet from 'emmet';
 import {fileExists} from 'vs/base/node/pfs';
 import fs = require('fs');
-import {dirname, join, normalize, isValidBasename} from 'vs/base/common/paths';
+import {dirname, join, normalize, isValidBasename, isEqualOrParent} from 'vs/base/common/paths';
 
 import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 import {Action} from 'vs/base/common/actions';
@@ -67,12 +67,14 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 		const quickPromise = this.quickOpenService.input(options)
 			.then(path => {
-				if (!this.isValidInput(path)) {
+				// The full path to a new file relative an open file in the editor
+				const fullpath = this.createPath(this.editorAccessor.getFilePath(), path);
+
+				if (!this.isValidInput(path, fullpath)) {
 					quickPromise.cancel();
 				}
 
 				this.imageFilePath = path;
-				const fullpath = this.createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
 			.then(fileExist => {
@@ -112,8 +114,16 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 	}
 
-	private isValidInput(input: any): boolean {
+	private isValidInput(input: any, fullpath: string): boolean {
 		if (input === undefined) {
+			return false;
+		}
+
+		// If the user wants to save a file outside the current workspace
+		const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
+		if (!isEqualOrParent(fullpath, workspaceRoot)) {
+			const message = nls.localize('outsideOfWorkspace', "The path **{0}** is located outside the current workspace.", input);
+			this.messageService.show(Severity.Error, message);
 			return false;
 		}
 
