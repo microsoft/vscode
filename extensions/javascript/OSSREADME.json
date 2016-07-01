@@ -229,5 +229,12 @@
 	"license": "MIT",
 	"isProd": true,
 	"repositoryURL": "https://github.com/Microsoft/vscode-nls"
+},
+{
+	"name": "cozy-labs/request-json-light",
+	"version": "0.1.0",
+	"license": "MIT",
+	"isProd": true,
+	"repositoryURL": "https://github.com/cozy-labs/request-json-light"
 }
 ]

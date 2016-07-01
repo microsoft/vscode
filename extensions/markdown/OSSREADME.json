@@ -18,14 +18,14 @@
 },
 {
 	"name": "markdown-it/markdown-it",
-	"version": "0.0.0",
+	"version": "6.1.1",
 	"license": "MIT",
 	"isProd": true,
 	"repositoryURL": "https://github.com/markdown-it/markdown-it"
 },
 {
 	"name": "isagalaev/highlight.js",
-	"version": "0.0.0",
+	"version": "9.5.0",
 	"license": "BSD",
 	"isProd": true,
 	"repositoryURL": "https://github.com/isagalaev/highlight.js",
@@ -58,7 +58,7 @@
 },
 {
 	"name": "leff/markdown-it-named-headers",
-	"version": "0.0.0",
+	"version": "0.0.4",
 	"license": "UNLICENSE",
 	"isProd": true,
 	"repositoryURL": "https://github.com/leff/markdown-it-named-headers",
@@ -112,5 +112,76 @@
 		"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
 		"\"tidy\" is accompanied by \"tidy-license.txt\"."
 	]
+},
+{
+	"name": "argparse",
+	"version": "1.0.7",
+	"license": "MIT",
+	"isProd": true,
+	"repositoryURL": "https://github.com/nodeca/argparse"
+},
+{
+	"name": "entities",
+	"version": "1.2.4",
+	"license": "Felix Böhm",
+	"isProd": true,
+	"repositoryURL": "https://github.com/fb55/entities"
+},
+{
+	"name": "linkify-it",
+	"version": "1.1.1",
+	"license": "MIT",
+	"isProd": true,
+	"repositoryURL": "https://github.com/markdown-it/linkify-it"
+},
+{
+	"name": "mdurl",
+	"version": "1.0.1",
+	"license": "MIT",
+	"isProd": true,
+	"repositoryURL": "https://github.com/markdown-it/mdurl"
+},
+{
+	"name": "sprintf-js",
+	"version": "1.0.3",
+	"license": "Alexandru Marasteanu",
+	"isProd": true,
+	"repositoryURL": "https://github.com/alexei/sprintf.js"
+},
+{
+	"name": "string",
+	"version": "3.3.1",
+	"license": "MIT",
+	"isProd": true,
+	"repositoryURL": "https://github.com/jprichardson/string.js"
+},
+{
+	"name": "uc.micro",
+	"version": "1.0.2",
+	"license": "WTFPL",
+	"isProd": true,
+	"repositoryURL": "https://github.com/markdown-it/uc.micro",
+	"licenseDetail": [
+		"           DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE",
+		"                    Version 2, December 2004",
+		"",
+		" Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>",
+		"",
+		" Everyone is permitted to copy and distribute verbatim or modified",
+		" copies of this license document, and changing it is allowed as long",
+		" as the name is changed.",
+		"",
+		"            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE",
+		"   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION",
+		"",
+		"  0. You just DO WHAT THE FUCK YOU WANT TO."
+	]
+},
+{
+	"name": "winreg",
+	"version": "0.0.13",
+	"license": "BSD",
+	"isProd": true,
+	"repositoryURL": "https://github.com/fresc81/node-winreg"
 }
 ]
