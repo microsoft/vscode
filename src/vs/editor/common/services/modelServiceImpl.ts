@@ -344,9 +344,11 @@ export class ModelServiceImpl implements IModelService {
 	private _cleanUp(model: editorCommon.IModel): void {
 		// clean up markers for internal, transient models
 		if (model.uri.scheme === network.Schemas.inMemory
-						|| model.uri.scheme === network.Schemas.internal
-						|| model.uri.scheme === network.Schemas.vscode) {
-			this._markerService.read({resource: model.uri}).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+			|| model.uri.scheme === network.Schemas.internal
+			|| model.uri.scheme === network.Schemas.vscode) {
+			if (this._markerService) {
+				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+			}
 		}
 	}
 
