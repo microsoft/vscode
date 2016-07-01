@@ -169,11 +169,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		const useTabs = configuration.workbench.editor.showTabs;
+
 		POSITIONS.forEach(position => {
+
+			// TItle Container
+			const titleContainer = this.titleContainer[position];
+			if (useTabs) {
+				titleContainer.addClass('tabs');
+			} else {
+				titleContainer.removeClass('tabs');
+			}
+
+			// Title Control
 			const titleControl = this.titleAreaControl[position];
 			if (titleControl) {
 				const usingTabs = (titleControl instanceof TabsTitleControl);
-				const useTabs = configuration.workbench.editor.showTabs;
 				if (usingTabs !== useTabs) {
 
 					// Dispose old
@@ -754,13 +765,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		POSITIONS.forEach(position => {
 			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
 				[IKeybindingService, this.keybindingService.createScoped(this.containers[position].getHTMLElement())]
-				// [IProgressService, ]
 			));
 		});
 
 		// Title containers
+		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
 			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
+			if (useTabs) {
+				this.titleContainer[position].addClass('tabs');
+			}
 			this.hookTitleDragListener(position);
 
 			// Title Control
