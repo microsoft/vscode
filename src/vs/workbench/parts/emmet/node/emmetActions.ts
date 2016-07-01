@@ -53,7 +53,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 	public run(): TPromise<boolean> {
 		if (!this.editorAccessor.isEmmetEnabledMode()) {
 			this.noExpansionOccurred();
-			return ;
+			return;
 		}
 
 		return this._withEmmet().then((_emmet) => {
@@ -73,7 +73,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		});
 	}
 
-	private _withEmmetPreferences(_emmet:typeof emmet, callback:() => void): void {
+	private _withEmmetPreferences(_emmet: typeof emmet, callback: () => void): void {
 		try {
 			this.updateEmmetPreferences(_emmet);
 			callback();
