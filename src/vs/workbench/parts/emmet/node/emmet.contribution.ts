@@ -24,7 +24,7 @@ import './actions/updateImageSize';
 import './actions/evaluateMath';
 import './actions/incrementDecrement';
 import './actions/reflectCssValue';
-import './actions/base64';
+// import './actions/base64'; // disabled - we will revisit the implementation
 import './actions/updateTag';
 
 // Configuration: emmet
