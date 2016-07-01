@@ -54,6 +54,7 @@
 			{
 				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewSide.title%",
+				"category": "%markdown.category%",
 				"icon": {
 					"light": "./media/PreviewOnRightPane_16x.svg",
 					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
