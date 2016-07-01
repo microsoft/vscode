@@ -384,7 +384,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.editor.showTabs': {
 			'type': 'boolean',
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
-			'default': false
+			'default': true
 		},
 		'workbench.editor.enablePreview': {
 			'type': 'boolean',
