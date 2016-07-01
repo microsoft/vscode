@@ -264,6 +264,11 @@ export interface IEditorOptions {
 	 */
 	cursorBlinking?:string;
 	/**
+	 * Zoom the font in the editor when using the mouse wheel in combination with holding Ctrl.
+	 * Defaults to false.
+	 */
+	mouseWheelZoom?: boolean;
+	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
 	 */
@@ -611,6 +616,7 @@ export class InternalEditorViewOptions {
 	roundedSelection:boolean;
 	overviewRulerLanes:number;
 	cursorBlinking:string;
+	mouseWheelZoom:boolean;
 	cursorStyle:TextEditorCursorStyle;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
@@ -637,6 +643,7 @@ export class InternalEditorViewOptions {
 		roundedSelection:boolean;
 		overviewRulerLanes:number;
 		cursorBlinking:string;
+		mouseWheelZoom:boolean;
 		cursorStyle:TextEditorCursorStyle;
 		hideCursorInOverviewRuler:boolean;
 		scrollBeyondLastLine:boolean;
@@ -659,6 +666,7 @@ export class InternalEditorViewOptions {
 		this.roundedSelection = Boolean(source.roundedSelection);
 		this.overviewRulerLanes = source.overviewRulerLanes|0;
 		this.cursorBlinking = String(source.cursorBlinking);
+		this.mouseWheelZoom = Boolean(source.mouseWheelZoom);
 		this.cursorStyle = source.cursorStyle|0;
 		this.hideCursorInOverviewRuler = Boolean(source.hideCursorInOverviewRuler);
 		this.scrollBeyondLastLine = Boolean(source.scrollBeyondLastLine);
@@ -715,6 +723,7 @@ export class InternalEditorViewOptions {
 			&& this.roundedSelection === other.roundedSelection
 			&& this.overviewRulerLanes === other.overviewRulerLanes
 			&& this.cursorBlinking === other.cursorBlinking
+			&& this.mouseWheelZoom === other.mouseWheelZoom
 			&& this.cursorStyle === other.cursorStyle
 			&& this.hideCursorInOverviewRuler === other.hideCursorInOverviewRuler
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
@@ -744,6 +753,7 @@ export class InternalEditorViewOptions {
 			roundedSelection: this.roundedSelection !== newOpts.roundedSelection,
 			overviewRulerLanes: this.overviewRulerLanes !== newOpts.overviewRulerLanes,
 			cursorBlinking: this.cursorBlinking !== newOpts.cursorBlinking,
+			mouseWheelZoom: this.mouseWheelZoom !== newOpts.mouseWheelZoom,
 			cursorStyle: this.cursorStyle !== newOpts.cursorStyle,
 			hideCursorInOverviewRuler: this.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler,
 			scrollBeyondLastLine: this.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine,
@@ -777,6 +787,7 @@ export interface IViewConfigurationChangedEvent {
 	roundedSelection: boolean;
 	overviewRulerLanes: boolean;
 	cursorBlinking: boolean;
+	mouseWheelZoom: boolean;
 	cursorStyle: boolean;
 	hideCursorInOverviewRuler: boolean;
 	scrollBeyondLastLine: boolean;
