@@ -122,14 +122,14 @@
 },
 {
 	"name": "entities",
-	"version": "1.2.4",
+	"version": "1.1.1",
 	"license": "Felix Böhm",
 	"isProd": true,
 	"repositoryURL": "https://github.com/fb55/entities"
 },
 {
 	"name": "linkify-it",
-	"version": "1.1.1",
+	"version": "1.2.4",
 	"license": "MIT",
 	"isProd": true,
 	"repositoryURL": "https://github.com/markdown-it/linkify-it"
