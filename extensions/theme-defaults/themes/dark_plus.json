@@ -60,17 +60,6 @@
 			"settings": {
 				"foreground": "#CE9178"
 			}
-		},		{
-			"scope": "markup.quote",
-			"settings": {
-				"foreground": "#608b4e"
-			}
-		},
-		{
-			"scope": "markup.list",
-			"settings": {
-				"foreground": "#6796e6"
-			}
 		}
 	]
 }
