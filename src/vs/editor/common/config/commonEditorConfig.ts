@@ -16,6 +16,17 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
+// TODO@Alex: investigate if it is better to stick to 31 bits (see smi = SMall Integer)
+// See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
+/**
+ * MAX_INT that fits in 32 bits
+ */
+const MAX_SAFE_INT = 0x7fffffff;
+/**
+ * MIN_INT that fits in 32 bits
+ */
+const MIN_SAFE_INT = -0x80000000;
+
 export interface IEditorZoom {
 	onDidChangeZoomLevel:Event<number>;
 	getZoomLevel(): number;
@@ -295,18 +306,14 @@ function toFloat(source: any, defaultValue: number): number {
 	return r;
 }
 
-function toInteger(source:any, minimum?:number, maximum?:number): number {
+function toInteger(source:any, minimum:number = MIN_SAFE_INT, maximum:number = MAX_SAFE_INT): number {
 	let r = parseInt(source, 10);
 	if (isNaN(r)) {
 		r = 0;
 	}
-	if (typeof minimum === 'number') {
-		r = Math.max(minimum, r);
-	}
-	if (typeof maximum === 'number') {
-		r = Math.min(maximum, r);
-	}
-	return r;
+	r = Math.max(minimum, r);
+	r = Math.min(maximum, r);
+	return r | 0;
 }
 
 function toSortedIntegerArray(source:any): number[] {
