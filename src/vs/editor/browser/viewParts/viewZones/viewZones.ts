@@ -33,12 +33,14 @@ export class ViewZones extends ViewPart {
 	private _whitespaceManager:IWhitespaceManager;
 	private _zones: { [id:string]:IMyViewZone; };
 	private _lineHeight:number;
+	private _contentWidth:number;
 
 	public domNode: HTMLElement;
 
 	constructor(context:ViewContext, whitespaceManager:IWhitespaceManager) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		this._whitespaceManager = whitespaceManager;
 		this.domNode = document.createElement('div');
 		this.domNode.className = ClassNames.VIEW_ZONES;
@@ -78,6 +80,10 @@ export class ViewZones extends ViewPart {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 			return this._recomputeWhitespacesProps();
+		}
+
+		if (e.layoutInfo) {
+			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		}
 
 		return false;
@@ -307,7 +313,7 @@ export class ViewZones extends ViewPart {
 		}
 
 		if (hasVisibleZone) {
-			StyleMutator.setWidth(this.domNode, ctx.scrollWidth);
+			StyleMutator.setWidth(this.domNode, Math.max(ctx.scrollWidth, this._contentWidth));
 		}
 	}
 }
