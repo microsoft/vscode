@@ -13,8 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mapEvent, filterEvent } from 'vs/base/common/event';
-import { IAction, IActionItem } from 'vs/base/common/actions';
-import { DropdownMenuActionItem } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -26,11 +25,10 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
-import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ListOutdatedExtensionsAction, FilterExtensionsAction } from './extensionsActions';
+import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ListOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
@@ -42,6 +40,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private list: PagedList<IExtension>;
 	private disposables: IDisposable[] = [];
 	private focusInvokedByTab: boolean;
+	private clearAction: ClearExtensionsInputAction;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -50,8 +49,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -65,7 +63,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const header = append(this.root, $('.header'));
 
 		this.searchBox = append(header, $<HTMLInputElement>('input.search-box'));
-		this.searchBox.type = 'search';
 		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 		this.extensionsBox = append(this.root, $('.extensions'));
 
@@ -125,22 +122,22 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	getActions(): IAction[] {
+		if (!this.clearAction) {
+			this.clearAction = this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL);
+		}
+
 		return [
-			this.instantiationService.createInstance(FilterExtensionsAction, FilterExtensionsAction.ID, FilterExtensionsAction.LABEL)
+			this.clearAction
 		];
 	}
 
-	getActionItem(action: IAction): IActionItem {
-		if (action.id === FilterExtensionsAction.ID) {
-			return new DropdownMenuActionItem(action, [
-				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
-				this.instantiationService.createInstance(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL),
-				this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL),
-				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
-			], this.contextMenuService, (action: IAction) => this.getActionItem(action), this.actionRunner, null, 'filter-extensions');
-		}
-
-		return null;
+	getSecondaryActions(): IAction[] {
+		return [
+			this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
+			this.instantiationService.createInstance(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL),
+			this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL),
+			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
+		];
 	}
 
 	search(text: string, immediate = false): void {
@@ -150,6 +147,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private triggerSearch(immediate = false, suggestPopular = false): void {
 		const text = this.searchBox.value;
+		// Joao do not kill me for this hack -isidor
+		this.clearAction.enabled = !!text;
 		this.searchDelayer.trigger(() => this.doSearch(text, suggestPopular), immediate || !text ? 0 : 500);
 	}
 

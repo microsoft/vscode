@@ -238,17 +238,18 @@ export class InstallExtensionsAction extends OpenExtensionsViewletAction {
 	static LABEL = localize('installExtensions', "Install Extensions");
 }
 
-export class ShowInstalledExtensionsAction extends Action {
+export class ClearExtensionsInputAction extends Action {
 
-	static ID = 'workbench.extensions.action.showInstalledExtensions';
-	static LABEL = localize('showInstalledExtensions', "Show Installed Extensions");
+	static ID = 'workbench.extensions.action.clearExtensionsInput';
+	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
 
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(id, label, null, true);
+		super(id, label, 'clear-extensions', true);
 	}
 
 	run(): TPromise<void> {
@@ -260,9 +261,6 @@ export class ShowInstalledExtensionsAction extends Action {
 			});
 	}
 
-	protected isEnabled(): boolean {
-		return true;
-	}
 }
 
 export class ListOutdatedExtensionsAction extends Action {
@@ -347,24 +345,7 @@ export class ShowExtensionRecommendationsAction extends Action {
 	}
 }
 
-export class FilterExtensionsAction extends Action {
-
-	static ID = 'workbench.extensions.action.filterExtensions';
-	static LABEL = localize('filterExtensions', "Filter Extensions");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super(id, label, null, true);
-	}
-
-	run(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
+export class ShowInstalledExtensionsAction extends ClearExtensionsInputAction {
+	static ID = 'workbench.extensions.action.showInstalledExtensions';
+	static LABEL = localize('showInstalledExtensions', "Show Installed Extensions");
 }
