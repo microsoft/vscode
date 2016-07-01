@@ -18,7 +18,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, emmet as $ } from 'vs/base/browser/dom';
+import { append, emmet as $, addStandardDisposableListener, EventType, addClass, removeClass } from 'vs/base/browser/dom';
 import { IPager, PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
@@ -64,6 +64,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		this.searchBox = append(header, $<HTMLInputElement>('input.search-box'));
 		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
+		this.disposables.push(addStandardDisposableListener(this.searchBox, EventType.FOCUS, () => addClass(this.searchBox, 'synthetic-focus')));
+		this.disposables.push(addStandardDisposableListener(this.searchBox, EventType.BLUR, () => removeClass(this.searchBox, 'synthetic-focus')));
 		this.extensionsBox = append(this.root, $('.extensions'));
 
 		const delegate = new Delegate();
