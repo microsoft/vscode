@@ -34,27 +34,14 @@ export abstract class EmmetEditorAction extends EditorAction {
 	}
 
 	private updateEmmetPreferences(_emmet: typeof emmet) {
-		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.set(key, preferences[key]);
-			} catch (err) {
-				_emmet.preferences.define(key, preferences[key]);
-			}
-		}
-		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
-		_emmet.profile.reset();
-		_emmet.loadProfiles(syntaxProfile);
+		let emmetPreferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet;
+		_emmet.loadPreferences(emmetPreferences.preferences);
+		_emmet.loadProfiles(emmetPreferences.syntaxProfiles);
 	}
 
 	private resetEmmetPreferences(_emmet: typeof emmet) {
-		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.remove(key);
-			} catch (err) {
-			}
-		}
+		_emmet.preferences.reset();
+		_emmet.profile.reset();
 	}
 
 	abstract runEmmetAction(_emmet: typeof emmet);

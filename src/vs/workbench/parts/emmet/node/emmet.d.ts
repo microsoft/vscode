@@ -11,9 +11,7 @@ declare module 'emmet' {
 	}
 
 	export interface Preferences {
-		set(key:string, value: string);
-		define(key:string, value: string);
-		remove(key:string);
+		reset();
 	}
 
 	export interface Profiles {
@@ -150,5 +148,18 @@ declare module 'emmet' {
 
 	export var profile: Profiles;
 
-	export function loadProfiles(profiles: any);
+	/**
+	 * Extends the standard set of methods for working with files
+	 */
+	export function file(io: File): void;
+
+	/**
+	 * Loads preferences from JSON object
+	 */
+	export function loadPreferences(preferences: any): void;
+
+	/**
+	 * Loads named profiles from JSON object
+	 */
+	export function loadProfiles(profiles: any): void;
 }
