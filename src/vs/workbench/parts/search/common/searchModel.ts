@@ -268,6 +268,14 @@ export class SearchResult extends EventEmitter {
 		this._replace= replace;
 	}
 
+	/**
+	 * Return true if replace is enabled and replace text is not empty, otherwise false.
+	 * This is necessary in cases handling empty replace text when replace is active.
+	 */
+	public hasReplaceText():boolean {
+		return this.isReplaceActive() && !!this.replaceText;
+	}
+
 	private _onModelAdded(model: IModel): void {
 		let resource = model.uri,
 			fileMatch = this._matches[resource.toString()];

@@ -173,7 +173,7 @@ export class SearchRenderer extends ActionsRenderer {
 			elements.push(strings.escape(preview.before));
 
 			let input= <SearchResult>tree.getInput();
-			let showReplaceText= input.isReplaceActive() && !!input.replaceText;
+			let showReplaceText= input.hasReplaceText();
 			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
 			elements.push(strings.escape(preview.inside));
 			if (showReplaceText) {
