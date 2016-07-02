@@ -506,7 +506,7 @@ export class WindowsManager implements IWindowsService {
 
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
-					let options = {
+					let options:Electron.ShowMessageBoxOptions = {
 						title: this.envService.product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
@@ -1039,7 +1039,7 @@ export class WindowsManager implements IWindowsService {
 		let workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
 		let focussedWindow = this.getFocusedWindow();
 
-		let pickerProperties: string[];
+		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
 		if (options.pickFiles && options.pickFolders) {
 			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
 		} else {
