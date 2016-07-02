@@ -1,8 +1,6 @@
 environment:
   ELECTRON_RUN_AS_NODE: 1
 
-os: Visual Studio 2015
-
 install:
   - ps: Install-Product node 5.10.1 x64
   - npm install -g gulp mocha
