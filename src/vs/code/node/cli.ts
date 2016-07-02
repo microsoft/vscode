@@ -33,7 +33,7 @@ export function main(args: string[]): TPromise<void> {
 			'VSCODE_CLI': '1',
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		});
-		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		delete env['ELECTRON_RUN_AS_NODE'];
 
 		let options = {
 			detached: true,
