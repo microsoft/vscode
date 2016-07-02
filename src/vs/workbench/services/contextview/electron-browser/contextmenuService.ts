@@ -54,7 +54,7 @@ export class ContextMenuService implements IContextMenuService {
 				x *= zoom;
 				y *= zoom;
 
-				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y), -1 /* no item selected by default */);
+				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
 				if (delegate.onHide) {
 					delegate.onHide(undefined);
 				}

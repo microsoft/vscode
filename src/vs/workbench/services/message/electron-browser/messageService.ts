@@ -32,7 +32,7 @@ export class MessageService extends WorkbenchMessageService {
 			confirmation.secondaryButton = nls.localize('cancelButton', "Cancel");
 		}
 
-		let opts: Electron.Dialog.ShowMessageBoxOptions = {
+		let opts: Electron.ShowMessageBoxOptions = {
 			title: confirmation.title || this.contextService.getConfiguration().env.appName,
 			message: confirmation.message,
 			buttons: [
