@@ -51,7 +51,7 @@
 },
 {
 	"name": "nodejs",
-	"version": "6.10.0",
+	"version": "6.1.0",
 	"repositoryURL": "https://github.com/nodejs/node",
 	"isProd": true
 },
