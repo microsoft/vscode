@@ -41,6 +41,10 @@
 	flex: 1;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.tabs > .monaco-scrollable-element .scrollbar {
+	z-index: 3; /* on top of tabs */
+}
+
 /* Tabs Container */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container {
@@ -126,12 +130,9 @@
 	border: 1px solid #f38518;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback {
-	background-color: rgba(51,153,255, 0.18);
-}
-
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
-	background-color: rgba(187, 230, 255, 0.5);
+	background-color: rgba(51,153,255, 0.18);
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
