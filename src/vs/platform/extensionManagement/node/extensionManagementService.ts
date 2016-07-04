@@ -93,17 +93,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
 		this.obsoleteFileLimiter = new Limiter(1);
-
-		// this.disposables = [
-		// 	this.onDidInstallExtension(({ extension, isUpdate, error }) => telemetryService.publicLog(
-		// 		isUpdate ? 'extensionGallery2:update' : 'extensionGallery2:install',
-		// 		assign(getTelemetryData(extension), { success: !error })
-		// 	)),
-		// 	this.onDidUninstallExtension(extension => telemetryService.publicLog(
-		// 		'extensionGallery2:uninstall',
-		// 		assign(getTelemetryData(extension), { success: true })
-		// 	))
-		// ];
 	}
 
 	install(extension: IGalleryExtension): TPromise<void>;
