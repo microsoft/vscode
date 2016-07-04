@@ -18,7 +18,7 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings as Kb} from 'vs/base/common/keyCodes';
+import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -389,6 +389,16 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e.button === 1 /* Middle Button */) {
 				this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError);
+			}
+		}));
+
+		// Context menu on Shift+F10
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.shiftKey && event.keyCode === KeyCode.F10) {
+				DOM.EventHelper.stop(e);
+
+				this.onContextMenu(identifier, e, tab);
 			}
 		}));
 
