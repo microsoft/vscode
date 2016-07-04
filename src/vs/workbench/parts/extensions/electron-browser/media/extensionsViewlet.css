@@ -80,7 +80,6 @@
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .install-count:not(:empty) {
-	opacity: 0.6;
 	font-size: 80%;
 	margin: 0 6px;
 }
