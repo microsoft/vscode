@@ -3909,8 +3909,8 @@ declare module monaco.languages {
     }
 
     /**
-     * The language configuration interfaces defines the contract between extensions
-     * and various editor features, like automatic bracket insertion, automatic indentation etc.
+     * The language configuration interface defines the contract between extensions and
+     * various editor features, like automatic bracket insertion, automatic indentation etc.
      */
     export interface LanguageConfiguration {
         /**
