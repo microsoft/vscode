@@ -119,7 +119,7 @@ export class Repl extends Panel {
 		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		this.treeContainer = dom.append(container, $('.repl-tree'));
-		const replInputContainer = dom.append(container, $(platform.isWindows ? '.repl-input-wrapper.windows' : platform.isMacintosh ? '.repl-input-wrapper.mac' : '.repl-input-wrapper.linux'));
+		const replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));
 		this.replInput.type = 'text';
 

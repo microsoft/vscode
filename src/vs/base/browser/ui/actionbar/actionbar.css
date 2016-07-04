@@ -142,30 +142,3 @@
 	max-width: 170px;
 	min-width: 60px;
 }
-
-.monaco-workbench .action-bar-select {
-	width: 100%;
-	height: 20px;
-	margin-top: 8px; /* Center the select box */
-}
-
-.monaco-workbench .action-bar-select.windows {
-	margin-top: 7px; /* Center the select box */
-}
-
-.vs-dark .monaco-workbench .action-bar-select {
-	background-color: #3C3C3C;
-	border-color: #3C3C3C;
-	color: rgb(204, 204, 204);
-}
-
-.hc-black .monaco-workbench .action-bar-select {
-	background-color: #3C3C3C;
-	border-color: #3C3C3C;
-	color: white;
-}
-
-.vs .monaco-workbench .action-bar-select {
-	background-color: white;
-	border-color: #CECECE;
-}

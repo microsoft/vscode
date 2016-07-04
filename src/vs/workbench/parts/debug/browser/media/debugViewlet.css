@@ -92,7 +92,7 @@
 	opacity: 0.35;
 }
 
-.monaco-workbench .debug-select.windows {
+.monaco-workbench.windows .debug-select {
 	margin-top: 7px; /* Center the select box */
 }
 
@@ -290,7 +290,8 @@
 	margin-left: 0.8em;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .checkbox-win-linux {
+.monaco-workbench.windows debug-viewlet .debug-breakpoints .breakpoint > .checkbox,
+.monaco-workbench.linux debug-viewlet .debug-breakpoints .breakpoint > .checkbox {
 	vertical-align: middle;
 }
 

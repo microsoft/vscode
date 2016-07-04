@@ -30,6 +30,16 @@
 	box-sizing:			border-box;
 }
 
+.monaco-workbench .action-bar-select {
+	width: 100%;
+	height: 20px;
+	margin-top: 8px; /* Center the select box */
+}
+
+.monaco-workbench.windows .action-bar-select {
+	margin-top: 7px; /* Center the select box */
+}
+
 /* ---------- Light Theme ---------- */
 
 .vs .monaco-workbench	{ background-color: #F3F3F3; }
@@ -42,6 +52,11 @@
 
 .vs .monaco-workbench input:disabled {
 	background-color: #E1E1E1;
+}
+
+.vs .monaco-workbench .action-bar-select {
+	background-color: white;
+	border-color: #CECECE;
 }
 
 /* ---------- Dark Theme ---------- */
@@ -74,6 +89,12 @@
 .vs-dark .monaco-workbench .stacked-view .action-label		{ color: inherit; }
 .vs-dark .monaco-workbench .stacked-view .action-label:hover { color: #3399FF; }
 
+.vs-dark .monaco-workbench .action-bar-select {
+	background-color: #3C3C3C;
+	border-color: #3C3C3C;
+	color: rgb(204, 204, 204);
+}
+
 /* ---------- HC Theme ---------- */
 
 .hc-black .monaco-workbench { color: #FFF; background-color: #000; }
@@ -92,4 +113,10 @@
 
 .hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled {
 	opacity: .4;
+}
+
+.hc-black .monaco-workbench .action-bar-select {
+	background-color: #3C3C3C;
+	border-color: #3C3C3C;
+	color: white;
 }

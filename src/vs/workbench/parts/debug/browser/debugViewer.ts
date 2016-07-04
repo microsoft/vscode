@@ -632,7 +632,7 @@ export class VariablesRenderer implements tree.IRenderer {
 		}
 
 		let data: IVariableTemplateData = Object.create(null);
-		data.expression = dom.append(container, $(isMacintosh ? '.expression.mac' : '.expression.win-linux'));
+		data.expression = dom.append(container, $('.expression'));
 		data.name = dom.append(data.expression, $('span.name'));
 		data.value = dom.append(data.expression, $('span.value'));
 
@@ -843,7 +843,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 			data.actionBar.push(this.actionProvider.getExpressionActions(), { icon: true, label: false });
 		}
 
-		data.expression = dom.append(container, $(isMacintosh ? '.expression.mac' : '.expression.win-linux'));
+		data.expression = dom.append(container, $('.expression'));
 		data.name = dom.append(data.expression, $('span.name'));
 		data.value = dom.append(data.expression, $('span.value'));
 
@@ -1099,9 +1099,6 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 		data.checkbox = <HTMLInputElement>$('input');
 		data.checkbox.type = 'checkbox';
-		if (!isMacintosh) {
-			data.checkbox.className = 'checkbox-win-linux';
-		}
 
 		dom.append(data.breakpoint, data.checkbox);
 

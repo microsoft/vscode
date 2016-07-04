@@ -29,10 +29,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 const $ = dom.emmet;
 
-function getExpressionClassName(): string {
-	return isMacintosh ? '.expression.mac' : '.expression.win-linux';
-}
-
 export class ReplExpressionsDataSource implements tree.IDataSource {
 
 	constructor(private debugService: debug.IDebugService) {
@@ -155,7 +151,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
 			let data: debugviewer.IVariableTemplateData = Object.create(null);
-			data.expression = dom.append(container, $(getExpressionClassName()));
+			data.expression = dom.append(container, $('.expression'));
 			data.name = dom.append(data.expression, $('span.name'));
 			data.value = dom.append(data.expression, $('span.value'));
 
@@ -165,8 +161,8 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
 			let data: IInputOutputPairTemplateData = Object.create(null);
 			dom.addClass(container, 'input-output-pair');
-			data.input = dom.append(container, $('.input' + getExpressionClassName()));
-			data.output = dom.append(container, $('.output' + getExpressionClassName()));
+			data.input = dom.append(container, $('.input.expression'));
+			data.output = dom.append(container, $('.output.expression'));
 			data.value = dom.append(data.output, $('span.value'));
 			data.annotation = dom.append(data.output, $('span'));
 
@@ -176,7 +172,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
 			let data: IValueOutputTemplateData = Object.create(null);
 			dom.addClass(container, 'output');
-			let expression = dom.append(container, $('.output' + getExpressionClassName()));
+			let expression = dom.append(container, $('.output.expression'));
 
 			data.container = container;
 			data.counter = dom.append(expression, $('div.counter'));
@@ -190,7 +186,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			dom.addClass(container, 'output');
 
 			data.container = container;
-			data.expression = dom.append(container, $('.output' + getExpressionClassName()));
+			data.expression = dom.append(container, $('.output.expression'));
 			data.key = dom.append(data.expression, $('span.name'));
 			data.value = dom.append(data.expression, $('span.value'));
 			data.annotation = dom.append(data.expression, $('span'));
