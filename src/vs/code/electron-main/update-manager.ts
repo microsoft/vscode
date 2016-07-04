@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as electron from 'electron';
 import * as platform from 'vs/base/common/platform';
