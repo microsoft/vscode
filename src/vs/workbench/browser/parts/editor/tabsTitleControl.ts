@@ -439,6 +439,11 @@ export class TabsTitleControl extends TitleControl {
 			if (handled) {
 				DOM.EventHelper.stop(e, true);
 			}
+
+			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
+			this.scrollbar.updateState({
+				scrollLeft: this.tabsContainer.scrollLeft
+			});
 		}));
 
 		// Pin on double click
