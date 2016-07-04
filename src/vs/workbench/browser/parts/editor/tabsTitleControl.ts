@@ -292,7 +292,10 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
+			const description = editor.getDescription(true) || '';
+
 			const tabContainer = document.createElement('div');
+			tabContainer.title = description;
 			tabContainer.draggable = true;
 			tabContainer.tabIndex = 0;
 			tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
@@ -308,7 +311,6 @@ export class TabsTitleControl extends TitleControl {
 			// Tab Label
 			const tabLabel = document.createElement('a');
 			tabLabel.innerText = editor.getName();
-			tabLabel.title = editor.getDescription(true) || '';
 			tabLabelContainer.appendChild(tabLabel);
 
 			// Tab Close
