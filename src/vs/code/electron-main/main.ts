@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { mkdirp } from 'vs/base/node/pfs';

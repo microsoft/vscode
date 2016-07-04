@@ -6,7 +6,7 @@
 'use strict';
 
 import * as crypto from 'crypto';
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { app } from 'electron';
