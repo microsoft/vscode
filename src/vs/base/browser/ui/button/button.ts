@@ -52,22 +52,22 @@ export class Button extends EventEmitter {
 		});
 	}
 
-	public getElement(): HTMLElement {
+	getElement(): HTMLElement {
 		return this.$el.getHTMLElement();
 	}
 
-	public set label(value: string) {
+	set label(value: string) {
 		if (!this.$el.hasClass('monaco-text-button')) {
 			this.$el.addClass('monaco-text-button');
 		}
 		this.$el.text(value);
 	}
 
-	public set icon(iconClassName: string) {
+	set icon(iconClassName: string) {
 		this.$el.addClass(iconClassName);
 	}
 
-	public set enabled(value: boolean) {
+	set enabled(value: boolean) {
 		if (value) {
 			this.$el.removeClass('disabled');
 			this.$el.attr({
@@ -81,11 +81,15 @@ export class Button extends EventEmitter {
 		}
 	}
 
-	public get enabled() {
+	get enabled() {
 		return !this.$el.hasClass('disabled');
 	}
 
-	public dispose(): void {
+	focus(): void {
+		this.$el.domFocus();
+	}
+
+	dispose(): void {
 		if (this.$el) {
 			this.$el.dispose();
 			this.$el = null;
