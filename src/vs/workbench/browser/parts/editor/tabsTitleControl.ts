@@ -295,8 +295,8 @@ export class TabsTitleControl extends TitleControl {
 			const tabContainer = document.createElement('div');
 			tabContainer.draggable = true;
 			tabContainer.tabIndex = 0;
-			tabContainer.setAttribute('role', 'tab');
-			tabContainer.setAttribute('aria-label', editor.getName());
+			tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
+			tabContainer.setAttribute('aria-label', `tab, ${editor.getName()}`);
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
