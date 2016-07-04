@@ -1887,12 +1887,6 @@ declare module 'electron' {
 	export = electron;
 }
 
-declare module 'original-fs' {
-	import * as fs from 'fs';
-
-	export = fs;
-}
-
 // interface NodeRequireFunction {
 // 	(moduleName: 'electron'): Electron.Electron;
 // }
