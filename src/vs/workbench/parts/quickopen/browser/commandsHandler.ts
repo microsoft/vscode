@@ -67,7 +67,13 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.keyLabel = keyLabel;
 		this.keyAriaLabel = keyAriaLabel;
 		this.label = label;
-		this.alias = alias;
+		
+		if (label !== alias) {
+			this.alias = alias;
+		} else {
+			aliasHighlights = null;
+		}
+
 		this.setHighlights(labelHighlights, null, aliasHighlights);
 	}
 
