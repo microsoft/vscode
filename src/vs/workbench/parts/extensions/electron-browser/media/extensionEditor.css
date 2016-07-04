@@ -14,7 +14,7 @@
 
 .extension-editor > .header {
 	display: flex;
-	height: 130px;
+	height: 128px;
 	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
 	overflow: hidden;
@@ -46,7 +46,6 @@
 	font-size: 26px;
 	line-height: 30px;
 	font-weight: 600;
-	line-height: normal;
 	white-space: nowrap;
 }
 
@@ -102,7 +101,7 @@
 }
 
 .extension-editor > .body {
-	height: calc(100% - 170px);
+	height: calc(100% - 168px);
 	overflow: hidden;
 }
 
