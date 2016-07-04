@@ -708,6 +708,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (oldDecorationsIds) {
 			this.deltaDecorations(oldDecorationsIds, []);
 		}
+		if (this._decorationTypeKeysToIds.hasOwnProperty(decorationTypeKey)) {
+			delete this._decorationTypeKeysToIds[decorationTypeKey];
+		}
+		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
+			delete this._decorationTypeSubtypes[decorationTypeKey];
+		}
 	}
 
 	public addTypingListener(character:string, callback: () => void): IDisposable {
