@@ -6,7 +6,7 @@
 'use strict';
 
 import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';

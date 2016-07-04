@@ -6,7 +6,7 @@
 'use strict';
 
 import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import { EventEmitter } from 'events';
 import { IEnvironmentService } from 'vs/code/electron-main/env';
 import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
