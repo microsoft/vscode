@@ -18,6 +18,44 @@ declare module 'emmet' {
 		reset();
 	}
 
+	export interface File {
+		/**
+		 * Locate <code>file_name</code> file that relates to <code>editor_file</code>.
+		 * File name may be absolute or relative path
+		 *
+		 * @param {String} parent
+		 * @param {String} filename
+		 * @return {String} Returns null if <code>filename</code> cannot be located
+		 */
+		locateFile(parent: string, filename: string): string;
+
+		/**
+		 * Creates absolute path by concatenating <code>parent</code> and <code>filename</code>.
+		 * If <code>parent</code> points to file, its parent directory is used
+		 *
+		 * @param {String} parent
+		 * @param {String} filename
+		 * @return {String}
+		 */
+		createPath(parent: string, filename: string): string;
+
+		/**
+		 * Reads binary file content and return it
+		 *
+		 * @param {String} path File's relative or absolute path
+		 * @return {String}
+		 */
+		read(path: string, callback: (err: Error, content: string) => void): void;
+
+		/**
+		 * Saves <code>content</code> as <code>file</code>
+		 *
+		 * @param {String} file File's absolute path
+		 * @param {String} content File content
+		 */
+		save(file: string, content: string): void;
+	}
+
 	export interface Editor {
 		/**
 		 * Returns character indexes of selected text: object with <code>start</code>
