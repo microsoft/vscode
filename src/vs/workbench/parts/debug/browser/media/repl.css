@@ -35,13 +35,15 @@
 	word-break: break-all;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree-row .input.expression.mac,
-.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.mac {
+.monaco-workbench.mac .repl .repl-tree .monaco-tree-row .input.expression,
+.monaco-workbench.mac .repl .repl-tree .monaco-tree-row .output.expression {
 	font-size: 12px;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree-row .input.expression.win-linux,
-.monaco-workbench .repl .repl-tree .monaco-tree-row .output.expression.win-linux {
+.monaco-workbench.windows .repl .repl-tree .monaco-tree-row .input.expression,
+.monaco-workbench.windows .repl .repl-tree .monaco-tree-row .output.expression,
+.monaco-workbench.linux .repl .repl-tree .monaco-tree-row .input.expression,
+.monaco-workbench.linux .repl .repl-tree .monaco-tree-row .output.expression {
 	font-size: 14px;
 }
 
@@ -143,30 +145,30 @@
 	position: absolute;
 }
 
-.monaco-workbench .repl .repl-input-wrapper.windows:before {
+.monaco-workbench.windows .repl .repl-input-wrapper:before {
 	content: '\203A'; /* character does not exist on windows */
 	font-size: 22px;
 }
 
-.monaco-workbench .repl .repl-input-wrapper.mac {
+.monaco-workbench.mac .repl .repl-input-wrapper {
 	font-size: 12px;
 }
 
-.monaco-workbench .repl .repl-input-wrapper.win {
+.monaco-workbench.windows .repl .repl-input-wrapper {
 	font-size: 14px;
 }
 
-.monaco-workbench .repl .repl-input-wrapper.linux {
+.monaco-workbench.linux .repl .repl-input-wrapper {
 	font-size: 14px;
 }
 
-.monaco-workbench .repl .repl-input-wrapper.linux:before {
+.monaco-workbench.linux .repl .repl-input-wrapper:before {
 	content: '\276f';
 	font-size: 9px;
 	line-height: 22px;
 }
 
-.monaco-workbench .repl .repl-input-wrapper.mac:before {
+.monaco-workbench.mac .repl .repl-input-wrapper:before {
 	content: '\276f';
 	line-height: 22px;
 }

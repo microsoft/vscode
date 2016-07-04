@@ -746,7 +746,7 @@ export class SelectActionItem extends BaseActionItem {
 		super(ctx, action);
 
 		this.select = document.createElement('select');
-		this.select.className = `action-bar-select ${platform.isWindows ? 'windows' : ''}`;
+		this.select.className = 'action-bar-select';
 
 		this.options = options;
 		this.selected = selected;
