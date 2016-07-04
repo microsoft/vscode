@@ -8,7 +8,6 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import * as timer from 'vs/base/common/timer';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -19,7 +18,6 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
@@ -179,15 +177,6 @@ function computeScore(suggestion: string, currentWord: string, currentWordLowerC
 	return score;
 }
 
-interface ITelemetryData {
-	suggestionCount?: number;
-	suggestedIndex?: number;
-	selectedIndex?: number;
-	hintLength?: number;
-	wasCancelled?: boolean;
-	wasAutomaticallyTriggered?: boolean;
-}
-
 enum State {
 	Hidden,
 	Loading,
@@ -321,10 +310,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private focusedItem: CompletionItem;
 	private completionModel: CompletionModel;
 
-	private telemetryData: ITelemetryData;
-	private telemetryService: ITelemetryService;
-	private telemetryTimer: timer.ITimerEvent;
-
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
@@ -344,14 +329,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		private editor: ICodeEditor,
 		private model: SuggestModel,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
-
-		this.telemetryData = null;
-		this.telemetryService = telemetryService;
 
 		this.element = $('.editor-widget.suggest-widget.monaco-editor-background');
 		this.element.style.width = SuggestWidget.WIDTH + 'px';
@@ -425,11 +406,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		if (!e.elements.length) {
 			return;
 		}
-
-		this.telemetryData.selectedIndex = 0;
-		this.telemetryData.wasCancelled = false;
-		this.telemetryData.selectedIndex = e.indexes[0];
-		this.submitTelemetryData();
 
 		const item = e.elements[0];
 		const container = item.container;
@@ -570,7 +546,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		this.telemetryTimer = this.telemetryService.timedPublicLog('suggestWidgetLoadingTime');
 		this.isAuto = !!e.auto;
 
 		if (!this.isAuto) {
@@ -578,12 +553,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				this.loadingTimeout = null;
 				this.setState(State.Loading);
 			}, 50);
-		}
-
-		if (!e.retrigger) {
-			this.telemetryData = {
-				wasAutomaticallyTriggered: e.characterTriggered
-			};
 		}
 	}
 
@@ -629,22 +598,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				}
 			});
 
-			this.telemetryData = this.telemetryData || {};
-			this.telemetryData.suggestionCount = this.completionModel.items.length;
-			this.telemetryData.suggestedIndex = bestSuggestionIndex;
-			this.telemetryData.hintLength = currentWord.length;
-
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
 			this.list.setFocus(bestSuggestionIndex);
 			this.list.reveal(bestSuggestionIndex, 0);
 
 			this.setState(State.Open);
-		}
-
-		if (this.telemetryTimer) {
-			this.telemetryTimer.data = { reason: isEmpty ? 'empty' : 'results' };
-			this.telemetryTimer.stop();
-			this.telemetryTimer = null;
 		}
 	}
 
@@ -656,18 +614,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		if (!e.retrigger) {
 			this.setState(State.Hidden);
-
-			if (this.telemetryData) {
-				this.telemetryData.selectedIndex = -1;
-				this.telemetryData.wasCancelled = true;
-				this.submitTelemetryData();
-			}
-		}
-
-		if (this.telemetryTimer) {
-			this.telemetryTimer.data = { reason: 'cancel' };
-			this.telemetryTimer.stop();
-			this.telemetryTimer = null;
 		}
 	}
 
@@ -812,11 +758,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		return SuggestWidget.ID;
 	}
 
-	private submitTelemetryData(): void {
-		this.telemetryService.publicLog('suggestWidget', this.telemetryData);
-		this.telemetryData = null;
-	}
-
 	private updateWidgetHeight(): number {
 		let height = 0;
 
@@ -853,9 +794,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
 		this.focusedItem = null;
-		this.telemetryData = null;
-		this.telemetryService = null;
-		this.telemetryTimer = null;
 		this.element = null;
 		this.messageElement = null;
 		this.listElement = null;
