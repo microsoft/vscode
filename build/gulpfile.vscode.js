@@ -30,6 +30,7 @@ var commit = util.getVersion(root);
 var dependencies = Object.keys(shrinkwrap.dependencies);
 var baseModules = Object.keys(process.binding('natives')).filter(function (n) { return !/^_|\//.test(n); });
 var nodeModules = ['electron'].concat(dependencies).concat(baseModules);
+nodeModules.push('original-fs'); // provided by electron to have original fs functionality without ASAR support
 
 // Build
 
