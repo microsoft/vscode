@@ -31,7 +31,7 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
-	padding: 0 9px 0 16px;
+	padding: 0 11px 0 16px;
 	overflow: hidden;
 	display: flex;
 }
@@ -82,7 +82,7 @@
 .extensions-viewlet > .extensions .extension > .details > .header > .install-count:not(:empty) {
 	opacity: 0.6;
 	font-size: 80%;
-	margin-right: 6px;
+	margin: 0 6px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .install-count > .octicon {
