@@ -76,16 +76,16 @@ export class Action extends EventEmitter implements IAction {
 	static ENABLED: string = 'enabled';
 	static CHECKED: string = 'checked';
 
-	public _id: string;
-	public _label: string;
-	public _tooltip: string;
-	public _cssClass: string;
-	public _enabled: boolean;
-	public _checked: boolean;
-	public _actionCallback: IActionCallback;
-	public _order: number;
+	protected _id: string;
+	protected _label: string;
+	protected _tooltip: string;
+	protected _cssClass: string;
+	protected _enabled: boolean;
+	protected _checked: boolean;
+	protected _actionCallback: IActionCallback;
+	protected _order: number;
 
-	constructor(id: string, label = '', cssClass = '', enabled = true, actionCallback: IActionCallback = null) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback: IActionCallback = null) {
 		super();
 
 		this._id = id;
@@ -107,7 +107,7 @@ export class Action extends EventEmitter implements IAction {
 		this._setLabel(value);
 	}
 
-	_setLabel(value: string): void {
+	protected _setLabel(value: string): void {
 		if (this._label !== value) {
 			this._label = value;
 			this.emit(Action.LABEL, { source: this });
@@ -122,7 +122,7 @@ export class Action extends EventEmitter implements IAction {
 		this._setTooltip(value);
 	}
 
-	_setTooltip(value: string): void {
+	protected _setTooltip(value: string): void {
 		if (this._tooltip !== value) {
 			this._tooltip = value;
 			this.emit(Action.TOOLTIP, { source: this });
@@ -137,7 +137,7 @@ export class Action extends EventEmitter implements IAction {
 		this._setClass(value);
 	}
 
-	_setClass(value: string): void {
+	protected _setClass(value: string): void {
 		if (this._cssClass !== value) {
 			this._cssClass = value;
 			this.emit(Action.CLASS, { source: this });
@@ -152,7 +152,7 @@ export class Action extends EventEmitter implements IAction {
 		this._setEnabled(value);
 	}
 
-	_setEnabled(value: boolean): void {
+	protected _setEnabled(value: boolean): void {
 		if (this._enabled !== value) {
 			this._enabled = value;
 			this.emit(Action.ENABLED, { source: this });
@@ -167,7 +167,7 @@ export class Action extends EventEmitter implements IAction {
 		this._setChecked(value);
 	}
 
-	_setChecked(value: boolean): void {
+	protected _setChecked(value: boolean): void {
 		if (this._checked !== value) {
 			this._checked = value;
 			this.emit(Action.CHECKED, { source: this });
@@ -180,14 +180,6 @@ export class Action extends EventEmitter implements IAction {
 
 	public set order(value: number) {
 		this._order = value;
-	}
-
-	public get actionCallback(): IActionCallback {
-		return this._actionCallback;
-	}
-
-	public set actionCallback(value: IActionCallback) {
-		this._actionCallback = value;
 	}
 
 	public run(event?: any): TPromise<any> {
