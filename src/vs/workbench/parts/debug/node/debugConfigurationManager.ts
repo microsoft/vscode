@@ -280,7 +280,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 						if (!result) {
 							this.configuration.silentlyAbort = true;
 						}
-						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = result);
+						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = this.configuration[key].replace(`\${command.${ interactiveVariable }}`, result));
 					});
 				}
 			};
