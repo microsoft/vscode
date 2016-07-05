@@ -11,64 +11,43 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {values} from 'vs/base/common/collections';
 import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {MenuId, CommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
+import {MenuId, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 
-export interface IDeclaredMenuItem {
-	command: string;
-	alt?: string;
-	when?: string;
-	group?: string;
-}
-
 export interface IMenuRegistry {
-	addCommand(userCommand: CommandAction): boolean;
-	hasCommand(id: string): boolean;
-	addMenuItems(location: MenuId, items: IDeclaredMenuItem[]): void;
+	addCommand(userCommand: ICommandAction): boolean;
+	getCommand(id: string): ICommandAction;
+	appendMenuItem(menu: MenuId, item: IMenuItem): void;
 }
 
 const _registry = new class {
 
-	commands: { [id: string]: CommandAction } = Object.create(null);
+	commands: { [id: string]: ICommandAction } = Object.create(null);
 
-	menuItems: { [loc: number]: IDeclaredMenuItem[] } = Object.create(null);
+	menuItems: { [loc: number]: IMenuItem[] } = Object.create(null);
 
-	addCommand(command: CommandAction): boolean {
+	addCommand(command: ICommandAction): boolean {
 		const old = this.commands[command.id];
 		this.commands[command.id] = command;
 		return old !== void 0;
 	}
 
-	hasCommand(id: string): boolean {
-		return this.commands[id] !== void 0;
+	getCommand(id: string): ICommandAction {
+		return this.commands[id];
 	}
 
-	addMenuItems(loc: MenuId, items: IDeclaredMenuItem[]): void {
+	appendMenuItem(loc: MenuId, items: IMenuItem): void {
 		let array = this.menuItems[loc];
 		if (!array) {
-			this.menuItems[loc] = items;
+			this.menuItems[loc] = [items];
 		} else {
-			array.push(...items);
+			array.push(items);
 		}
 	}
 	getMenuItems(loc: MenuId): IMenuItem[] {
-		const result: IMenuItem[] = [];
-		const menuItems = this.menuItems[loc];
-		if (menuItems) {
-			for (let item of menuItems) {
-				const command = this.commands[item.command];
-				if (!command) {
-					// warn?
-					continue;
-				}
-				const when = KbExpr.deserialize(item.when);
-				const alt = this.commands[item.alt];
-				result.push({ when, command, alt, group: item.group });
-			}
-		}
-		return result;
+		return this.menuItems[loc] || [];
 	}
 };
 
@@ -88,7 +67,7 @@ export class MenuService implements IMenuService {
 		return new Menu(id, keybindingService, this._extensionService);
 	}
 
-	getCommandActions(): CommandAction[] {
+	getCommandActions(): ICommandAction[] {
 		return values(_registry.commands);
 	}
 }
