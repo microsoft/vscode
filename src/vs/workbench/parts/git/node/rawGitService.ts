@@ -204,13 +204,13 @@ export class RawGitService implements IRawGitService {
 				console.log(`getCommitInfo.config err=> ${err.message}`);
 				return "";
 			}),
-			this.repo.getLog({ prevCount: 1 }).then(log => log, err => ""),
+			this.repo.getLog({ prevCount: 1, format: '%B' }).then(log => log, err => ""),
 			this.status()
 		]).then(r => {
 			console.log('RawGitService.getCommitInfo=>Promise.join');
 			let status = <IRawStatus>r[2];
 			status.commitInfo = {
-				template: r[0] ? this.tryReadFile(r[0].stdout) : "",
+				template: r[0] ? this.tryReadFile(r[0].stdout.trim()) : "",
 				// template: r[0] ? r[0].stdout : "",
 				prevCommitMsg: r[1]
 			};
@@ -224,11 +224,14 @@ export class RawGitService implements IRawGitService {
 	 */
 	private tryReadFile(file: string): string {
 		try {
-			if (!fs.existsSync(file)) {
-				console.log(`file doesnt exist. file: ${file}`)
-			}
+			// Check the file itself
+			// if (!fs.existsSync(file)) {
+			// 	console.log(`file doesnt exist. file: ${file}`)
+			// }
+
 			return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : "";
 		} catch (error) {
+			console.error(`Error reading file. file: ${file}, error: ${error.message})`);
 			return "";
 		}
 	}

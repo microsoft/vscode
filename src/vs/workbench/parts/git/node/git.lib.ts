@@ -562,7 +562,10 @@ export class Repository {
 		console.log('repository.getLog');
 		const args = ['log'];
 
-		if (options && options.prevCount) { args.push(`-${options.prevCount}`); }
+		if (options) {
+			if (options.prevCount) { args.push(`-${options.prevCount}`); }
+			if (options.format) { args.push(`--format=${options.format}`); }
+		}
 
 		return this.run(args, { log: false }).then(result => {
 			console.log(`Repository.getLog=>result: ${result.stdout.trim()}`);
