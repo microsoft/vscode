@@ -3044,6 +3044,10 @@ export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
  */
 export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
 /**
+ * A context key that is set when the editor's text is readonly.
+ */
+export const KEYBINDING_CONTEXT_EDITOR_READONLY = 'editorReadonly';
+/**
  * A context key that is set when the editor has multiple selections (multiple cursors).
  */
 export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';

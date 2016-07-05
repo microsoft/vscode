@@ -113,6 +113,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	private _editorIdContextKey: IKeybindingContextKey<string>;
 	protected _editorFocusContextKey: IKeybindingContextKey<boolean>;
 	private _editorTabMovesFocusKey: IKeybindingContextKey<boolean>;
+	private _editorReadonly: IKeybindingContextKey<boolean>;
 	private _hasMultipleSelectionsKey: IKeybindingContextKey<boolean>;
 	private _hasNonEmptySelectionKey: IKeybindingContextKey<boolean>;
 	private _langIdKey: IKeybindingContextKey<string>;
@@ -141,6 +142,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this._editorIdContextKey = this._keybindingService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS, undefined);
 		this._editorTabMovesFocusKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS, false);
+		this._editorReadonly = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY, false);
 		this._hasMultipleSelectionsKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS, false);
 		this._hasNonEmptySelectionKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION, false);
 		this._langIdKey = this._keybindingService.createKey<string>(editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, undefined);
@@ -157,6 +159,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (this._configuration.editor.tabFocusMode) {
 			this._editorTabMovesFocusKey.set(true);
 		}
+		this._editorReadonly.set(this._configuration.editor.readOnly);
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => this.emit(editorCommon.EventType.ConfigurationChanged, e)));
 
 		this._telemetryService = telemetryService;
@@ -217,6 +220,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		} else {
 			this._editorTabMovesFocusKey.reset();
 		}
+		this._editorReadonly.set(this._configuration.editor.readOnly);
 	}
 
 	public getConfiguration(): editorCommon.InternalEditorOptions {
