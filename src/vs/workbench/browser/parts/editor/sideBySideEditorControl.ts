@@ -984,20 +984,27 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (e.target === node) {
 				DOM.EventHelper.stop(e, true);
 				onDrop(e, Position.LEFT);
+			} else {
+				DOM.removeClass(node, 'dropfeedback');
 			}
 		}));
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			DOM.addClass(node, 'dropfeedback');
+			if (e.target === node) {
+				DOM.addClass(node, 'dropfeedback');
+			}
 
 			const target = <HTMLElement>e.target;
 			if (target) {
 				if (overlay && target.id !== overlayId) {
 					destroyOverlay(); // somehow we managed to move the mouse quickly out of the current overlay, so destroy it
 				}
-
 				createOverlay(target);
+
+				if (overlay) {
+					DOM.addClass(node, 'dropfeedback');
+				}
 			}
 		}));
 
