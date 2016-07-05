@@ -15,7 +15,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
-export interface CommandAction {
+export interface ICommandAction {
 	id: string;
 	title: string;
 	category?: string;
@@ -28,8 +28,8 @@ export interface IMenu extends IDisposable {
 }
 
 export interface IMenuItem {
-	command: CommandAction;
-	alt?: CommandAction;
+	command: ICommandAction;
+	alt?: ICommandAction;
 	when?: KbExpr;
 	group?: string;
 }
@@ -48,7 +48,7 @@ export interface IMenuService {
 
 	createMenu(id: MenuId, scopedKeybindingService: IKeybindingService): IMenu;
 
-	getCommandActions(): CommandAction[];
+	getCommandActions(): ICommandAction[];
 }
 
 export class MenuItemAction extends Actions.Action {
