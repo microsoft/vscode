@@ -83,7 +83,15 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		}));
 		$(window).on(dom.EventType.RESIZE, () => this.setXCoordinate(), this.toDispose);
 
-		this.dragArea.on(dom.EventType.MOUSE_DOWN, event => {
+		this.dragArea.on(dom.EventType.MOUSE_UP, (event: MouseEvent) => {
+			const mouseClickEvent = new StandardMouseEvent(event);
+			if (mouseClickEvent.detail === 2) {
+				// double click on debug bar centers it again #8250
+				this.setXCoordinate(0.5 * window.innerWidth);
+			}
+		});
+
+		this.dragArea.on(dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
 			const $window = $(window);
 			this.dragArea.addClass('dragged');
 
