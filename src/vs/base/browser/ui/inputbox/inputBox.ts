@@ -136,7 +136,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		setTimeout(() => this.layout(), 0);
+		setTimeout(() => this.updateMirror(), 0);
 
 		// Support actions
 		if (this.options.actions) {
@@ -357,17 +357,23 @@ export class InputBox extends Widget {
 		this._onDidChange.fire(this.value);
 
 		this.validate();
-
-		if (this.mirror) {
-			let lastCharCode = this.value.charCodeAt(this.value.length - 1);
-			let suffix = lastCharCode === 10 ? ' ' : '';
-			this.mirror.textContent = this.value + suffix;
-			this.layout();
-		}
+		this.updateMirror();
 
 		if (this.state === 'open') {
 			this.contextViewProvider.layout();
 		}
+	}
+
+	private updateMirror(): void {
+		if (!this.mirror) {
+			return;
+		}
+
+		const value = this.value || this.placeholder;
+		let lastCharCode = value.charCodeAt(value.length - 1);
+		let suffix = lastCharCode === 10 ? ' ' : '';
+		this.mirror.textContent = value + suffix;
+		this.layout();
 	}
 
 	public layout(): void {
