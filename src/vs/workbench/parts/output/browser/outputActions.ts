@@ -8,10 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {IAction, Action} from 'vs/base/common/actions';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_MODE_ID, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
+import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -56,35 +53,6 @@ export class ClearOutputAction extends Action {
 		this.panelService.getActivePanel().focus();
 
 		return TPromise.as(true);
-	}
-}
-
-export class ClearOutputEditorAction extends EditorAction {
-
-	public static ID = 'editor.action.clearoutput';
-
-	constructor(
-		descriptor: IEditorActionDescriptorData,
-		editor: ICommonCodeEditor,
-		@IOutputService private outputService: IOutputService
-	) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
-	}
-
-	public getGroupId(): string {
-		return 'clear';
-	}
-
-	public isSupported(): boolean {
-		let model = this.editor.getModel();
-		let mode = model && model.getMode();
-
-		return mode && mode.getId() === OUTPUT_MODE_ID && super.isSupported();
-	}
-
-	public run(): TPromise<boolean> {
-		this.outputService.getActiveChannel().clear();
-		return TPromise.as(false);
 	}
 }
 
