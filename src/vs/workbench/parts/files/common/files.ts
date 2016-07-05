@@ -64,6 +64,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 			dynamicHeight: boolean;
 		};
 		autoReveal: boolean;
+		enableDragAndDrop: boolean;
 	};
 	editor: IEditorOptions;
 }
@@ -247,7 +248,7 @@ export enum AutoSaveMode {
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface IRawTextContent extends IBaseStat {
-	
+
 	/**
 	 * The line grouped content of a text file.
 	 */
