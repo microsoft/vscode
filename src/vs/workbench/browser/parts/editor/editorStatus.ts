@@ -42,6 +42,9 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {ZoomResetAction} from 'vs/workbench/electron-browser/actions';
+import {EditorZoom} from 'vs/editor/common/config/commonEditorConfig';
+import * as browser from 'vs/base/browser/browser';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -94,6 +97,7 @@ class StateChange {
 	encoding: boolean;
 	EOL: boolean;
 	tabFocusMode: boolean;
+	zoomLevel: boolean;
 
 	constructor() {
 		this.indentation = false;
@@ -102,6 +106,7 @@ class StateChange {
 		this.encoding = false;
 		this.EOL = false;
 		this.tabFocusMode = false;
+		this.zoomLevel = false;
 	}
 
 	public combine(other: StateChange) {
@@ -111,6 +116,7 @@ class StateChange {
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+		this.zoomLevel = this.zoomLevel || other.zoomLevel;
 	}
 }
 
@@ -121,6 +127,8 @@ interface StateDelta {
 	EOL?: string;
 	indentation?: string;
 	tabFocusMode?: boolean;
+	zoomLevel?: number;
+	editorZoomLevel?: number;
 }
 
 class State {
@@ -142,12 +150,20 @@ class State {
 	private _tabFocusMode: boolean;
 	public get tabFocusMode(): boolean { return this._tabFocusMode; }
 
+	private _editorZoomLevel: number;
+	public get editorZoomLevel(): number { return this._editorZoomLevel; };
+
+	private _zoomLevel: number;
+	public get zoomLevel(): number { return this._zoomLevel; };
+
 	constructor() {
 		this._selectionStatus = null;
 		this._mode = null;
 		this._encoding = null;
 		this._EOL = null;
 		this._tabFocusMode = false;
+		this._editorZoomLevel = 0;
+		this._zoomLevel = 0;
 	}
 
 	public update(update: StateDelta): StateChange {
@@ -197,6 +213,15 @@ class State {
 			}
 		}
 
+		if (typeof update.zoomLevel !== 'undefined') {
+			if (this._zoomLevel !== update.zoomLevel || this._editorZoomLevel !== update.editorZoomLevel) {
+				this._zoomLevel = update.zoomLevel;
+				this._editorZoomLevel = update.editorZoomLevel;
+				somethingChanged = true;
+				e.zoomLevel = true;
+			}
+		}
+
 		if (somethingChanged) {
 			return e;
 		}
@@ -224,6 +249,7 @@ export class EditorStatus implements IStatusbarItem {
 	private state: State;
 	private element: HTMLElement;
 	private tabFocusModeElement: HTMLElement;
+	private zoomLevelElement: HTMLElement;
 	private indentationElement: HTMLElement;
 	private selectionElement: HTMLElement;
 	private encodingElement: HTMLElement;
@@ -267,6 +293,11 @@ export class EditorStatus implements IStatusbarItem {
 		this.indentationElement.onclick = () => this.onIndentationClick();
 		hide(this.indentationElement);
 
+		this.zoomLevelElement = append(this.element, $('a.editor-status-zoom-level'));
+		this.zoomLevelElement.title = nls.localize('zoomReset', "Reset Zoom");
+		this.zoomLevelElement.onclick = () => this.onZoomLevelClick();
+		hide(this.zoomLevelElement);
+
 		this.encodingElement = append(this.element, $('a.editor-status-encoding'));
 		this.encodingElement.title = nls.localize('selectEncoding', "Select Encoding");
 		this.encodingElement.onclick = () => this.onEncodingClick();
@@ -295,7 +326,9 @@ export class EditorStatus implements IStatusbarItem {
 				}
 			},
 			this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()),
-			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource))
+			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
+			EditorZoom.onDidChangeZoomLevel(()=>this.updateZoomLevel()),
+			browser.onDidChangeZoomLevel(()=>this.updateZoomLevel())
 		);
 
 		return combinedDisposable(this.toDispose);
@@ -374,6 +407,16 @@ export class EditorStatus implements IStatusbarItem {
 				hide(this.modeElement);
 			}
 		}
+
+		if (changed.zoomLevel) {
+			if (this.state.zoomLevel || this.state.editorZoomLevel) {
+				var toPercent = (level) => Math.round((1 + level * 0.1) * 100) + '%';
+				this.zoomLevelElement.textContent = [toPercent(this.state.editorZoomLevel), toPercent(this.state.zoomLevel)].join(' ');
+				show(this.zoomLevelElement);
+			} else {
+				hide(this.zoomLevelElement);
+			}
+		}
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string {
@@ -399,6 +442,12 @@ export class EditorStatus implements IStatusbarItem {
 	private onModeClick(): void {
 		let action = this.instantiationService.createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
 
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
+	private onZoomLevelClick(): void {
+		const action = this.instantiationService.createInstance(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL);
 		action.run().done(null, errors.onUnexpectedError);
 		action.dispose();
 	}
@@ -448,6 +497,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.onEncodingChange(activeEditor);
 		this.onTabFocusModeChange(activeEditor);
 		this.onIndentationChange(control);
+		this.updateZoomLevel();
 
 		// Dispose old active editor listeners
 		dispose(this.activeEditorListeners);
@@ -592,6 +642,13 @@ export class EditorStatus implements IStatusbarItem {
 			}
 		}
 
+		this.updateState(info);
+	}
+
+	private updateZoomLevel() {
+		let editorZoomLevel = EditorZoom.getZoomLevel();
+		let browserZoomLevel = browser.getZoomLevel();
+		let info: StateDelta = { editorZoomLevel: editorZoomLevel, zoomLevel: browserZoomLevel };
 		this.updateState(info);
 	}
 

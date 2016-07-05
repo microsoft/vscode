@@ -25,6 +25,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
+import {EditorZoom} from 'vs/editor/common/config/commonEditorConfig';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -220,7 +221,7 @@ export class ZoomResetAction extends Action {
 		const level = this.getConfiguredZoomLevel();
 		webFrame.setZoomLevel(level);
 		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
-
+		EditorZoom.setZoomLevel(level);
 		return TPromise.as(true);
 	}
 
