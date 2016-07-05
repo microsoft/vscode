@@ -120,9 +120,7 @@ export class ElectronWindow {
 		[DOM.EventType.DROP, DOM.EventType.DRAG_END].forEach(event => {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				if (!dropOverlay || e.target !== dropOverlay.getHTMLElement()) {
-					DOM.EventHelper.stop(e); // this prevents opening a real URL inside the shell
-
-					cleanUp();
+					cleanUp(); // only run cleanUp() if we are not over the overlay (because we are being called in capture phase)
 				}
 			}, true /* use capture because components within may preventDefault() when they accept the drop */);
 		});
