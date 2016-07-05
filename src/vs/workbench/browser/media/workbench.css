@@ -40,6 +40,29 @@
 	margin-top: 7px; /* Center the select box */
 }
 
+#monaco-workbench-drop-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 100%;
+	width: 100%;
+	z-index: 3000000;
+}
+
+.vs #monaco-workbench-drop-overlay {
+	background-color: rgba(51,153,255, 0.18);
+}
+
+.vs-dark #monaco-workbench-drop-overlay {
+	background-color: rgba(83, 89, 93, 0.5);
+}
+
+.hc-black #monaco-workbench-drop-overlay {
+	background: none !important;
+	outline: 2px dashed #f38518;
+	outline-offset: -2px;
+}
+
 /* ---------- Light Theme ---------- */
 
 .vs .monaco-workbench	{ background-color: #F3F3F3; }
