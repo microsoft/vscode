@@ -337,47 +337,48 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private loadBreakpoints(): debug.IBreakpoint[] {
+		let result: debug.IBreakpoint[];
 		try {
-			return JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
+			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
 				return new model.Breakpoint(new Source(breakpoint.source.raw ? breakpoint.source.raw : { path: uri.parse(breakpoint.source.uri).fsPath, name: breakpoint.source.name }),
 					breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition);
 			});
-		} catch (e) {
-			return [];
-		}
+		} catch (e) { }
+
+		return result || [];
 	}
 
 	private loadFunctionBreakpoints(): debug.IFunctionBreakpoint[] {
+		let result: debug.IFunctionBreakpoint[];
 		try {
-			return JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
+			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
 				return new model.FunctionBreakpoint(fb.name, fb.enabled);
 			});
-		} catch (e) {
-			return [];
-		}
+		} catch (e) { }
+
+		return result || [];
 	}
 
 	private loadExceptionBreakpoints(): debug.IExceptionBreakpoint[] {
-		let result: debug.IExceptionBreakpoint[] = null;
+		let result: debug.IExceptionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
 				return new model.ExceptionBreakpoint(exBreakpoint.filter || exBreakpoint.name, exBreakpoint.label, exBreakpoint.enabled);
 			});
-		} catch (e) {
-			result = [];
-		}
+		} catch (e) { }
 
-		return result;
+		return result || [];
 	}
 
 	private loadWatchExpressions(): model.Expression[] {
+		let result: model.Expression[];
 		try {
-			return JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watch: any) => {
+			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watch: any) => {
 				return new model.Expression(watch.name, false, watch.id);
 			});
-		} catch (e) {
-			return [];
-		}
+		} catch (e) { }
+
+		return result || [];
 	}
 
 	public get state(): debug.State {
