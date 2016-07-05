@@ -52,11 +52,12 @@ export interface IRawStatus {
 	HEAD: IBranch;
 	refs: IRef[];
 	remotes: IRemote[];
+	commitInfo?: ICommitInfo
 }
 
 export interface ICommitInfo {
 	template?: string;
-	lastCommitMsg?: string;
+	prevCommitMsg?: string;
 }
 
 // Model enums
@@ -143,6 +144,7 @@ export interface IModel extends IEventEmitter {
 	getRemotes(): IRemote[];
 	update(status: IRawStatus): void;
 	getPS1(): string;
+	getCommitInfo(): ICommitInfo;
 }
 
 // Service operations
@@ -268,6 +270,14 @@ export interface IPushOptions {
 	setUpstream?: boolean;
 }
 
+/** These are `git log` options. */
+export interface ILogOptions {
+	/**
+	 * @example `git log -1` to get the last commit log
+	 */
+	prevCount?: number;
+}
+
 export interface IRawGitService {
 	onOutput: Event<string>;
 	getVersion(): TPromise<string>;
@@ -290,7 +300,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
-	getCommitInfo(): TPromise<ICommitInfo>;
+	getCommitInfo(): TPromise<IRawStatus>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -327,7 +337,7 @@ export interface IGitService extends IEventEmitter {
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
-	getCommitInfo(): TPromise<ICommitInfo>;
+	getCommitInfo(): TPromise<IModel>;
 }
 
 export interface IAskpassService {

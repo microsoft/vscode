@@ -249,25 +249,17 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	public onCommitInputShown(): WinJS.TPromise<void> {
 		console.log('onCommitInputShown');
 		if (!this.commitInputBox.value) {
-			// let commitMsg = this.storageService.get(ChangesView.WorkingCommitMsgStorageKey, null, "");
-			let commitMsg = "";
+			return this.gitService.getCommitInfo().then((status) => {
+				if (!status || !status.getCommitInfo()) {
+					console.error(`error: status should have commit info. status: ${JSON.stringify(status)}`);
 
-			if (!commitMsg) {
-				// return WinJS.TPromise.as(null);
-				// debugger;
-				let getInfoTask = this.gitService.getCommitInfo();
-				// let getInfoTask = this.gitService.status();
-				return getInfoTask.then((info) => {
-					console.log('getInfoTask returned.');
-					// debugger;
-					// if (info.template) {
-					// 	this.commitInputBox.value = info.template;
-					// }
-				});
-			} else {
-				return WinJS.TPromise.as(null);
-			}
-			// this.commitInputBox.value = 'Hey, this is some test initial value inside of `loadCommitInput`.';
+				} else {
+					console.log(`onCommitInputShown=>status.getCommitInfo: ${JSON.stringify(status.getCommitInfo())}`);
+
+					let { template } = status.getCommitInfo();
+					this.commitInputBox.value = template ? template : "";
+				}
+			});
 		} else {
 			return WinJS.TPromise.as(null);
 		}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as fs from 'fs';
 import { join } from 'path';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
@@ -192,12 +193,43 @@ export class RawGitService implements IRawGitService {
 		});
 	}
 
-	getCommitInfo(): TPromise<ICommitInfo> {
+	getCommitInfo(): TPromise<IRawStatus> {
 		console.log('RawGitService.getCommitInfo');
 
-		return TPromise.as(<ICommitInfo>{
-			template: "This is a test template in rawGitService.ts (ICommitInfo)",
-			lastCommitMsg: "This is a test lastCommitMsg in\n\n rawGitService.ts (ICommitInfo)"
-		}); // .then(() => this.status());
+		return Promise.join([
+			this.repo.run(['config', '--get', 'commit.template']).then(filename => {
+				console.log(`getCommitInfo.config filename=> ${filename}`);
+				return filename;
+			}, err => {
+				console.log(`getCommitInfo.config err=> ${err.message}`);
+				return "";
+			}),
+			this.repo.getLog({ prevCount: 1 }).then(log => log, err => ""),
+			this.status()
+		]).then(r => {
+			console.log('RawGitService.getCommitInfo=>Promise.join');
+			let status = <IRawStatus>r[2];
+			status.commitInfo = {
+				template: r[0] ? this.tryReadFile(r[0].stdout) : "",
+				// template: r[0] ? r[0].stdout : "",
+				prevCommitMsg: r[1]
+			};
+			return status;
+		});;
+	}
+
+	/**
+	 * Reads the given file, if exists and is valid.
+	 * @returns file contents if exists and valid, else ""
+	 */
+	private tryReadFile(file: string): string {
+		try {
+			if (!fs.existsSync(file)) {
+				console.log(`file doesnt exist. file: ${file}`)
+			}
+			return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : "";
+		} catch (error) {
+			return "";
+		}
 	}
 }
