@@ -8,7 +8,10 @@
 import platform = require('vs/base/common/platform');
 import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
-import workbenchEditorCommon = require('vs/workbench/common/editor');
+import DND = require('vs/base/browser/dnd');
+import {Builder, $} from 'vs/base/browser/builder';
+import {Identifiers} from 'vs/workbench/common/constants';
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -17,6 +20,8 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, remote} from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const dialog = remote.dialog;
 
@@ -27,6 +32,13 @@ export interface IWindowConfiguration {
 		restoreFullscreen: boolean;
 		zoomLevel: number;
 	};
+}
+
+enum DraggedFileType {
+	UNKNOWN,
+	FILE,
+	EXTENSION,
+	FOLDER
 }
 
 export class ElectronWindow {
@@ -53,7 +65,7 @@ export class ElectronWindow {
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
 			this.editorGroupService.onEditorsChanged(() => {
-				let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+				let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 				let representedFilename = '';
 				if (fileInput) {
 					representedFilename = fileInput.getResource().fsPath;
@@ -63,11 +75,61 @@ export class ElectronWindow {
 			});
 		}
 
-		// Prevent a dropped link from opening within
-		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+		let draggedExternalResources: URI[];
+		let dropOverlay: Builder;
+
+		function cleanUp(): void {
+			draggedExternalResources = void 0;
+			if (dropOverlay) {
+				dropOverlay.destroy();
+				dropOverlay = void 0;
+			}
+		}
+
+		// Detect resources dropped into Code from outside
+		window.document.body.addEventListener(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.EventHelper.stop(e);
+
+			if (!draggedExternalResources) {
+				draggedExternalResources = DND.extractResources(e, true /* external only */);
+
+				// Show Code wide overlay if we detect a Folder or Extension to be dragged
+				if (draggedExternalResources.some(r => {
+					const kind = this.getFileKind(r);
+
+					return kind === DraggedFileType.FOLDER || kind === DraggedFileType.EXTENSION;
+				})) {
+					dropOverlay = $(window.document.getElementById(Identifiers.WORKBENCH_CONTAINER))
+						.div({ id: 'monaco-workbench-drop-overlay' })
+						.on(DOM.EventType.DROP, (e: DragEvent) => {
+							DOM.EventHelper.stop(e, true);
+
+							this.focus(); // make sure this window has focus so that the open call reaches the right window!
+							ipc.send('vscode:windowOpen', draggedExternalResources.map(r => r.fsPath)); // handled from browser process
+
+							cleanUp();
+						})
+						.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
+							cleanUp();
+						});
+				}
+			}
+		});
+
+		// Clear our map and overlay on any finish of DND outside the overlay
+		[DOM.EventType.DROP, DOM.EventType.DRAG_END].forEach(event => {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
-				DOM.EventHelper.stop(e);
-			});
+				if (!dropOverlay || e.target !== dropOverlay.getHTMLElement()) {
+					DOM.EventHelper.stop(e); // this prevents opening a real URL inside the shell
+
+					cleanUp();
+				}
+			}, true /* use capture because components within may preventDefault() when they accept the drop */);
+		});
+
+		// prevent opening a real URL inside the shell
+		window.document.body.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.EventHelper.stop(e);
 		});
 
 		// Handle window.open() calls
@@ -86,20 +148,19 @@ export class ElectronWindow {
 		};
 	}
 
-	public open(pathsToOpen: string[]): void;
-	public open(fileResource: URI): void;
-	public open(pathToOpen: string): void;
-	public open(arg1: any): void {
-		let pathsToOpen: string[];
-		if (Array.isArray(arg1)) {
-			pathsToOpen = arg1;
-		} else if (typeof arg1 === 'string') {
-			pathsToOpen = [arg1];
-		} else {
-			pathsToOpen = [(<URI>arg1).fsPath];
+	private getFileKind(resource: URI): DraggedFileType {
+		if (path.extname(resource.fsPath) === '.vsix') {
+			return DraggedFileType.EXTENSION;
 		}
 
-		ipc.send('vscode:windowOpen', pathsToOpen); // handled from browser process
+		let kind = DraggedFileType.UNKNOWN;
+		try {
+			kind = fs.statSync(resource.fsPath).isDirectory() ? DraggedFileType.FOLDER : DraggedFileType.FILE;
+		} catch (error) {
+			// Do not fail in DND handler
+		}
+
+		return kind;
 	}
 
 	public openNew(): void {
