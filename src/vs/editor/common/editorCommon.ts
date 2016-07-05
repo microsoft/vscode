@@ -402,11 +402,6 @@ export interface IEditorOptions {
 	 */
 	selectionHighlight?:boolean;
 	/**
-	 * Show lines before classes and methods (based on outline info).
-	 * Defaults to false.
-	 */
-	outlineMarkers?: boolean;
-	/**
 	 * Show reference infos (a.k.a. code lenses) for modes that support it
 	 * Defaults to true.
 	 */
@@ -811,7 +806,6 @@ export class EditorContribOptions {
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
 	selectionHighlight:boolean;
-	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	folding: boolean;
 
@@ -830,7 +824,6 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		selectionHighlight:boolean;
-		outlineMarkers: boolean;
 		referenceInfos: boolean;
 		folding: boolean;
 	}) {
@@ -845,7 +838,6 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.selectionHighlight = Boolean(source.selectionHighlight);
-		this.outlineMarkers = Boolean(source.outlineMarkers);
 		this.referenceInfos = Boolean(source.referenceInfos);
 		this.folding = Boolean(source.folding);
 	}
@@ -866,7 +858,6 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.selectionHighlight === other.selectionHighlight
-			&& this.outlineMarkers === other.outlineMarkers
 			&& this.referenceInfos === other.referenceInfos
 			&& this.folding === other.folding
 		);
