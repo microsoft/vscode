@@ -263,7 +263,8 @@ function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean)
 			realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
 		}
 
-		if (!paths.isValidBasename(path.basename(realPath))) {
+		const basename = path.basename(realPath);
+		if (basename /* can be empty if code is opened on root */ && !paths.isValidBasename(basename)) {
 			return null; // do not allow invalid file names
 		}
 
