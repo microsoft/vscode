@@ -818,9 +818,11 @@ export class SearchViewlet extends Viewlet {
 				}
 			} else {
 				this.viewModel.toggleHighlights(true); // show highlights
-
+				let message = nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.count(), this.viewModel.fileCount());
+				this.showMessage(message);
+				this.reLayout();
 				// Indicate as status to ARIA
-				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.count(), this.viewModel.fileCount()));
+				aria.status(message);
 			}
 
 			doneTimer.stop();
