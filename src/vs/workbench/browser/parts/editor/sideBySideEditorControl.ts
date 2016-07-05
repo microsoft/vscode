@@ -1001,10 +1001,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					destroyOverlay(); // somehow we managed to move the mouse quickly out of the current overlay, so destroy it
 				}
 				createOverlay(target);
-
-				if (overlay) {
-					DOM.addClass(node, 'dropfeedback');
-				}
 			}
 		}));
 
