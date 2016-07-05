@@ -44,7 +44,7 @@ let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtens
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
 	linux: {
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
+		primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
 	}
 }), 'View: Toggle Output', nls.localize('viewCategory', "View"));
 
