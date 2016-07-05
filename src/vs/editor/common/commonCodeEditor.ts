@@ -160,7 +160,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			this._editorTabMovesFocusKey.set(true);
 		}
 		this._editorReadonly.set(this._configuration.editor.readOnly);
-		this._lifetimeDispose.push(this._configuration.onDidChange((e) => this.emit(editorCommon.EventType.ConfigurationChanged, e)));
+		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
+			if (this._configuration.editor.tabFocusMode) {
+				this._editorTabMovesFocusKey.set(true);
+			} else {
+				this._editorTabMovesFocusKey.reset();
+			}
+			this.emit(editorCommon.EventType.ConfigurationChanged, e);
+		}));
 
 		this._telemetryService = telemetryService;
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IKeybindingService, this._keybindingService]));
@@ -215,11 +222,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
 		this._configuration.updateOptions(newOptions);
-		if (this._configuration.editor.tabFocusMode) {
-			this._editorTabMovesFocusKey.set(true);
-		} else {
-			this._editorTabMovesFocusKey.reset();
-		}
 		this._editorReadonly.set(this._configuration.editor.readOnly);
 	}
 

@@ -1182,13 +1182,6 @@ declare module monaco.editor {
          */
         wordWrapBreakObtrusiveCharacters?: string;
         /**
-         * Control what pressing Tab does.
-         * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
-         * If it is true, pressing Tab or Shift-Tab will move the browser focus.
-         * Defaults to false.
-         */
-        tabFocusMode?: boolean;
-        /**
          * Performance guard: Stop rendering a line after x characters.
          * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
          * Use -1 to never stop rendering

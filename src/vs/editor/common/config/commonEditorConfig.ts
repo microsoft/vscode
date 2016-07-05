@@ -56,6 +56,38 @@ export const EditorZoom: IEditorZoom = new class {
 };
 
 /**
+ * Control what pressing Tab does.
+ * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
+ * If it is true, pressing Tab or Shift-Tab will move the browser focus.
+ * Defaults to false.
+ */
+export interface ITabFocus {
+	onDidChangeTabFocus:Event<boolean>;
+	getTabFocusMode(): boolean;
+	setTabFocusMode(tabFocusMode:boolean): void;
+}
+
+export const TabFocus: ITabFocus = new class {
+	private _tabFocus: boolean = false;
+
+	private _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
+	public onDidChangeTabFocus:Event<boolean> = this._onDidChangeTabFocus.event;
+
+	public getTabFocusMode(): boolean {
+		return this._tabFocus;
+	}
+
+	public setTabFocusMode(tabFocusMode:boolean): void {
+		if (this._tabFocus === tabFocusMode) {
+			return;
+		}
+
+		this._tabFocus = tabFocusMode;
+		this._onDidChangeTabFocus.fire(this._tabFocus);
+	}
+};
+
+/**
  * Experimental screen reader support toggle
  */
 export class GlobalScreenReaderNVDA {
@@ -188,7 +220,7 @@ class InternalEditorOptionsHelper {
 
 		let readOnly = toBoolean(opts.readOnly);
 
-		let tabFocusMode = toBoolean(opts.tabFocusMode);
+		let tabFocusMode = TabFocus.getTabFocusMode();
 		if (readOnly) {
 			tabFocusMode = true;
 		}
@@ -390,6 +422,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this.editor = this._computeInternalOptions();
 		this.editorClone = this.editor.clone();
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
 	public dispose(): void {
