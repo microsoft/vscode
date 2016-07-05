@@ -1518,24 +1518,29 @@ export class OneCursorOp {
 
 			ctx.isAutoWhitespaceCommand = true;
 
-			let typeText = '';
 
-			if (cursor.model.getLineMaxColumn(selection.startLineNumber) === 1) {
-				// Line is empty => indent straight to the right place
-				typeText = cursor.model.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
-			} else {
-				let position = cursor.getPosition();
-				let modelOpts = cursor.model.getOptions();
-				if (modelOpts.insertSpaces) {
-					let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
-					let tabSize = modelOpts.tabSize;
-					let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
-					for (let i = 0; i < spacesCnt; i++) {
-						typeText += ' ';
-					}
-				} else {
-					typeText = '\t';
+			let lineText = cursor.model.getLineContent(selection.startLineNumber);
+
+			if (/^\s*$/.test(lineText)) {
+				let possibleTypeText = cursor.model.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
+				if (!strings.startsWith(lineText, possibleTypeText)) {
+					ctx.executeCommand = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText);
+					return true;
 				}
+			}
+
+			let typeText = '';
+			let position = cursor.getPosition();
+			let modelOpts = cursor.model.getOptions();
+			if (modelOpts.insertSpaces) {
+				let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
+				let tabSize = modelOpts.tabSize;
+				let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
+				for (let i = 0; i < spacesCnt; i++) {
+					typeText += ' ';
+				}
+			} else {
+				typeText = '\t';
 			}
 
 			ctx.executeCommand = new ReplaceCommand(selection, typeText);
