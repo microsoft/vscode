@@ -12,6 +12,7 @@ import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceActio
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ITerminalProcess, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
@@ -38,7 +39,8 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
 	}
@@ -128,7 +130,7 @@ export class TerminalPanel extends Panel {
 
 	private createTerminal(terminalProcess: ITerminalProcess): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
-			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this));
+			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextService, this.terminalService, this.messageService, this.onTerminalInstanceExit.bind(this));
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
