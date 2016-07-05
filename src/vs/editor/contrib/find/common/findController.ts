@@ -343,16 +343,14 @@ export interface IMultiCursorFindResult {
 	matchCase:boolean;
 	wholeWord:boolean;
 
-	nextMatch: Selection;
-	previousMatch: Selection;
+	currentMatch: Selection;
 }
 
 function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearchString:boolean): IMultiCursorFindResult {
 	let controller = CommonFindController.getFindController(editor);
 	let state = controller.getState();
-	let searchText: string,
-		nextMatch: Selection,
-		previousMatch: Selection;
+	let searchText: string;
+	let currentMatch: Selection;
 
 	// In any case, if the find widget was ever opened, the options are taken from it
 	let wholeWord = state.wholeWord;
@@ -381,8 +379,7 @@ function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearch
 				return null;
 			}
 			searchText = word.word;
-			nextMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
-			previousMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
+			currentMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
 		} else {
 			searchText = editor.getModel().getValueInRange(s);
 		}
@@ -395,8 +392,7 @@ function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearch
 		searchText: searchText,
 		matchCase: matchCase,
 		wholeWord: wholeWord,
-		nextMatch: nextMatch,
-		previousMatch: previousMatch
+		currentMatch: currentMatch
 	};
 }
 
@@ -410,8 +406,8 @@ export class SelectNextFindMatchAction extends EditorAction {
 		if (!r) {
 			return null;
 		}
-		if (r.nextMatch) {
-			return r.nextMatch;
+		if (r.currentMatch) {
+			return r.currentMatch;
 		}
 
 		let allSelections = this.editor.getSelections();
@@ -437,8 +433,8 @@ export class SelectPreviousFindMatchAction extends EditorAction {
 		if (!r) {
 			return null;
 		}
-		if (r.previousMatch) {
-			return r.previousMatch;
+		if (r.currentMatch) {
+			return r.currentMatch;
 		}
 
 		let allSelections = this.editor.getSelections();
@@ -641,7 +637,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 		let hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
-		if (r.nextMatch) {
+		if (r.currentMatch) {
 			// This is an empty selection
 			if (hasFindOccurences) {
 				// Do not interfere with semantic word highlighting in the no selection case
@@ -649,7 +645,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 				return;
 			}
 
-			this.lastWordUnderCursor = r.nextMatch;
+			this.lastWordUnderCursor = r.currentMatch;
 		}
 		if (/^[ \t]+$/.test(r.searchText)) {
 			// whitespace only selection
@@ -774,7 +770,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveSelecti
 }, 'Move Last Selection To Next Find Match'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveSelectionToPreviousFindMatchAction, MoveSelectionToPreviousFindMatchAction.ID, nls.localize('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"), {
 	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_Y)
+	primary: 0
 }, 'Move Last Selection To Previous Find Match'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectionToNextFindMatchAction, AddSelectionToNextFindMatchAction.ID, nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"), {
@@ -783,7 +779,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectio
 }, 'Add Selection To Next Find Match'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectionToPreviousFindMatchAction, AddSelectionToPreviousFindMatchAction.ID, nls.localize('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"), {
 	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_Y
+	primary: 0
 }, 'Add Selection To Previous Find Match'));
 
 function registerFindCommand(id:string, callback:(controller:CommonFindController)=>void, keybindings:IKeybindings, needsKey:string = null): void {
