@@ -12,6 +12,7 @@ import labels = require('vs/base/common/labels');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import strings = require('vs/base/common/strings');
+import {EditorOptions} from 'vs/workbench/common/editor';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
@@ -65,8 +66,8 @@ export class BaseTwoEditorsAction extends Action {
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then((typedRightHandEditableInput) => {
 				const editors = [
-					{ input: leftHandDefaultInput, position: Position.LEFT },
-					{ input: typedRightHandEditableInput, position: Position.CENTER }
+					{ input: leftHandDefaultInput, position: Position.LEFT, options: { pinned: true } },
+					{ input: typedRightHandEditableInput, position: Position.CENTER, options: { pinned: true } }
 				];
 
 				return this.editorService.openEditors(editors).then(() => {
@@ -139,7 +140,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
 						return this.editorService.createInput({ resource: this.contextService.toResource('.vscode/settings.json') }).then((typedInput) => {
-							return this.editorService.openEditor(typedInput, null, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
+							return this.editorService.openEditor(typedInput, EditorOptions.create({ pinned: true }), editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
 					})
 				]
