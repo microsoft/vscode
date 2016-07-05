@@ -11,20 +11,24 @@ import { AbstractSystemVariables } from 'vs/base/common/parsers';
 import * as WorkbenchEditorCommon from 'vs/workbench/common/editor';
 
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class SystemVariables extends AbstractSystemVariables {
 	private _workspaceRoot: string;
 	private _execPath: string;
 
 	// Optional workspaceRoot there to be used in tests.
-	constructor(private editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService, workspaceRoot: URI = null) {
+	// Optional processEnvVariables there to be used in tests.
+	constructor(private editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService, workspaceRoot: URI = null, processEnvVariables: { [key: string]: string } = process.env) {
 		super();
-		let fsPath = workspaceRoot ? workspaceRoot.fsPath : contextService.getWorkspace().resource.fsPath;
-		this._workspaceRoot = Paths.normalize(fsPath, true);
-		this._execPath = contextService ? contextService.getConfiguration().env.execPath : null;
-		Object.keys(process.env).forEach(key => {
-			this[`env.${ key }`] = process.env[key];
+		let fsPath = '';
+		if (workspaceRoot || contextService) {
+			fsPath = workspaceRoot ? workspaceRoot.fsPath : contextService.getWorkspace().resource.fsPath;
+			this._workspaceRoot = Paths.normalize(fsPath, true);
+		}
+		this._execPath = contextService && contextService.getConfiguration().env ? contextService.getConfiguration().env.execPath : null;
+		Object.keys(processEnvVariables).forEach(key => {
+			this[`env.${key}`] = processEnvVariables[key];
 		});
 	}
 
@@ -61,6 +65,9 @@ export class SystemVariables extends AbstractSystemVariables {
 	}
 
 	private getFilePath(): string {
+		if (!this.editorService) {
+			return '';
+		}
 		let input = this.editorService.getActiveEditorInput();
 		if (!input) {
 			return '';

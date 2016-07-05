@@ -21,6 +21,7 @@ import {IConfigurationRegistry, Extensions} from './configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 import Event, {Emitter} from 'vs/base/common/event';
 import {JSONPath} from 'vs/base/common/json';
+import {SystemVariables} from "vs/workbench/parts/lib/node/systemVariables";
 
 
 // ---- service abstract implementation
@@ -42,7 +43,7 @@ interface ILoadConfigResult {
 }
 
 export abstract class ConfigurationService implements IConfigurationService, IDisposable {
-
+	private systemVariables: SystemVariables;
 	public serviceId = IConfigurationService;
 
 	private static RELOAD_CONFIGURATION_DELAY = 50;
@@ -61,7 +62,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, workspaceSettingsRootFolder: string = '.vscode') {
-
+		this.systemVariables = new SystemVariables(null, contextService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 
@@ -156,7 +157,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 				parseErrors
 			};
 		}).then((res: ILoadConfigResult) => {
-			this.cachedConfig = res;
+			this.cachedConfig.config = this.systemVariables.resolveAny(res.config);
 
 			return this.getConfiguration(section);
 		});
@@ -206,7 +207,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 		// configuration defaults. since we already loaded the merged set of configuration (defaults < global < workspace),
 		// we want to update the defaults with the new values. So we take our cached config and mix it into the new
 		// defaults that we got, overwriting any value present.
-		this.cachedConfig.config = objects.mixin(objects.clone(model.getDefaultValues()), this.cachedConfig.config, true /* overwrite */);
+		this.cachedConfig.config = this.systemVariables.resolveAny(objects.mixin(objects.clone(model.getDefaultValues()), this.cachedConfig.config, true /* overwrite */));
 
 		// emit this as update to listeners
 		this._onDidUpdateConfiguration.fire({ config: this.cachedConfig.config });

@@ -39,7 +39,6 @@ import vscode = require('vscode');
 import * as paths from 'vs/base/common/paths';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {MainContext, ExtHostContext, InstanceCollection} from './extHostProtocol';
-import {SystemVariables} from "vs/workbench/parts/lib/node/systemVariables";
 
 /**
  * This class implements the API described in vscode.d.ts,
@@ -94,13 +93,11 @@ export class ExtHostAPIImplementation {
 	) {
 		// Addressable instances
 		const col = new InstanceCollection();
-		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 
 		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService));
 		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
 		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors));
-		let systemVariables = new SystemVariables(null, null, URI.file(workspacePath));
- 		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(systemVariables));
+		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration());
 		const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
 		const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostDiagnostics));
 		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
@@ -118,6 +115,7 @@ export class ExtHostAPIImplementation {
 		const extHostMessageService = new ExtHostMessageService(threadService);
 		const extHostStatusBar = new ExtHostStatusBar(threadService);
 		const extHostOutputService = new ExtHostOutputService(threadService);
+		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 		const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 		const languages = new ExtHostLanguages(threadService);
 
@@ -315,7 +313,7 @@ export class ExtHostAPIImplementation {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
 			getConfiguration: (section?: string):vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration(section, true);
+				return extHostConfiguration.getConfiguration(section);
 			}
 		});
 

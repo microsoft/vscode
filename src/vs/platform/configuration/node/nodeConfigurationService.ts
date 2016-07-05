@@ -16,6 +16,7 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import {SystemVariables} from "vs/workbench/parts/lib/node/systemVariables";
 
 /**
  * Configuration service to be used in the node side.
@@ -27,7 +28,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
  * much easier to implement and reason about. IConfigurationService2?
  */
 export class NodeConfigurationService implements IConfigurationService, IDisposable {
-
+	private systemVariables: SystemVariables;
 	serviceId = IConfigurationService;
 
 	private configurationPath: string;
@@ -44,6 +45,7 @@ export class NodeConfigurationService implements IConfigurationService, IDisposa
 	) {
 		this.cache = {};
 		this.disposables = [];
+		this.systemVariables = new SystemVariables(null, null);
 
 		this.delayer = new Delayer<void>(300);
 
@@ -110,7 +112,7 @@ export class NodeConfigurationService implements IConfigurationService, IDisposa
 		}
 
 		try {
-			this.cache = parse(content) || {};
+			this.cache = this.systemVariables.resolveAny(parse(content)) || {};
 		} catch (error) {
 			// noop
 		}

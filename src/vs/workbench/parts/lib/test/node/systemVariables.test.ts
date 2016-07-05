@@ -28,4 +28,13 @@ suite('SystemVariables tests', () => {
 			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${workspaceRoot}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
 		}
 	});
+
+	test('SystemVariables: substitute env variables', () => {
+		let systemVariables: SystemVariables = new SystemVariables(null, null, URI.parse('file:///VSCode/workspaceLocation'), {VALUE1 : 'Sample Value 1', Value2 : 'Sample Value 2'});
+		if (Platform.isWindows) {
+			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${env.VALUE1} - ${env.Value2}'), '\\VSCode\\workspaceLocation - Sample Value 1 - Sample Value 2');
+		} else {
+			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${env.VALUE1} - ${env.Value2}'), '/VSCode/workspaceLocation - Sample Value 1 - Sample Value 2');
+		}
+	});
 });
