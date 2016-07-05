@@ -626,21 +626,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		let entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			entries = JSON.parse(entriesRaw);
-		} else {
-			// TODO@Ben migration
-			try {
-				const oldMementoRaw = this.storageService.get('memento/workbench.component.quickopen', StorageScope.WORKSPACE);
-				if (oldMementoRaw) {
-					const oldMemento = JSON.parse(oldMementoRaw);
-					const oldEntries = oldMemento['quickopen.editorhistory'].entries;
-
-					if (oldEntries) {
-						entries = oldEntries;
-					}
-				}
-			} catch (error) {
-				console.error(error);
-			}
 		}
 
 		this.history = entries.map(entry => {
