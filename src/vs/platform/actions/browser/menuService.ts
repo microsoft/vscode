@@ -181,14 +181,15 @@ class Menu implements IMenu {
 	}
 
 	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
-		let ret: number;
-		if (a.group && b.group) {
-			ret = Menu._compareGroupId(a.group, b.group);
+		if (a.group === b.group) {
+			return a.command.title.localeCompare(b.command.title);
+		} else if (!a.group) {
+			return 1;
+		} else if (!b.group) {
+			return -1;
+		} else {
+			return Menu._compareGroupId(a.group, b.group);
 		}
-		if (!ret) {
-			ret = a.command.title.localeCompare(b.command.title);
-		}
-		return ret;
 	}
 
 	private static _compareGroupId(a: string, b: string): number {
