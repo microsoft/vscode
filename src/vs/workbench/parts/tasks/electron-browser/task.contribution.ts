@@ -202,6 +202,7 @@ class ConfigureTaskRunnerAction extends Action {
 			return TPromise.as(undefined);
 		}
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
+		let configFileCreated = false;
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
 		}, (err:any) => {
@@ -247,6 +248,7 @@ class ConfigureTaskRunnerAction extends Action {
 					if (editorConfig.editor.insertSpaces) {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
+					configFileCreated = true;
 					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
 				});
 			});
@@ -258,7 +260,8 @@ class ConfigureTaskRunnerAction extends Action {
 			return this.editorService.openEditor({
 				resource: stat.resource,
 				options: {
-					forceOpen: true
+					forceOpen: true,
+					pinned: configFileCreated // pin only if config file is created #8727
 				}
 			}, sideBySide);
 		}, (error) => {

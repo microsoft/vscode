@@ -337,6 +337,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
 			this.getInitialConfigFileContent().then(content => {
@@ -344,10 +345,11 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					return false;
 				}
 
+				configFileCreated = true;
 				return this.fileService.updateContent(resource, content).then(() => true);
 			}
-		)).then(configFileCreated => {
-			if (!configFileCreated) {
+		)).then(errorFree => {
+			if (!errorFree) {
 				return false;
 			}
 			this.telemetryService.publicLog('debugConfigure');
@@ -355,8 +357,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return this.editorService.openEditor({
 				resource: resource,
 				options: {
-					forceOpen: true
-				}
+					forceOpen: true,
+					pinned: configFileCreated // pin only if config file is created #8727
+				},
 			}, sideBySide).then(() => true);
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
