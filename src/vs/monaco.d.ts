@@ -2739,6 +2739,11 @@ declare module monaco.editor {
     export const KEYBINDING_CONTEXT_EDITOR_FOCUS: string;
 
     /**
+     * A context key that is set when the editor's text is readonly.
+     */
+    export const KEYBINDING_CONTEXT_EDITOR_READONLY: string;
+
+    /**
      * A context key that is set when the editor has multiple selections (multiple cursors).
      */
     export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: string;
