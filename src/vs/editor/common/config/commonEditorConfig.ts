@@ -230,7 +230,6 @@ class InternalEditorOptionsHelper {
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			selectionHighlight: toBoolean(opts.selectionHighlight),
-			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
 			folding: toBoolean(opts.folding),
 		});
@@ -663,11 +662,6 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.selectionHighlight,
 			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight similar matches to the selection")
 		},
-//		'editor.outlineMarkers' : {
-//			'type': 'boolean',
-//			'default': DefaultConfig.editor.outlineMarkers,
-//			'description': nls.localize('outlineMarkers', "Controls whether the editor should draw horizontal lines before classes and methods")
-//		},
 		'editor.overviewRulerLanes' : {
 			'type': 'integer',
 			'default': 3,
