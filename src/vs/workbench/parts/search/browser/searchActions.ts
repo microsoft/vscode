@@ -131,7 +131,7 @@ export class RemoveAction extends Action {
 		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
 	}
 
-	public run(completely:boolean= true): TPromise<any> {
+	public run(): TPromise<any> {
 		if (this.element === this.viewer.getFocus()) {
 			let nextFocusElement= this.getNextFocusElement();
 			if (nextFocusElement) {
@@ -148,7 +148,7 @@ export class RemoveAction extends Action {
 			elementToRefresh= parent;
 		} else {
 			let parent: FileMatch= <FileMatch>this.element.parent();
-			parent.remove(<Match>this.element, completely);
+			parent.remove(<Match>this.element);
 			elementToRefresh= parent.count() === 0 ? parent.parent() : parent;
 		}
 
@@ -185,8 +185,7 @@ export class ReplaceAllAction extends Action {
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replaceAll.action.selected');
-		return this.replaceService.replace([this.fileMatch], this.fileMatch.parent().replaceText).then(() => {
-			new RemoveAction(this.viewer, this.fileMatch).run();
+		return this.fileMatch.parent().replace(this.fileMatch, this.fileMatch.parent().searchModel.replaceText).then(() => {
 			this.viewlet.open(this.fileMatch);
 		});
 	}
@@ -207,8 +206,7 @@ export class ReplaceAction extends Action {
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replace.action.selected');
-		return this.replaceService.replace(this.element, this.element.parent().parent().replaceText).then(() => {
-			new RemoveAction(this.viewer, this.element).run(false);
+		return this.element.parent().replace(this.element, this.element.parent().parent().searchModel.replaceText).then(() => {
 			this.viewlet.open(this.element);
 		});
 	}

@@ -91,19 +91,21 @@ class SearchActionProvider extends ContributableActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return element instanceof FileMatch || (tree.getInput().isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
+		let input= <SearchResult>tree.getInput();
+		return element instanceof FileMatch || (input.searchModel.isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
 		return super.getActions(tree, element).then(actions => {
+			let input= <SearchResult>tree.getInput();
 			if (element instanceof FileMatch) {
 				actions.unshift(new RemoveAction(tree, element));
-				if (tree.getInput().isReplaceActive() && element.count() > 0) {
+				if (input.searchModel.isReplaceActive() && element.count() > 0) {
 					actions.unshift(this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet));
 				}
 			}
 			if (element instanceof Match && !(element instanceof EmptyMatch)) {
-				if (tree.getInput().isReplaceActive()) {
+				if (input.searchModel.isReplaceActive()) {
 					actions.unshift(this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet), new RemoveAction(tree, element));
 				}
 			}
@@ -173,12 +175,12 @@ export class SearchRenderer extends ActionsRenderer {
 			elements.push(strings.escape(preview.before));
 
 			let input= <SearchResult>tree.getInput();
-			let showReplaceText= input.hasReplaceText();
+			let showReplaceText= input.searchModel.hasReplaceText();
 			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
 			elements.push(strings.escape(preview.inside));
 			if (showReplaceText) {
 				elements.push('</span><span class="replaceMatch">');
-				elements.push(strings.escape(input.replaceText));
+				elements.push(strings.escape(input.searchModel.replaceText));
 			}
 			elements.push('</span><span>');
 			elements.push(strings.escape(preview.after));
@@ -186,7 +188,7 @@ export class SearchRenderer extends ActionsRenderer {
 
 			$('a.plain')
 				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + (input.isReplaceActive() ? input.replaceText : preview.inside) + preview.after).trim().substr(0, 999))
+				.title((preview.before + (input.searchModel.isReplaceActive() ? input.searchModel.replaceText : preview.inside) + preview.after).trim().substr(0, 999))
 				.appendTo(domElement);
 		}
 
@@ -212,9 +214,9 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 		if (element instanceof Match) {
 			let input= <SearchResult>tree.getInput();
-			if (input.isReplaceActive()) {
+			if (input.searchModel.isReplaceActive()) {
 				let preview = element.preview();
-				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + input.replaceText + preview.after);
+				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + input.searchModel.replaceText + preview.after);
 			}
 			return nls.localize('searchResultAria', "{0}, Search result", element.text());
 		}
@@ -248,10 +250,11 @@ export class SearchController extends DefaultController {
 	}
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
+		let input= <SearchResult>tree.getInput();
 		let result = false;
 		let element = tree.getFocus();
 		if (element instanceof FileMatch ||
-				(element instanceof Match && tree.getInput().isReplaceActive() && !(element instanceof EmptyMatch))) {
+				(element instanceof Match && input.searchModel.isReplaceActive() && !(element instanceof EmptyMatch))) {
 			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
 			result = true;
 		}
@@ -260,9 +263,10 @@ export class SearchController extends DefaultController {
 	}
 
 	private onReplace(tree: ITree, event: IKeyboardEvent): boolean {
+		let input= <SearchResult>tree.getInput();
 		let result = false;
 		let element = tree.getFocus();
-		if (element instanceof Match && tree.getInput().isReplaceActive() && !(element instanceof EmptyMatch)) {
+		if (element instanceof Match && input.searchModel.isReplaceActive() && !(element instanceof EmptyMatch)) {
 			this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
 			result = true;
 		}

@@ -6,49 +6,29 @@
 
 import * as assert from 'assert';
 import {Match, FileMatch, SearchResult, EmptyMatch} from 'vs/workbench/parts/search/common/searchModel';
-import {Model} from 'vs/editor/common/model/model';
-import {Emitter} from 'vs/base/common/event';
-import {IModel} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IFileMatch} from 'vs/platform/search/common/search';
+import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
 
-function toUri(path: string): URI {
-	return URI.file('C:\\' + path);
+function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ILineMatch[]): FileMatch {
+	let rawMatch: IFileMatch= {
+		resource: URI.file('C:\\' + path),
+		lineMatches: lineMatches
+	};
+	return new FileMatch(null, searchResult, rawMatch, null, null);
 }
 
 suite('Search - Model', () => {
 	let instantiation: IInstantiationService;
-	let oneModel: IModel;
 
 	setup(() => {
-		let emitter = new Emitter<any>();
-
-		oneModel = Model.createFromString('line1\nline2\nline3', undefined, undefined, URI.parse('file:///folder/file.txt'));
-		let services = new ServiceCollection();
-		services.set(IWorkspaceContextService, new TestContextService());
-		services.set(IRequestService, <any>{
-			getRequestUrl: () => 'file:///folder/file.txt'
-		});
-		services.set(IModelService, <any>{
-			getModel: () => oneModel,
-			onModelAdded: emitter.event
-		});
-		instantiation = new InstantiationService(services);
-	});
-
-	teardown(() => {
-		oneModel.dispose();
+		instantiation = new InstantiationService(new ServiceCollection());
 	});
 
 	test('Line Match', function () {
-		let fileMatch = new FileMatch(null, toUri('folder\\file.txt'));
+		let fileMatch = aFileMatch('folder\\file.txt');
 		let lineMatch = new Match(fileMatch, 'foo bar', 1, 0, 3);
 		assert.equal(lineMatch.text(), 'foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
@@ -58,24 +38,24 @@ suite('Search - Model', () => {
 	});
 
 	test('Line Match - Remove', function () {
-
-		let fileMatch = new FileMatch(null, toUri('folder\\file.txt'));
-		let lineMatch = new Match(fileMatch, 'foo bar', 1, 0, 3);
-		fileMatch.add(lineMatch);
-		assert.equal(fileMatch.matches().length, 1);
+		let fileMatch = aFileMatch('folder\\file.txt', null, ...[{
+					preview: 'foo bar',
+					lineNumber: 1,
+					offsetAndLengths: [[0, 3]]
+		}]);
+		let lineMatch = fileMatch.matches()[0];
 		fileMatch.remove(lineMatch);
 		assert.equal(fileMatch.matches().length, 1);
 		assert.ok(fileMatch.matches()[0] instanceof EmptyMatch);
 	});
 
 	test('File Match', function () {
-
-		let fileMatch = new FileMatch(null, toUri('folder\\file.txt'));
+		let fileMatch = aFileMatch('folder\\file.txt');
 		assert.equal(fileMatch.matches(), 0);
 		assert.equal(fileMatch.resource().toString(), 'file:///c%3A/folder/file.txt');
 		assert.equal(fileMatch.name(), 'file.txt');
 
-		fileMatch = new FileMatch(null, toUri('file.txt'));
+		fileMatch = aFileMatch('file.txt');
 		assert.equal(fileMatch.matches(), 0);
 		assert.equal(fileMatch.resource().toString(), 'file:///c%3A/file.txt');
 		assert.equal(fileMatch.name(), 'file.txt');
@@ -97,7 +77,7 @@ suite('Search - Model', () => {
 				}]
 			});
 		}
-		searchResult.append(raw);
+		searchResult.add(null, raw);
 
 		assert.equal(searchResult.isEmpty(), false);
 		assert.equal(searchResult.matches().length, 10);
@@ -106,7 +86,7 @@ suite('Search - Model', () => {
 	test('Alle Drei Zusammen', function () {
 
 		let searchResult = instantiation.createInstance(SearchResult, null);
-		let fileMatch = new FileMatch(searchResult, toUri('far\\boo'));
+		let fileMatch = aFileMatch('far\\boo', searchResult);
 		let lineMatch = new Match(fileMatch, 'foo bar', 1, 0, 3);
 
 		assert(lineMatch.parent() === fileMatch);

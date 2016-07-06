@@ -8,33 +8,30 @@ import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchResultsView';
-import {TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
+import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
+
+function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ILineMatch[]): FileMatch {
+	let rawMatch: IFileMatch= {
+		resource: uri.file('C:\\' + path),
+		lineMatches: lineMatches
+	};
+	return new FileMatch(null, searchResult, rawMatch, null, null);
+}
 
 suite('Search - Viewlet', () => {
 	let instantiation: IInstantiationService;
 
 	setup(() => {
-		let services = new ServiceCollection();
-		services.set(IWorkspaceContextService, new TestContextService());
-		services.set(IRequestService, <any>{
-			getRequestUrl: () => 'file:///folder/file.txt'
-		});
-		services.set(IModelService, <any>{
-			getModel: () => null
-		});
-		instantiation = new InstantiationService(services);
+		instantiation = new InstantiationService(new ServiceCollection());
 	});
 
 	test('Data Source', function () {
 		let ds = new SearchDataSource();
 		let result = instantiation.createInstance(SearchResult, null);
-		result.append([{
+		result.add(null, [{
 			resource: uri.parse('file:///c:/foo'),
 			lineMatches: [{ lineNumber: 1, preview: 'bar', offsetAndLengths: [[0, 1]] }]
 		}]);
@@ -53,9 +50,9 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Sorter', function () {
-		let fileMatch1 = new FileMatch(null, uri.file('C:\\foo'));
-		let fileMatch2 = new FileMatch(null, uri.file('C:\\with\\path'));
-		let fileMatch3 = new FileMatch(null, uri.file('C:\\with\\path\\foo'));
+		let fileMatch1 = aFileMatch('C:\\foo');
+		let fileMatch2 = aFileMatch('C:\\with\\path');
+		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
 		let lineMatch1 = new Match(fileMatch1, 'bar', 1, 1, 1);
 		let lineMatch2 = new Match(fileMatch1, 'bar', 2, 1, 1);
 		let lineMatch3 = new Match(fileMatch1, 'bar', 2, 1, 1);
