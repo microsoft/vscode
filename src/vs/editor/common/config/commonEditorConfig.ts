@@ -237,7 +237,7 @@ class InternalEditorOptionsHelper {
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
 			roundedSelection: toBoolean(opts.roundedSelection),
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
-			cursorBlinking: opts.cursorBlinking,
+			cursorBlinking: cursorBlinkingStyleFromString(opts.cursorBlinking),
 			mouseWheelZoom: toBoolean(opts.mouseWheelZoom),
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
@@ -376,6 +376,23 @@ function cursorStyleFromString(cursorStyle:string): editorCommon.TextEditorCurso
 		return editorCommon.TextEditorCursorStyle.Underline;
 	}
 	return editorCommon.TextEditorCursorStyle.Line;
+}
+
+function cursorBlinkingStyleFromString(cursorBlinkingStyle: string): editorCommon.TextEditorCursorBlinkingStyle {
+	switch (cursorBlinkingStyle) {
+		case 'blink':
+			return editorCommon.TextEditorCursorBlinkingStyle.Blink;
+		case 'smooth':
+			return editorCommon.TextEditorCursorBlinkingStyle.Smooth;
+		case 'phase':
+			return editorCommon.TextEditorCursorBlinkingStyle.Phase;
+		case 'expand':
+			return editorCommon.TextEditorCursorBlinkingStyle.Expand;
+		case 'visible': // maintain compatibility
+		case 'solid':
+			return editorCommon.TextEditorCursorBlinkingStyle.Solid;
+	}
+	return editorCommon.TextEditorCursorBlinkingStyle.Blink;
 }
 
 function toIntegerWithDefault(source:any, defaultValue:number): number {
@@ -702,9 +719,9 @@ let editorConfiguration:IConfigurationNode = {
 		},
 		'editor.cursorBlinking' : {
 			'type': 'string',
-			'enum': ['blink', 'visible', 'hidden'],
+			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
 			'default': DefaultConfig.editor.cursorBlinking,
-			'description': nls.localize('cursorBlinking', "Controls the cursor blinking animation, accepted values are 'blink', 'visible', and 'hidden'")
+			'description': nls.localize('cursorBlinking', "Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'")
 		},
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
