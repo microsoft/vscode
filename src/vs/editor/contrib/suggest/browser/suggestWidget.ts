@@ -492,6 +492,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private setState(state: State): void {
+		if (!this.element) {
+			return;
+		}
+
 		const stateChanged = this.state !== state;
 		this.state = state;
 
