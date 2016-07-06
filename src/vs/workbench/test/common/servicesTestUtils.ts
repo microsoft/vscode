@@ -11,7 +11,7 @@ import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {NullTelemetryService, ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
-import {EditorInputEvent} from 'vs/workbench/common/editor';
+import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
@@ -385,15 +385,21 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onEditorsMoved.event;
 	}
 
-	public focusGroup(position: Position): void {
+	public focusGroup(group: IEditorGroup): void;
+	public focusGroup(position: Position): void;
+	public focusGroup(arg1: any): void {
 
 	}
 
-	public activateGroup(position: Position): void {
+	public activateGroup(group: IEditorGroup): void;
+	public activateGroup(position: Position): void;
+	public activateGroup(arg1: any): void {
 
 	}
 
-	public moveGroup(from: Position, to: Position): void {
+	public moveGroup(from: IEditorGroup, to: IEditorGroup): void;
+	public moveGroup(from: Position, to: Position): void;
+	public moveGroup(arg1: any, arg2: any): void {
 
 	}
 
@@ -401,13 +407,19 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	}
 
-	public pinEditor(position: Position, input: IEditorInput): void {
+	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
+	public pinEditor(position: Position, input: IEditorInput): void;
+	public pinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public unpinEditor(position: Position, input: IEditorInput): void {
+	public unpinEditor(group: IEditorGroup, input: IEditorInput): void;
+	public unpinEditor(position: Position, input: IEditorInput): void;
+	public unpinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
+	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number): void;
+	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
+	public moveEditor(input: IEditorInput, from: any, to: any, index?: number): void {
 	}
 
 	public getStacksModel(): EditorStacksModel {

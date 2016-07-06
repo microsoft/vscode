@@ -341,11 +341,11 @@ export class Controller extends treedefaults.DefaultController {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			const position = this.model.positionOfGroup(element.editorGroup);
 			if (pinEditor) {
-				this.editorGroupService.pinEditor(position, element.editorInput);
+				this.editorGroupService.pinEditor(element.editorGroup, element.editorInput);
 			}
-			this.editorGroupService.activateGroup(position);
+			this.editorGroupService.activateGroup(element.editorGroup);
 			this.editorService.openEditor(element.editorInput, { preserveFocus: !pinEditor }, position)
-				.done(() => this.editorGroupService.activateGroup(position), errors.onUnexpectedError);
+				.done(() => this.editorGroupService.activateGroup(element.editorGroup), errors.onUnexpectedError);
 		}
 	}
 }

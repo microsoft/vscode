@@ -156,11 +156,9 @@ export class TabsTitleControl extends TitleControl {
 					if (draggedEditor) {
 						DOM.EventHelper.stop(e, true);
 
-						const sourcePosition = this.stacks.positionOfGroup(draggedEditor.group);
-
 						// Move editor to target position and index
 						if (this.isMoveOperation(e, draggedEditor.group, group)) {
-							this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
+							this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
 						}
 
 						// Copy: just open editor at target index
@@ -452,7 +450,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
-			this.editorGroupService.pinEditor(position, editor);
+			this.editorGroupService.pinEditor(group, editor);
 		}));
 
 		// Context menu
@@ -499,11 +497,9 @@ export class TabsTitleControl extends TitleControl {
 			if (draggedEditor) {
 				DOM.EventHelper.stop(e, true);
 
-				const sourcePosition = this.stacks.positionOfGroup(draggedEditor.group);
-
 				// Move editor to target position and index
 				if (this.isMoveOperation(e, draggedEditor.group, group)) {
-					this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
+					this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
 				}
 
 				// Copy: just open editor at target index

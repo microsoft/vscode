@@ -7,7 +7,7 @@
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IEditorStacksModel} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
 import {EditorInputEvent} from 'vs/workbench/common/editor';
 
@@ -48,16 +48,19 @@ export interface IEditorGroupService {
 	/**
 	 * Keyboard focus the editor group at the provided position.
 	 */
+	focusGroup(group: IEditorGroup): void;
 	focusGroup(position: Position): void;
 
 	/**
 	 * Activate the editor group at the provided position without moving focus.
 	 */
+	activateGroup(group: IEditorGroup): void;
 	activateGroup(position: Position): void;
 
 	/**
 	 * Allows to move the editor group from one position to another.
 	 */
+	moveGroup(from: IEditorGroup, to: IEditorGroup): void;
 	moveGroup(from: Position, to: Position): void;
 
 	/**
@@ -68,16 +71,19 @@ export interface IEditorGroupService {
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.
 	 */
+	pinEditor(group: IEditorGroup, input: IEditorInput): void;
 	pinEditor(position: Position, input: IEditorInput): void;
 
 	/**
 	 * Removes the pinned state of an editor making it a preview editor.
 	 */
+	unpinEditor(group: IEditorGroup, input: IEditorInput): void;
 	unpinEditor(position: Position, input: IEditorInput): void;
 
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
 	 */
+	moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number): void;
 	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
 
 	/**
