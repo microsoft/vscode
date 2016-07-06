@@ -12,7 +12,7 @@ import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
 import {Registry} from 'vs/platform/platform';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {Extensions} from 'vs/workbench/common/editor';
 import {TestTextFileService, TestEventService, TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

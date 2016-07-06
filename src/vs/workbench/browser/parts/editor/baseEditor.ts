@@ -11,7 +11,7 @@ import types = require('vs/base/common/types');
 import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
 import {Panel} from 'vs/workbench/browser/panel';
-import {EditorInput, IFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, IFileEditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
 import {IEditor, Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
@@ -144,7 +144,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
  * A lightweight descriptor of an editor. The descriptor is deferred so that heavy editors
  * can load lazily in the workbench.
  */
-export class EditorDescriptor extends AsyncDescriptor<BaseEditor> {
+export class EditorDescriptor extends AsyncDescriptor<BaseEditor> implements IEditorDescriptor {
 	private id: string;
 	private name: string;
 
@@ -166,89 +166,6 @@ export class EditorDescriptor extends AsyncDescriptor<BaseEditor> {
 	public describes(obj: any): boolean {
 		return obj instanceof BaseEditor && (<BaseEditor>obj).getId() === this.id;
 	}
-}
-
-export const Extensions = {
-	Editors: 'workbench.contributions.editors'
-};
-
-export interface IEditorRegistry {
-
-	/**
-	 * Registers an editor to the platform for the given input type. The second parameter also supports an
-	 * array of input classes to be passed in. If the more than one editor is registered for the same editor
-	 * input, the input itself will be asked which editor it prefers if this method is provided. Otherwise
-	 * the first editor in the list will be returned.
-	 *
-	 * @param editorInputDescriptor a constructor function that returns an instance of EditorInput for which the
-	 * registered editor should be used for.
-	 */
-	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
-	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
-
-	/**
-	 * Returns the editor descriptor for the given input or null if none.
-	 */
-	getEditor(input: EditorInput): EditorDescriptor;
-
-	/**
-	 * Returns the editor descriptor for the given identifier or null if none.
-	 */
-	getEditorById(editorId: string): EditorDescriptor;
-
-	/**
-	 * Returns an array of registered editors known to the platform.
-	 */
-	getEditors(): EditorDescriptor[];
-
-	/**
-	 * Registers the default input to be used for files in the workbench.
-	 *
-	 * @param editorInputDescriptor a descriptor that resolves to an instance of EditorInput that
-	 * should be used to handle file inputs.
-	 */
-	registerDefaultFileInput(editorInputDescriptor: AsyncDescriptor<IFileEditorInput>): void;
-
-	/**
-	 * Returns a descriptor of the default input to be used for files in the workbench.
-	 *
-	 * @return a descriptor that resolves to an instance of EditorInput that should be used to handle
-	 * file inputs.
-	 */
-	getDefaultFileInput(): AsyncDescriptor<IFileEditorInput>;
-
-	/**
-	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
-	 * is capable of serializing and deserializing editor inputs from string data.
-	 *
-	 * @param editorInputId the identifier of the editor input
-	 * @param factory the editor input factory for serialization/deserialization
-	 */
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void;
-
-	/**
-	 * Returns the editor input factory for the given editor input.
-	 *
-	 * @param editorInputId the identifier of the editor input
-	 */
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory;
-
-	setInstantiationService(service: IInstantiationService): void;
-}
-
-export interface IEditorInputFactory {
-
-	/**
-	 * Returns a string representation of the provided editor input that contains enough information
-	 * to deserialize back to the original editor input from the deserialize() method.
-	 */
-	serialize(editorInput: EditorInput): string;
-
-	/**
-	 * Returns an editor input from the provided serialized form of the editor input. This form matches
-	 * the value returned from the serialize() method.
-	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput;
 }
 
 const INPUT_DESCRIPTORS_PROPERTY = '__$inputDescriptors';

@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor, Extensions, IEditorRegistry, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {EditorInput, EditorOptions, Extensions, IEditorRegistry, IEditorInputFactory} from 'vs/workbench/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import * as Platform from 'vs/platform/platform';
