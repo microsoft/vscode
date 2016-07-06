@@ -35,6 +35,7 @@ export interface ITerminalConfiguration {
 				osx: string[]
 			},
 			fontFamily: string,
+			fontLigatures: boolean,
 			fontSize: number,
 			lineHeight: number
 		}
