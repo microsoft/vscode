@@ -23,7 +23,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {EditorOptions, UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
@@ -344,7 +344,7 @@ export class Controller extends treedefaults.DefaultController {
 				this.editorGroupService.pinEditor(position, element.editorInput);
 			}
 			this.editorGroupService.activateGroup(position);
-			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus: !pinEditor }), position)
+			this.editorService.openEditor(element.editorInput, { preserveFocus: !pinEditor }, position)
 				.done(() => this.editorGroupService.activateGroup(position), errors.onUnexpectedError);
 		}
 	}

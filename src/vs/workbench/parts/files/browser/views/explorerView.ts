@@ -16,7 +16,6 @@ import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {EditorOptions} from 'vs/workbench/common/editor';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAction} from 'vs/workbench/parts/files/browser/fileActions';
@@ -308,7 +307,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 
 		// Otherwise open in active slot
-		return this.editorService.openEditor(input, keepFocus ? EditorOptions.create({ preserveFocus: true }) : void 0);
+		return this.editorService.openEditor(input, keepFocus ? { preserveFocus: true } : void 0);
 	}
 
 	private getActiveEditorInputResource(): URI {

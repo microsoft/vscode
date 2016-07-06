@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import arrays = require('vs/base/common/arrays');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {EditorInput, EditorOptions, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {Position} from 'vs/platform/editor/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -250,11 +250,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 					// Binary file: always update
 					else if (editor.getId() === BINARY_FILE_EDITOR_ID) {
-						let editorOptions = new EditorOptions();
-						editorOptions.forceOpen = true;
-						editorOptions.preserveFocus = true;
-
-						this.editorService.openEditor(editor.input, editorOptions, editor.position).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
 					}
 				}
 			}
@@ -316,17 +312,10 @@ export class FileTracker implements IWorkbenchContribution {
 						reopenFileResource = URI.file(paths.join(newResource.fsPath, inputResource.fsPath.substr(index + oldResource.fsPath.length + 1))); // update the path by changing the old path value to the new one
 					}
 
-					let editorInput: EditorInput;
-
-					let editorOptions = new EditorOptions();
-					editorOptions.preserveFocus = true;
-					editorOptions.pinned = group.isPinned(input);
-					editorOptions.index = group.indexOf(input);
-
 					// Reopen File Input
 					if (input instanceof FileEditorInput) {
-						editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-						this.editorService.openEditor(editorInput, editorOptions, editor.position).done(null, errors.onUnexpectedError);
+						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
+						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input) }, editor.position).done(null, errors.onUnexpectedError);
 					}
 				}
 			}

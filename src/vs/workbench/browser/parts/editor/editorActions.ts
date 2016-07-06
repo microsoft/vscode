@@ -236,7 +236,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 				// For now only support to open files from history to the side
 				if (!!getUntitledOrFileResource(input)) {
-					return this.editorService.openEditor(input, EditorOptions.create({ pinned: true }), this.getTargetEditorSide());
+					return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
 				}
 			}
 		}
@@ -909,7 +909,7 @@ export class ReopenClosedEditorAction extends Action {
 		}
 
 		if (lastClosedEditor) {
-			this.editorService.openEditor(lastClosedEditor, EditorOptions.create({ pinned: true }));
+			this.editorService.openEditor(lastClosedEditor, { pinned: true });
 		}
 
 		return TPromise.as(false);
