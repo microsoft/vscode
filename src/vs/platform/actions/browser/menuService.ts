@@ -149,12 +149,8 @@ class Menu implements IMenu {
 
 	private static _fillInKbExprKeys(exp: KbExpr, set: { [k: string]: boolean }): void {
 		if (exp) {
-			const parts = exp.serialize().split(' && ');
-			for (let part of parts) {
-				const m = /^\S+/.exec(part);
-				if (m) {
-					set[m[0]] = true;
-				}
+			for (let key of exp.keys()) {
+				set[key] = true;
 			}
 		}
 	}
