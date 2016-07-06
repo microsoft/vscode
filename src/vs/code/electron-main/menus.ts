@@ -463,11 +463,11 @@ export class VSCodeMenu {
 		});
 	}
 
-	private createRoleMenuItem(label: string, actionId: string, role: string): Electron.MenuItem {
+	private createRoleMenuItem(label: string, actionId: string, role: Electron.MenuItemRole): Electron.MenuItem {
 		let options: Electron.MenuItemOptions = {
 			label: mnemonicLabel(label),
 			accelerator: this.getAccelerator(actionId),
-			role: role,
+			role,
 			enabled: true
 		};
 
@@ -798,8 +798,8 @@ export class VSCodeMenu {
 					return;
 				}
 
-				if (windowInFocus.win.isDevToolsFocused()) {
-					devToolsFocusedFn(windowInFocus.win.devToolsWebContents);
+				if (windowInFocus.win.webContents.isDevToolsFocused()) {
+					devToolsFocusedFn(windowInFocus.win.webContents.devToolsWebContents);
 				} else {
 					this.windowsService.sendToFocused('vscode:runAction', actionId);
 				}

@@ -199,7 +199,7 @@ export class TextFileService extends AbstractTextFileService {
 			buttons.push(save, cancel, dontSave);
 		}
 
-		let opts: Electron.Dialog.ShowMessageBoxOptions = {
+		let opts: Electron.ShowMessageBoxOptions = {
 			title: this.contextService.getConfiguration().env.appName,
 			message: message.join('\n'),
 			type: 'warning',
@@ -401,8 +401,8 @@ export class TextFileService extends AbstractTextFileService {
 		return this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
-	private getSaveDialogOptions(defaultPath?: string): Electron.Dialog.SaveDialogOptions {
-		let options: Electron.Dialog.SaveDialogOptions = {
+	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {
+		let options: Electron.SaveDialogOptions = {
 			defaultPath: defaultPath
 		};
 

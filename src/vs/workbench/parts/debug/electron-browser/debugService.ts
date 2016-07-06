@@ -587,7 +587,7 @@ export class DebugService implements debug.IDebugService {
 						timeout: 1000 * 60 * 5,
 						args: [`${ publisher }.${ type }`, JSON.stringify(data), aiKey],
 						env: {
-							ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+							ELECTRON_RUN_AS_NODE: 1,
 							PIPE_LOGGING: 'true',
 							AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
 						}
