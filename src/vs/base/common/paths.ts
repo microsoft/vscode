@@ -228,10 +228,11 @@ export function getRoot(path: string, sep: string = '/'): string {
 	return '';
 }
 
-export function join(...parts: string[]): string {
+export const join: (...parts: string[]) => string = function () {
+
 	let value = '';
-	for (let i = 0; i < parts.length; i++) {
-		let part = parts[i];
+	for (let i = 0; i < arguments.length; i++) {
+		let part = arguments[i];
 		if (i > 0) {
 			// add the separater between two parts unless
 			// there already is one
@@ -248,7 +249,7 @@ export function join(...parts: string[]): string {
 	}
 
 	return normalize(value);
-}
+};
 
 
 /**
