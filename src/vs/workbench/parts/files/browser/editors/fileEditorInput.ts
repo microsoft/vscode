@@ -13,8 +13,7 @@ import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
-import {EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
-import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditorRegistry, Extensions, EditorModel, EncodingMode, ConfirmResult, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
@@ -195,7 +194,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		let editorRegistry = (<IEditorRegistry>Registry.as(Extensions.Editors));
 
 		// Lookup Editor by Mime
-		let descriptor: EditorDescriptor;
+		let descriptor: IEditorDescriptor;
 		let mimes = this.mime.split(',');
 		for (let m = 0; m < mimes.length; m++) {
 			let mime = strings.trim(mimes[m]);

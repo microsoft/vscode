@@ -14,11 +14,105 @@ import {IEditorInput, IEditorModel, IEditorOptions, IEditorOptionsBag, ITextEdit
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Event as BaseEvent} from 'vs/base/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 export enum ConfirmResult {
 	SAVE,
 	DONT_SAVE,
 	CANCEL
+}
+
+export interface IEditorDescriptor {
+
+	getId(): string;
+
+	getName(): string;
+
+	describes(obj: any): boolean;
+}
+
+export const Extensions = {
+	Editors: 'workbench.contributions.editors'
+};
+
+export interface IEditorRegistry {
+
+	/**
+	 * Registers an editor to the platform for the given input type. The second parameter also supports an
+	 * array of input classes to be passed in. If the more than one editor is registered for the same editor
+	 * input, the input itself will be asked which editor it prefers if this method is provided. Otherwise
+	 * the first editor in the list will be returned.
+	 *
+	 * @param editorInputDescriptor a constructor function that returns an instance of EditorInput for which the
+	 * registered editor should be used for.
+	 */
+	registerEditor(descriptor: IEditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
+	registerEditor(descriptor: IEditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
+
+	/**
+	 * Returns the editor descriptor for the given input or null if none.
+	 */
+	getEditor(input: EditorInput): IEditorDescriptor;
+
+	/**
+	 * Returns the editor descriptor for the given identifier or null if none.
+	 */
+	getEditorById(editorId: string): IEditorDescriptor;
+
+	/**
+	 * Returns an array of registered editors known to the platform.
+	 */
+	getEditors(): IEditorDescriptor[];
+
+	/**
+	 * Registers the default input to be used for files in the workbench.
+	 *
+	 * @param editorInputDescriptor a descriptor that resolves to an instance of EditorInput that
+	 * should be used to handle file inputs.
+	 */
+	registerDefaultFileInput(editorInputDescriptor: AsyncDescriptor<IFileEditorInput>): void;
+
+	/**
+	 * Returns a descriptor of the default input to be used for files in the workbench.
+	 *
+	 * @return a descriptor that resolves to an instance of EditorInput that should be used to handle
+	 * file inputs.
+	 */
+	getDefaultFileInput(): AsyncDescriptor<IFileEditorInput>;
+
+	/**
+	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
+	 * is capable of serializing and deserializing editor inputs from string data.
+	 *
+	 * @param editorInputId the identifier of the editor input
+	 * @param factory the editor input factory for serialization/deserialization
+	 */
+	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void;
+
+	/**
+	 * Returns the editor input factory for the given editor input.
+	 *
+	 * @param editorInputId the identifier of the editor input
+	 */
+	getEditorInputFactory(editorInputId: string): IEditorInputFactory;
+
+	setInstantiationService(service: IInstantiationService): void;
+}
+
+export interface IEditorInputFactory {
+
+	/**
+	 * Returns a string representation of the provided editor input that contains enough information
+	 * to deserialize back to the original editor input from the deserialize() method.
+	 */
+	serialize(editorInput: EditorInput): string;
+
+	/**
+	 * Returns an editor input from the provided serialized form of the editor input. This form matches
+	 * the value returned from the serialize() method.
+	 */
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput;
 }
 
 /**

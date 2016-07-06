@@ -19,8 +19,8 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
@@ -226,7 +226,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.doOpenEditor(position, descriptor, input, options, widthRatios);
 	}
 
-	private doOpenEditor(position: Position, descriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[]): TPromise<BaseEditor> {
+	private doOpenEditor(position: Position, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[]): TPromise<BaseEditor> {
 
 		// Update stacks: We do this early on before the UI is there because we want our stacks model to have
 		// a consistent view of the editor world and updating it later async after the UI is there will cause
@@ -267,7 +267,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doShowEditor(group: EditorGroup, descriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
+	private doShowEditor(group: EditorGroup, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
 		let position = this.stacks.positionOfGroup(group);
 		const editorAtPosition = this.visibleEditors[position];
 
@@ -310,7 +310,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}, (e: any) => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
 	}
 
-	private doCreateEditor(group: EditorGroup, descriptor: EditorDescriptor, monitor: ProgressMonitor): TPromise<BaseEditor> {
+	private doCreateEditor(group: EditorGroup, descriptor: IEditorDescriptor, monitor: ProgressMonitor): TPromise<BaseEditor> {
 		let position = this.stacks.positionOfGroup(group);
 
 		// We need the container for this editor now
@@ -354,7 +354,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doInstantiateEditor(group: EditorGroup, descriptor: EditorDescriptor): TPromise<BaseEditor> {
+	private doInstantiateEditor(group: EditorGroup, descriptor: IEditorDescriptor): TPromise<BaseEditor> {
 		let position = this.stacks.positionOfGroup(group);
 
 		// Return early if already instantiated
@@ -389,7 +389,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return TPromise.wrapError(arg);
 		};
 
-		let instantiateEditorPromise = editorInstantiationService.createInstance(descriptor).then(onInstantiate, onInstantiate);
+		let instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate, onInstantiate);
 
 		if (!loaded) {
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
