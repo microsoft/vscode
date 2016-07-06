@@ -17,7 +17,7 @@ export class EditorAccessor implements emmet.Editor {
 	editor: ICommonCodeEditor;
 	private _hasMadeEdits: boolean;
 
-	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'scss', 'stylus', 'xml', 'xsl', 'jade', 'handlebars', 'ejs', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig'];
+	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'scss', 'stylus', 'xml', 'xsl', 'jade', 'handlebars', 'ejs', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig', 'svg'];
 
 	constructor(editor: ICommonCodeEditor) {
 		this.editor = editor;
@@ -127,6 +127,10 @@ export class EditorAccessor implements emmet.Editor {
 		}
 		if (syntax === 'sass-indented') { // map sass-indented to sass
 			return 'sass';
+		}
+		let filename = this.getFilePath();
+		if (/\.svg$/.test(filename)) {
+			return 'svg';
 		}
 		return syntax;
 	}
