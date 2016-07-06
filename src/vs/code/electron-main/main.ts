@@ -285,11 +285,11 @@ interface IEnv {
 
 function getUnixUserEnvironment(): TPromise<IEnv> {
 	const promise = new TPromise((c, e) => {
-		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
 
 		const env = assign({}, process.env, {
-			ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1',
+			ELECTRON_RUN_AS_NODE: '1',
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
 		});
 
@@ -321,9 +321,9 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 				const env = JSON.parse(raw);
 
 				if (runAsNode) {
-					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;
+					env['ELECTRON_RUN_AS_NODE'] = runAsNode;
 				} else {
-					delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+					delete env['ELECTRON_RUN_AS_NODE'];
 				}
 
 				if (noAttach) {

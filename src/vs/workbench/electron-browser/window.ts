@@ -173,11 +173,11 @@ export class ElectronWindow {
 		ipc.send('vscode:reloadWindow', this.windowId);
 	}
 
-	public showMessageBox(options: Electron.Dialog.ShowMessageBoxOptions): number {
+	public showMessageBox(options: Electron.ShowMessageBoxOptions): number {
 		return dialog.showMessageBox(this.win, options);
 	}
 
-	public showSaveDialog(options: Electron.Dialog.SaveDialogOptions, callback?: (fileName: string) => void): string {
+	public showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
 		if (callback) {
 			return dialog.showSaveDialog(this.win, options, callback);
 		}

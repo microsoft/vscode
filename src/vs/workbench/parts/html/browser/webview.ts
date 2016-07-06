@@ -52,7 +52,7 @@ export default class Webview {
 	private _disposables: IDisposable[];
 
 	constructor(private _parent: HTMLElement, private _styleElement: Element, onDidClickLink:(uri:URI)=>any) {
-		this._webview = <WebviewElement>document.createElement('webview');
+		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
