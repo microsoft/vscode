@@ -9,9 +9,10 @@ import nls = require('vs/nls');
 
 import * as emmet from 'emmet';
 import {fileExists} from 'vs/base/node/pfs';
-import {dirname, join, normalize, isValidBasename, isEqualOrParent} from 'vs/base/common/paths';
+import {normalize, isValidBasename, isEqualOrParent} from 'vs/base/common/paths';
 
 import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
+import {FileAccessor, getFullPath} from 'vs/workbench/parts/emmet/node/fileAccessor';
 import {Action} from 'vs/base/common/actions';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -26,6 +27,8 @@ import {IFileService} from 'vs/platform/files/common/files';
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	static ID = 'editor.emmet.action.encodeDecodeDataUrl';
+
+	protected fileAccessor: FileAccessor = null;
 	private imageFilePath: string = null;
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
@@ -36,10 +39,6 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		@IFileService private fileService: IFileService) {
 		super(descriptor, editor, configurationService);
 	}
-
-	private createPath(parent: string, fileName: string): string {
-		return join(dirname(parent), fileName);
-	};
 
 	public runEmmetAction(_emmet: typeof emmet) {
 		const currentLine = this.editorAccessor.getCurrentLine();
@@ -61,8 +60,13 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 		const quickPromise = this.quickOpenService.input(options)
 			.then(path => {
+				if (path === undefined) {
+					quickPromise.cancel();
+				}
+
 				// The full path to a new file relative an open file in the editor
-				const fullpath = this.createPath(this.editorAccessor.getFilePath(), path);
+				const editorFile = this.editorAccessor.getFilePath();
+				const fullpath = getFullPath(editorFile, path);
 
 				if (!this.isValidInput(path, fullpath)) {
 					quickPromise.cancel();
@@ -90,29 +94,19 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			});
 	}
 
-	public encodeDecode(_emmet: any, filepath?: string) {
-		/*
-		 * This function implements a standard method *prompt*.
-		 *
-		 * Link to the original source code:
-		 * https://github.com/emmetio/emmet/blob/afafbd27efa48e386513bfabf65756a10f4929ef/lib/action/base64.js#L78-L83
-		 *
-		 * Unfortunately, Emmet gets the path from the user using the *prompt*
-		 * method, and does not allow pass the path explicitly. It is therefore
-		 * necessary to replace the method so as to have the possibility
-		 * to return the path already obtained by us.
-		 */
-		this.editorAccessor.prompt = (): string => filepath;
-		if (!_emmet.run('encode_decode_data_url', this.editorAccessor)) {
+	public encodeDecode(_emmet: typeof emmet, filepath?: string) {
+		// Create layer for working with files only when it is needed
+		this.fileAccessor = new FileAccessor(this.messageService, this.fileService);
+
+		// Setting layer Emmet for working with files
+		_emmet.file(this.fileAccessor.listOfMethods);
+
+		if (!_emmet.run('encode_decode_data_url', this.editorAccessor, filepath)) {
 			this.noExpansionOccurred();
 		}
 	}
 
 	private isValidInput(input: any, fullpath: string): boolean {
-		if (input === undefined) {
-			return false;
-		}
-
 		// If the user wants to save a file outside the current workspace
 		const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
 		if (!isEqualOrParent(fullpath, workspaceRoot)) {
