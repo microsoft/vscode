@@ -59,13 +59,15 @@ export function activate(context: ExtensionContext) {
 			blockComment: ['/*', '*/']
 		},
 		brackets: [['{', '}'], ['[', ']'], ['(', ')']],
-		autoClosingPairs: [
-			{ open: '{', close: '}' },
-			{ open: '[', close: ']' },
-			{ open: '(', close: ')' },
-			{ open: '"', close: '"', notIn: ['string'] },
-			{ open: '\'', close: '\'', notIn: ['string'] }
-		]
+		__characterPairSupport: {
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '"', close: '"', notIn: ['string'] },
+				{ open: '\'', close: '\'', notIn: ['string'] }
+			]
+		}
 	});
 
 	languages.setLanguageConfiguration('less', {
@@ -75,14 +77,16 @@ export function activate(context: ExtensionContext) {
 			lineComment: '//'
 		},
 		brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['<', '>']],
-		autoClosingPairs: [
-			{ open: '"', close: '"', notIn: ['string', 'comment'] },
-			{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-			{ open: '{', close: '}', notIn: ['string', 'comment'] },
-			{ open: '[', close: ']', notIn: ['string', 'comment'] },
-			{ open: '(', close: ')', notIn: ['string', 'comment'] },
-			{ open: '<', close: '>', notIn: ['string', 'comment'] },
-		]
+		__characterPairSupport: {
+			autoClosingPairs: [
+				{ open: '"', close: '"', notIn: ['string', 'comment'] },
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '{', close: '}', notIn: ['string', 'comment'] },
+				{ open: '[', close: ']', notIn: ['string', 'comment'] },
+				{ open: '(', close: ')', notIn: ['string', 'comment'] },
+				{ open: '<', close: '>', notIn: ['string', 'comment'] },
+			]
+		}
 	});
 
 	languages.setLanguageConfiguration('scss', {
@@ -92,14 +96,16 @@ export function activate(context: ExtensionContext) {
 			lineComment: '//'
 		},
 		brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['<', '>']],
-		autoClosingPairs: [
-			{ open: '"', close: '"', notIn: ['string', 'comment'] },
-			{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-			{ open: '{', close: '}', notIn: ['string', 'comment'] },
-			{ open: '[', close: ']', notIn: ['string', 'comment'] },
-			{ open: '(', close: ')', notIn: ['string', 'comment'] },
-			{ open: '<', close: '>', notIn: ['string', 'comment'] },
-		]
+		__characterPairSupport: {
+			autoClosingPairs: [
+				{ open: '"', close: '"', notIn: ['string', 'comment'] },
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '{', close: '}', notIn: ['string', 'comment'] },
+				{ open: '[', close: ']', notIn: ['string', 'comment'] },
+				{ open: '(', close: ')', notIn: ['string', 'comment'] },
+				{ open: '<', close: '>', notIn: ['string', 'comment'] },
+			]
+		}
 	});
 
 	commands.registerCommand('_css.applyCodeAction', applyCodeAction);

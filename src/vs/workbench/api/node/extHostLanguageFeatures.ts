@@ -837,12 +837,6 @@ export class ExtHostLanguageFeatures {
 			this._documents.setWordDefinitionFor(languageId, null);
 		}
 
-		// backward compatibility, migrate deprecated setting
-		if (configuration.__characterPairSupport && !configuration.autoClosingPairs) {
-			configuration.autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
-			delete configuration.__characterPairSupport;
-		}
-
 		const handle = this._nextHandle();
 		this._proxy.$setLanguageConfiguration(handle, languageId, configuration);
 		return this._createDisposable(handle);
