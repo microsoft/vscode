@@ -104,9 +104,7 @@ export class CombinedInstallAction extends Action {
 		this.uninstallAction = instantiationService.createInstance(UninstallAction, extension);
 		this.disposables.push(this.installAction, this.uninstallAction);
 
-		this.disposables.push(this.installAction.addListener2(Action.ENABLED, () => this.update()));
-		this.disposables.push(this.installAction.addListener2(Action.LABEL, () => this.update()));
-		this.disposables.push(this.uninstallAction.addListener2(Action.ENABLED, () => this.update()));
+		this.installAction.onDidChange(this.update, this, this.disposables);
 		this.update();
 	}
 
