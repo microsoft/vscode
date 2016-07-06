@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {Platform} from 'vs/base/common/platform';
 import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -93,12 +92,8 @@ export class TerminalConfigHelper {
 		private panelContainer: Builder) {
 	}
 
-	public getTerminalThemeId(themeId: string) {
-		return getBaseThemeId(themeId);
-	}
-
-	public getTheme(terminalThemeId: string): string[] {
-		return DEFAULT_ANSI_COLORS[terminalThemeId];
+	public getTheme(baseThemeId: string): string[] {
+		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
 	private measureFont(fontFamily: string, fontSize: string, lineHeight: string): ITerminalFont {
