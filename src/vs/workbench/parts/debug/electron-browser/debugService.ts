@@ -566,7 +566,7 @@ export class DebugService implements debug.IDebugService {
 			}))));
 	}
 
-	private doCreateSession(configuration: debug.IConfig): TPromise<any> {
+	private doCreateSession(configuration: debug.IExtHostConfig): TPromise<any> {
 		this.setStateAndEmit(debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
@@ -723,7 +723,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.setStateAndEmit(debug.State.Initializing);
-		const configuration = this.configurationManager.configuration;
+		const configuration = <debug.IExtHostConfig>this.configurationManager.configuration;
 		return this.doCreateSession({
 			type: configuration.type,
 			request: 'attach',

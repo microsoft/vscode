@@ -198,14 +198,17 @@ export interface IEnvConfig {
 	name?: string;
 	type: string;
 	request: string;
-	sourceMaps?: boolean;
-	outDir?: string;
 	internalConsoleOptions?: string;
-	port?: number;
 	preLaunchTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
 	silentlyAbort?: boolean;
+}
+
+export interface IExtHostConfig extends IEnvConfig {
+	port?: number;
+	sourceMaps?: boolean;
+	outDir?: string;
 }
 
 export interface IConfig extends IEnvConfig {
