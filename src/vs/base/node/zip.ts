@@ -38,11 +38,6 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	const targetFileName = path.join(targetPath, fileName);
-	
-	// directory file names end with '/'
-	if (/\/$/.test(fileName)) {
-        return mkdirp(targetFileName);
-    }
 
 	return mkdirp(targetDirName).then(() => new Promise((c, e) => {
 		let istream = createWriteStream(targetFileName, { mode });
@@ -65,8 +60,16 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Pr
 				return;
 			}
 
-			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+
+			// directory file names end with '/'
+			if (/\/$/.test(fileName)) {
+				const targetFileName = path.join(targetPath, fileName);
+				last = mkdirp(targetFileName);
+				return;
+			}
+
+			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const mode = modeFromEntry(entry);
 
 			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
