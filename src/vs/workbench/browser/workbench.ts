@@ -22,6 +22,7 @@ import {Identifiers} from 'vs/workbench/common/constants';
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
+import {IDecoratorRegistry, Extensions as DecoratorExtensions} from 'vs/workbench/parts/decorators/decoratorRegistry';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {TextEditorOptions, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {Part} from 'vs/workbench/browser/part';
@@ -403,6 +404,7 @@ export class Workbench implements IPartService {
 		<IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
 		<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
 		<IEditorRegistry>Registry.as(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
+		<IDecoratorRegistry>Registry.as(DecoratorExtensions.Decorators).setInstantiationService(this.instantiationService);
 	}
 
 	private initSettings(): void {

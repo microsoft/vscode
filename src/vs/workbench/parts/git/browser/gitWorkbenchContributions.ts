@@ -44,6 +44,9 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 
 import IGitService = git.IGitService;
 
+import {GitStatusTreeDecorator} from 'vs/workbench/parts/git/browser/gitStatusTreeDecorator';
+import {IDecoratorRegistry, Extensions as DecoratorExtensions} from 'vs/workbench/parts/decorators/decoratorRegistry';
+
 export class StatusUpdater implements ext.IWorkbenchContribution
 {
 	static ID = 'vs.git.statusUpdater';
@@ -540,4 +543,8 @@ export function registerContributions(): void {
 			}
 		}
 	});
+
+	platform.Registry.as<IDecoratorRegistry>(DecoratorExtensions.Decorators).registerDecorator(
+		GitStatusTreeDecorator
+	);
 }

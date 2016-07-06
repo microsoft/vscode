@@ -22,6 +22,7 @@ export class TreeContext implements _.ITreeContext {
 	public dataSource:_.IDataSource;
 	public renderer:_.IRenderer;
 	public controller:_.IController;
+	public decorator:_.IDecorator;
 	public dnd:_.IDragAndDrop;
 	public filter:_.IFilter;
 	public sorter:_.ISorter;
@@ -42,7 +43,12 @@ export class TreeContext implements _.ITreeContext {
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
 		this.sorter = configuration.sorter || null;
+		this.decorator = configuration.decorator || null;
 		this.accessibilityProvider = configuration.accessibilityProvider || new TreeDefaults.DefaultAccessibilityProvider();
+
+		if (this.decorator) {
+			this.decorator.onActivate(tree);
+		}
 	}
 }
 
@@ -326,6 +332,9 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		if (this.view !== null) {
 			this.view.dispose();
 			this.view = null;
+		}
+		if (this.context.decorator !== null) {
+			this.context.decorator.dispose();
 		}
 
 		super.dispose();
