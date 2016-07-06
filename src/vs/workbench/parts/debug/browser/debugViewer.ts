@@ -76,7 +76,7 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 
 	if (variable.value) {
 		renderExpressionValue(variable, data.value, showChanged, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
-		data.expression.title = variable.value;
+		data.value.title = variable.value;
 	} else {
 		data.value.textContent = '';
 		data.value.title = '';
