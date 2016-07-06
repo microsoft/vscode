@@ -107,10 +107,6 @@
 	background: url('pause.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.attach {
-	background: url('attach.svg') center center no-repeat;
-}
-
 .monaco-workbench .debug-action.stop {
 	background: url('stop.svg') center center no-repeat;
 }
