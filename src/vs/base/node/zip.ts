@@ -69,7 +69,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Pr
 	});
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions): Promise {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): Promise {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${ options.sourcePath }` : '');
 
 	let promise = nfcall<ZipFile>(openZip, zipPath);
