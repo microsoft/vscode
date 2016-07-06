@@ -8,6 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as Events from 'vs/base/common/events';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export interface IAction extends IDisposable {
 	id: string;
@@ -68,31 +69,40 @@ export interface IActionProvider {
 	getAction(id: string): IAction;
 }
 
-export class Action extends EventEmitter implements IAction {
+export interface IActionChangeEvent {
+	label?: string;
+	tooltip?: string;
+	class?: string;
+	enabled?: boolean;
+	checked?: boolean;
+}
 
-	static LABEL: string = 'label';
-	static TOOLTIP: string = 'tooltip';
-	static CLASS: string = 'class';
-	static ENABLED: string = 'enabled';
-	static CHECKED: string = 'checked';
+export class Action implements IAction {
 
-	public _id: string;
-	public _label: string;
-	public _tooltip: string;
-	public _cssClass: string;
-	public _enabled: boolean;
-	public _checked: boolean;
-	public _actionCallback: IActionCallback;
-	public _order: number;
+	protected _onDidChange = new Emitter<IActionChangeEvent>();
+	protected _id: string;
+	protected _label: string;
+	protected _tooltip: string;
+	protected _cssClass: string;
+	protected _enabled: boolean;
+	protected _checked: boolean;
+	protected _actionCallback: IActionCallback;
+	protected _order: number;
 
-	constructor(id: string, label = '', cssClass = '', enabled = true, actionCallback: IActionCallback = null) {
-		super();
-
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback: IActionCallback = null) {
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
 		this._enabled = enabled;
 		this._actionCallback = actionCallback;
+	}
+
+	public dispose() {
+		this._onDidChange.dispose();
+	}
+
+	public get onDidChange(): Event<IActionChangeEvent> {
+		return this._onDidChange.event;
 	}
 
 	public get id(): string {
@@ -107,10 +117,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setLabel(value);
 	}
 
-	_setLabel(value: string): void {
+	protected _setLabel(value: string): void {
 		if (this._label !== value) {
 			this._label = value;
-			this.emit(Action.LABEL, { source: this });
+			this._onDidChange.fire({ label: value });
 		}
 	}
 
@@ -122,10 +132,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setTooltip(value);
 	}
 
-	_setTooltip(value: string): void {
+	protected _setTooltip(value: string): void {
 		if (this._tooltip !== value) {
 			this._tooltip = value;
-			this.emit(Action.TOOLTIP, { source: this });
+			this._onDidChange.fire({ tooltip: value });
 		}
 	}
 
@@ -137,10 +147,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setClass(value);
 	}
 
-	_setClass(value: string): void {
+	protected _setClass(value: string): void {
 		if (this._cssClass !== value) {
 			this._cssClass = value;
-			this.emit(Action.CLASS, { source: this });
+			this._onDidChange.fire({ class: value });
 		}
 	}
 
@@ -152,10 +162,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setEnabled(value);
 	}
 
-	_setEnabled(value: boolean): void {
+	protected _setEnabled(value: boolean): void {
 		if (this._enabled !== value) {
 			this._enabled = value;
-			this.emit(Action.ENABLED, { source: this });
+			this._onDidChange.fire({ enabled: value });
 		}
 	}
 
@@ -167,10 +177,10 @@ export class Action extends EventEmitter implements IAction {
 		this._setChecked(value);
 	}
 
-	_setChecked(value: boolean): void {
+	protected _setChecked(value: boolean): void {
 		if (this._checked !== value) {
 			this._checked = value;
-			this.emit(Action.CHECKED, { source: this });
+			this._onDidChange.fire({ checked: value });
 		}
 	}
 
@@ -180,14 +190,6 @@ export class Action extends EventEmitter implements IAction {
 
 	public set order(value: number) {
 		this._order = value;
-	}
-
-	public get actionCallback(): IActionCallback {
-		return this._actionCallback;
-	}
-
-	public set actionCallback(value: IActionCallback) {
-		this._actionCallback = value;
 	}
 
 	public run(event?: any): TPromise<any> {

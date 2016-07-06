@@ -6,7 +6,7 @@
 'use strict';
 
 import * as crypto from 'crypto';
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { app } from 'electron';
@@ -263,7 +263,8 @@ function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean)
 			realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
 		}
 
-		if (!paths.isValidBasename(path.basename(realPath))) {
+		const basename = path.basename(realPath);
+		if (basename /* can be empty if code is opened on root */ && !paths.isValidBasename(basename)) {
 			return null; // do not allow invalid file names
 		}
 

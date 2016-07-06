@@ -329,14 +329,6 @@ export interface IEditorOptions {
 	wordWrapBreakObtrusiveCharacters?: string;
 
 	/**
-	 * Control what pressing Tab does.
-	 * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
-	 * If it is true, pressing Tab or Shift-Tab will move the browser focus.
-	 * Defaults to false.
-	 */
-	tabFocusMode?:boolean;
-
-	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
 	 * Use -1 to never stop rendering
@@ -401,11 +393,6 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	selectionHighlight?:boolean;
-	/**
-	 * Show lines before classes and methods (based on outline info).
-	 * Defaults to false.
-	 */
-	outlineMarkers?: boolean;
 	/**
 	 * Show reference infos (a.k.a. code lenses) for modes that support it
 	 * Defaults to true.
@@ -811,7 +798,6 @@ export class EditorContribOptions {
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
 	selectionHighlight:boolean;
-	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	folding: boolean;
 
@@ -830,7 +816,6 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		selectionHighlight:boolean;
-		outlineMarkers: boolean;
 		referenceInfos: boolean;
 		folding: boolean;
 	}) {
@@ -845,7 +830,6 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.selectionHighlight = Boolean(source.selectionHighlight);
-		this.outlineMarkers = Boolean(source.outlineMarkers);
 		this.referenceInfos = Boolean(source.referenceInfos);
 		this.folding = Boolean(source.folding);
 	}
@@ -866,7 +850,6 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.selectionHighlight === other.selectionHighlight
-			&& this.outlineMarkers === other.outlineMarkers
 			&& this.referenceInfos === other.referenceInfos
 			&& this.folding === other.folding
 		);
@@ -3052,6 +3035,10 @@ export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
  * @internal
  */
 export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
+/**
+ * A context key that is set when the editor's text is readonly.
+ */
+export const KEYBINDING_CONTEXT_EDITOR_READONLY = 'editorReadonly';
 /**
  * A context key that is set when the editor has multiple selections (multiple cursors).
  */

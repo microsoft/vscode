@@ -1182,13 +1182,6 @@ declare module monaco.editor {
          */
         wordWrapBreakObtrusiveCharacters?: string;
         /**
-         * Control what pressing Tab does.
-         * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
-         * If it is true, pressing Tab or Shift-Tab will move the browser focus.
-         * Defaults to false.
-         */
-        tabFocusMode?: boolean;
-        /**
          * Performance guard: Stop rendering a line after x characters.
          * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
          * Use -1 to never stop rendering
@@ -1253,11 +1246,6 @@ declare module monaco.editor {
          * Defaults to true.
          */
         selectionHighlight?: boolean;
-        /**
-         * Show lines before classes and methods (based on outline info).
-         * Defaults to false.
-         */
-        outlineMarkers?: boolean;
         /**
          * Show reference infos (a.k.a. code lenses) for modes that support it
          * Defaults to true.
@@ -1416,7 +1404,6 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         selectionHighlight: boolean;
-        outlineMarkers: boolean;
         referenceInfos: boolean;
         folding: boolean;
     }
@@ -2745,6 +2732,11 @@ declare module monaco.editor {
     export const KEYBINDING_CONTEXT_EDITOR_FOCUS: string;
 
     /**
+     * A context key that is set when the editor's text is readonly.
+     */
+    export const KEYBINDING_CONTEXT_EDITOR_READONLY: string;
+
+    /**
      * A context key that is set when the editor has multiple selections (multiple cursors).
      */
     export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: string;
@@ -3909,8 +3901,8 @@ declare module monaco.languages {
     }
 
     /**
-     * The language configuration interfaces defines the contract between extensions
-     * and various editor features, like automatic bracket insertion, automatic indentation etc.
+     * The language configuration interface defines the contract between extensions and
+     * various editor features, like automatic bracket insertion, automatic indentation etc.
      */
     export interface LanguageConfiguration {
         /**

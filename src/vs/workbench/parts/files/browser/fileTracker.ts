@@ -370,7 +370,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 	private handleDelete(resource: URI): void {
 		if (this.textFileService.isDirty(resource)) {
-			return; // never dispose dirty resources
+			return; // never dispose dirty resources from a delete
 		}
 
 		// Add existing clients matching resource
@@ -394,6 +394,9 @@ export class FileTracker implements IWorkbenchContribution {
 		});
 
 		inputsContainingPath.forEach((input) => {
+			if (input.isDirty()) {
+				return; // never dispose dirty resources from a delete
+			}
 
 			// Editor History
 			this.historyService.remove(input);
