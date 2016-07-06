@@ -93,9 +93,12 @@ export class TerminalConfigHelper {
 		private panelContainer: Builder) {
 	}
 
-	public getTheme(themeId: string): string[] {
-		let baseThemeId = getBaseThemeId(themeId);
-		return DEFAULT_ANSI_COLORS[baseThemeId];
+	public getTerminalThemeId(themeId: string) {
+		return getBaseThemeId(themeId);
+	}
+
+	public getTheme(terminalThemeId: string): string[] {
+		return DEFAULT_ANSI_COLORS[terminalThemeId];
 	}
 
 	private measureFont(fontFamily: string, fontSize: string, lineHeight: string): ITerminalFont {
