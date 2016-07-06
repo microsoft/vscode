@@ -229,6 +229,9 @@ export function getRoot(path: string, sep: string = '/'): string {
 }
 
 export const join: (...parts: string[]) => string = function () {
+	// Not using a function with var-args because of how TS compiles
+	// them to JS - it would result in 2*n runtime cost instead
+	// of 1*n, where n is parts.length.
 
 	let value = '';
 	for (let i = 0; i < arguments.length; i++) {
