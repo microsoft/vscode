@@ -23,7 +23,7 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {ICommonCodeEditor, IConfigurationChangedEvent, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
@@ -42,6 +42,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -295,7 +296,8 @@ export class EditorStatus implements IStatusbarItem {
 				}
 			},
 			this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()),
-			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource))
+			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
+			TabFocus.onDidChangeTabFocus((e) => this.onTabFocusModeChange())
 		);
 
 		return combinedDisposable(this.toDispose);
@@ -428,10 +430,7 @@ export class EditorStatus implements IStatusbarItem {
 	}
 
 	private onTabFocusModeClick(): void {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor instanceof BaseTextEditor && isCodeEditorWithTabFocusMode(activeEditor)) {
-			(<ICodeEditor>activeEditor.getControl()).updateOptions({ tabFocusMode: false });
-		}
+		TabFocus.setTabFocusMode(false);
 	}
 
 	private onEditorsChanged(): void {
@@ -446,7 +445,6 @@ export class EditorStatus implements IStatusbarItem {
 		this.onModeChange(control);
 		this.onEOLChange(control);
 		this.onEncodingChange(activeEditor);
-		this.onTabFocusModeChange(activeEditor);
 		this.onIndentationChange(control);
 
 		// Dispose old active editor listeners
@@ -474,11 +472,6 @@ export class EditorStatus implements IStatusbarItem {
 			// Hook Listener for content options changes
 			this.activeEditorListeners.push(control.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
 				this.onIndentationChange(control);
-			}));
-
-			// Hook Listener for options changes
-			this.activeEditorListeners.push(control.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
-				this.onTabFocusModeChange(activeEditor);
 			}));
 		}
 	}
@@ -605,13 +598,8 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onTabFocusModeChange(e: IBaseEditor): void {
-		let info: StateDelta = { tabFocusMode: false };
-
-		// We only support text based editors
-		if (e instanceof BaseTextEditor && isCodeEditorWithTabFocusMode(e)) {
-			info = { tabFocusMode: true };
-		}
+	private onTabFocusModeChange(): void {
+		let info: StateDelta = { tabFocusMode: TabFocus.getTabFocusMode() };
 
 		this.updateState(info);
 	}
@@ -621,19 +609,6 @@ export class EditorStatus implements IStatusbarItem {
 
 		return activeEditor && e && activeEditor === e;
 	}
-}
-
-function isCodeEditorWithTabFocusMode(e: BaseTextEditor): boolean {
-	let editorWidget = e.getControl();
-	if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
-		editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
-	}
-	if (editorWidget.getEditorType() !== EditorType.ICodeEditor) {
-		return false;
-	}
-
-	let editorConfig = (<ICodeEditor>editorWidget).getConfiguration();
-	return editorConfig.tabFocusMode && !editorConfig.readOnly;
 }
 
 function isWritableCodeEditor(e: BaseTextEditor): boolean {

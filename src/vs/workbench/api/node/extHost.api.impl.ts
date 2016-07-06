@@ -181,7 +181,7 @@ export class ExtHostAPIImplementation {
 						return;
 					}
 
-					activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
+					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
 						args.unshift(activeTextEditor, edit);
 						callback.apply(thisArg, args);
 

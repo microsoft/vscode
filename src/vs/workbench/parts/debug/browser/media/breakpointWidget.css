@@ -18,14 +18,11 @@
 	line-height: 22px;
 }
 
-.monaco-editor .breakpoint-widget .input.mac {
+.monaco-workbench.mac .monaco-editor .breakpoint-widget .input {
 	font-size: 11px;
 }
 
-.monaco-editor .breakpoint-widget .input.win {
-	font-size: 13px;
-}
-
-.monaco-editor .breakpoint-widget .input.linux {
+.monaco-workbench.windows .monaco-editor .breakpoint-widget .input,
+.monaco-workbench.linux .monaco-editor .breakpoint-widget .input {
 	font-size: 13px;
 }

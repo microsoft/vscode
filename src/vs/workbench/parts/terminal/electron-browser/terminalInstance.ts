@@ -5,9 +5,11 @@
 
 import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
+import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
+import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -26,6 +28,7 @@ export class TerminalInstance {
 		private parentDomElement: HTMLElement,
 		private contextService: IWorkspaceContextService,
 		private terminalService: ITerminalService,
+		private messageService: IMessageService,
 		private onExitCallback: (TerminalInstance) => void
 	) {
 		this.toDispose = [];
@@ -52,7 +55,7 @@ export class TerminalInstance {
 				this.isExiting = true;
 				this.dispose();
 				if (exitCode) {
-					console.error('Integrated terminal exited with code ' + exitCode);
+					this.messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
 				}
 				this.onExitCallback(this);
 			}

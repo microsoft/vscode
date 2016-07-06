@@ -137,7 +137,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	}
 
 	public focus():void {
-		// no-op
+		this.initButton.focus();
 	}
 
 	public layout(dimension:Builder.Dimension):void {

@@ -252,6 +252,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('autoReveal', "Controls if the explorer should automatically reveal files when opening them."),
 			'default': true
+		},
+		'explorer.enableDragAndDrop': {
+			'type': 'boolean',
+			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
+			'default': true
 		}
 	}
 });

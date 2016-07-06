@@ -35,7 +35,6 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
-const LEGACY_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState'; // TODO@Ben migration
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
 interface ITextEditorViewState {
@@ -295,12 +294,6 @@ export class TextFileEditor extends BaseTextEditor {
 			if (fileViewState) {
 				return fileViewState[this.position];
 			}
-		}
-
-		// TODO@Ben migration
-		const legacyEditorViewStateMemento = memento[LEGACY_EDITOR_VIEW_STATE_PREFERENCE_KEY];
-		if (legacyEditorViewStateMemento) {
-			return legacyEditorViewStateMemento[key];
 		}
 
 		return null;

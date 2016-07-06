@@ -992,7 +992,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		if (modelRaw) {
 			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);
 
-			// TODO@Ben remove this once stacks are stable; prevent bad stored state
 			const invalidId = this.doValidate(serialized);
 			if (invalidId) {
 				console.warn(`Ignoring invalid stacks model (Error code: ${invalidId}): ${JSON.stringify(serialized)}`);
@@ -1002,55 +1001,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 			this._groups = serialized.groups.map(s => this.doCreateGroup(s));
 			this._activeGroup = this._groups[serialized.active];
-		} else {
-			this.migrate();
-		}
-	}
-
-	// TODO@Ben migration
-	private migrate(): void {
-		const LEGACY_EDITOR_STATE_STORAGE_KEY = 'memento/workbench.parts.editor';
-		const legacyModelRaw = this.storageService.get(LEGACY_EDITOR_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (legacyModelRaw) {
-			try {
-				const legacyModel = JSON.parse(legacyModelRaw);
-				const state = legacyModel['editorpart.editorState'];
-				const editorsRaw: { inputId: string; inputValue: string }[] = state.editors;
-
-				const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-				const editors = editorsRaw.map(editorRaw => {
-					const factory = registry.getEditorInputFactory(editorRaw.inputId);
-					if (factory) {
-						return factory.deserialize(this.instantiationService, editorRaw.inputValue);
-					}
-
-					return null;
-				}).filter(editor => !!editor);
-
-				if (editors.length > 0) {
-					const leftGroup = this.openGroup('', true);
-					leftGroup.openEditor(editors[0], { active: true, pinned: true });
-				}
-
-				if (editors.length > 1) {
-					const centerGroup = this.openGroup('', true);
-					centerGroup.openEditor(editors[1], { active: true, pinned: true });
-				}
-
-				if (editors.length > 2) {
-					const rightGroup = this.openGroup('', true);
-					rightGroup.openEditor(editors[2], { active: true, pinned: true });
-				}
-
-				this.storageService.remove(LEGACY_EDITOR_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-			} catch (error) {
-				console.warn('Unable to migrate previous editor state', error, legacyModelRaw);
-
-				// Reset
-				this._groups = [];
-				this._activeGroup = void 0;
-				this.groupToIdentifier = Object.create(null);
-			}
 		}
 	}
 

@@ -18,7 +18,7 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings as Kb} from 'vs/base/common/keyCodes';
+import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -292,11 +292,14 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
+			const description = editor.getDescription(true) || '';
+
 			const tabContainer = document.createElement('div');
+			tabContainer.title = description;
 			tabContainer.draggable = true;
 			tabContainer.tabIndex = 0;
-			tabContainer.setAttribute('role', 'tab');
-			tabContainer.setAttribute('aria-label', editor.getName());
+			tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
+			tabContainer.setAttribute('aria-label', `tab, ${editor.getName()}`);
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
@@ -308,7 +311,6 @@ export class TabsTitleControl extends TitleControl {
 			// Tab Label
 			const tabLabel = document.createElement('a');
 			tabLabel.innerText = editor.getName();
-			tabLabel.title = editor.getDescription(true) || '';
 			tabLabelContainer.appendChild(tabLabel);
 
 			// Tab Close
@@ -392,6 +394,16 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		// Context menu on Shift+F10
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.shiftKey && event.keyCode === KeyCode.F10) {
+				DOM.EventHelper.stop(e);
+
+				this.onContextMenu(identifier, e, tab);
+			}
+		}));
+
 		// Keyboard accessibility
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -429,6 +441,11 @@ export class TabsTitleControl extends TitleControl {
 			if (handled) {
 				DOM.EventHelper.stop(e, true);
 			}
+
+			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
+			this.scrollbar.updateState({
+				scrollLeft: this.tabsContainer.scrollLeft
+			});
 		}));
 
 		// Pin on double click

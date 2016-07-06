@@ -603,7 +603,7 @@ export class QuickOpenWidget implements IModelProvider {
 				this.tree.layout();
 
 				// Handle auto focus
-				if (!this.tree.getFocus() && input && input.entries.some(e => this.isElementVisible(input, e))) {
+				if (input && input.entries.some(e => this.isElementVisible(input, e))) {
 					this.autoFocus(input, autoFocus);
 				}
 			}, errors.onUnexpectedError);

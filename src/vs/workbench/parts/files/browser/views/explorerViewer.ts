@@ -21,6 +21,7 @@ import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {$} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
@@ -38,6 +39,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -696,6 +698,8 @@ export class FileFilter implements IFilter {
 
 // Explorer Drag And Drop Controller
 export class FileDragAndDrop implements IDragAndDrop {
+	private toDispose: IDisposable[];
+	private dropEnabled: boolean;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -703,9 +707,23 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@IEventService private eventService: IEventService,
 		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
+		this.toDispose = [];
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(config: IFilesConfiguration): void {
+		this.dropEnabled = config && config.explorer && config.explorer.enableDragAndDrop;
 	}
 
 	public getDragURI(tree: ITree, stat: FileStat): string {
@@ -734,6 +752,10 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (!this.dropEnabled) {
+			return DRAG_OVER_REJECT;
+		}
+
 		let isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
 		let fromDesktop = data instanceof DesktopDragAndDropData;
 

@@ -47,7 +47,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -118,6 +118,8 @@ export class Workbench implements IPartService {
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
+	private messagesVisibleContext: IKeybindingContextKey<boolean>;
+	private editorsVisibleContext: IKeybindingContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -195,6 +197,10 @@ export class Workbench implements IPartService {
 			if (this.callbacks && this.callbacks.onServicesCreated) {
 				this.callbacks.onServicesCreated();
 			}
+
+			// Contexts
+			this.messagesVisibleContext = this.keybindingService.createKey('globalMessageVisible', false);
+			this.editorsVisibleContext = this.keybindingService.createKey('editorIsOpen', false);
 
 			// Register Listeners
 			this.registerListeners();
@@ -651,10 +657,8 @@ export class Workbench implements IPartService {
 
 		// Handle message service and quick open events
 		if (this.messageService instanceof WorkbenchMessageService) {
-			const messagesShowingContextKey = this.keybindingService.createKey('globalMessageVisible', false);
-
-			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => messagesShowingContextKey.set(true)));
-			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => messagesShowingContextKey.reset()));
+			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => this.messagesVisibleContext.set(true)));
+			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => this.messagesVisibleContext.reset()));
 
 			this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
 			this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
@@ -669,8 +673,10 @@ export class Workbench implements IPartService {
 
 		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
+			this.editorsVisibleContext.reset();
 			this.editorBackgroundDelayer.trigger(() => editorContainer.addClass('empty'));
 		} else {
+			this.editorsVisibleContext.set(true);
 			this.editorBackgroundDelayer.trigger(() => editorContainer.removeClass('empty'));
 		}
 	}

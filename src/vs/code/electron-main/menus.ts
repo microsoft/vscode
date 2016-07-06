@@ -193,7 +193,7 @@ export class VSCodeMenu {
 
 		// Goto
 		let gotoMenu = new Menu();
-		let gotoMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Goto")), submenu: gotoMenu });
+		let gotoMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
 		this.setGotoMenu(gotoMenu);
 
 		// Mac: Window
