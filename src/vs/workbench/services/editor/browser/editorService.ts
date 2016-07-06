@@ -99,7 +99,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			if (!(arg2 instanceof EditorOptions)) {
+			if (arg2 && !(arg2 instanceof EditorOptions)) {
 				arg2 = EditorOptions.create(arg2);
 			}
 
@@ -142,7 +142,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
 			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
 				let options = editors[index].input instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input);
-				if (!(options instanceof EditorOptions)) {
+				if (options && !(options instanceof EditorOptions)) {
 					options = EditorOptions.create(options);
 				}
 
@@ -164,7 +164,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
 				const typedReplacements: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
 					let options = editor.toReplace instanceof EditorInput ? editor.options : TextEditorOptions.from(editor.replaceWith);
-					if (!(options instanceof EditorOptions)) {
+					if (options && !(options instanceof EditorOptions)) {
 						options = EditorOptions.create(options);
 					}
 
