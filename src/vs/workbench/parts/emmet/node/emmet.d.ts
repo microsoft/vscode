@@ -27,7 +27,7 @@ declare module 'emmet' {
 		 * @param {String} filename
 		 * @return {String} Returns null if <code>filename</code> cannot be located
 		 */
-		locateFile(parent: string, filename: string): string;
+		locateFile(parent: string, filename: string, callback: any): void;
 
 		/**
 		 * Creates absolute path by concatenating <code>parent</code> and <code>filename</code>.
@@ -37,7 +37,7 @@ declare module 'emmet' {
 		 * @param {String} filename
 		 * @return {String}
 		 */
-		createPath(parent: string, filename: string): string;
+		createPath(parent: string, filename: string, callback: any): void;
 
 		/**
 		 * Reads binary file content and return it
@@ -45,7 +45,7 @@ declare module 'emmet' {
 		 * @param {String} path File's relative or absolute path
 		 * @return {String}
 		 */
-		read(path: string, callback: (err: Error, content: string) => void): void;
+		read(path: string, callback: any): void;
 
 		/**
 		 * Saves <code>content</code> as <code>file</code>
@@ -53,7 +53,7 @@ declare module 'emmet' {
 		 * @param {String} file File's absolute path
 		 * @param {String} content File content
 		 */
-		save(file: string, content: string): void;
+		save(file: string, content: string, callback: any): void;
 	}
 
 	export interface Editor {
