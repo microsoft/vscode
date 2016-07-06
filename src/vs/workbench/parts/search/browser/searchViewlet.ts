@@ -20,7 +20,6 @@ import strings = require('vs/base/common/strings');
 import dom = require('vs/base/browser/dom');
 import {IAction, Action} from 'vs/base/common/actions';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import timer = require('vs/base/common/timer');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
@@ -32,11 +31,11 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {Match, EmptyMatch, FileMatch, SearchResult, FileMatchOrMatch} from 'vs/workbench/parts/search/common/searchModel';
+import {Match, EmptyMatch, FileMatch, SearchModel, FileMatchOrMatch} from 'vs/workbench/parts/search/common/searchModel';
 import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
 import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import {ISearchProgressItem, IFileMatch, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
+import {ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -67,10 +66,9 @@ export class SearchViewlet extends Viewlet {
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 	private loading: boolean;
 	private queryBuilder: QueryBuilder;
-	private viewModel: SearchResult;
+	private viewModel: SearchModel;
 	private callOnModelChange: lifecycle.IDisposable[];
 
-	private replacingAll:boolean= false;
 	private viewletVisible: IKeybindingContextKey<boolean>;
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
@@ -128,6 +126,7 @@ export class SearchViewlet extends Viewlet {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
+		this.viewModel= this.instantiationService.createInstance(SearchModel);
 		let builder: Builder;
 		this.domNode = parent.div({
 			'class': 'search-viewlet'
@@ -312,21 +311,21 @@ export class SearchViewlet extends Viewlet {
 
 	private refreshInputs(): void {
 		if (this.viewModel) {
-			this.viewModel.matches().forEach((fileMatch) => {
+			this.viewModel.searchResult.matches().forEach((fileMatch) => {
 				this.replaceService.refreshInput(fileMatch, this.viewModel.replaceText);
 			});
 		}
 	}
 
 	private replaceAll(): void {
-		if (this.viewModel.count() === 0) {
+		if (this.viewModel.searchResult.count() === 0) {
 			return;
 		}
 
 		let progressRunner= this.progressService.show(100);
 
-		let occurrences= this.viewModel.count();
-		let fileCount= this.viewModel.fileCount();
+		let occurrences= this.viewModel.searchResult.count();
+		let fileCount= this.viewModel.searchResult.fileCount();
 		let replaceValue= this.searchWidget.getReplaceValue() || '';
 		let afterReplaceAllMessage= replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
 													: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
@@ -339,20 +338,12 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		if (this.messageService.confirm(confirmation)) {
-			let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
-			this.replacingAll= true;
-			this.replaceService.replace(this.viewModel.matches(), replaceValue, progressRunner).then(() => {
-				replaceAllTimer.stop();
-				this.replacingAll= false;
-				setTimeout(() => {
-					progressRunner.done();
-					this.showEmptyStage();
-					this.showMessage(afterReplaceAllMessage);
-				}, 200);
-			}, (error) => {
-				replaceAllTimer.stop();
+			this.viewModel.searchResult.replaceAll(replaceValue, progressRunner).then(() => {
 				progressRunner.done();
-				this.replacingAll= false;
+				this.searchWidget.setReplaceAllActionState(false);
+				this.showMessage(afterReplaceAllMessage);
+			}, (error) => {
+				progressRunner.done();
 				errors.isPromiseCanceledError(error);
 				this.messageService.show(Severity.Error, error);
 			});
@@ -381,7 +372,9 @@ export class SearchViewlet extends Viewlet {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
 				});
 
+			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
+			this.toUnbind.push(this.viewModel.searchResult.onChange((element) => this.tree.refresh(element)));
 
 			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
 				let element: any;
@@ -444,7 +437,7 @@ export class SearchViewlet extends Viewlet {
 
 		// Enable highlights if there are searchresults
 		if (this.viewModel) {
-			this.viewModel.toggleHighlights(visible);
+			this.viewModel.searchResult.toggleHighlights(visible);
 		}
 
 		// Open focused element from results in case the editor area is otherwise empty
@@ -508,7 +501,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public clearSearchResults(): void {
-		this.disposeModel();
+		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
 		this.searchWidget.clear();
 		if (this.currentRequest) {
@@ -673,14 +666,6 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-			this.currentRequest = null;
-		}
-
-		let progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
-		let doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
-
 		// Progress total is 100%
 		let progressTotal = 100;
 		let progressRunner = this.progressService.show(progressTotal);
@@ -688,7 +673,6 @@ export class SearchViewlet extends Viewlet {
 
 		this.loading = true;
 		this.searchWidget.searchInput.clearMessage();
-		this.disposeModel();
 		this.showEmptyStage();
 
 		let handledMatches: { [id: string]: boolean } = Object.create(null);
@@ -696,29 +680,25 @@ export class SearchViewlet extends Viewlet {
 			// Auto-expand / collapse based on number of matches:
 			// - alwaysExpandIfOneResult: expand file results if we have just one file result and less than 50 matches on a file
 			// - expand file results if we have more than one file result and less than 10 matches on a file
-			if (this.viewModel) {
-				let matches = this.viewModel.matches();
-				matches.forEach((match) => {
-					if (handledMatches[match.id()]) {
-						return; // if we once handled a result, do not do it again to keep results stable (the user might have expanded/collapsed meanwhile)
-					}
+			let matches = this.viewModel.searchResult.matches();
+			matches.forEach((match) => {
+				if (handledMatches[match.id()]) {
+					return; // if we once handled a result, do not do it again to keep results stable (the user might have expanded/collapsed meanwhile)
+				}
 
-					handledMatches[match.id()] = true;
+				handledMatches[match.id()] = true;
 
-					let length = match.matches().length;
-					if (length < 10 || (alwaysExpandIfOneResult && matches.length === 1 && length < 50)) {
-						this.tree.expand(match).done(null, errors.onUnexpectedError);
-					} else {
-						this.tree.collapse(match).done(null, errors.onUnexpectedError);
-					}
-				});
-			}
+				let length = match.matches().length;
+				if (length < 10 || (alwaysExpandIfOneResult && matches.length === 1 && length < 50)) {
+					this.tree.expand(match).done(null, errors.onUnexpectedError);
+				} else {
+					this.tree.collapse(match).done(null, errors.onUnexpectedError);
+				}
+			});
 		};
 
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
 		let isDone = false;
 		let onComplete = (completed?: ISearchComplete) => {
-			timerEvent.stop();
 			isDone = true;
 
 			// Complete up to 100% as needed
@@ -729,23 +709,14 @@ export class SearchViewlet extends Viewlet {
 				progressRunner.done();
 			}
 
-			// Show the final results
-			if (!this.viewModel) {
-				this.viewModel = this.instantiationService.createInstance(SearchResult, query.contentPattern);
-
-				if (completed) {
-					this.viewModel.append(completed.results);
-				}
-			}
 			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
 
 			this.tree.refresh().then(() => {
 				autoExpand(true);
 			}).done(undefined, errors.onUnexpectedError);
 
-			let hasResults = !this.viewModel.isEmpty();
+			let hasResults = !this.viewModel.searchResult.isEmpty();
 			this.loading = false;
-			this.telemetryService.publicLog('searchResultsShown', { count: this.viewModel.count(), fileCount: this.viewModel.fileCount() });
 
 			this.actionRegistry['refresh'].enabled = true;
 			this.actionRegistry['vs.tree.collapse'].enabled = hasResults;
@@ -817,14 +788,13 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 			} else {
-				this.viewModel.toggleHighlights(true); // show highlights
+				this.viewModel.searchResult.toggleHighlights(true); // show highlights
 
 				// Indicate as status to ARIA
-				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.count(), this.viewModel.fileCount()));
+				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
 
-			doneTimer.stop();
-			this.searchWidget.setReplaceAllActionState(this.viewModel.count() > 0);
+			this.searchWidget.setReplaceAllActionState(this.viewModel.searchResult.count() > 0);
 		};
 
 		let onError = (e: any) => {
@@ -834,9 +804,6 @@ export class SearchViewlet extends Viewlet {
 				this.loading = false;
 				isDone = true;
 				progressRunner.done();
-				progressTimer.stop();
-				doneTimer.stop();
-
 				this.messageService.show(2 /* ERROR */, e);
 			}
 		};
@@ -844,40 +811,13 @@ export class SearchViewlet extends Viewlet {
 		let total: number = 0;
 		let worked: number = 0;
 		let visibleMatches = 0;
-		let matches: IFileMatch[] = [];
 		let onProgress = (p: ISearchProgressItem) => {
-
 			// Progress
 			if (p.total) {
 				total = p.total;
 			}
-
 			if (p.worked) {
 				worked = p.worked;
-			}
-
-			// Results
-			if (p.resource) {
-				matches.push(p);
-
-				// Create view model
-				if (!this.viewModel) {
-					this.viewModel = this.instantiationService.createInstance(SearchResult, query.contentPattern);
-					this.tree.setInput(this.viewModel).then(() => {
-						autoExpand(false);
-						this.callOnModelChange.push(this.viewModel.addListener2('changed', (e: any) => {
-							if (!this.replacingAll) {
-								this.tree.refresh(e, true);
-								if (e instanceof FileMatch) {
-									this.replaceService.refreshInput(e, this.viewModel.replaceText, true);
-								}
-							}
-						}));
-					}).done(null, errors.onUnexpectedError);
-				}
-
-				this.viewModel.append([p]);
-				progressTimer.stop();
 			}
 		};
 
@@ -904,15 +844,15 @@ export class SearchViewlet extends Viewlet {
 				progressWorked++;
 				progressRunner.worked(1);
 			}
-
 			// Search result tree update
-			if (visibleMatches !== matches.length) {
-				visibleMatches = matches.length;
-
+			let count= this.viewModel.searchResult.fileCount();
+			if (visibleMatches !== count) {
+				visibleMatches= count;
 				this.tree.refresh().then(() => {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
-
+			}
+			if (count > 0) {
 				// since we have results now, enable some actions
 				if (!this.actionRegistry['vs.tree.collapse'].enabled) {
 					this.actionRegistry['vs.tree.collapse'].enabled = true;
@@ -922,8 +862,8 @@ export class SearchViewlet extends Viewlet {
 
 		this.searchWidget.setReplaceAllActionState(false);
 		this.replaceService.disposeAllInputs();
-		this.currentRequest = this.searchService.search(query);
-		this.currentRequest.then(onComplete, onError, onProgress);
+		this.currentRequest = this.viewModel.search(query);
+		this.currentRequest.done(onComplete, onError, onProgress);
 	}
 
 	private showEmptyStage(): void {
@@ -936,7 +876,6 @@ export class SearchViewlet extends Viewlet {
 		// clean up ui
 		this.replaceService.disposeAllInputs();
 		this.messages.hide();
-		this.tree.setInput(this.instantiationService.createInstance(SearchResult, null)).done(null, errors.onUnexpectedError);
 		this.results.show();
 		this.tree.onVisible();
 	}
@@ -1009,10 +948,10 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		let matches = this.viewModel.matches();
+		let matches = this.viewModel.searchResult.matches();
 		for (let i = 0, len = matches.length; i < len; i++) {
 			if (e.resource.toString() === matches[i].resource().toString()) {
-				this.viewModel.remove(matches[i]);
+				this.viewModel.searchResult.remove(matches[i]);
 			}
 		}
 	}
@@ -1022,11 +961,11 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		let matches = this.viewModel.matches();
+		let matches = this.viewModel.searchResult.matches();
 
 		for (let i = 0, len = matches.length; i < len; i++) {
 			if (e.contains(matches[i].resource(), FileChangeType.DELETED)) {
-				this.viewModel.remove(matches[i]);
+				this.viewModel.searchResult.remove(matches[i]);
 			}
 		}
 	}
@@ -1052,17 +991,8 @@ export class SearchViewlet extends Viewlet {
 		this.inputPatternIncludes.dispose();
 		this.inputPatternExclusions.dispose();
 
-		this.disposeModel();
+		this.viewModel.dispose();
 
 		super.dispose();
-	}
-
-
-	private disposeModel(): void {
-		if (this.viewModel) {
-			this.viewModel.dispose();
-			this.viewModel = null;
-		}
-		this.callOnModelChange = lifecycle.dispose(this.callOnModelChange);
 	}
 }

@@ -37,8 +37,8 @@ class EditorInputCache {
 			editorInputPromise= this.createInput(fileMatch);
 			this.cache.set(fileMatch.resource(), editorInputPromise);
 			this.refreshInput(fileMatch, text, true);
-			fileMatch.addListener2('disposed', fileMatch => this.disposeInput(fileMatch));
-			fileMatch.addListener2('changed', fileMatch => this.refreshInput(fileMatch, this.replaceTextcache.get(fileMatch.resource()), false));
+			fileMatch.onDispose(() => this.disposeInput(fileMatch));
+			fileMatch.onChange((modelChange) => this.refreshInput(fileMatch, this.replaceTextcache.get(fileMatch.resource()), modelChange));
 		}
 		return editorInputPromise;
 	}

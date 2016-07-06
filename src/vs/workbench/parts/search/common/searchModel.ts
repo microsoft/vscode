@@ -2,32 +2,38 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import {RunOnceScheduler} from 'vs/base/common/async';
-import strings = require('vs/base/common/strings');
-import URI from 'vs/base/common/uri';
-import * as Set from 'vs/base/common/set';
+import * as timer from 'vs/base/common/timer';
 import paths = require('vs/base/common/paths');
-import lifecycle = require('vs/base/common/lifecycle');
-import collections = require('vs/base/common/collections');
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IModel, ITextModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import strings = require('vs/base/common/strings');
+import errors = require('vs/base/common/errors');
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { TPromise, PPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
+import { SimpleMap } from 'vs/base/common/map';
+import { ArraySet } from 'vs/base/common/set';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as Search from 'vs/platform/search/common/search';
+import { ISearchProgressItem, ISearchComplete, ISearchQuery } from 'vs/platform/search/common/search';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Range } from 'vs/editor/common/core/range';
+import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ISearchService } from 'vs/platform/search/common/search';
+import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export class Match {
 
-	private _parent: FileMatch;
 	private _lineText: string;
 	private _id: string;
 	private _range: Range;
 
-	constructor(parent: FileMatch, text: string, lineNumber: number, offset: number, length: number) {
-		this._parent = parent;
+	constructor(private _parent: FileMatch, text: string, lineNumber: number, offset: number, length: number) {
 		this._lineText = text;
-		this._id = parent.id() + '>' + lineNumber + '>' + offset;
+		this._id = this._parent.id() + '>' + lineNumber + '>' + offset;
 		this._range = new Range(1 + lineNumber, 1 + offset, 1 + lineNumber, 1 + offset + length);
 	}
 
@@ -69,75 +75,7 @@ export class EmptyMatch extends Match {
 	}
 }
 
-export class FileMatch extends EventEmitter implements lifecycle.IDisposable {
-
-	private _parent: SearchResult;
-	private _resource: URI;
-	_removedMatches: Set.ArraySet<string>;
-	_matches: { [key: string]: Match };
-
-	constructor(parent: SearchResult, resource: URI) {
-		super();
-		this._resource = resource;
-		this._parent = parent;
-		this._matches = Object.create(null);
-		this._removedMatches= new Set.ArraySet<string>();
-	}
-
-	public dispose(): void {
-		this.emit('disposed', this);
-	}
-
-	public id(): string {
-		return this.resource().toString();
-	}
-
-	public parent(): SearchResult {
-		return this._parent;
-	}
-
-	public add(match: Match): void {
-		this._matches[match.id()] = match;
-		this.emit('changed', this);
-	}
-
-	public remove(match: Match, completely:boolean= true): void {
-		delete this._matches[match.id()];
-		if (completely) {
-			this._removedMatches.set(match.id());
-		}
-		if (this.count() === 0) {
-			this.add(new EmptyMatch(this));
-		}
-		this.emit('changed', this);
-	}
-
-	public matches(): Match[] {
-		return collections.values(this._matches);
-	}
-
-	public count(): number {
-		let result = 0;
-		for (let key in this._matches) {
-			if (!(this._matches[key] instanceof EmptyMatch)) {
-				result += 1;
-			}
-		}
-		return result;
-	}
-
-	public resource(): URI {
-		return this._resource;
-	}
-
-	public name(): string {
-		return paths.basename(this.resource().fsPath);
-	}
-}
-
-export type FileMatchOrMatch = FileMatch | Match;
-
-export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
+export class FileMatch extends Disposable {
 
 	private static DecorationOption: IModelDecorationOptions = {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -149,103 +87,290 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		}
 	};
 
+	private _onChange= this._register(new Emitter<boolean>());
+	public onChange: Event<boolean> = this._onChange.event;
+
+	private _onDispose= this._register(new Emitter<void>());
+	public onDispose: Event<void> = this._onDispose.event;
+
+	private _resource: URI;
 	private _model: IModel;
-	private _query: Search.IPatternInfo;
+	private _modelListener: IDisposable;
+	private _matches: SimpleMap<string, Match>;
+	private _removedMatches: ArraySet<string>;
+
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
-	private _unbind: lifecycle.IDisposable[] = [];
-	_diskFileMatch: FileMatch;
 
-	constructor(parent: SearchResult, resource: URI, query: Search.IPatternInfo, model: IModel, fileMatch: FileMatch) {
-		super(parent, resource);
+	constructor(private _query: Search.IPatternInfo, private _parent: SearchResult, private rawMatch: Search.IFileMatch,
+										@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
+		super();
+		this._resource = this.rawMatch.resource;
+		this._matches = new SimpleMap<string, Match>();
+		this._removedMatches= new ArraySet<string>();
+		this._updateScheduler = new RunOnceScheduler(this.updateMatches.bind(this), 250);
 
-		this._query = query;
-		this._model = model;
-		this._diskFileMatch = fileMatch;
-		this._removedMatches= fileMatch._removedMatches;
-		this._updateScheduler = new RunOnceScheduler(this._updateMatches.bind(this), 250);
-		this._unbind.push(this._model.onDidChangeContent(_ => this._updateScheduler.schedule()));
-		this._updateMatches();
+		this.createMatches();
+		this.registerListeners();
 	}
 
-	public dispose(): void {
-		this._unbind = lifecycle.dispose(this._unbind);
-		if (!this._isTextModelDisposed()) {
-			this._model.deltaDecorations(this._modelDecorations, []);
+	private createMatches(): void {
+		let model = this.modelService ? this.modelService.getModel(this._resource) : null;
+		if (model) {
+			this.bindModel(model);
+			this.updateMatches();
+		} else {
+			this.rawMatch.lineMatches.forEach((rawLineMatch) => {
+				rawLineMatch.offsetAndLengths.forEach(offsetAndLength => {
+					let match = new Match(this, rawLineMatch.preview, rawLineMatch.lineNumber, offsetAndLength[0], offsetAndLength[1]);
+					this._matches.set(match.id(), match);
+				});
+			});
 		}
-		super.dispose();
 	}
 
-	private _updateMatches(): void {
+	private registerListeners(): void {
+		if (this.modelService) {
+			this._register(this.modelService.onModelAdded((model: IModel) => {
+				if (model.uri.toString() === this._resource.toString()) {
+					this.bindModel(model);
+				}
+			}));
+		}
+
+		this._register(this.onChange(() => {
+			if (this.count() === 0) {
+				let emptyMatch = new EmptyMatch(this);
+				this._matches.set(emptyMatch.id(), emptyMatch);
+			}
+		}));
+	}
+
+	private bindModel(model: IModel): void {
+		this._model= model;
+		this._modelListener= this._model.onDidChangeContent(_ => {
+			this._updateScheduler.schedule();
+		});
+		this._model.onWillDispose(() => this.onModelWillDispose());
+		this.updateHighlights();
+	}
+
+	private onModelWillDispose(): void {
+		// Update matches because model might have some dirty changes
+		this.updateMatches();
+		this.unbindModel();
+	}
+
+	private unbindModel(): void {
+		if (this._model) {
+			this._updateScheduler.cancel();
+			this._model.deltaDecorations(this._modelDecorations, []);
+			this._model= null;
+			this._modelListener.dispose();
+		}
+	}
+
+	private updateMatches(): void {
 		// this is called from a timeout and might fire
 		// after the model has been disposed
-		if (this._isTextModelDisposed()) {
+		if (!this._model) {
 			return;
 		}
-		this._matches = Object.create(null);
+		this._matches = new SimpleMap<string, Match>();
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
 
 		matches.forEach(range => {
 			let match= new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
-				this.add(match);
+				this._matches.set(match.id(), match);
 			}
 		});
 
-		if (this.count() === 0) {
-			this.add(new EmptyMatch(this));
-		}
-
-		this.parent().emit('changed', this);
+		this._onChange.fire(true);
 		this.updateHighlights();
 	}
 
-	updateHighlights(): void {
-
-		if ((<ITextModel>this._model).isDisposed()) {
+	public updateHighlights(): void {
+		if (!this._model) {
 			return;
 		}
 
-		if (this.parent()._showHighlights) {
+		if (this.parent().showHighlights) {
 			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().filter(match => !(match instanceof EmptyMatch)).map(match => <IModelDeltaDecoration>{
 				range: match.range(),
-				options: LiveFileMatch.DecorationOption
+				options: FileMatch.DecorationOption
 			}));
 		} else {
 			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, []);
 		}
 	}
 
-	private _isTextModelDisposed(): boolean {
-		return !this._model || (<ITextModel>this._model).isDisposed();
+	public id(): string {
+		return this.resource().toString();
 	}
 
-	public remove(match: Match, completely: boolean= true): void {
-		super.remove(match, completely);
-		this._diskFileMatch.remove(match, completely);
+	public parent(): SearchResult {
+		return this._parent;
+	}
+
+	public matches(): Match[] {
+		return this._matches.values();
+	}
+
+	public remove(match: Match): void {
+		this._matches.delete(match.id());
+		this._removedMatches.set(match.id());
+		this._onChange.fire(false);
+	}
+
+	public replace(match: Match, replaceText: string): TPromise<any> {
+		return this.replaceService.replace(match, replaceText).then(() => {
+			this._matches.delete(match.id());
+			this._onChange.fire(false);
+		});
+	}
+
+	public count(): number {
+		let result = 0;
+		this.matches().forEach(element => {
+			if (!(element instanceof EmptyMatch)) {
+				result += 1;
+			}
+		});
+		return result;
+	}
+
+	public resource(): URI {
+		return this._resource;
+	}
+
+	public name(): string {
+		return paths.basename(this.resource().fsPath);
+	}
+
+	public dispose(): void {
+		this.unbindModel();
+		this._onDispose.fire();
+		super.dispose();
 	}
 }
 
-export class SearchResult extends EventEmitter {
+export class SearchResult extends Disposable {
 
-	private _modelService: IModelService;
-	private _query: Search.IPatternInfo;
-	private _replace: string= null;
-	private _disposables: lifecycle.IDisposable[] = [];
-	private _matches: { [key: string]: FileMatch; } = Object.create(null);
+	private _onChange= this._register(new Emitter<any>());
+	public onChange: Event<any> = this._onChange.event;
 
-	_showHighlights: boolean;
+	private _fileMatches: SimpleMap<URI, FileMatch>;
+	private _showHighlights: boolean;
+	private _replacingAll: boolean= false;
 
-	constructor(query: Search.IPatternInfo, @IModelService modelService: IModelService) {
+	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+													@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
-		this._modelService = modelService;
-		this._query = query;
+		this._fileMatches= new SimpleMap<URI, FileMatch>();
+	}
 
-		if (this._query) {
-			this._modelService.onModelAdded(this._onModelAdded, this, this._disposables);
-			this._modelService.onModelRemoved(this._onModelRemoved, this, this._disposables);
+	public get searchModel(): SearchModel {
+		return this._searchModel;
+	}
+
+	public add(query: Search.IPatternInfo, raw: Search.IFileMatch[], silent:boolean= false): void {
+		raw.forEach((rawFileMatch) => {
+			if (!this._fileMatches.has(rawFileMatch.resource)){
+				let fileMatch= this.instantiationService.createInstance(FileMatch, query, this, rawFileMatch);
+				this._fileMatches.set(rawFileMatch.resource, fileMatch);
+				let disposable= fileMatch.onChange(() => this.onFileChange(fileMatch));
+				fileMatch.onDispose(() => disposable.dispose());
+			}
+		});
+		if (!silent) {
+			this._onChange.fire(this);
 		}
+	}
+
+	public clear(): void {
+		this.matches().forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		this._fileMatches.clear();
+		this._onChange.fire(this);
+	}
+
+	public remove(match: FileMatch): void {
+		this._fileMatches.delete(match.resource());
+		match.dispose();
+		this._onChange.fire(this);
+	}
+
+	public replace(match: FileMatch, replaceText: string): TPromise<any> {
+		return this.replaceService.replace([match], replaceText).then(() => {
+			this.remove(match);
+		});
+	}
+
+	public replaceAll(replaceText: string, progressRunner: IProgressRunner): TPromise<any> {
+		this._replacingAll= true;
+		let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
+		return this.replaceService.replace(this.matches(), replaceText, progressRunner).then(() => {
+			replaceAllTimer.stop();
+			this._replacingAll= false;
+			this.clear();
+		}, () => {
+			this._replacingAll= false;
+			replaceAllTimer.stop();
+		});
+	}
+
+	public matches(): FileMatch[] {
+		return this._fileMatches.values();
+	}
+
+	public isEmpty(): boolean {
+		return this.fileCount() === 0;
+	}
+
+	public fileCount(): number {
+		return this._fileMatches.size;
+	}
+
+	public count(): number {
+		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
+	}
+
+	public get showHighlights(): boolean {
+		return this._showHighlights;
+	}
+
+	public toggleHighlights(value: boolean): void {
+		if (this._showHighlights === value) {
+			return;
+		}
+		this._showHighlights = value;
+		this.matches().forEach((fileMatch: FileMatch) => {
+			fileMatch.updateHighlights();
+		});
+	}
+
+	private onFileChange(file: FileMatch): void {
+		if (!this._replacingAll) {
+			this._onChange.fire(file);
+		}
+	}
+}
+
+export class SearchModel extends Disposable {
+
+	private _searchResult: SearchResult;
+	private _searchQuery: ISearchQuery= null;
+	private _replaceText: string= null;
+
+	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
+	private progressTimer: timer.ITimerEvent;
+	private doneTimer: timer.ITimerEvent;
+	private timerEvent: timer.ITimerEvent;
+
+	constructor(@ISearchService private searchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
+		super();
+		this._searchResult= this.instantiationService.createInstance(SearchResult, this);
 	}
 
 	/**
@@ -261,11 +386,15 @@ export class SearchResult extends EventEmitter {
 	 * Can be empty.
 	 */
 	public get replaceText(): string {
-		return this._replace;
+		return this._replaceText;
 	}
 
 	public set replaceText(replace: string) {
-		this._replace= replace;
+		this._replaceText= replace;
+	}
+
+	public get searchResult():SearchResult {
+		return this._searchResult;
 	}
 
 	/**
@@ -276,101 +405,59 @@ export class SearchResult extends EventEmitter {
 		return this.isReplaceActive() && !!this.replaceText;
 	}
 
-	private _onModelAdded(model: IModel): void {
-		let resource = model.uri,
-			fileMatch = this._matches[resource.toString()];
+	public search(query: ISearchQuery, silent: boolean= true): PPromise<ISearchComplete, ISearchProgressItem> {
+		this.cancelSearch();
+		this.searchResult.clear();
 
-		if (fileMatch) {
-			let liveMatch = new LiveFileMatch(this, resource, this._query, model, fileMatch);
-			liveMatch.updateHighlights();
-			this._matches[resource.toString()] = liveMatch;
-			this.emit('changed', this);
+		this._searchQuery= query;
+		this.progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
+		this.doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
+		this.timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
+		this.currentRequest = this.searchService.search(this._searchQuery);
+
+		this.currentRequest.then(value => this.onSearchCompleted(value, silent),
+									e => this.onSearchError(e, silent),
+									p => this.onSearchProgress(p, silent));
+
+		return this.currentRequest;
+	}
+
+	private onSearchCompleted(completed: ISearchComplete, silent: boolean): ISearchComplete {
+		this.timerEvent.stop();
+		this._searchResult.add(this._searchQuery.contentPattern, completed.results, silent);
+		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
+		this.doneTimer.stop();
+		return completed;
+	}
+
+	private onSearchError(e: any, silent: boolean): void {
+		if (errors.isPromiseCanceledError(e)) {
+			this.onSearchCompleted(null, silent);
+		} else {
+			this.progressTimer.stop();
+			this.doneTimer.stop();
 		}
 	}
 
-	private _onModelRemoved(model: IModel): void {
-
-		let resource = model.uri,
-			fileMatch = this._matches[resource.toString()];
-
-		if (fileMatch instanceof LiveFileMatch) {
-			this.deferredEmit(() => {
-				this.remove(fileMatch);
-				this._matches[resource.toString()] = fileMatch._diskFileMatch;
-			});
+	private onSearchProgress(p: ISearchProgressItem, silent: boolean): void {
+		if (p.resource) {
+			this._searchResult.add(this._searchQuery.contentPattern, [p], silent);
+			this.progressTimer.stop();
 		}
 	}
 
-	public append(raw: Search.IFileMatch[]): void {
-		raw.forEach((rawFileMatch) => {
-
-			let fileMatch = this._getOrAdd(rawFileMatch);
-
-			if (fileMatch instanceof LiveFileMatch) {
-				fileMatch = (<LiveFileMatch>fileMatch)._diskFileMatch;
-			}
-
-			rawFileMatch.lineMatches.forEach((rawLineMatch) => {
-				rawLineMatch.offsetAndLengths.forEach(offsetAndLength => {
-					let match = new Match(fileMatch, rawLineMatch.preview, rawLineMatch.lineNumber, offsetAndLength[0], offsetAndLength[1]);
-					fileMatch.add(match);
-				});
-			});
-		});
-	}
-
-	private _getOrAdd(raw: Search.IFileMatch): FileMatch {
-		return collections.lookupOrInsert(this._matches, raw.resource.toString(), () => {
-
-			let model = this._modelService.getModel(raw.resource),
-				fileMatch = new FileMatch(this, raw.resource);
-
-			if (model && this._query) {
-				fileMatch = new LiveFileMatch(this, raw.resource, this._query, model, fileMatch);
-			}
-			return fileMatch;
-		});
-	}
-
-	public remove(match: FileMatch): void {
-		delete this._matches[match.resource().toString()];
-		match.dispose();
-		this.emit('changed', this);
-	}
-
-	public matches(): FileMatch[] {
-		return collections.values(this._matches);
-	}
-
-	public isEmpty(): boolean {
-		return this.fileCount() === 0;
-	}
-
-	public fileCount(): number {
-		return Object.keys(this._matches).length;
-	}
-
-	public count(): number {
-		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
-	}
-
-	public toggleHighlights(value: boolean): void {
-		if (this._showHighlights === value) {
-			return;
-		}
-		this._showHighlights = value;
-
-		for (let resource in this._matches) {
-			let match = this._matches[resource];
-			if (match instanceof LiveFileMatch) {
-				match.updateHighlights();
-			}
+	public cancelSearch(): void{
+		if (this.currentRequest) {
+			this.currentRequest.cancel();
+			this.currentRequest = null;
 		}
 	}
 
 	public dispose(): void {
-		this._disposables = lifecycle.dispose(this._disposables);
-		lifecycle.dispose(this.matches());
+		this.cancelSearch();
+		this.searchResult.dispose();
 		super.dispose();
 	}
 }
+
+export type FileMatchOrMatch = FileMatch | Match;
