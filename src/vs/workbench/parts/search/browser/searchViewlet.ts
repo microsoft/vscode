@@ -260,6 +260,8 @@ export class SearchViewlet extends Viewlet {
 
 		this.updateGlobalPatternExclusions(this.configurationService.getConfiguration<ISearchConfiguration>());
 
+		this.registerListeners();
+
 		return TPromise.as(null);
 	}
 
@@ -279,42 +281,44 @@ export class SearchViewlet extends Viewlet {
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords
 		}, this.keybindingService, this.instantiationService);
+		this.toUnbind.push(this.searchWidget);
 
-		this.searchWidget.onSearchSubmit((refresh) => this.onQueryChanged(refresh));
-		this.searchWidget.onSearchCancel(() => this.cancelSearch());
-		this.searchWidget.searchInput.onDidOptionChange((viaKeyboard) => this.onQueryChanged(true, viaKeyboard));
+		this.toUnbind.push(this.searchWidget.onSearchSubmit((refresh) => this.onQueryChanged(refresh)));
+		this.toUnbind.push(this.searchWidget.onSearchCancel(() => this.cancelSearch()));
+		this.toUnbind.push(this.searchWidget.searchInput.onDidOptionChange((viaKeyboard) => this.onQueryChanged(true, viaKeyboard)));
 
-		this.searchWidget.onReplaceToggled((state) => this.layout(this.size));
-		this.searchWidget.onReplaceStateChange((state) => {
-			if (this.viewModel) {
-				this.viewModel.replaceText= this.searchWidget.getReplaceValue();
-			}
+		this.toUnbind.push(this.searchWidget.onReplaceToggled((state) => this.layout(this.size)));
+		this.toUnbind.push(this.searchWidget.onReplaceStateChange((state) => {
+			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
 			this.tree.refresh();
-		});
-		this.searchWidget.onReplaceValueChanged((value) => {
-			if (this.viewModel) {
-				this.viewModel.replaceText= this.searchWidget.getReplaceValue();
-			}
+		}));
+		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
+			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
 			this.refreshInputs();
 			this.tree.refresh();
-		});
+		}));
 
-		this.searchWidget.onKeyDownArrow(() => {
+		this.toUnbind.push(this.searchWidget.onKeyDownArrow(() => {
 			if (this.showsFileTypes()) {
 				this.toggleFileTypes(true, this.showsFileTypes());
 			} else {
 				this.selectTreeIfNotSelected();
 			}
-		});
-		this.searchWidget.onReplaceAll(() => this.replaceAll());
+		}));
+		this.toUnbind.push(this.searchWidget.onReplaceAll(() => this.replaceAll()));
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.viewModel.searchResult.onChange((element) => {
+			this.tree.refresh(element);
+			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+		}));
 	}
 
 	private refreshInputs(): void {
-		if (this.viewModel) {
-			this.viewModel.searchResult.matches().forEach((fileMatch) => {
-				this.replaceService.refreshInput(fileMatch, this.viewModel.replaceText);
-			});
-		}
+		this.viewModel.searchResult.matches().forEach((fileMatch) => {
+			this.replaceService.refreshInput(fileMatch, this.viewModel.replaceText);
+		});
 	}
 
 	private replaceAll(): void {
@@ -338,9 +342,9 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		if (this.messageService.confirm(confirmation)) {
+			this.searchWidget.setReplaceAllActionState(false);
 			this.viewModel.searchResult.replaceAll(replaceValue, progressRunner).then(() => {
 				progressRunner.done();
-				this.searchWidget.setReplaceAllActionState(false);
 				this.showMessage(afterReplaceAllMessage);
 			}, (error) => {
 				progressRunner.done();
@@ -374,7 +378,6 @@ export class SearchViewlet extends Viewlet {
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
-			this.toUnbind.push(this.viewModel.searchResult.onChange((element) => this.tree.refresh(element)));
 
 			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
 				let element: any;
@@ -711,9 +714,7 @@ export class SearchViewlet extends Viewlet {
 
 			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
 
-			this.tree.refresh().then(() => {
-				autoExpand(true);
-			}).done(undefined, errors.onUnexpectedError);
+			autoExpand(true);
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
 			this.loading = false;
@@ -793,8 +794,6 @@ export class SearchViewlet extends Viewlet {
 				// Indicate as status to ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
-
-			this.searchWidget.setReplaceAllActionState(this.viewModel.searchResult.count() > 0);
 		};
 
 		let onError = (e: any) => {

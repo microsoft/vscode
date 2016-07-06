@@ -415,16 +415,16 @@ export class SearchModel extends Disposable {
 		this.timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
 		this.currentRequest = this.searchService.search(this._searchQuery);
 
-		this.currentRequest.then(value => this.onSearchCompleted(value, silent),
+		this.currentRequest.then(value => this.onSearchCompleted(value),
 									e => this.onSearchError(e, silent),
 									p => this.onSearchProgress(p, silent));
 
 		return this.currentRequest;
 	}
 
-	private onSearchCompleted(completed: ISearchComplete, silent: boolean): ISearchComplete {
+	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
 		this.timerEvent.stop();
-		this._searchResult.add(this._searchQuery.contentPattern, completed.results, silent);
+		this._searchResult.add(this._searchQuery.contentPattern, completed.results);
 		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
 		this.doneTimer.stop();
 		return completed;
@@ -432,7 +432,7 @@ export class SearchModel extends Disposable {
 
 	private onSearchError(e: any, silent: boolean): void {
 		if (errors.isPromiseCanceledError(e)) {
-			this.onSearchCompleted(null, silent);
+			this.onSearchCompleted(null);
 		} else {
 			this.progressTimer.stop();
 			this.doneTimer.stop();
