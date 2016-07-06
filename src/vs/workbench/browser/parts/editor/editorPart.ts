@@ -149,7 +149,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (this.previewEditors !== newPreviewEditors && !newPreviewEditors) {
 			this.stacks.groups.forEach(group => {
 				if (group.previewEditor) {
-					this.pinEditor(this.stacks.positionOfGroup(group), group.previewEditor);
+					this.pinEditor(group, group.previewEditor);
 				}
 			});
 		}
@@ -158,10 +158,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onEditorDirty(identifier: EditorIdentifier): void {
-		const position = this.stacks.positionOfGroup(identifier.group);
 
 		// we pin every editor that becomes dirty
-		this.pinEditor(position, identifier.editor);
+		this.pinEditor(identifier.group, identifier.editor);
 	}
 
 	private onEditorDisposed(identifier: EditorIdentifier): void {
@@ -543,7 +542,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Focus next group if we have an active one left
 		const currentActiveGroup = this.stacks.activeGroup;
 		if (currentActiveGroup) {
-			this.focusGroup(this.stacks.positionOfGroup(currentActiveGroup));
+			this.focusGroup(currentActiveGroup);
 
 			// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
 			// the user is actively changing focus with the mouse from left to right.
@@ -704,44 +703,51 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.visibleEditors ? this.visibleEditors.filter((editor) => !!editor) : [];
 	}
 
-	public moveGroup(from: Position, to: Position): void {
-		const fromGroup = this.stacks.groupAt(from);
-		const toGroup = this.stacks.groupAt(to);
+	public moveGroup(from: EditorGroup, to: EditorGroup): void;
+	public moveGroup(from: Position, to: Position): void;
+	public moveGroup(arg1: any, arg2: any): void {
+		const fromGroup = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
+		const toGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
 
-		if (!fromGroup || !toGroup || from === to) {
+		if (!fromGroup || !toGroup || fromGroup === toGroup) {
 			return; // Ignore if we cannot move
 		}
 
+		const fromPosition = this.stacks.positionOfGroup(fromGroup);
+		const toPosition = this.stacks.positionOfGroup(toGroup);
+
 		// Update stacks model
-		this.modifyGroups(() => this.stacks.moveGroup(fromGroup, to));
+		this.modifyGroups(() => this.stacks.moveGroup(fromGroup, toPosition));
 
 		// Move widgets
-		this.sideBySideControl.move(from, to);
+		this.sideBySideControl.move(fromPosition, toPosition);
 
 		// Move data structures
-		arrays.move(this.visibleEditors, from, to);
-		arrays.move(this.editorOpenToken, from, to);
-		arrays.move(this.mapEditorInstantiationPromiseToEditor, from, to);
-		arrays.move(this.instantiatedEditors, from, to);
-		arrays.move(this.mapEditorToEditorContainers, from, to);
+		arrays.move(this.visibleEditors, fromPosition, toPosition);
+		arrays.move(this.editorOpenToken, fromPosition, toPosition);
+		arrays.move(this.mapEditorInstantiationPromiseToEditor, fromPosition, toPosition);
+		arrays.move(this.instantiatedEditors, fromPosition, toPosition);
+		arrays.move(this.mapEditorToEditorContainers, fromPosition, toPosition);
 
 		// Restore focus
-		this.focusGroup(this.stacks.positionOfGroup(fromGroup));
+		this.focusGroup(fromGroup);
 
 		// Events
 		this._onEditorsMoved.fire();
 	}
 
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
-		const fromGroup = this.stacks.groupAt(from);
-		const toGroup = this.stacks.groupAt(to);
+	public moveEditor(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number): void;
+	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void;
+	public moveEditor(input: EditorInput, arg2: any, arg3: any, index?: number): void {
+		const fromGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
+		const toGroup = (typeof arg3 === 'number') ? this.stacks.groupAt(arg3) : arg3;
 
 		if (!fromGroup || !toGroup) {
 			return;
 		}
 
 		// Move within group
-		if (from === to) {
+		if (fromGroup === toGroup) {
 			this.doMoveEditorInsideGroups(input, fromGroup, index);
 		}
 
@@ -989,38 +995,44 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	public activateGroup(position: Position): void {
-		const group = this.stacks.groupAt(position);
+	public activateGroup(group: EditorGroup): void;
+	public activateGroup(position: Position): void;
+	public activateGroup(arg1: any): void {
+		const group = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
 		if (group) {
 
 			// Update stacks model
 			this.stacks.setActive(group);
 
 			// Update UI
-			const editor = this.visibleEditors[position];
+			const editor = this.visibleEditors[this.stacks.positionOfGroup(group)];
 			if (editor) {
 				this.sideBySideControl.setActive(editor);
 			}
 		}
 	}
 
-	public focusGroup(position: Position): void {
-		const group = this.stacks.groupAt(position);
+	public focusGroup(group: EditorGroup): void;
+	public focusGroup(position: Position): void;
+	public focusGroup(arg1: any): void {
+		const group = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
 		if (group) {
 
 			// Make active
-			this.activateGroup(position);
+			this.activateGroup(group);
 
 			// Focus Editor
-			const editor = this.visibleEditors[position];
+			const editor = this.visibleEditors[this.stacks.positionOfGroup(group)];
 			if (editor) {
 				editor.focus();
 			}
 		}
 	}
 
-	public pinEditor(position: Position, input: EditorInput): void {
-		const group = this.stacks.groupAt(position);
+	public pinEditor(group: EditorGroup, input: EditorInput): void;
+	public pinEditor(position: Position, input: EditorInput): void;
+	public pinEditor(arg1: any, input: EditorInput): void {
+		const group = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
 		if (group) {
 			if (group.isPinned(input)) {
 				return;
@@ -1031,12 +1043,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	public unpinEditor(position: Position, input: EditorInput): void {
+	public unpinEditor(group: EditorGroup, input: EditorInput): void;
+	public unpinEditor(position: Position, input: EditorInput): void;
+	public unpinEditor(arg1: any, input: EditorInput): void {
 		if (input.isDirty()) {
 			return; // we do not allow to unpin dirty editors
 		}
 
-		const group = this.stacks.groupAt(position);
+		const group = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
 		if (group) {
 			if (group.isPreview(input)) {
 				return;

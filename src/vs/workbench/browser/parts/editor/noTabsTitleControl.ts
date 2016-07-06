@@ -85,9 +85,8 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		const group = this.context;
-		const position = this.stacks.positionOfGroup(group);
 
-		this.editorGroupService.pinEditor(position, group.activeEditor);
+		this.editorGroupService.pinEditor(group, group.activeEditor);
 	}
 
 	private onTitleClick(e: MouseEvent): void {
@@ -105,7 +104,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Focus editor group unless click on toolbar
 		else if (this.stacks.groups.length === 1 && !DOM.isAncestor(<any>e.target || e.srcElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
-			this.editorGroupService.focusGroup(position);
+			this.editorGroupService.focusGroup(group);
 		}
 	}
 
