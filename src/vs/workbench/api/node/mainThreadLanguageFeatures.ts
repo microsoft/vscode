@@ -16,7 +16,7 @@ import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {ExtHostContext, ExtHostLanguageFeaturesShape} from './extHostProtocol';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class MainThreadLanguageFeatures {
 
@@ -203,7 +203,12 @@ export class MainThreadLanguageFeatures {
 
 	// --- configuration
 
-	$setLanguageConfiguration(handle: number, languageId:string, configuration: vscode.LanguageConfiguration): TPromise<any> {
+	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> {
+
+		if (configuration.__characterPairSupport) {
+			(<LanguageConfiguration> configuration).autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
+		}
+
 		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, configuration);
 		return undefined;
 	}
