@@ -30,6 +30,7 @@ export class TerminalPanel extends Panel {
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
 	private terminalContainer: HTMLElement;
+	private currentThemeId: string;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 
@@ -167,7 +168,14 @@ export class TerminalPanel extends Panel {
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
-		let theme = this.configurationHelper.getTheme(themeId);
+
+		let terminalThemeId = this.configurationHelper.getTerminalThemeId(themeId);
+		if (terminalThemeId === this.currentThemeId) {
+			return;
+		}
+		this.currentThemeId = terminalThemeId;
+
+		let theme = this.configurationHelper.getTheme(terminalThemeId);
 
 		let css = '';
 		theme.forEach((color: string, index: number) => {
