@@ -38,8 +38,7 @@ export class CloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWindowService private windowService: IWindowService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
@@ -49,8 +48,6 @@ export class CloseEditorAction extends Action {
 		if (activeEditor) {
 			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 		}
-
-		this.windowService.getWindow().close();
 
 		return TPromise.as(false);
 	}
