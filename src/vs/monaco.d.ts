@@ -1113,7 +1113,7 @@ declare module monaco.editor {
          */
         overviewRulerLanes?: number;
         /**
-         * Control the cursor blinking animation.
+         * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
          * Defaults to 'blink'.
          */
         cursorBlinking?: string;
@@ -1354,7 +1354,7 @@ declare module monaco.editor {
         revealHorizontalRightPadding: number;
         roundedSelection: boolean;
         overviewRulerLanes: number;
-        cursorBlinking: string;
+        cursorBlinking: TextEditorCursorBlinkingStyle;
         mouseWheelZoom: boolean;
         cursorStyle: TextEditorCursorStyle;
         hideCursorInOverviewRuler: boolean;
@@ -3302,6 +3302,36 @@ declare module monaco.editor {
          * As a horizontal line (sitting under a character).
          */
         Underline = 3,
+    }
+
+    /**
+     * The kind of animation in which the editor's cursor should be rendered.
+     */
+    export enum TextEditorCursorBlinkingStyle {
+        /**
+         * Hidden
+         */
+        Hidden = 0,
+        /**
+         * Blinking
+         */
+        Blink = 1,
+        /**
+         * Blinking with smooth fading
+         */
+        Smooth = 2,
+        /**
+         * Blinking with prolonged filled state and smooth fading
+         */
+        Phase = 3,
+        /**
+         * Expand collapse animation on the y axis
+         */
+        Expand = 4,
+        /**
+         * No-Blinking
+         */
+        Solid = 5,
     }
 
     /**
