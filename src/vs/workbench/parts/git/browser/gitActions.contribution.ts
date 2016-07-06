@@ -19,7 +19,7 @@ import filesCommon = require('vs/workbench/parts/files/common/files');
 import gitcontrib = require('vs/workbench/parts/git/browser/gitWorkbenchContributions');
 import { IGitService, Status, IFileStatus, StatusType } from 'vs/workbench/parts/git/common/git';
 import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
-import stageranges = require('vs/workbench/parts/git/common/stageRanges');
+import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService, Parts} from 'vs/workbench/services/part/common/partService';
@@ -394,11 +394,13 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 			return false;
 		}
 
-		return stageranges.getSelectedChanges(changes, selections).length > 0;
+		return getSelectedChanges(changes, selections).length > 0;
 	}
 
 	protected getRangesAppliedResult(editor: editorbrowser.IDiffEditor) {
-		return stageranges.stageRanges(editor);
+		var selections = editor.getSelections();
+		var changes = getSelectedChanges(editor.getLineChanges(), selections);
+		return applyChangesToModel(editor.getModel().original, editor.getModel().modified, changes);
 	}
 
 	public run():TPromise<any> {
@@ -450,7 +452,16 @@ export class UnstageRangesAction extends BaseStageRangesAction {
 	}
 
 	protected getRangesAppliedResult(editor: editorbrowser.IDiffEditor) {
-		return stageranges.unstageRanges(editor);
+	const selections = editor.getSelections();
+	const changes = getSelectedChanges(editor.getLineChanges(), selections)
+		.map(c => ({
+			modifiedStartLineNumber: c.originalStartLineNumber,
+			modifiedEndLineNumber: c.originalEndLineNumber,
+			originalStartLineNumber: c.modifiedStartLineNumber,
+			originalEndLineNumber: c.modifiedEndLineNumber
+		}));
+
+	return applyChangesToModel(editor.getModel().modified, editor.getModel().original, changes);
 	}
 }
 
