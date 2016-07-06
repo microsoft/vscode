@@ -8,7 +8,7 @@ import 'vs/workbench/parts/files/browser/files.contribution'; // load our contri
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IModelService} from 'vs/editor/common/services/modelService';

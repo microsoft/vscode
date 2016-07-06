@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
+import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/common/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileOperationResult, AutoSaveMode, IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
