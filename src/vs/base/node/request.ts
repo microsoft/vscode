@@ -123,3 +123,20 @@ export function json<T>(opts: IRequestOptions): TPromise<T> {
 		pair.res.on('error', e);
 	}));
 }
+
+export function buffer(opts: IRequestOptions): TPromise<Buffer> {
+	return request(opts).then(pair => new Promise((c, e) => {
+		if (!((pair.res.statusCode >= 200 && pair.res.statusCode < 300) || pair.res.statusCode === 1223)) {
+			return e('Server returned ' + pair.res.statusCode);
+		}
+
+		if (pair.res.statusCode === 204) {
+			return c(null);
+		}
+
+		let buffer: Buffer[] = [];
+		pair.res.on('data', d => buffer.push(d));
+		pair.res.on('end', () => c(Buffer.concat(buffer)));
+		pair.res.on('error', e);
+	}));
+}
