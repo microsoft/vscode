@@ -22,7 +22,7 @@ suite('Zip', () => {
 		const target = path.join(os.tmpdir(), generateUuid());
 
 		return extract(fixture, target)
-			.then(() => exists(path.join(target, 'extension', '1', '2', 'README.md')))
+			.then(() => exists(path.join(target, 'extension')))
 			.then(exists => assert(exists))
 			.then(() => rimraf(target));
 	});
