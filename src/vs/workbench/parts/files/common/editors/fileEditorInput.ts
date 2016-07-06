@@ -16,8 +16,7 @@ import assert = require('vs/base/common/assert');
 import {IEditorRegistry, Extensions, EditorModel, EncodingMode, ConfirmResult, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent, IFileEditorDescriptor} from 'vs/workbench/parts/files/common/files';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -202,8 +201,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 			for (let i = 0; i < candidates.length; i++) {
 				descriptor = editorRegistry.getEditorById(candidates[i]);
 
-				if (types.isFunction((<FileEditorDescriptor>descriptor).getMimeTypes)) {
-					let mimetypes = (<FileEditorDescriptor>descriptor).getMimeTypes();
+				if (types.isFunction((<IFileEditorDescriptor>descriptor).getMimeTypes)) {
+					let mimetypes = (<IFileEditorDescriptor>descriptor).getMimeTypes();
 					for (let j = 0; j < mimetypes.length; j++) {
 						let mimetype = mimetypes[j];
 

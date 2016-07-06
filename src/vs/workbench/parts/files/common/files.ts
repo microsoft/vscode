@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import {IModel, IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -243,6 +243,10 @@ export enum AutoSaveMode {
 	AFTER_SHORT_DELAY,
 	AFTER_LONG_DELAY,
 	ON_FOCUS_CHANGE
+}
+
+export interface IFileEditorDescriptor extends IEditorDescriptor {
+	getMimeTypes(): string[];
 }
 
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);

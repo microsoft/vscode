@@ -25,7 +25,7 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/common/servicesTestUtils';

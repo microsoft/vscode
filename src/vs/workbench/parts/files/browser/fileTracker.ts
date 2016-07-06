@@ -18,7 +18,7 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
