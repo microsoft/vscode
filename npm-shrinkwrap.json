@@ -78,9 +78,9 @@
       "resolved": "https://registry.npmjs.org/debug/-/debug-2.2.0.tgz"
     },
     "emmet": {
-      "version": "1.3.1",
-      "from": "emmet@1.3.1",
-      "resolved": "https://registry.npmjs.org/emmet/-/emmet-1.3.1.tgz"
+      "version": "1.6.0",
+      "from": "emmet@1.6.0",
+      "resolved": "https://registry.npmjs.org/emmet/-/emmet-1.6.0.tgz"
     },
     "expand-brackets": {
       "version": "0.1.5",

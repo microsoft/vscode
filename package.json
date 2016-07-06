@@ -17,7 +17,7 @@
     "ansi-regex": "^2.0.0",
     "applicationinsights": "0.15.6",
     "chokidar": "1.0.5",
-    "emmet": "1.3.1",
+    "emmet": "1.6.0",
     "getmac": "1.0.7",
     "graceful-fs": "4.1.2",
     "http-proxy-agent": "0.2.7",
