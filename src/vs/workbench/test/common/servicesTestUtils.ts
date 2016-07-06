@@ -36,8 +36,10 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IFileService} from 'vs/platform/files/common/files';
+import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
+import {RawText} from 'vs/editor/common/model/textModel';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -143,6 +145,23 @@ export abstract class TestTextFileService extends TextFileService {
 		@IModelService modelService: IModelService
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService, modelService);
+	}
+
+	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+		return this.fileService.resolveContent(resource, options).then((content) => {
+			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
+
+			return <IRawTextContent> {
+				resource: content.resource,
+					name: content.name,
+					mtime: content.mtime,
+					etag: content.etag,
+					mime: content.mime,
+					encoding: content.encoding,
+					value: raw,
+					valueLogicalHash: null
+			};
+		});
 	}
 }
 
