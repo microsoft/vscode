@@ -16,9 +16,9 @@ import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {ITextFileOperationResult, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {ITextFileOperationResult, AutoSaveMode, IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IFileService} from 'vs/platform/files/common/files';
+import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -30,6 +30,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {ModelBuilder} from 'vs/editor/node/model/modelBuilder';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -61,6 +62,24 @@ export class TextFileService extends AbstractTextFileService {
 		// Lifecycle
 		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 		this.lifecycleService.onShutdown(this.onShutdown, this);
+	}
+
+	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+		return this.fileService.resolveStreamContent(resource, options).then((streamContent) => {
+			return ModelBuilder.fromStringStream(streamContent.value, this.modelService.getCreationOptions()).then((res) => {
+				let r: IRawTextContent = {
+					resource: streamContent.resource,
+					name: streamContent.name,
+					mtime: streamContent.mtime,
+					etag: streamContent.etag,
+					mime: streamContent.mime,
+					encoding: streamContent.encoding,
+					value: res.rawText,
+					valueLogicalHash: res.hash
+				};
+				return r;
+			});
+		});
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
