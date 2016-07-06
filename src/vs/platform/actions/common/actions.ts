@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import Actions = require('vs/base/common/actions');
 import WinJS = require('vs/base/common/winjs.base');
-import Assert = require('vs/base/common/assert');
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
 import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -168,7 +167,8 @@ export class DeferredAction extends Actions.Action {
 	private _cachedAction: Actions.IAction;
 	private _emitterUnbind: IDisposable;
 
-	constructor(private _instantiationService: Instantiation.IInstantiationService, private _descriptor: Descriptors.AsyncDescriptor0<Actions.Action>,
+	constructor(private _instantiationService: Instantiation.IInstantiationService,
+		private _descriptor: Descriptors.AsyncDescriptor0<Actions.Action>,
 		id: string, label = '', cssClass = '', enabled = true) {
 
 		super(id, label, cssClass, enabled);
@@ -265,13 +265,15 @@ export class DeferredAction extends Actions.Action {
 		let promise = WinJS.TPromise.as(undefined);
 		return promise.then(() => {
 			return this._instantiationService.createInstance(this._descriptor);
+		}).then(action => {
+			if (action instanceof Actions.Action) {
+				this._cachedAction = action;
+				// Pipe events from the instantated action through this deferred action
+				this._emitterUnbind = action.onDidChange(e => this._onDidChange.fire(e));
 
-		}).then((action) => {
-			Assert.ok(action instanceof Actions.Action, 'Action must be an instanceof Base Action');
-			this._cachedAction = action;
-
-			// Pipe events from the instantated action through this deferred action
-			this._emitterUnbind = this.addEmitter2(<Actions.Action>this._cachedAction);
+			} else {
+				throw new Error('Action must be an instanceof Base Action');
+			}
 
 			return action;
 		});

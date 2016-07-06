@@ -11,11 +11,11 @@ import lifecycle = require('vs/base/common/lifecycle');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
-import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
+import {IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner} from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import {EventType as CommonEventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
-import {IEventEmitter, EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
+import {IEventEmitter, EventEmitter} from 'vs/base/common/eventEmitter';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
@@ -48,38 +48,33 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this._action = action;
 
 		if (action instanceof Action) {
-			let l = (<Action>action).addBulkListener2((events: EmitterEvent[]) => {
+			this._callOnDispose.push(action.onDidChange(event => {
 				if (!this.builder) {
 					// we have not been rendered yet, so there
 					// is no point in updating the UI
 					return;
 				}
+				this._handleActionChangeEvent(event);
+			}));
+		}
+	}
 
-				events.forEach((event: EmitterEvent) => {
-					switch (event.getType()) {
-						case Action.ENABLED:
-							this._updateEnabled();
-							break;
-						case Action.LABEL:
-							this._updateLabel();
-							this._updateTooltip();
-							break;
-						case Action.TOOLTIP:
-							this._updateTooltip();
-							break;
-						case Action.CLASS:
-							this._updateClass();
-							break;
-						case Action.CHECKED:
-							this._updateChecked();
-							break;
-						default:
-							this._updateUnknown(event);
-							break;
-					}
-				});
-			});
-			this._callOnDispose.push(l);
+	protected _handleActionChangeEvent(event: IActionChangeEvent): void {
+		if (event.enabled !== void 0) {
+			this._updateEnabled();
+		}
+		if (event.checked !== void 0) {
+			this._updateChecked();
+		}
+		if (event.class !== void 0) {
+			this._updateClass();
+		}
+		if (event.label !== void 0) {
+			this._updateLabel();
+			this._updateTooltip();
+		}
+		if (event.tooltip !== void 0) {
+			this._updateTooltip();
 		}
 	}
 
@@ -161,28 +156,24 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		}
 	}
 
-	public _updateEnabled(): void {
+	protected _updateEnabled(): void {
 		// implement in subclass
 	}
 
-	public _updateLabel(): void {
+	protected _updateLabel(): void {
 		// implement in subclass
 	}
 
-	public _updateTooltip(): void {
+	protected _updateTooltip(): void {
 		// implement in subclass
 	}
 
-	public _updateClass(): void {
+	protected _updateClass(): void {
 		// implement in subclass
 	}
 
-	public _updateChecked(): void {
+	protected _updateChecked(): void {
 		// implement in subclass
-	}
-
-	public _updateUnknown(event: EmitterEvent): void {
-		// can implement in subclass
 	}
 
 	public dispose(): void {
