@@ -18,11 +18,6 @@
 	border: 1px solid #ddd;
 }
 
-.monaco-action-bar .action-item.markers-panel-action-filter .filterIcon {
-	margin: 2px 0 0 4px;
-	background: url('filter.svg') center center no-repeat;
-}
-
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
