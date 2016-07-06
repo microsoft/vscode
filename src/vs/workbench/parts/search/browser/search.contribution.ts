@@ -25,10 +25,11 @@ import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {OpenSearchViewletAction, ReplaceInFilesAction} from 'vs/workbench/parts/search/browser/searchActions';
+import {OpenSearchViewletAction, ReplaceInFilesAction, CopySearchResultPathAction} from 'vs/workbench/parts/search/browser/searchActions';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
+import { FileMatch } from 'vs/workbench/parts/search/common/searchModel';
 
 replaceContributions();
 searchWidgetContributions();
@@ -90,6 +91,30 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 	}
 }
 
+class SearchActionContributor extends ActionBarContributor {
+	private _instantiationService: IInstantiationService;
+	private _contextService: IWorkspaceContextService;
+
+	constructor( @IInstantiationService instantiationService: IInstantiationService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super();
+
+		this._instantiationService = instantiationService;
+		this._contextService = contextService;
+	}
+
+	public hasSecondaryActions(context: any): boolean {
+		return context.element instanceof FileMatch;
+	}
+
+	public getSecondaryActions(context: any): IAction[] {
+		let actions: IAction[] = [];
+		let element = <FileMatch>context.element;
+		let action: CopySearchResultPathAction = this._instantiationService.createInstance(CopySearchResultPathAction, element.resource());
+		actions.push(action);
+		return actions;
+	}
+}
+
 const ACTION_ID = 'workbench.action.showAllSymbols';
 const ACTION_LABEL = nls.localize('showTriggerActions', "Show All Symbols");
 const ALL_SYMBOLS_PREFIX = '#';
@@ -130,8 +155,12 @@ const openSearchViewletKb: IKeybindings = {
 );
 
 // Contribute to Explorer Viewer
-const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
+const actionBarRegistryToExplorer = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+actionBarRegistryToExplorer.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
+
+
+const actionBarRegistryToSearch = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+actionBarRegistryToSearch.registerActionBarContributor(Scope.VIEWER, SearchActionContributor);
 
 // Register Quick Open Handler
 (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerDefaultQuickOpenHandler(

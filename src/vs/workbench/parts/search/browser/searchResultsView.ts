@@ -16,7 +16,7 @@ import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
 import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
-import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { Match, EmptyMatch, SearchResult, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
@@ -27,6 +27,11 @@ import { CommonKeybindings }  from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class SearchDataSource implements IDataSource {
 
@@ -84,7 +89,7 @@ export class SearchSorter implements ISorter {
 	}
 }
 
-class SearchActionProvider extends ContributableActionProvider {
+export class SearchActionProvider extends ContributableActionProvider {
 
 	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -117,10 +122,11 @@ class SearchActionProvider extends ContributableActionProvider {
 
 export class SearchRenderer extends ActionsRenderer {
 
-	constructor(actionRunner: IActionRunner, viewlet: SearchViewlet, @IWorkspaceContextService private contextService: IWorkspaceContextService,
-											@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(actionRunner: IActionRunner, viewlet: SearchViewlet, actionProvider: SearchActionProvider,
+				@IWorkspaceContextService private contextService: IWorkspaceContextService,
+				@IInstantiationService private instantiationService: IInstantiationService) {
 		super({
-			actionProvider: instantiationService.createInstance(SearchActionProvider, viewlet),
+			actionProvider: actionProvider,
 			actionRunner: actionRunner
 		});
 	}
@@ -224,10 +230,15 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 }
 
 export class SearchController extends DefaultController {
+	private contributedContextMenu: IMenu;
 
-	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(private viewlet: SearchViewlet,
+				@IInstantiationService private instantiationService: IInstantiationService,
+				@IContextMenuService private contextMenuService:IContextMenuService,
+				@IMenuService private menuService: IMenuService,
+				@IKeybindingService private keybindingService:IKeybindingService) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
-
+		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, keybindingService);
 		if (platform.isMacintosh) {
 			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
 			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onEnter.bind(this));
@@ -239,6 +250,46 @@ export class SearchController extends DefaultController {
 		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
 		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
+	}
+
+	public onContextMenu(tree: ITree, fileMatchOrMatch: FileMatchOrMatch, event: ContextMenuEvent): boolean {
+		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
+			return false;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		tree.setFocus(fileMatchOrMatch);
+
+		if (!this.viewlet.searchActionProvider.hasSecondaryActions(tree, fileMatchOrMatch)) {
+			return true;
+		}
+
+		let anchor = { x: event.posx + 1, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => {
+				return this.viewlet.searchActionProvider.getSecondaryActions(tree, fileMatchOrMatch).then(actions => {
+					fillInActions(this.contributedContextMenu, actions);
+					return actions;
+				});
+			},
+			getActionItem: this.viewlet.searchActionProvider.getActionItem.bind(this.viewlet.searchActionProvider, tree, fileMatchOrMatch),
+			getActionsContext: () => {
+				return {
+					fileMatchOrMatch: fileMatchOrMatch
+				};
+			},
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					tree.DOMFocus();
+				}
+			}
+		});
+
+		return true;
+
 	}
 
 	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
