@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRawGitService, RawServiceState } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
 import { NoOpGitService } from 'vs/workbench/parts/git/common/noopGitService';
 import { GitService } from 'vs/workbench/parts/git/browser/gitServices';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { getDelayedChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { GitChannelClient, UnavailableGitChannel } from 'vs/workbench/parts/git/common/gitIpc';
-import { RawGitService } from 'vs/workbench/parts/git/node/rawGitService';
+import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
 import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
@@ -146,7 +146,53 @@ class DisabledRawGitService extends RawGitService {
 	}
 }
 
+function createRemoteRawGitService(gitPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
+	const promise = TPromise.timeout(0) // free event loop cos finding git costs
+		.then(() => findGit(gitPath))
+		.then(({ path, version }) => {
+			const client = new Client(
+				URI.parse(require.toUrl('bootstrap')).fsPath,
+				{
+					serverName: 'Git',
+					timeout: 1000 * 60,
+					args: [path, workspaceRoot, encoding, remote.process.execPath, version],
+					env: {
+						ELECTRON_RUN_AS_NODE: 1,
+						PIPE_LOGGING: 'true',
+						AMD_ENTRYPOINT: 'vs/workbench/parts/git/node/gitApp',
+						VERBOSE_LOGGING: String(verbose)
+					}
+				}
+			);
+
+			return client.getChannel('git');
+		})
+		.then(null, () => new UnavailableGitChannel());
+
+	const channel = getNextTickChannel(getDelayedChannel(promise));
+	return new GitChannelClient(channel);
+}
+
+interface IRawGitServiceBootstrap {
+	createRawGitService(gitPath: string, workspaceRoot: string, defaultEncoding: string, exePath: string, version: string): TPromise<IRawGitService>;
+}
+
+function createRawGitService(gitPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
+	const promise = new TPromise<IRawGitService>((c, e) => {
+		require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], ({ createRawGitService }: IRawGitServiceBootstrap) => {
+			findGit(gitPath)
+				.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, remote.process.execPath, version))
+				.done(c, e);
+		}, e);
+	});
+
+	return new DelayedRawGitService(promise);
+}
+
 export class ElectronGitService extends GitService {
+
+	private static USE_REMOTE_PROCESS_SERVICE = true;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEventService eventService: IEventService,
@@ -158,45 +204,27 @@ export class ElectronGitService extends GitService {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		const conf = configurationService.getConfiguration<any>();
-		const enabled = conf.git ? conf.git.enabled : true;
+		const conf = configurationService.getConfiguration<IGitConfiguration>('git');
+		const filesConf = configurationService.getConfiguration<any>('files');
 		const workspace = contextService.getWorkspace();
 
 		let raw: IRawGitService;
 
-		if (!enabled) {
+		if (!conf.enabled) {
 			raw = new DisabledRawGitService();
 		} else if (!workspace) {
 			raw = new NoOpGitService();
 		} else {
-			const gitPath = (conf.git && conf.git.path) || null;
-			const encoding = (conf.files && conf.files.encoding) || 'utf8';
+			const gitPath = conf.path || null;
+			const encoding = filesConf.encoding || 'utf8';
 			const workspaceRoot = workspace.resource.fsPath;
+			const verbose = !contextService.getConfiguration().env.isBuilt || contextService.getConfiguration().env.verboseLogging;
 
-			const promise = TPromise.timeout(0) // free event loop cos finding git costs
-				.then(() => findGit(gitPath))
-				.then(({ path, version }) => {
-					const client = new Client(
-						URI.parse(require.toUrl('bootstrap')).fsPath,
-						{
-							serverName: 'Git',
-							timeout: 1000 * 60,
-							args: [path, workspaceRoot, encoding, remote.process.execPath, version],
-							env: {
-								ELECTRON_RUN_AS_NODE: 1,
-								PIPE_LOGGING: 'true',
-								AMD_ENTRYPOINT: 'vs/workbench/parts/git/node/gitApp',
-								VERBOSE_LOGGING: String(!contextService.getConfiguration().env.isBuilt || contextService.getConfiguration().env.verboseLogging)
-							}
-						}
-					);
-
-					return client.getChannel('git');
-				})
-				.then(null, () => new UnavailableGitChannel());
-
-			const channel = getNextTickChannel(getDelayedChannel(promise));
-			raw = new GitChannelClient(channel);
+			if (ElectronGitService.USE_REMOTE_PROCESS_SERVICE) {
+				raw = createRemoteRawGitService(gitPath, workspaceRoot, encoding, verbose);
+			} else {
+				raw = createRawGitService(gitPath, workspaceRoot, encoding, verbose);
+			}
 		}
 
 		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService, storageService, configurationService);

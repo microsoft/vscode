@@ -10,7 +10,7 @@ import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, fromPromise } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
 
@@ -191,4 +191,29 @@ export class RawGitService implements IRawGitService {
 			return TPromise.wrapError<string>(e);
 		});
 	}
+}
+
+export class DelayedRawGitService implements IRawGitService {
+	constructor(private raw: TPromise<IRawGitService>){}
+	onOutput: Event<string> = fromPromise(this.raw.then(r => r.onOutput));
+	getVersion(): TPromise<string> { return this.raw.then(r => r.getVersion()); }
+	serviceState(): TPromise<RawServiceState> { return this.raw.then(r => r.serviceState()); }
+	statusCount(): TPromise<number> { return this.raw.then(r => r.statusCount()); }
+	status(): TPromise<IRawStatus> { return this.raw.then(r => r.status()); }
+	init(): TPromise<IRawStatus> { return this.raw.then(r => r.init()); }
+	add(filesPaths?: string[]): TPromise<IRawStatus> { return this.raw.then(r => r.add(filesPaths)); }
+	stage(filePath: string, content: string): TPromise<IRawStatus> { return this.raw.then(r => r.stage(filePath, content)); }
+	branch(name: string, checkout?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.branch(name, checkout)); }
+	checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus> { return this.raw.then(r => r.checkout(treeish, filePaths)); }
+	clean(filePaths: string[]): TPromise<IRawStatus> { return this.raw.then(r => r.clean(filePaths)); }
+	undo(): TPromise<IRawStatus> { return this.raw.then(r => r.undo()); }
+	reset(treeish:string, hard?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.reset(treeish, hard)); }
+	revertFiles(treeish:string, filePaths?: string[]): TPromise<IRawStatus> { return this.raw.then(r => r.revertFiles(treeish, filePaths)); }
+	fetch(): TPromise<IRawStatus> { return this.raw.then(r => r.fetch()); }
+	pull(rebase?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.pull(rebase)); }
+	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> { return this.raw.then(r => r.push(remote, name, options)); }
+	sync(): TPromise<IRawStatus> { return this.raw.then(r => r.sync()); }
+	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage)); }
+	detectMimetypes(path: string, treeish?: string): TPromise<string[]> { return this.raw.then(r => r.detectMimetypes(path, treeish)); }
+	show(path: string, treeish?: string): TPromise<string> { return this.raw.then(r => r.show(path, treeish)); }
 }
