@@ -33,7 +33,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {extractResources} from 'vs/base/browser/dnd';
 
@@ -804,7 +804,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
 			const freeGroup = (stacks.groups.length === 1) ? Position.CENTER : Position.RIGHT;
-			const pinned = EditorOptions.create({ pinned: true });
 
 			// Check for transfer from title control
 			const draggedEditor = TitleControl.getDraggedEditor();
@@ -814,13 +813,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Copy editor to new location
 				if (isCopy) {
 					if (splitEditor) {
-						editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+						editorService.openEditor(draggedEditor.editor, { pinned: true }, freeGroup).then(() => {
 							if (splitTo !== freeGroup) {
 								groupService.moveGroup(freeGroup, splitTo);
 							}
 						}).done(null, errors.onUnexpectedError);
 					} else {
-						editorService.openEditor(draggedEditor.editor, pinned, position).done(null, errors.onUnexpectedError);
+						editorService.openEditor(draggedEditor.editor, { pinned: true }, position).done(null, errors.onUnexpectedError);
 					}
 				}
 
@@ -831,7 +830,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						if (draggedEditor.group.count === 1) {
 							groupService.moveGroup(sourcePosition, splitTo);
 						} else {
-							editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+							editorService.openEditor(draggedEditor.editor, { pinned: true }, freeGroup).then(() => {
 								if (splitTo !== freeGroup) {
 									groupService.moveGroup(freeGroup, splitTo);
 								}

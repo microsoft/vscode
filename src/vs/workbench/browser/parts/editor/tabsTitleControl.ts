@@ -15,7 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
@@ -97,7 +97,7 @@ export class TabsTitleControl extends TitleControl {
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
 
-				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true })); // untitled are always pinned
+				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true }); // untitled are always pinned
 			}
 		}));
 
@@ -165,7 +165,7 @@ export class TabsTitleControl extends TitleControl {
 
 						// Copy: just open editor at target index
 						else {
-							this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
+							this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
 						}
 
 						this.onEditorDragEnd();
@@ -433,7 +433,7 @@ export class TabsTitleControl extends TitleControl {
 				const target = group.getEditor(targetIndex);
 				if (target) {
 					handled = true;
-					this.editorService.openEditor(target, EditorOptions.create({ preserveFocus: true }), position).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(target, { preserveFocus: true }, position).done(null, errors.onUnexpectedError);
 					(<HTMLElement>this.tabsContainer.childNodes[targetIndex]).focus();
 				}
 			}
@@ -508,7 +508,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Copy: just open editor at target index
 				else {
-					this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
 				}
 
 				this.onEditorDragEnd();

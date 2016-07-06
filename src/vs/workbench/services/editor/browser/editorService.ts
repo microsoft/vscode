@@ -99,6 +99,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
+			if (!(arg2 instanceof EditorOptions)) {
+				arg2 = EditorOptions.create(arg2);
+			}
+
 			return this.doOpenEditor(input, <EditorOptions>arg2, arg3);
 		}
 
@@ -137,9 +141,14 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
 			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
+				let options = editors[index].input instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input);
+				if (!(options instanceof EditorOptions)) {
+					options = EditorOptions.create(options);
+				}
+
 				return {
 					input,
-					options: editors[index].input instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input),
+					options,
 					position: editors[index].position
 				};
 			});
@@ -149,15 +158,20 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	public replaceEditors(editors: { toReplace: IResourceInput, replaceWith: IResourceInput }[]): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: IEditorOptions }[]): TPromise<BaseEditor[]>;
 	public replaceEditors(editors: any[]): TPromise<BaseEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
 			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
 				const typedReplacements: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
+					let options = editor.toReplace instanceof EditorInput ? editor.options : TextEditorOptions.from(editor.replaceWith);
+					if (!(options instanceof EditorOptions)) {
+						options = EditorOptions.create(options);
+					}
+
 					return {
 						toReplace: toReplaceInputs[index],
 						replaceWith: replaceWithInputs[index],
-						options: editor.toReplace instanceof EditorInput ? editor.options : TextEditorOptions.from(editor.replaceWith)
+						options
 					};
 				});
 

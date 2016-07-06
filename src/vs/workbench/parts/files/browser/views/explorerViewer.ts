@@ -27,7 +27,7 @@ import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/wo
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
-import {EditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
+import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -593,12 +593,10 @@ export class FileController extends DefaultController {
 
 	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean, pinned = false): void {
 		if (stat && !stat.isDirectory) {
-			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			let editorOptions = EditorOptions.create({ preserveFocus, pinned });
-
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor(editorInput, editorOptions, sideBySide).done(null, errors.onUnexpectedError);
+			const editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
+			this.editorService.openEditor(editorInput, { preserveFocus, pinned }, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 
