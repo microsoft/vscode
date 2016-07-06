@@ -252,7 +252,8 @@ KeybindingsRegistry.registerCommandDesc({
 	weight,
 	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
 	primary: KeyCode.DownArrow,
-	secondary: [KeyMod.Alt | KeyCode.DownArrow]
+	secondary: [KeyMod.Alt | KeyCode.DownArrow],
+	mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
 });
 
 KeybindingsRegistry.registerCommandDesc({
@@ -270,7 +271,8 @@ KeybindingsRegistry.registerCommandDesc({
 	weight,
 	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
 	primary: KeyCode.UpArrow,
-	secondary: [KeyMod.Alt | KeyCode.UpArrow]
+	secondary: [KeyMod.Alt | KeyCode.UpArrow],
+	mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
 });
 
 KeybindingsRegistry.registerCommandDesc({

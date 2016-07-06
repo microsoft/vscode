@@ -151,7 +151,7 @@ CommonEditorRegistry.registerEditorCommand('closeQuickFixWidget', weight, { prim
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.closeWidget();
 });
-CommonEditorRegistry.registerEditorCommand('selectNextQuickFix', weight, { primary: KeyCode.DownArrow }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectNextQuickFix', weight, { primary: KeyCode.DownArrow , mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] } }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.selectNextSuggestion();
 });
@@ -159,7 +159,7 @@ CommonEditorRegistry.registerEditorCommand('selectNextPageQuickFix', weight, { p
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.selectNextPageSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectPrevQuickFix', weight, { primary: KeyCode.UpArrow }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectPrevQuickFix', weight, { primary: KeyCode.UpArrow , mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }}, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.selectPrevSuggestion();
 });
