@@ -36,6 +36,10 @@ export class RawGitService implements IRawGitService {
 	}
 
 	getVersion(): TPromise<string> {
+		if (!this.repo) {
+			return TPromise.as(null);
+		}
+
 		return TPromise.as(this.repo.version);
 	}
 
