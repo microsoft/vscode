@@ -18,7 +18,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';

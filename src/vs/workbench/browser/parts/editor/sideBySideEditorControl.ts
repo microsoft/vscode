@@ -27,7 +27,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';

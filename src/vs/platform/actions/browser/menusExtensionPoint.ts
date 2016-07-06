@@ -12,7 +12,7 @@ import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {forEach} from 'vs/base/common/collections';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {MenuRegistry} from './menuService';
-import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {MenuId} from 'vs/platform/actions/common/actions';
 
 namespace schema {

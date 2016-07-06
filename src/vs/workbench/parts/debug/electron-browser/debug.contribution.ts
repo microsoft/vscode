@@ -15,7 +15,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KbExpr, IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
+import { KbExpr, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');

@@ -6,7 +6,7 @@
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybinding';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostContext, ExtHostCommandsShape} from './extHostProtocol';
 

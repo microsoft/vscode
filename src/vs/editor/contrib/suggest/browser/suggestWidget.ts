@@ -17,7 +17,7 @@ import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from '
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';

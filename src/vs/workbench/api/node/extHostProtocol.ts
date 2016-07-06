@@ -21,7 +21,7 @@ import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IMessage, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybinding';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';

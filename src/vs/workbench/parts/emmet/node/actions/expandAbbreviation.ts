@@ -14,7 +14,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import editorCommon = require('vs/editor/common/editorCommon');
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 

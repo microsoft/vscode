@@ -11,7 +11,7 @@ import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {EndOfLinePreference, IEditorContribution, ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 

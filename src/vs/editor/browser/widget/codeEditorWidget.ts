@@ -11,7 +11,7 @@ import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';

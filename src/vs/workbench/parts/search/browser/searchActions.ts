@@ -22,7 +22,7 @@ import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSetti
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export function isSearchViewletFocussed(viewletService: IViewletService):boolean {
 	let activeViewlet= viewletService.getActiveViewlet();

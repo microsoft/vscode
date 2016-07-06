@@ -22,7 +22,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

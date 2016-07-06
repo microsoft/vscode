@@ -16,7 +16,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor, Direction, IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 

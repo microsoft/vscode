@@ -13,7 +13,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';

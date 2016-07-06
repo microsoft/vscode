@@ -57,7 +57,7 @@ declare module monaco.editor {
 export interface ICommandHandler {
     (...args:any[]): void;
 }
-#include(vs/platform/keybinding/common/keybindingService): IKeybindingContextKey
+#include(vs/platform/keybinding/common/keybinding): IKeybindingContextKey
 #include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices
 #include(vs/platform/markers/common/markers): IMarkerData
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions

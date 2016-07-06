@@ -13,7 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';

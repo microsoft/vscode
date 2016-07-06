@@ -16,7 +16,7 @@ import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {IMessage as InputBoxMessage, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';

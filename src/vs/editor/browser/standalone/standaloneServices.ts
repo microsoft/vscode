@@ -17,7 +17,7 @@ import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';

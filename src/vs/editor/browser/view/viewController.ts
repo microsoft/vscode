@@ -9,7 +9,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IEditorMouseEvent, IViewController, IMouseDispatchData} from 'vs/editor/browser/editorBrowser';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
 import {Range} from 'vs/editor/common/core/range';
 

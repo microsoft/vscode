@@ -47,7 +47,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';

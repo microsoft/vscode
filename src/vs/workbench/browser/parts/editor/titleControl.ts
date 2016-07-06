@@ -28,7 +28,7 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {createActionItem, fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';

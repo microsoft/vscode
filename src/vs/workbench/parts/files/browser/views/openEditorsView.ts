@@ -17,7 +17,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';

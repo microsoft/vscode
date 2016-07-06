@@ -21,7 +21,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 

@@ -9,7 +9,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';

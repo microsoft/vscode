@@ -7,7 +7,7 @@
 import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
-import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {Registry} from 'vs/platform/platform';
 
 export interface ICommandRule extends IKeybindings {

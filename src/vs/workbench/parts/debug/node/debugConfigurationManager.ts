@@ -23,7 +23,7 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';

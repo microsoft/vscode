@@ -10,7 +10,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {values} from 'vs/base/common/collections';
-import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {MenuId, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';

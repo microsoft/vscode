@@ -6,7 +6,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ICodeEditorWidgetCreationOptions, IConfigurationChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
