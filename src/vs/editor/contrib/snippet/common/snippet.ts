@@ -8,7 +8,7 @@
 import * as collections from 'vs/base/common/collections';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';

@@ -17,7 +17,7 @@ import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/w
 import panel = require('vs/workbench/browser/panel');
 import {KEYBINDING_CONTEXT_EDITOR_FOCUS, KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID} from 'vs/editor/common/editorCommon';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {MenuRegistry} from 'vs/platform/actions/browser/menuService';
 
 // Register Service

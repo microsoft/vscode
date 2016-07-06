@@ -8,7 +8,7 @@ import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IKeybindingService, IKeybindingScopeLocation} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingScopeLocation} from 'vs/platform/keybinding/common/keybinding';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';

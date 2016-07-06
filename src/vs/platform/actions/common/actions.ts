@@ -9,7 +9,7 @@ import Actions = require('vs/base/common/actions');
 import WinJS = require('vs/base/common/winjs.base');
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';

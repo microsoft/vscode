@@ -13,7 +13,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { EditorAction } from 'vs/editor/common/editorAction';
 import { Behaviour } from 'vs/editor/common/editorActionEnablement';
 import { IEventService } from 'vs/platform/event/common/event';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');

@@ -26,7 +26,7 @@ import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileE
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

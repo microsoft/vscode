@@ -9,7 +9,7 @@ import {parse} from 'vs/base/common/marshalling';
 import {Schemas} from 'vs/base/common/network';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IOpenerService} from '../common/opener';
 
 export class OpenerService implements IOpenerService {

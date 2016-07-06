@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandHandler, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

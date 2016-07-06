@@ -6,7 +6,7 @@
 'use strict';
 
 import {localize} from 'vs/nls';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenu, MenuItemAction} from 'vs/platform/actions/common/actions';
 import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
