@@ -130,7 +130,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 
 		if (!isValidFilePath) {
-			const message = nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", input);
+			const message = nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file name. Please choose a different name.", input);
 			this.messageService.show(Severity.Error, message);
 			return false;
 		}
