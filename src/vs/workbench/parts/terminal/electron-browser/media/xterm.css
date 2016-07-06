@@ -3,6 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .panel.integrated-terminal {
+	font-feature-settings: "liga" 0;
+}
+
+.monaco-workbench .panel.integrated-terminal.enable-ligatures {
+	font-feature-settings: "liga" 1;
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm {
 	background-color: transparent!important;
 	position: relative;

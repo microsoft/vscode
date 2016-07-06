@@ -137,6 +137,10 @@ export class TerminalConfigHelper {
 		return this.measureFont(fontFamily, fontSize + 'px', lineHeight === 0 ? 'normal' : lineHeight + 'px');
 	}
 
+	public getFontLigaturesEnabled(): boolean {
+		return this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated.fontLigatures;
+	}
+
 	public getCursorBlink(): boolean {
 		let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
 		return editorConfig.editor.cursorBlinking === 'blink';
