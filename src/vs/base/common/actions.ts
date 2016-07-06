@@ -61,14 +61,6 @@ export function isAction(thing: any): thing is IAction {
 	}
 }
 
-export interface IActionCallback {
-	(event: any): TPromise<any>;
-}
-
-export interface IActionProvider {
-	getAction(id: string): IAction;
-}
-
 export interface IActionChangeEvent {
 	label?: string;
 	tooltip?: string;
@@ -86,10 +78,10 @@ export class Action implements IAction {
 	protected _cssClass: string;
 	protected _enabled: boolean;
 	protected _checked: boolean;
-	protected _actionCallback: IActionCallback;
 	protected _order: number;
+	protected _actionCallback: (event?: any) => TPromise<any>;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback: IActionCallback = null) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => TPromise<any>) {
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
@@ -193,11 +185,10 @@ export class Action implements IAction {
 	}
 
 	public run(event?: any): TPromise<any> {
-		if (this._actionCallback !== null) {
+		if (this._actionCallback !== void 0) {
 			return this._actionCallback(event);
-		} else {
-			return TPromise.as(true);
 		}
+		return TPromise.as(true);
 	}
 }
 

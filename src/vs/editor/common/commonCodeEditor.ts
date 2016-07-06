@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IAction, IActionProvider, isAction} from 'vs/base/common/actions';
+import {IAction, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -33,7 +33,7 @@ import {hash} from 'vs/base/common/hash';
 
 var EDITOR_ID = 0;
 
-export abstract class CommonCodeEditor extends EventEmitter implements IActionProvider, editorCommon.ICommonCodeEditor {
+export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
 	public onDidChangeModelRawContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
