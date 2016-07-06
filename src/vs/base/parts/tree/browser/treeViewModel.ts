@@ -45,6 +45,7 @@ export class HeightMap extends EventEmitter {
 			viewItem = this.heightMap[i - 1];
 
 			if (!viewItem) {
+				console.error('view item doesnt exist');
 				return;
 			}
 
@@ -101,6 +102,7 @@ export class HeightMap extends EventEmitter {
 			viewItem = this.heightMap[i];
 
 			if (!viewItem) {
+				console.error('view item doesnt exist');
 				return;
 			}
 
