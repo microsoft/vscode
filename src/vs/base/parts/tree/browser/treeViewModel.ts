@@ -45,7 +45,7 @@ export class HeightMap extends EventEmitter {
 			viewItem = this.heightMap[i - 1];
 
 			if (!viewItem) {
-				throw new Error('Tree error, onInsertItems: viewItem doesn\'t exist.');
+				return;
 			}
 
 			totalSize = viewItem.top + viewItem.height;
@@ -101,7 +101,7 @@ export class HeightMap extends EventEmitter {
 			viewItem = this.heightMap[i];
 
 			if (!viewItem) {
-				throw new Error('Tree error, onRemoveItems: viewItem doesn\'t exist.');
+				return;
 			}
 
 			sizeDiff -= viewItem.height;
