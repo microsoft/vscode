@@ -48,6 +48,7 @@ export interface KbExpr {
 	evaluate(context: any): boolean;
 	normalize(): KbExpr;
 	serialize(): string;
+	keys(): string[];
 }
 
 function cmp(a:KbExpr, b:KbExpr): number {
@@ -106,6 +107,10 @@ export class KbDefinedExpression implements KbExpr {
 	public serialize(): string {
 		return this.key;
 	}
+
+	public keys(): string[]{
+		return [this.key];
+	}
 }
 
 export class KbEqualsExpression implements KbExpr {
@@ -162,6 +167,10 @@ export class KbEqualsExpression implements KbExpr {
 		}
 
 		return this.key + ' == \'' + this.value + '\'';
+	}
+
+	public keys(): string[]{
+		return [this.key];
 	}
 }
 
@@ -220,6 +229,10 @@ export class KbNotEqualsExpression implements KbExpr {
 
 		return this.key + ' != \'' + this.value + '\'';
 	}
+
+	public keys(): string[]{
+		return [this.key];
+	}
 }
 
 export class KbNotExpression implements KbExpr {
@@ -257,6 +270,10 @@ export class KbNotExpression implements KbExpr {
 
 	public serialize(): string {
 		return '!' + this.key;
+	}
+
+	public keys(): string[]{
+		return [this.key];
 	}
 }
 
@@ -343,6 +360,14 @@ export class KbAndExpression implements KbExpr {
 			return this.normalize().serialize();
 		}
 		return this.expr.map(e => e.serialize()).join(' && ');
+	}
+
+	public keys(): string[]{
+		const result: string[] = [];
+		for (let expr of this.expr) {
+			result.push(...expr.keys());
+		}
+		return result;
 	}
 }
 
