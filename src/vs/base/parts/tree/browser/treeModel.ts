@@ -128,6 +128,7 @@ export class Lock {
 
 export class ItemRegistry extends Events.EventEmitter {
 
+	private _isDisposed = false;
 	private items: IMap<{ item: Item; disposable: IDisposable; }>;
 
 	constructor() {
@@ -158,6 +159,11 @@ export class ItemRegistry extends Events.EventEmitter {
 	public dispose(): void {
 		super.dispose();
 		this.items = null;
+		this._isDisposed = true;
+	}
+
+	public isDisposed(): boolean {
+		return this._isDisposed;
 	}
 }
 
@@ -391,7 +397,7 @@ export class Item extends Events.EventEmitter {
 			}
 
 			const result = childrenPromise.then((elements: any[]) => {
-				if (this.isDisposed()) {
+				if (this.isDisposed() || this.registry.isDisposed()) {
 					return WinJS.TPromise.as(null);
 				}
 
