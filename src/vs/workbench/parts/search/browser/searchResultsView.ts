@@ -19,7 +19,7 @@ import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/l
 import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { Match, EmptyMatch, SearchResult, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, SearchResult, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -104,7 +104,7 @@ class SearchActionProvider extends ContributableActionProvider {
 					actions.unshift(this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet));
 				}
 			}
-			if (element instanceof Match && !(element instanceof EmptyMatch)) {
+			if (element instanceof Match) {
 				if (input.searchModel.isReplaceActive()) {
 					actions.unshift(this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet), new RemoveAction(tree, element));
 				}
@@ -158,12 +158,6 @@ export class SearchRenderer extends ActionsRenderer {
 			return widget.dispose.bind(widget);
 		}
 
-		// Empty
-		else if (element instanceof EmptyMatch) {
-			dom.addClass(domElement, 'linematch');
-			$('a.plain.label').innerHtml(nls.localize('noMatches', "no matches")).appendTo(domElement);
-		}
-
 		// Match
 		else if (element instanceof Match) {
 			dom.addClass(domElement, 'linematch');
@@ -208,10 +202,6 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
-		if (element instanceof EmptyMatch) {
-			return nls.localize('emptyMatchAriaLabel', "No matches");
-		}
-
 		if (element instanceof Match) {
 			let input= <SearchResult>tree.getInput();
 			if (input.searchModel.isReplaceActive()) {
@@ -254,7 +244,7 @@ export class SearchController extends DefaultController {
 		let result = false;
 		let element = tree.getFocus();
 		if (element instanceof FileMatch ||
-				(element instanceof Match && input.searchModel.isReplaceActive() && !(element instanceof EmptyMatch))) {
+				(element instanceof Match && input.searchModel.isReplaceActive())) {
 			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
 			result = true;
 		}
@@ -266,7 +256,7 @@ export class SearchController extends DefaultController {
 		let input= <SearchResult>tree.getInput();
 		let result = false;
 		let element = tree.getFocus();
-		if (element instanceof Match && input.searchModel.isReplaceActive() && !(element instanceof EmptyMatch)) {
+		if (element instanceof Match && input.searchModel.isReplaceActive()) {
 			this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
 			result = true;
 		}

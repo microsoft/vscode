@@ -68,13 +68,6 @@ export class Match {
 	}
 }
 
-export class EmptyMatch extends Match {
-
-	constructor(parent: FileMatch) {
-		super(parent, null, Date.now(), Date.now(), Date.now());
-	}
-}
-
 export class FileMatch extends Disposable {
 
 	private static DecorationOption: IModelDecorationOptions = {
@@ -137,13 +130,6 @@ export class FileMatch extends Disposable {
 				}
 			}));
 		}
-
-		this._register(this.onChange(() => {
-			if (this.count() === 0) {
-				let emptyMatch = new EmptyMatch(this);
-				this._matches.set(emptyMatch.id(), emptyMatch);
-			}
-		}));
 	}
 
 	private bindModel(model: IModel): void {
@@ -197,7 +183,7 @@ export class FileMatch extends Disposable {
 		}
 
 		if (this.parent().showHighlights) {
-			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().filter(match => !(match instanceof EmptyMatch)).map(match => <IModelDeltaDecoration>{
+			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().map(match => <IModelDeltaDecoration>{
 				range: match.range(),
 				options: FileMatch.DecorationOption
 			}));
@@ -232,13 +218,7 @@ export class FileMatch extends Disposable {
 	}
 
 	public count(): number {
-		let result = 0;
-		this.matches().forEach(element => {
-			if (!(element instanceof EmptyMatch)) {
-				result += 1;
-			}
-		});
-		return result;
+		return this.matches().length;
 	}
 
 	public resource(): URI {
@@ -262,6 +242,8 @@ export class SearchResult extends Disposable {
 	public onChange: Event<any> = this._onChange.event;
 
 	private _fileMatches: SimpleMap<URI, FileMatch>;
+	private _unDisposedFileMatches: SimpleMap<URI, FileMatch>;
+	private _query: Search.IPatternInfo= null;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean= false;
 
@@ -269,17 +251,22 @@ export class SearchResult extends Disposable {
 													@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches= new SimpleMap<URI, FileMatch>();
+		this._unDisposedFileMatches= new SimpleMap<URI, FileMatch>();
+	}
+
+	public set query(query: Search.IPatternInfo) {
+		this._query= query;
 	}
 
 	public get searchModel(): SearchModel {
 		return this._searchModel;
 	}
 
-	public add(query: Search.IPatternInfo, raw: Search.IFileMatch[], silent:boolean= false): void {
+	public add(raw: Search.IFileMatch[], silent:boolean= false): void {
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)){
-				let fileMatch= this.instantiationService.createInstance(FileMatch, query, this, rawFileMatch);
-				this._fileMatches.set(rawFileMatch.resource, fileMatch);
+				let fileMatch= this.instantiationService.createInstance(FileMatch, this._query, this, rawFileMatch);
+				this.doAdd(fileMatch);
 				let disposable= fileMatch.onChange(() => this.onFileChange(fileMatch));
 				fileMatch.onDispose(() => disposable.dispose());
 			}
@@ -290,20 +277,18 @@ export class SearchResult extends Disposable {
 	}
 
 	public clear(): void {
-		this.matches().forEach((fileMatch: FileMatch) => fileMatch.dispose());
-		this._fileMatches.clear();
+		this.disposeMatches();
 		this._onChange.fire(this);
 	}
 
 	public remove(match: FileMatch): void {
-		this._fileMatches.delete(match.resource());
-		match.dispose();
+		this.doRemove(match);
 		this._onChange.fire(this);
 	}
 
 	public replace(match: FileMatch, replaceText: string): TPromise<any> {
 		return this.replaceService.replace([match], replaceText).then(() => {
-			this.remove(match);
+			this.doRemove(match, false);
 		});
 	}
 
@@ -350,10 +335,47 @@ export class SearchResult extends Disposable {
 		});
 	}
 
-	private onFileChange(file: FileMatch): void {
-		if (!this._replacingAll) {
-			this._onChange.fire(file);
+	private onFileChange(fileMatch: FileMatch): void {
+		let refreshFile: boolean= true;
+		if (!this._fileMatches.has(fileMatch.resource())) {
+			this.doAdd(fileMatch);
+			refreshFile= false;
 		}
+		if (fileMatch.count() === 0) {
+			this.doRemove(fileMatch, false);
+			refreshFile= false;
+		}
+		if (!this._replacingAll) {
+			this._onChange.fire(refreshFile ? fileMatch : this);
+		}
+	}
+
+	private doAdd(fileMatch: FileMatch): void {
+		this._fileMatches.set(fileMatch.resource(), fileMatch);
+		if (this._unDisposedFileMatches.has(fileMatch.resource())) {
+			this._unDisposedFileMatches.delete(fileMatch.resource());
+		}
+	}
+
+	private doRemove(fileMatch: FileMatch, dispose:boolean= true): void {
+		this._fileMatches.delete(fileMatch.resource());
+		if (dispose) {
+			fileMatch.dispose();
+		} else {
+			this._unDisposedFileMatches.set(fileMatch.resource(), fileMatch);
+		}
+	}
+
+	private disposeMatches(): void {
+		this._fileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		this._unDisposedFileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		this._fileMatches.clear();
+		this._unDisposedFileMatches.clear();
+	}
+
+	public dispose():void {
+		this.disposeMatches();
+		super.dispose();
 	}
 }
 
@@ -410,6 +432,7 @@ export class SearchModel extends Disposable {
 		this.searchResult.clear();
 
 		this._searchQuery= query;
+		this._searchResult.query= this._searchQuery.contentPattern;
 		this.progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
 		this.doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
 		this.timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
@@ -424,7 +447,7 @@ export class SearchModel extends Disposable {
 
 	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
 		this.timerEvent.stop();
-		this._searchResult.add(this._searchQuery.contentPattern, completed.results);
+		this._searchResult.add(completed.results);
 		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
 		this.doneTimer.stop();
 		return completed;
@@ -441,7 +464,7 @@ export class SearchModel extends Disposable {
 
 	private onSearchProgress(p: ISearchProgressItem, silent: boolean): void {
 		if (p.resource) {
-			this._searchResult.add(this._searchQuery.contentPattern, [p], silent);
+			this._searchResult.add([p], silent);
 			this.progressTimer.stop();
 		}
 	}

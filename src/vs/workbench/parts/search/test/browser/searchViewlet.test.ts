@@ -31,7 +31,7 @@ suite('Search - Viewlet', () => {
 	test('Data Source', function () {
 		let ds = new SearchDataSource();
 		let result = instantiation.createInstance(SearchResult, null);
-		result.add(null, [{
+		result.add([{
 			resource: uri.parse('file:///c:/foo'),
 			lineMatches: [{ lineNumber: 1, preview: 'bar', offsetAndLengths: [[0, 1]] }]
 		}]);
