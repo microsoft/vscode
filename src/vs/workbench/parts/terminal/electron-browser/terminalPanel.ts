@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import DOM = require('vs/base/browser/dom');
+import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
 import {Action, IAction} from 'vs/base/common/actions';
@@ -30,6 +31,7 @@ export class TerminalPanel extends Panel {
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
 	private terminalContainer: HTMLElement;
+	private currentBaseThemeId: string;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 
@@ -167,7 +169,14 @@ export class TerminalPanel extends Panel {
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
-		let theme = this.configurationHelper.getTheme(themeId);
+
+		let baseThemeId = getBaseThemeId(themeId);
+		if (baseThemeId === this.currentBaseThemeId) {
+			return;
+		}
+		this.currentBaseThemeId = baseThemeId;
+
+		let theme = this.configurationHelper.getTheme(baseThemeId);
 
 		let css = '';
 		theme.forEach((color: string, index: number) => {
