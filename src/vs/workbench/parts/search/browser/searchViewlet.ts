@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
-import {TPromise, PPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorType} from 'vs/editor/common/editorCommon';
 import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import lifecycle = require('vs/base/common/lifecycle');
@@ -64,7 +64,6 @@ export class SearchViewlet extends Viewlet {
 	private isDisposed: boolean;
 	private toDispose: lifecycle.IDisposable[];
 
-	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 	private loading: boolean;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchModel;
@@ -257,7 +256,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.updateGlobalPatternExclusions(this.configurationService.getConfiguration<ISearchConfiguration>());
 
-		this.registerListeners();
+		this.toUnbind.push(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
 		return TPromise.as(null);
 	}
@@ -315,26 +314,30 @@ export class SearchViewlet extends Viewlet {
 		this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, this.searchAndReplaceWidget.isReplaceShown(), StorageScope.WORKSPACE);
 	}
 
-	private registerListeners(): void {
-		this.toUnbind.push(this.viewModel.searchResult.onChange((event) => {
-			this.refreshTree(event);
+	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {
+		return this.refreshTree(event).then(() => {
 			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		}));
+		});
 	}
 
-	private refreshTree(event: IChangeEvent): void {
+	private refreshTree(event?: IChangeEvent): TPromise<any> {
+		if (!event) {
+			return this.tree.refresh();
+		}
+
 		if (event.added || event.removed) {
-			this.tree.refresh(this.viewModel.searchResult);
-			if (event.added) {
-				event.elements.forEach(element => {
-					this.autoExpandFileMatch(element, true);
-				});
-			}
+			return this.tree.refresh(this.viewModel.searchResult).then(() => {
+				if (event.added) {
+					event.elements.forEach(element => {
+						this.autoExpandFileMatch(element, true);
+					});
+				}
+			});
 		} else {
 			if (event.elements.length === 1) {
-				this.tree.refresh(event.elements[0]);
+				return this.tree.refresh(event.elements[0]);
 			} else {
-				this.tree.refresh(event.elements);
+				return this.tree.refresh(event.elements);
 			}
 		}
 	}
@@ -526,22 +529,14 @@ export class SearchViewlet extends Viewlet {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
 		this.searchWidget.clear();
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-			this.currentRequest = null;
-		}
+		this.viewModel.cancelSearch();
 	}
 
 	public cancelSearch(): boolean {
-		if (this.currentRequest) {
+		if (this.viewModel.cancelSearch()) {
 			this.searchWidget.focus();
-
-			this.currentRequest.cancel();
-			this.currentRequest = null;
-
 			return true;
 		}
-
 		return false;
 	}
 
@@ -697,6 +692,8 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
+		this.viewModel.cancelSearch();
+
 		// Progress total is 100%
 		let progressTotal = 100;
 		let progressRunner = this.progressService.show(progressTotal);
@@ -733,9 +730,8 @@ export class SearchViewlet extends Viewlet {
 				progressRunner.done();
 			}
 
+			this.onSearchResultsChanged().then(() => autoExpand(true));
 			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
-
-			autoExpand(true);
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
 			this.loading = false;
@@ -882,8 +878,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.searchWidget.setReplaceAllActionState(false);
 		this.replaceService.disposeAllInputs();
-		this.currentRequest = this.viewModel.search(query);
-		this.currentRequest.done(onComplete, onError, onProgress);
+		this.viewModel.search(query).done(onComplete, onError, onProgress);
 	}
 
 	private showEmptyStage(): void {
