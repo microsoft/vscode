@@ -730,9 +730,9 @@ let editorConfiguration:IConfigurationNode = {
 		},
 		'editor.cursorStyle' : {
 			'type': 'string',
-			'enum': ['block', 'line'],
+			'enum': ['block', 'line', 'underline'],
 			'default': DefaultConfig.editor.cursorStyle,
-			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block' and 'line'")
+			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'line' and 'underline'")
 		},
 		'editor.fontLigatures' : {
 			'type': 'boolean',
