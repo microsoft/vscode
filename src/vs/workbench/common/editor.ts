@@ -10,7 +10,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {IEditor, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, IEditorOptionsBag, ITextEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Event as BaseEvent} from 'vs/base/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -426,7 +426,7 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Helper to create EditorOptions inline.
 	 */
-	public static create(settings: IEditorOptionsBag): EditorOptions {
+	public static create(settings: IEditorOptions): EditorOptions {
 		let options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
