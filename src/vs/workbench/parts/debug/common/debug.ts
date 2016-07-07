@@ -5,10 +5,8 @@
 
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IActionRunner } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import { IViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -414,36 +412,6 @@ export interface IDebugService {
 export interface IDebugEditorContribution extends editor.IEditorContribution {
 	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
 }
-
-// Debug view registration
-
-export interface IDebugViewConstructorSignature {
-	new (actionRunner: IActionRunner, viewletSetings: any, ...services: { serviceId: ServiceIdentifier<any>; }[]): IViewletView;
-}
-
-export interface IDebugViewRegistry {
-	registerDebugView(view: IDebugViewConstructorSignature, order: number): void;
-	getDebugViews(): IDebugViewConstructorSignature[];
-}
-
-class DebugViewRegistryImpl implements IDebugViewRegistry {
-	private debugViews: { view: IDebugViewConstructorSignature, order: number }[];
-
-	constructor() {
-		this.debugViews = [];
-	}
-
-	public registerDebugView(view: IDebugViewConstructorSignature, order: number): void {
-		this.debugViews.push({ view, order });
-	}
-
-	public getDebugViews(): IDebugViewConstructorSignature[] {
-		return this.debugViews.sort((first, second) => first.order - second.order)
-			.map(viewWithOrder => viewWithOrder.view);
-	}
-}
-
-export var DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();
 
 // utils
 

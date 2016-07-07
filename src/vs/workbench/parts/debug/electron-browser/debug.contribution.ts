@@ -20,6 +20,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import panel = require('vs/workbench/browser/panel');
+import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
 import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/browser/debugViews';
 import wbext = require('vs/workbench/common/contributions');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
@@ -87,10 +88,10 @@ const openViewletKb: IKeybindings = {
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
 
 // Register default debug views
-debug.DebugViewRegistry.registerDebugView(VariablesView, 10);
-debug.DebugViewRegistry.registerDebugView(WatchExpressionsView, 20);
-debug.DebugViewRegistry.registerDebugView(CallStackView, 30);
-debug.DebugViewRegistry.registerDebugView(BreakpointsView, 40);
+DebugViewRegistry.registerDebugView(VariablesView, 10);
+DebugViewRegistry.registerDebugView(WatchExpressionsView, 20);
+DebugViewRegistry.registerDebugView(CallStackView, 30);
+DebugViewRegistry.registerDebugView(BreakpointsView, 40);
 
 // register action to open viewlet
 const registry = (<wbaregistry.IWorkbenchActionRegistry>platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
