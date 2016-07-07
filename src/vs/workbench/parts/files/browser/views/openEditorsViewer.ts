@@ -6,14 +6,12 @@
 import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import {IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer} from 'vs/base/parts/tree/browser/tree';
 import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
-import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {IActionItem, ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
+import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -24,12 +22,11 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
-import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
@@ -361,7 +358,7 @@ export class AccessibilityProvider implements IAccessibilityProvider {
 	}
 }
 
-export class ActionProvider implements IActionProvider {
+export class ActionProvider extends ContributableActionProvider {
 
 	constructor(
 		private model: IEditorStacksModel,
@@ -369,7 +366,7 @@ export class ActionProvider implements IActionProvider {
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
-		// noop
+		super();
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
@@ -406,86 +403,76 @@ export class ActionProvider implements IActionProvider {
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		const result = [];
-		const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
+		return super.getSecondaryActions(tree, element).then(result => {
+			const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
 
-		if (element instanceof EditorGroup) {
-			if (!autoSaveEnabled) {
-				result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
-				result.push(new Separator());
-			}
-
-			result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
-		} else {
-			const openEditor = <OpenEditor>element;
-			const resource = openEditor.getResource();
-			if (resource) {
-				// Open to side
-				result.push(this.instantiationService.createInstance(OpenToSideAction, tree, resource, false));
-
-				if (!openEditor.isUntitled()) {
+			if (element instanceof EditorGroup) {
+				if (!autoSaveEnabled) {
+					result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
 					result.push(new Separator());
+				}
 
-					result.push(this.instantiationService.createInstance(RevealInOSAction, resource));
-					const openConsoleAction = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
-					openConsoleAction.setResource(uri.file(paths.dirname(resource.fsPath)));
-					result.push(openConsoleAction);
-					result.push(this.instantiationService.createInstance(CopyPathAction, resource));
+				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
+			} else {
+				const openEditor = <OpenEditor>element;
+				const resource = openEditor.getResource();
+				if (resource) {
+					// Open to side
+					result.unshift(new Separator());
+					result.unshift(this.instantiationService.createInstance(OpenToSideAction, tree, resource, false));
 
-					// Files: Save / Revert
-					if (!autoSaveEnabled) {
+					if (!openEditor.isUntitled()) {
+						// Files: Save / Revert
+						if (!autoSaveEnabled) {
+							result.push(new Separator());
+
+							const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+							saveAction.setResource(resource);
+							saveAction.enabled = openEditor.isDirty();
+							result.push(saveAction);
+
+							const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+							revertAction.setResource(resource);
+							revertAction.enabled = openEditor.isDirty();
+							result.push(revertAction);
+						}
+
 						result.push(new Separator());
 
-						const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-						saveAction.setResource(resource);
-						saveAction.enabled = openEditor.isDirty();
-						result.push(saveAction);
+						// Compare Actions
+						const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
+						if (runCompareAction._isEnabled()) {
+							result.push(runCompareAction);
+						}
+						result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
+					}
+					// Untitled: Save / Save As
+					else {
+						result.push(new Separator());
 
-						const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-						revertAction.setResource(resource);
-						revertAction.enabled = openEditor.isDirty();
-						result.push(revertAction);
+						if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
+							let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+							saveUntitledAction.setResource(resource);
+							result.push(saveUntitledAction);
+						}
+
+						let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
+						saveAsAction.setResource(resource);
+						result.push(saveAsAction);
 					}
 
 					result.push(new Separator());
-
-					// Compare Actions
-					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
-					if (runCompareAction._isEnabled()) {
-						result.push(runCompareAction);
-					}
-					result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
-				}
-				// Untitled: Save / Save As
-				else {
-					result.push(new Separator());
-
-					if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
-						let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-						saveUntitledAction.setResource(resource);
-						result.push(saveUntitledAction);
-					}
-
-					let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-					saveAsAction.setResource(resource);
-					result.push(saveAsAction);
 				}
 
-				result.push(new Separator());
+				result.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
+				const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
+				closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
+				result.push(closeOtherEditorsInGroupAction);
+				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 			}
 
-			result.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
-			const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
-			closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
-			result.push(closeOtherEditorsInGroupAction);
-			result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
-		}
-
-		return TPromise.as(result);
-	}
-
-	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
-		return null;
+			return result;
+		});
 	}
 }
 
