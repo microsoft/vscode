@@ -236,10 +236,16 @@ export class FileMatch extends Disposable {
 	}
 }
 
+export interface IChangeEvent {
+	elements: FileMatch[];
+	added?: boolean;
+	removed?: boolean;
+}
+
 export class SearchResult extends Disposable {
 
-	private _onChange= this._register(new Emitter<any>());
-	public onChange: Event<any> = this._onChange.event;
+	private _onChange= this._register(new Emitter<IChangeEvent>());
+	public onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _fileMatches: SimpleMap<URI, FileMatch>;
 	private _unDisposedFileMatches: SimpleMap<URI, FileMatch>;
@@ -263,27 +269,30 @@ export class SearchResult extends Disposable {
 	}
 
 	public add(raw: Search.IFileMatch[], silent:boolean= false): void {
+		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)){
 				let fileMatch= this.instantiationService.createInstance(FileMatch, this._query, this, rawFileMatch);
 				this.doAdd(fileMatch);
+				changed.push(fileMatch);
 				let disposable= fileMatch.onChange(() => this.onFileChange(fileMatch));
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
 		if (!silent) {
-			this._onChange.fire(this);
+			this._onChange.fire({elements: changed, added: true});
 		}
 	}
 
 	public clear(): void {
+		let changed: FileMatch[]= this.matches();
 		this.disposeMatches();
-		this._onChange.fire(this);
+		this._onChange.fire({elements: changed, removed: true});
 	}
 
 	public remove(match: FileMatch): void {
 		this.doRemove(match);
-		this._onChange.fire(this);
+		this._onChange.fire({elements: [match], removed: true});
 	}
 
 	public replace(match: FileMatch, replaceText: string): TPromise<any> {
@@ -336,17 +345,19 @@ export class SearchResult extends Disposable {
 	}
 
 	private onFileChange(fileMatch: FileMatch): void {
-		let refreshFile: boolean= true;
+		let added: boolean= false;
+		let removed: boolean= false;
 		if (!this._fileMatches.has(fileMatch.resource())) {
 			this.doAdd(fileMatch);
-			refreshFile= false;
+			added= true;
 		}
 		if (fileMatch.count() === 0) {
 			this.doRemove(fileMatch, false);
-			refreshFile= false;
+			added= false;
+			removed= true;
 		}
 		if (!this._replacingAll) {
-			this._onChange.fire(refreshFile ? fileMatch : this);
+			this._onChange.fire({elements: [fileMatch], added: added, removed: removed});
 		}
 	}
 
