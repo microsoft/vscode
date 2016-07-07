@@ -14,6 +14,7 @@ export interface ICommandService {
 	serviceId: ServiceIdentifier<any>;
 	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
 	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
+	isKnownCommand(commandId: string): boolean;
 }
 
 export interface ICommandsMap {
@@ -99,5 +100,8 @@ export const NullCommandService: ICommandService = {
 	serviceId: undefined,
 	executeCommand() {
 		return TPromise.as(undefined);
+	},
+	isKnownCommand() {
+		return false;
 	}
 };

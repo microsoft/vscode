@@ -64,6 +64,9 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			executeCommand(id, args): any {
 				let {handler} = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
+			},
+			isKnownCommand(id) {
+				return true;
 			}
 		});
 		services.set(IMarkerService, new MarkerService());
