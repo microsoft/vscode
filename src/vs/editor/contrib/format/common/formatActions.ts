@@ -222,7 +222,7 @@ CommonEditorRegistry.registerEditorAction({
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
 	},
 	menuOpts: {
-		group: 'modification@20',
+		group: 'modification@200',
 		kbExpr: KbExpr.has('editorHasFormattingProvider')
 	}
 });

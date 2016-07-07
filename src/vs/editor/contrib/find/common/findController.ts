@@ -734,7 +734,7 @@ CommonEditorRegistry.registerEditorAction({
 		primary: KeyMod.CtrlCmd | KeyCode.F2
 	},
 	menuOpts: {
-		group: 'modification@11',
+		group: 'modification@101',
 		kbExpr: null
 	}
 });
