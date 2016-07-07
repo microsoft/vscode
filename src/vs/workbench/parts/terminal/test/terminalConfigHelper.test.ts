@@ -6,7 +6,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {Builder} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {Platform} from 'vs/base/common/platform';
@@ -174,7 +173,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		let configHelper: TerminalConfigHelper;
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme(getBaseThemeId('hc-black foo')), [
+		assert.deepEqual(configHelper.getTheme('hc-black'), [
 			'#000000',
 			'#cd0000',
 			'#00cd00',
@@ -194,7 +193,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		], 'The high contrast terminal theme should be selected when the hc-black theme is active');
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme(getBaseThemeId('vs foo')), [
+		assert.deepEqual(configHelper.getTheme('vs'), [
 			'#000000',
 			'#cd3131',
 			'#008000',
@@ -214,7 +213,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		], 'The light terminal theme should be selected when a vs theme is active');
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme(getBaseThemeId('vs-dark foo')), [
+		assert.deepEqual(configHelper.getTheme('vs-dark'), [
 			'#000000',
 			'#cd3131',
 			'#09885a',
