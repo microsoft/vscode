@@ -270,17 +270,19 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		let handled= false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.DownArrow:
 				if (this.isReplaceShown()) {
-					this.replaceInput.focus();
-					keyboardEvent.stopPropagation();
+					this.focus(true, true);
 				} else {
 					this._onKeyDownArrow.fire();
 				}
-				return;
-			default:
-				return;
+				handled= true;
+				break;
+		}
+		if (handled) {
+			keyboardEvent.preventDefault();
 		}
 	}
 
@@ -299,15 +301,19 @@ export class SearchWidget extends Widget {
 	}
 
 	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		let handled= false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.UpArrow:
-				this.searchInput.focus();
-				return;
+				this.focus(true);
+				handled= true;
+				break;
 			case KeyCode.DownArrow:
 				this._onKeyDownArrow.fire();
-				return;
-			default:
-				return;
+				handled= true;
+				break;
+		}
+		if (handled) {
+			keyboardEvent.preventDefault();
 		}
 	}
 
