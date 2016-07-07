@@ -18,8 +18,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {MenuRegistry} from 'vs/platform/actions/browser/menuService';
-import {MenuId} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
 class ClipboardWritingAction extends EditorAction {
 

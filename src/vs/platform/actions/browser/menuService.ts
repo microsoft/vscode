@@ -11,48 +11,10 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {values} from 'vs/base/common/collections';
 import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {MenuId, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuRegistry, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
-
-
-export interface IMenuRegistry {
-	addCommand(userCommand: ICommandAction): boolean;
-	getCommand(id: string): ICommandAction;
-	appendMenuItem(menu: MenuId, item: IMenuItem): void;
-}
-
-const _registry = new class {
-
-	commands: { [id: string]: ICommandAction } = Object.create(null);
-
-	menuItems: { [loc: number]: IMenuItem[] } = Object.create(null);
-
-	addCommand(command: ICommandAction): boolean {
-		const old = this.commands[command.id];
-		this.commands[command.id] = command;
-		return old !== void 0;
-	}
-
-	getCommand(id: string): ICommandAction {
-		return this.commands[id];
-	}
-
-	appendMenuItem(loc: MenuId, items: IMenuItem): void {
-		let array = this.menuItems[loc];
-		if (!array) {
-			this.menuItems[loc] = [items];
-		} else {
-			array.push(items);
-		}
-	}
-	getMenuItems(loc: MenuId): IMenuItem[] {
-		return this.menuItems[loc] || [];
-	}
-};
-
-export const MenuRegistry: IMenuRegistry = _registry;
 
 export class MenuService implements IMenuService {
 
@@ -70,7 +32,7 @@ export class MenuService implements IMenuService {
 	}
 
 	getCommandActions(): ICommandAction[] {
-		return values(_registry.commands);
+		return values(MenuRegistry.commands);
 	}
 }
 
@@ -90,7 +52,7 @@ class Menu implements IMenu {
 	) {
 		this._extensionService.onReady().then(_ => {
 
-			const menuItems = _registry.getMenuItems(id);
+			const menuItems = MenuRegistry.getMenuItems(id);
 			const keysFilter: { [key: string]: boolean } = Object.create(null);
 
 			let group: MenuItemGroup;

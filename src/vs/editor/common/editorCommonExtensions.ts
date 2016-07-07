@@ -18,6 +18,7 @@ import {findFocusedEditor, getActiveEditor, withCodeEditorFromCommandHandler} fr
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export enum ContextKey {
@@ -33,17 +34,26 @@ export interface IEditorActionKeybindingOptions extends IKeybindings {
 export interface IEditorCommandKeybindingOptions extends IKeybindings {
 	context: ContextKey;
 }
+export interface IEditorCommandMenuOptions {
+	menu: MenuId;
+	group?: string;
+	kbExpr?: KbExpr;
+}
 
 // --- Editor Actions
 export class EditorActionDescriptor {
 
-	public ctor:editorCommon.IEditorActionContributionCtor;
-	public id:string;
-	public label:string;
-	public alias:string;
-	public kbOpts:IEditorActionKeybindingOptions;
+	public ctor: editorCommon.IEditorActionContributionCtor;
+	public id: string;
+	public label: string;
+	public alias: string;
+	public kbOpts: IEditorActionKeybindingOptions;
+	public menuOpts: IEditorCommandMenuOptions;
 
-	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions, alias?:string) {
+	constructor(ctor: editorCommon.IEditorActionContributionCtor, id: string, label: string,
+		kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions,
+		alias?: string
+	) {
 		this.ctor = ctor;
 		this.id = id;
 		this.label = label;
@@ -190,6 +200,18 @@ class EditorContributionRegistry {
 			}
 		} else {
 			when = desc.kbOpts.kbExpr;
+		}
+
+		if (desc.menuOpts) {
+			let {menu, kbExpr, group} = desc.menuOpts;
+			MenuRegistry.appendMenuItem(menu, {
+				command: {
+					id: desc.id,
+					title: desc.label
+				},
+				when: kbExpr,
+				group
+			});
 		}
 
 		let commandDesc: ICommandDescriptor = {
