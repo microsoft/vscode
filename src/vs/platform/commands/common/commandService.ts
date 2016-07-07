@@ -22,12 +22,13 @@ export class CommandService implements ICommandService {
 
 	executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
 
-		const command = CommandsRegistry.getCommand(id);
-		if (!command) {
-			return TPromise.wrapError(new Error(`command '${id}' not found`));
-		}
-
 		return this._extensionService.activateByEvent(`onCommand:${id}`).then(_ => {
+
+			const command = CommandsRegistry.getCommand(id);
+			if (!command) {
+				return TPromise.wrapError(new Error(`command '${id}' not found`));
+			}
+
 			try {
 				const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
 				return TPromise.as(result);
