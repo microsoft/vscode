@@ -15,7 +15,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+import {ICommandService, CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -237,10 +237,11 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
+	private _commandService: ICommandService;
 	private _statusService: IStatusbarService;
 	private _messageService: IMessageService;
 
-	constructor(configurationService: IConfigurationService, messageService: IMessageService, statusService?: IStatusbarService) {
+	constructor(commandService: ICommandService, configurationService: IConfigurationService, messageService: IMessageService, statusService?: IStatusbarService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -253,6 +254,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
+		this._commandService = commandService;
 		this._statusService = statusService;
 		this._messageService = messageService;
 	}
@@ -381,23 +383,9 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 				e.preventDefault();
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._invokeHandler(commandId, [{}]).done(undefined, err => {
+			this._commandService.executeCommand(commandId, {}).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
-		}
-	}
-
-	protected _invokeHandler(commandId: string, args: any[]): TPromise<any> {
-
-		let handler = this._getCommandHandler(commandId);
-		if (!handler) {
-			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'. An extension might be missing an activation event.`));
-		}
-		try {
-			let result = this._instantiationService.invokeFunction.apply(this._instantiationService, [handler].concat(args));
-			return TPromise.as(result);
-		} catch (err) {
-			return TPromise.wrapError(err);
 		}
 	}
 
@@ -426,7 +414,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
-		return this._invokeHandler(commandId, args);
+		return this._commandService.executeCommand(commandId, ...args);
 	}
 }
 

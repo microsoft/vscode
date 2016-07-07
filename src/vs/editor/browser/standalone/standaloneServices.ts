@@ -17,6 +17,8 @@ import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {ICommandService} from 'vs/platform/commands/common/commands';
+import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -78,6 +80,10 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	editorService?:IEditorService;
+	/**
+	 * @internal
+	 */
+	commandService?:ICommandService;
 	/**
 	 * @internal
 	 */
@@ -177,8 +183,9 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 export function ensureDynamicPlatformServices(domElement:HTMLElement, services: IEditorOverrideServices): IDisposable[] {
 	var r:IDisposable[] = [];
 
+
 	if (typeof services.keybindingService === 'undefined') {
-		var keybindingService = new StandaloneKeybindingService(services.configurationService, services.messageService, domElement);
+		var keybindingService = new StandaloneKeybindingService(services.commandService, services.configurationService, services.messageService, domElement);
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
 	}
@@ -231,6 +238,9 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 
 	let extensionService = services.extensionService || new SimpleExtensionService();
 	serviceCollection.set(IExtensionService, extensionService);
+
+	let commandService = services.commandService || new CommandService(instantiationService, extensionService);
+	serviceCollection.set(ICommandService, commandService);
 
 	let markerService = services.markerService || new MarkerService();
 	serviceCollection.set(IMarkerService, markerService);
