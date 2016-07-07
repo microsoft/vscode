@@ -28,7 +28,7 @@
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
     "sax": "1.1.2",
     "semver": "4.3.6",
-    "vscode-debugprotocol": "1.10.0",
+    "vscode-debugprotocol": "^1.11.0-pre.0",
     "vscode-textmate": "2.0.1",
     "winreg": "1.2.0",
     "xterm": "git+https://github.com/sourcelair/xterm.js.git#39c4356",
