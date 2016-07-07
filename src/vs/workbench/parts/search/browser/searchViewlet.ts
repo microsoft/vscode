@@ -322,7 +322,7 @@ export class SearchViewlet extends Viewlet {
 
 	private refreshTree(event?: IChangeEvent): TPromise<any> {
 		if (!event) {
-			return this.tree.refresh();
+			return this.tree.refresh(this.viewModel.searchResult);
 		}
 
 		if (event.added || event.removed) {
