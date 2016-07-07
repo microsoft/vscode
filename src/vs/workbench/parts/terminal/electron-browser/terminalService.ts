@@ -10,6 +10,7 @@ import os = require('os');
 import path = require('path');
 import platform = require('vs/base/common/platform');
 import {Builder} from 'vs/base/browser/builder';
+import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -108,9 +109,9 @@ export class TerminalService implements ITerminalService {
 	public runSelectedText(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
 			let editor = this.codeEditorService.getFocusedCodeEditor();
-			let selection = editor.getModel().getValueInRange(editor.getSelection());
+			let selection = editor.getModel().getValueInRange(editor.getSelection(), os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF);
 			// Add a new line if one doesn't already exist so the text is executed
-			let text = selection + (selection[selection.length - 1] === '\n' ? '' : '\n');
+			let text = selection + (selection.substr(selection.length - os.EOL.length) === os.EOL ? '' : os.EOL);
 			this.terminalProcesses[this.activeTerminalIndex].process.send({
 				event: 'input',
 				data: text
