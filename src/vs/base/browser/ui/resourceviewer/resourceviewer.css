@@ -8,8 +8,7 @@
 }
 
 .monaco-resource-viewer {
-	padding: 0 0 0 10px;
-	box-sizing:	border-box;
+	padding: 5px 0 0 10px;
 }
 
 .monaco-resource-viewer.image {
@@ -35,9 +34,8 @@
 }
 
 .monaco-resource-viewer img {
-	border: 1px solid;
-	max-width: 99%;
-	max-height: 99%;
+	max-width: calc(100% - 20px);
+	max-height: calc(100% - 20px);
 }
 
 .monaco-resource-viewer.oversized img {
@@ -48,17 +46,4 @@
 	max-width: initial;
 	max-height: initial;
 	cursor: zoom-out;
-}
-
-.vs .monaco-resource-viewer img {
-	border-color: #F3F3F3;
-}
-
-.vs-dark .monaco-resource-viewer img {
-	border-color: #252526;
-}
-
-.monaco-resource-viewer video {
-	max-width: 100%;
-	max-height: 100%;
 }
