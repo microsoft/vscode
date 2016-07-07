@@ -25,7 +25,6 @@ import {provideReferences} from '../common/referenceSearch';
 import {ReferenceWidget} from './referencesWidget';
 import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from './referencesController';
 import {ReferencesModel} from './referencesModel';
-import {MenuId} from 'vs/platform/actions/common/actions';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const defaultReferenceSearchOptions: RequestOptions = {
@@ -141,7 +140,6 @@ CommonEditorRegistry.registerEditorAction({
 		primary: KeyMod.Shift | KeyCode.F12
 	},
 	menuOpts: {
-		menu: MenuId.EditorContext,
 		kbExpr: KbExpr.has('editorHasReferenceProvider'),
 		group: 'navigation'
 	}

@@ -35,9 +35,9 @@ export interface IEditorCommandKeybindingOptions extends IKeybindings {
 	context: ContextKey;
 }
 export interface IEditorCommandMenuOptions {
-	menu: MenuId;
+	kbExpr: KbExpr;
+	menu?: MenuId;
 	group?: string;
-	kbExpr?: KbExpr;
 }
 
 // --- Editor Actions
@@ -204,7 +204,7 @@ class EditorContributionRegistry {
 
 		if (desc.menuOpts) {
 			let {menu, kbExpr, group} = desc.menuOpts;
-			MenuRegistry.appendMenuItem(menu, {
+			MenuRegistry.appendMenuItem(menu || MenuId.EditorContext, {
 				command: {
 					id: desc.id,
 					title: desc.label
