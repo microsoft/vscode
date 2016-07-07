@@ -21,14 +21,14 @@ import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import panel = require('vs/workbench/browser/panel');
 import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
-import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/browser/debugViews';
+import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
 import wbext = require('vs/workbench/common/contributions');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
-import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
-import { DebugEditorContribution } from 'vs/workbench/parts/debug/browser/debugEditorContribution';
+import { DebugEditorContribution } from 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -79,7 +79,7 @@ const openViewletKb: IKeybindings = {
 
 // register repl panel
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
-	'vs/workbench/parts/debug/browser/repl',
+	'vs/workbench/parts/debug/electron-browser/repl',
 	'Repl',
 	debug.REPL_ID,
 	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),

@@ -20,8 +20,9 @@ import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import debugviewer = require('vs/workbench/parts/debug/browser/debugViewer');
-import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import debugviewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
+import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
+import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -460,7 +461,7 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 			actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, element));
 			actions.push(new actionbar.Separator());
 		}
-		actions.push(new debugactions.CopyAction(debugactions.CopyAction.ID, debugactions.CopyAction.LABEL));
+		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
 		actions.push(this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL));
 
 		return TPromise.as(actions);

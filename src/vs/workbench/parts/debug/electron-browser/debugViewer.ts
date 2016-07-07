@@ -24,7 +24,8 @@ import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
-import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
+import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -539,7 +540,7 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 		const variable = <model.Variable>element;
 		if (variable.reference === 0) {
 			actions.push(this.instantiationService.createInstance(debugactions.SetValueAction, debugactions.SetValueAction.ID, debugactions.SetValueAction.LABEL, variable));
-			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable));
+			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
 			actions.push(new actionbar.Separator());
 		}
 
@@ -745,7 +746,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
 			actions.push(this.instantiationService.createInstance(debugactions.RenameWatchExpressionAction, debugactions.RenameWatchExpressionAction.ID, debugactions.RenameWatchExpressionAction.LABEL, expression));
 			if (expression.reference === 0) {
-				actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, expression.value));
+				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value));
 			}
 			actions.push(new actionbar.Separator());
 
@@ -756,7 +757,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 			if (element instanceof model.Variable) {
 				const variable = <model.Variable>element;
 				if (variable.reference === 0) {
-					actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable.value));
+					actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable.value));
 				}
 				actions.push(new actionbar.Separator());
 			}

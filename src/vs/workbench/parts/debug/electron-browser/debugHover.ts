@@ -17,7 +17,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
-import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
+import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';

@@ -15,7 +15,7 @@ import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import constants = require('vs/workbench/common/constants');
 import wbext = require('vs/workbench/common/contributions');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
