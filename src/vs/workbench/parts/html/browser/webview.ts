@@ -11,8 +11,6 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {addDisposableListener, addClass, EventType} from 'vs/base/browser/dom';
 import {isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -46,19 +44,6 @@ KeybindingsRegistry.registerCommandDesc({
 });
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
-
-function isDefaultKeyboardEvent(e: KeyboardEvent): boolean {
-	let keyEvent = new StandardKeyboardEvent(e);
-	let keybinding = keyEvent.asKeybinding();
-	switch (keybinding) {
-		case KeyMod.CtrlCmd | KeyCode.KEY_C:
-		case KeyMod.CtrlCmd | KeyCode.KEY_V:
-		case KeyMod.CtrlCmd | KeyCode.KEY_X:
-		case KeyMod.CtrlCmd | KeyCode.KEY_A:
-			return true;
-	}
-	return false;
-}
 
 export default class Webview {
 
@@ -107,11 +92,6 @@ export default class Webview {
 				if (event.channel === 'did-set-content') {
 					this._webview.style.opacity = '';
 					return;
-				}
-			}),
-			addDisposableListener(this._webview, EventType.KEY_DOWN, (event: KeyboardEvent) => {
-				if (isDefaultKeyboardEvent(event)) {
-					event.stopImmediatePropagation();
 				}
 			}),
 			addDisposableListener(this._webview, EventType.DRAG_OVER, (event: DragEvent) => {
