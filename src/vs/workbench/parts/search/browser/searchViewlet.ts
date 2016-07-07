@@ -59,6 +59,7 @@ import Severity from 'vs/base/common/severity';
 export class SearchViewlet extends Viewlet {
 
 	private static MAX_TEXT_RESULTS = 2048;
+	private static SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
 	private isDisposed: boolean;
 	private toDispose: lifecycle.IDisposable[];
@@ -117,10 +118,6 @@ export class SearchViewlet extends Viewlet {
 
 	private onConfigurationUpdated(configuration: any): void {
 		this.updateGlobalPatternExclusions(configuration);
-	}
-
-	public getResults(): Builder {
-		return this.results;
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -281,13 +278,18 @@ export class SearchViewlet extends Viewlet {
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords
 		}, this.keybindingService, this.instantiationService);
+
+		if (this.storageService.getBoolean(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
+			this.searchWidget.toggleReplace(true);
+		}
+
 		this.toUnbind.push(this.searchWidget);
 
 		this.toUnbind.push(this.searchWidget.onSearchSubmit((refresh) => this.onQueryChanged(refresh)));
 		this.toUnbind.push(this.searchWidget.onSearchCancel(() => this.cancelSearch()));
 		this.toUnbind.push(this.searchWidget.searchInput.onDidOptionChange((viaKeyboard) => this.onQueryChanged(true, viaKeyboard)));
 
-		this.toUnbind.push(this.searchWidget.onReplaceToggled((state) => this.layout(this.size)));
+		this.toUnbind.push(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
 		this.toUnbind.push(this.searchWidget.onReplaceStateChange((state) => {
 			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
 			this.tree.refresh();
@@ -306,6 +308,11 @@ export class SearchViewlet extends Viewlet {
 			}
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceAll(() => this.replaceAll()));
+	}
+
+	private onReplaceToggled(): void {
+		this.layout(this.size);
+		this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, this.searchAndReplaceWidget.isReplaceShown(), StorageScope.WORKSPACE);
 	}
 
 	private registerListeners(): void {
@@ -479,11 +486,6 @@ export class SearchViewlet extends Viewlet {
 			this.searchWidget.searchInput.setValue(selectedText);
 		}
 		this.searchWidget.focus();
-
-		if (this.storageService.getBoolean('show.replace.firstTime', StorageScope.GLOBAL, true)) {
-			this.searchWidget.toggleReplace(true);
-			this.storageService.store('show.replace.firstTime', false, StorageScope.GLOBAL);
-		}
 	}
 
 	public moveFocusFromResults(): void {
