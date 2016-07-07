@@ -5,7 +5,6 @@
 
 import * as os from 'os';
 import * as minimist from 'minimist';
-import pkg from 'vs/platform/package';
 import { localize } from 'vs/nls';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
@@ -129,9 +128,9 @@ function wrapText(text: string, columns: number) : string[] {
 	return lines;
 }
 
-export function buildHelpMessage(): string {
+export function buildHelpMessage(version: string): string {
 	let columns = (<any>process.stdout).isTTY ? (<any>process.stdout).columns : 80;
-	return `Visual Studio Code v${ pkg.version }
+	return `Visual Studio Code v${ version }
 
 
 Usage: ${ executable } [arguments] [paths...]

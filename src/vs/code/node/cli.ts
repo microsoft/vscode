@@ -21,7 +21,7 @@ export function main(args: string[]): TPromise<void> {
 	const argv = parseArgs(args);
 
 	if (argv.help) {
-		console.log(buildHelpMessage());
+		console.log(buildHelpMessage(pkg.version));
 	} else if (argv.version) {
 		console.log(pkg.version);
 	} else if (shouldSpawnCliProcess(argv)) {

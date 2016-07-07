@@ -26,8 +26,8 @@ suite('formatOptions', () => {
 			formatOptions({
 				'foo': (<any>'bar ').repeat(9)
 			}, 40),
-				'  foo bar bar bar bar bar bar bar bar\n' +
-				'      bar');
+			'  foo bar bar bar bar bar bar bar bar\n' +
+			'      bar');
 	});
 
 	test('Text should revert to the condensed view when the terminal is too narrow', () => {
@@ -35,7 +35,7 @@ suite('formatOptions', () => {
 			formatOptions({
 				'foo': (<any>'bar ').repeat(9)
 			}, 30),
-				'  foo\n' +
-				'      bar bar bar bar bar bar bar bar bar ');
+			'  foo\n' +
+			'      bar bar bar bar bar bar bar bar bar ');
 	});
 });
