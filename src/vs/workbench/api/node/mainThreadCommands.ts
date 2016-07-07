@@ -5,7 +5,6 @@
 'use strict';
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ICommandService, CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostContext, ExtHostCommandsShape} from './extHostProtocol';
@@ -37,31 +36,25 @@ export class MainThreadCommands {
 
 // --- command doc
 
-KeybindingsRegistry.registerCommandDesc({
-	id: '_generateCommandsDocumentation',
-	handler: function(accessor) {
-		return accessor.get(IThreadService).get(ExtHostContext.ExtHostCommands).$getContributedCommandHandlerDescriptions().then(result => {
+CommandsRegistry.registerCommand('_generateCommandsDocumentation', function (accessor) {
+	return accessor.get(IThreadService).get(ExtHostContext.ExtHostCommands).$getContributedCommandHandlerDescriptions().then(result => {
 
-			// add local commands
-			const commands = CommandsRegistry.getCommands();
-			for (let id in commands) {
-				let {description} = commands[id];
-				if (description) {
-					result[id] = description;
-				}
+		// add local commands
+		const commands = CommandsRegistry.getCommands();
+		for (let id in commands) {
+			let {description} = commands[id];
+			if (description) {
+				result[id] = description;
 			}
+		}
 
-			// print all as markdown
-			const all: string[] = [];
-			for (let id in result) {
-				all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
-			}
-			console.log(all.join('\n'));
-		});
-	},
-	when: undefined,
-	weight: KeybindingsRegistry.WEIGHT.builtinExtension(0),
-	primary: undefined
+		// print all as markdown
+		const all: string[] = [];
+		for (let id in result) {
+			all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
+		}
+		console.log(all.join('\n'));
+	});
 });
 
 function _generateMarkdown(description: string | ICommandHandlerDescription): string {

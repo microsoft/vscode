@@ -22,7 +22,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 
@@ -451,57 +451,39 @@ export class CloseMessagesAction extends Action {
 
 // --- commands
 
-KeybindingsRegistry.registerCommandDesc({
-	id: '_workbench.ipc',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, ipcMessage: string, ipcArgs: any[]) {
-		if (ipcMessage && Array.isArray(ipcArgs)) {
-			ipc.send(ipcMessage, ...ipcArgs);
-		} else {
-			ipc.send(ipcMessage);
-		}
-	},
-	when: undefined,
-	primary: undefined
+CommandsRegistry.registerCommand('_workbench.ipc', function (accessor: ServicesAccessor, ipcMessage: string, ipcArgs: any[]) {
+	if (ipcMessage && Array.isArray(ipcArgs)) {
+		ipc.send(ipcMessage, ...ipcArgs);
+	} else {
+		ipc.send(ipcMessage);
+	}
 });
 
-KeybindingsRegistry.registerCommandDesc({
-	id: '_workbench.diff',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, args: [URI, URI, string]) {
+CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string]) {
 
-		const editorService = accessor.get(IWorkbenchEditorService);
-		let [left, right, label] = args;
+	const editorService = accessor.get(IWorkbenchEditorService);
+	let [left, right, label] = args;
 
-		if (!label) {
-			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", left.toString(true), right.toString(true));
-		}
+	if (!label) {
+		label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", left.toString(true), right.toString(true));
+	}
 
-		return TPromise.join([editorService.createInput({ resource: left }), editorService.createInput({ resource: right })]).then(inputs => {
-			const [left, right] = inputs;
+	return TPromise.join([editorService.createInput({ resource: left }), editorService.createInput({ resource: right })]).then(inputs => {
+		const [left, right] = inputs;
 
-			const diff = new DiffEditorInput(label, undefined, <EditorInput>left, <EditorInput>right);
-			return editorService.openEditor(diff);
-		}).then(() => {
-			return void 0;
-		});
-	},
-	when: undefined,
-	primary: undefined
+		const diff = new DiffEditorInput(label, undefined, <EditorInput>left, <EditorInput>right);
+		return editorService.openEditor(diff);
+	}).then(() => {
+		return void 0;
+	});
 });
 
-KeybindingsRegistry.registerCommandDesc({
-	id: '_workbench.open',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, args: [URI, number]) {
+CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
 
-		const editorService = accessor.get(IWorkbenchEditorService);
-		let [resource, column] = args;
+	const editorService = accessor.get(IWorkbenchEditorService);
+	let [resource, column] = args;
 
-		return editorService.openEditor({ resource }, column).then(() => {
-			return void 0;
-		});
-	},
-	when: undefined,
-	primary: undefined
+	return editorService.openEditor({ resource }, column).then(() => {
+		return void 0;
+	});
 });

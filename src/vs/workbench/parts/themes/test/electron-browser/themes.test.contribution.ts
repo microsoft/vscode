@@ -5,36 +5,24 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Range} from 'vs/editor/common/core/range';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {Action} from 'vs/base/common/actions';
-import WorkbenchContributions = require('vs/workbench/common/contributions');
-import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-
-import Platform = require('vs/platform/platform');
-import WorkbenchActionRegistry = require('vs/workbench/common/actionRegistry');
-import {IFileStat} from 'vs/platform/files/common/files';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 
 
 interface Data {
 	c: string; // content
 	t: string; // token
-	r: { [theme:string]:string}
+	r: { [theme: string]: string };
 }
 
 class Snapper {
@@ -103,7 +91,7 @@ class Snapper {
 				return id.substring(startIdx + part.length, id.length - 5);
 			}
 			return void 0;
-		}
+		};
 
 		return this.themeService.getThemes().then(themeDatas => {
 			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
@@ -114,7 +102,7 @@ class Snapper {
 						let testNode = this.getTestNode(themeId);
 						let themeName = getThemeName(themeId);
 						data.forEach(entry => {
-							entry.r[themeName] = this.getMatchedCSSRule(testNode, entry.t) + ' ' + this.getStyle(testNode, entry.t)
+							entry.r[themeName] = this.getMatchedCSSRule(testNode, entry.t) + ' ' + this.getStyle(testNode, entry.t);
 						});
 					}
 				});
@@ -147,37 +135,30 @@ class Snapper {
 	}
 }
 
-KeybindingsRegistry.registerCommandDesc({
-	id: '_workbench.captureSyntaxTokens',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, resource:URI) {
+CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (accessor: ServicesAccessor, resource: URI) {
 
-		let process = (resource: URI) => {
-			let filePath = resource.fsPath;
-			let fileName = paths.basename(filePath);
-			let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
+	let process = (resource: URI) => {
+		let filePath = resource.fsPath;
+		let fileName = paths.basename(filePath);
+		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
 
-			return pfs.readFile(filePath).then(content => {
-				return snapper.captureSyntaxTokens(fileName, content.toString());
+		return pfs.readFile(filePath).then(content => {
+			return snapper.captureSyntaxTokens(fileName, content.toString());
+		});
+	};
+
+	if (!resource) {
+		let editorService = accessor.get(IWorkbenchEditorService);
+		let fileEditorInput = asFileEditorInput(editorService.getActiveEditorInput());
+		if (fileEditorInput) {
+			process(fileEditorInput.getResource()).then(result => {
+				console.log(result);
 			});
-		};
-
-		if (!resource) {
-			let editorService = accessor.get(IWorkbenchEditorService);
-			let fileEditorInput = asFileEditorInput(editorService.getActiveEditorInput());
-			if (fileEditorInput) {
-				process(fileEditorInput.getResource()).then(result => {
-					console.log(result);
-				});
-			} else {
-				console.log('No file editor active');
-			}
 		} else {
-			return process(resource);
+			console.log('No file editor active');
 		}
-
-	},
-	when: undefined,
-	primary: undefined
+	} else {
+		return process(resource);
+	}
 });
 

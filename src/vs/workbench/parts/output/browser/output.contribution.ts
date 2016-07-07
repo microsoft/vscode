@@ -15,8 +15,8 @@ import {OutputService} from 'vs/workbench/parts/output/browser/outputServices';
 import {ToggleOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
 import panel = require('vs/workbench/browser/panel');
-import {KEYBINDING_CONTEXT_EDITOR_FOCUS, KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID} from 'vs/editor/common/editorCommon';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID} from 'vs/editor/common/editorCommon';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {MenuRegistry} from 'vs/platform/actions/browser/menuService';
 
@@ -56,14 +56,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 {
 	const id = 'editor.action.clearoutput';
 
-	KeybindingsRegistry.registerCommandDesc({
-		id,
-		primary: null,
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-		when: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_FOCUS),
-		handler(accessor) {
-			accessor.get(IOutputService).getActiveChannel().clear();
-		}
+	CommandsRegistry.registerCommand(id, function handler(accessor) {
+		accessor.get(IOutputService).getActiveChannel().clear();
 	});
 
 	MenuRegistry.addCommand({

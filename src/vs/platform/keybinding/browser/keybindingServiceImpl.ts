@@ -21,7 +21,6 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -408,14 +407,8 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 }
 
-KeybindingsRegistry.registerCommandDesc({
-	id: SET_CONTEXT_COMMAND_ID,
-	handler: (accessor:ServicesAccessor, contextKey:any, contextValue:any) => {
-		accessor.get(IKeybindingService).createKey(String(contextKey), contextValue);
-	},
-	weight: 0,
-	primary: undefined,
-	when: null
+CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
+	accessor.get(IKeybindingService).createKey(String(contextKey), contextValue);
 });
 
 class ScopedKeybindingService extends AbstractKeybindingService {
