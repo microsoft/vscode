@@ -69,10 +69,10 @@ const mapExtToMediaMimes = {
  */
 export class ResourceViewer {
 
-	public static show(name: string, resource: URI, container: Builder, scrollbar?: DomScrollableElement): void {
+	public static show(name: string, resource: URI, container: Builder, scrollbar: DomScrollableElement): void {
 
 		// Ensure CSS class
-		$(container).addClass('monaco-resource-viewer');
+		$(container).setClass('monaco-resource-viewer');
 
 		// Lookup media mime if any
 		let mime: string;
@@ -89,13 +89,22 @@ export class ResourceViewer {
 		if (mime.indexOf('image/') >= 0) {
 			$(container)
 				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
+				.addClass('image')
 				.img({
-					src: resource.toString() + '?' + Date.now() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.scanDomNode();
+					src: resource.toString() // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+				}).on(DOM.EventType.LOAD, (e, img) => {
+					const imgElement = <HTMLImageElement>img.getHTMLElement();
+					if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
+						$(container).addClass('oversized');
+
+						img.on(DOM.EventType.CLICK, (e, img) => {
+							$(container).toggleClass('full-size');
+
+							scrollbar.scanDomNode();
+						});
 					}
+
+					scrollbar.scanDomNode();
 				});
 		}
 
@@ -103,10 +112,9 @@ export class ResourceViewer {
 		else if (false /* PDF is currently not supported in Electron it seems */ && mime.indexOf('pdf') >= 0) {
 			$(container)
 				.empty()
-				.style({ padding: 0, margin: 0 }) // We really do not want any paddings or margins when displaying PDFs
 				.element('object')
 				.attr({
-					data: resource.toString() + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					data: resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					width: '100%',
 					height: '100%',
 					type: mime
@@ -114,36 +122,30 @@ export class ResourceViewer {
 		}
 
 		// Embed Audio (if supported in browser)
-		else if (mime.indexOf('audio/') >= 0) {
+		else if (false /* disabled due to unknown impact on memory usage */ && mime.indexOf('audio/') >= 0) {
 			$(container)
 				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('audio')
 				.attr({
-					src: resource.toString() + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.scanDomNode();
-					}
+					scrollbar.scanDomNode();
 				});
 		}
 
 		// Embed Video (if supported in browser)
-		else if (mime.indexOf('video/') >= 0) {
+		else if (false /* disabled due to unknown impact on memory usage */ && mime.indexOf('video/') >= 0) {
 			$(container)
 				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('video')
 				.attr({
-					src: resource.toString() + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275 + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.scanDomNode();
-					}
+					scrollbar.scanDomNode();
 				});
 		}
 
@@ -151,14 +153,11 @@ export class ResourceViewer {
 		else {
 			$(container)
 				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.span({
 					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
-			if (scrollbar) {
-				scrollbar.scanDomNode();
-			}
+			scrollbar.scanDomNode();
 		}
 	}
 }

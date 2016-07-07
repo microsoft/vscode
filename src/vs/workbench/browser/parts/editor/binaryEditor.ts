@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/binaryeditor';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
@@ -15,12 +14,15 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	private binaryContainer: Builder;
+	private scrollbar: DomScrollableElement;
 
 	constructor(id: string, telemetryService: ITelemetryService, private _editorService: IWorkbenchEditorService) {
 		super(id, telemetryService);
@@ -41,7 +43,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		binaryContainerElement.className = 'binary-container';
 		this.binaryContainer = $(binaryContainerElement);
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
-		parent.getHTMLElement().appendChild(this.binaryContainer.getHTMLElement());
+
+		// Custom Scrollbars
+		this.scrollbar = new DomScrollableElement(binaryContainerElement, { canUseTranslate3d: false, horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
+		parent.getHTMLElement().appendChild(this.scrollbar.getDomNode());
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
@@ -71,7 +76,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 			// Render Input
 			let binaryResourceModel = <BinaryEditorModel>resolvedModel;
-			ResourceViewer.show(binaryResourceModel.getName(), binaryResourceModel.getResource(), this.binaryContainer);
+			ResourceViewer.show(binaryResourceModel.getName(), binaryResourceModel.getResource(), this.binaryContainer, this.scrollbar);
 
 			return TPromise.as<void>(null);
 		});
@@ -89,6 +94,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Pass on to Binary Container
 		this.binaryContainer.size(dimension.width, dimension.height);
+		this.scrollbar.scanDomNode();
 	}
 
 	public focus(): void {
@@ -99,6 +105,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Destroy Container
 		this.binaryContainer.destroy();
+		this.scrollbar.dispose();
 
 		super.dispose();
 	}

@@ -8,40 +8,13 @@
 }
 
 .monaco-workbench .binarydiff-right {
-	box-shadow: -6px 0 5px -5px #DDD;
+	border-left: 3px solid #DDD;
 }
 
 .vs-dark .monaco-workbench .binarydiff-right {
-	box-shadow: -6px 0 5px -5px black;
+	border-left: 3px solid black;
 }
 
-.monaco-workbench .binary-container {
-	padding-left: 20px;
-	box-sizing:			border-box;
-}
-
-.monaco-workbench .binary-container img {
-	background-position: 0 0, 8px 8px;
-	background-size: 16px 16px;
-}
-
-/* CSS checkerbox pattern (learnt from http://lea.verou.me/2011/02/checkerboard-pattern-with-css3/*/
-.vs .monaco-workbench .binary-container img {
-	background-image:
-		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220)),
-		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220));
-}
-
-.vs-dark .monaco-workbench .binary-container img {
-	background-image:
-		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80)),
-		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80));
-}
-
-.vs-dark .monaco-workbench .binary-container a {
-	color: #1C5DAF;
-}
-
-.vs-dark .monaco-workbench .binary-container a:hover {
-	color: #4080D0;
+.hc-black .monaco-workbench .binarydiff-right {
+	border-left: 3px solid #6FC3DF;
 }
