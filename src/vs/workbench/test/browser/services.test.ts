@@ -111,7 +111,7 @@ class TestEditorPart implements IEditorPart {
 }
 
 class TestViewletService implements IViewletService {
-	public serviceId = IViewletService;
+	public _serviceBrand: any;
 	public openViewlet(id: string, focus?: boolean): Promise {
 		return TPromise.as(null);
 	}

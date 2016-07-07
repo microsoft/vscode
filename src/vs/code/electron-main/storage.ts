@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import { EventEmitter } from 'events';
 import { IEnvironmentService } from 'vs/code/electron-main/env';
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
 	STORE: 'store'
@@ -18,7 +18,7 @@ const EventTypes = {
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
 export interface IStorageService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void): () => void;
 	getItem<T>(key: string, defaultValue?: T): T;
 	setItem(key: string, data: any): void;
@@ -27,7 +27,7 @@ export interface IStorageService {
 
 export class StorageService implements IStorageService {
 
-	serviceId = IStorageService;
+	_serviceBrand: any;
 
 	private dbPath: string;
 	private database: any = null;

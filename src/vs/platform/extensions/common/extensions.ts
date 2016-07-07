@@ -6,7 +6,7 @@
 
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExtensionDescription {
 	id: string;
@@ -45,7 +45,7 @@ export interface IExtensionsStatus {
 }
 
 export interface IExtensionService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Send an activation event and activate interested extensions.

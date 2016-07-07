@@ -6,12 +6,12 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
-import {ServicesAccessor, createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
 export interface ICommandService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
 	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
 	isKnownCommand(commandId: string): boolean;
@@ -97,7 +97,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 };
 
 export const NullCommandService: ICommandService = {
-	serviceId: undefined,
+	_serviceBrand: undefined,
 	executeCommand() {
 		return TPromise.as(undefined);
 	},

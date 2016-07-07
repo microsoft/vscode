@@ -14,7 +14,7 @@ import cp = require('child_process');
 import processes = require('vs/base/node/processes');
 
 export class WinTerminalService implements ITerminalService {
-	public serviceId = ITerminalService;
+	public _serviceBrand: any;
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService
@@ -45,7 +45,7 @@ export class WinTerminalService implements ITerminalService {
 }
 
 export class MacTerminalService implements ITerminalService {
-	public serviceId = ITerminalService;
+	public _serviceBrand: any;
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService
@@ -70,7 +70,7 @@ export class MacTerminalService implements ITerminalService {
 }
 
 export class LinuxTerminalService implements ITerminalService {
-	public serviceId = ITerminalService;
+	public _serviceBrand: any;
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService

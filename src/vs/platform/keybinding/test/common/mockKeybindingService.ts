@@ -30,7 +30,7 @@ class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 }
 
 export class MockKeybindingService implements IKeybindingService {
-	public serviceId = IKeybindingService;
+	public _serviceBrand: any;
 
 	public dispose(): void { }
 

@@ -382,7 +382,7 @@ export class GitService extends ee.EventEmitter
 	implements
 		git.IGitService {
 
-	public serviceId = git.IGitService;
+	public _serviceBrand: any;
 
 	private eventService: IEventService;
 	private contextService: IWorkspaceContextService;

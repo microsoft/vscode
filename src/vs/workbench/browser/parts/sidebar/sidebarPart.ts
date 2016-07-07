@@ -29,7 +29,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
-	public serviceId = IViewletService;
+	public _serviceBrand: any;
 
 	private blockOpeningViewlet: boolean;
 

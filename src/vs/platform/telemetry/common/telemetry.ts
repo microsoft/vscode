@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -18,7 +18,7 @@ export interface ITelemetryInfo {
 
 export interface ITelemetryService {
 
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
@@ -37,7 +37,7 @@ export interface ITelemetryService {
 }
 
 export const NullTelemetryService: ITelemetryService = {
-	serviceId: undefined,
+	_serviceBrand: undefined,
 	timedPublicLog(name: string, data?: any) { return nullEvent; },
 	publicLog(eventName: string, data?: any) { return TPromise.as<void>(null); },
 	isOptedIn: true,

@@ -6,7 +6,7 @@
 'use strict';
 
 import { app } from 'electron';
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { UserSettings, ISettings } from 'vs/workbench/node/userSettings';
 import { IEnvironmentService } from 'vs/code/electron-main/env';
 import Event from 'vs/base/common/event';
@@ -14,7 +14,7 @@ import Event from 'vs/base/common/event';
 export const ISettingsService = createDecorator<ISettingsService>('settingsService');
 
 export interface ISettingsService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	globalSettings: ISettings;
 	loadSync(): boolean;
 	getValue<T>(key: string, fallback?: T): T;
@@ -23,7 +23,7 @@ export interface ISettingsService {
 
 export class SettingsManager extends UserSettings implements ISettingsService {
 
-	serviceId = ISettingsService;
+	_serviceBrand: any;
 
 	constructor(@IEnvironmentService envService: IEnvironmentService) {
 		super(envService.appSettingsPath, envService.appKeybindingsPath);

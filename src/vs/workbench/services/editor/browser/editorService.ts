@@ -39,7 +39,7 @@ export interface IEditorPart {
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
 
-	public serviceId = IWorkbenchEditorService;
+	public _serviceBrand: any;
 
 	private editorPart: IEditorPart | IWorkbenchEditorService;
 	private fileInputDescriptor: AsyncDescriptor0<IFileEditorInput>;

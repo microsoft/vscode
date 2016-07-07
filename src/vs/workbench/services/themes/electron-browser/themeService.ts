@@ -98,7 +98,7 @@ interface IInternalThemeData extends IThemeData {
 }
 
 export class ThemeService implements IThemeService {
-	serviceId = IThemeService;
+	_serviceBrand: any;
 
 	private knownThemes: IInternalThemeData[];
 	private currentTheme: string;

@@ -7,13 +7,12 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
-
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IEditorService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	/**
 	 * Specific overload to open an instance of IResourceInput.
 	 */

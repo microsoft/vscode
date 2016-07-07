@@ -73,7 +73,7 @@ export interface IOpenEditorDelegate {
 }
 
 export class SimpleEditorService implements IEditorService {
-	public serviceId = IEditorService;
+	public _serviceBrand: any;
 
 	private editor:SimpleEditor;
 	private openEditorDelegate:IOpenEditorDelegate;
@@ -164,7 +164,7 @@ export class SimpleEditorService implements IEditorService {
 }
 
 export class SimpleMessageService implements IMessageService {
-	public serviceId = IMessageService;
+	public _serviceBrand: any;
 
 	private static Empty = function() { /* nothing */};
 

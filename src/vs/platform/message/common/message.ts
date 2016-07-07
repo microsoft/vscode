@@ -7,7 +7,7 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {Action} from 'vs/base/common/actions';
 
 export interface IMessageWithAction {
@@ -29,7 +29,7 @@ export const CancelAction = new Action('close.message', nls.localize('cancel', "
 export const IMessageService = createDecorator<IMessageService>('messageService');
 
 export interface IMessageService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Tells the service to show a message with a given severity

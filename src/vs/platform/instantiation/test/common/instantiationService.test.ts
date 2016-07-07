@@ -6,7 +6,7 @@
 
 
 import assert = require('assert');
-import {createDecorator, optional, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, optional, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
@@ -14,48 +14,48 @@ import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 let IService1 = createDecorator<IService1>('service1');
 
 interface IService1 {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	c: number;
 }
 
 class Service1 implements IService1 {
-	serviceId = IService1;
+	_serviceBrand: any;
 	c = 1;
 }
 
 let IService2 = createDecorator<IService2>('service2');
 
 interface IService2 {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	d: boolean;
 }
 
 class Service2 implements IService2 {
-	serviceId = IService2;
+	_serviceBrand: any;
 	d = true;
 }
 
 let IService3 = createDecorator<IService3>('service3');
 
 interface IService3 {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	s: string;
 }
 
 class Service3 implements IService3 {
-	serviceId = IService3;
+	_serviceBrand: any;
 	s = 'farboo';
 }
 
 let IDependentService = createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	name: string;
 }
 
 class DependentService implements IDependentService {
-	serviceId = IDependentService;
+	_serviceBrand: any;
 	constructor( @IService1 service: IService1) {
 		assert.equal(service.c, 1);
 	}
@@ -118,7 +118,7 @@ class DependentServiceTarget2 {
 
 
 class ServiceLoop1 implements IService1 {
-	serviceId = IService1;
+	_serviceBrand: any;
 	c = 1;
 
 	constructor( @IService2 s: IService2) {
@@ -127,7 +127,7 @@ class ServiceLoop1 implements IService1 {
 }
 
 class ServiceLoop2 implements IService2 {
-	serviceId = IService2;
+	_serviceBrand: any;
 	d = true;
 
 	constructor( @IService1 s: IService1) {
@@ -366,7 +366,7 @@ suite('Instantiation Service', () => {
 		let serviceInstanceCount = 0;
 
 		const CtorCounter = class implements Service1 {
-			serviceId: any;
+			_serviceBrand: any;
 			c = 1;
 			constructor() {
 				serviceInstanceCount += 1;

@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { TerminateResponse } from 'vs/base/common/processes';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITaskSummary, TaskDescription, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 export { ITaskSummary, TaskDescription, TaskEvent, TaskType };
@@ -23,7 +23,7 @@ export namespace TaskServiceEvents {
 }
 
 export interface ITaskService extends IEventEmitter {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	configureAction(): Action;
 	build(): TPromise<ITaskSummary>;
 	rebuild(): TPromise<ITaskSummary>;

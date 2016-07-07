@@ -15,7 +15,7 @@ import { ISettingsService } from 'vs/code/electron-main/settings';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export enum State {
 	Uninitialized,
@@ -45,7 +45,7 @@ interface IAutoUpdater extends NodeJS.EventEmitter {
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
 export interface IUpdateService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	feedUrl: string;
 	channel: string;
 	initialize(): void;
@@ -58,7 +58,7 @@ export interface IUpdateService {
 
 export class UpdateManager extends EventEmitter implements IUpdateService {
 
-	serviceId = IUpdateService;
+	_serviceBrand: any;
 
 	private _state: State;
 	private explicitState: ExplicitState;

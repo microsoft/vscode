@@ -119,7 +119,7 @@ class EditorInputCache {
 
 export class ReplaceService implements IReplaceService {
 
-	public serviceId= IReplaceService;
+	public _serviceBrand: any;
 
 	private cache: EditorInputCache;
 

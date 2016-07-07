@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 
 export class EnvironmentService implements IEnvironmentService {
 
-	serviceId = IEnvironmentService;
+	_serviceBrand: any;
 
 	private _appRoot: string;
 	get appRoot(): string { return this._appRoot; }

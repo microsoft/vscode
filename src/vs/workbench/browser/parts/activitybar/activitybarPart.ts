@@ -33,7 +33,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 // import events = require('vs/base/common/events');
 
 export class ActivitybarPart extends Part implements IActivityService {
-	public serviceId = IActivityService;
+	public _serviceBrand: any;
 	private viewletSwitcherBar: ActionBar;
 	// private globalViewletSwitcherBar: ActionBar;
 	private globalToolBar: ToolBar;

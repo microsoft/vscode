@@ -11,7 +11,7 @@ import {IMirrorModel} from 'vs/editor/common/editorCommon';
 import {IResourceAddedEvent, IResourceChangedEvent, IResourceRemovedEvent, IResourceService, ResourceEvents} from 'vs/editor/common/services/resourceService';
 
 export class ResourceService extends EventEmitter implements IResourceService {
-	public serviceId = IResourceService;
+	public _serviceBrand: any;
 	private data:{[url:string]:IMirrorModel;};
 	private unbinds:{[url:string]:IDisposable[];};
 

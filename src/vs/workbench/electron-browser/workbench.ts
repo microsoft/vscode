@@ -90,7 +90,7 @@ export class Workbench implements IPartService {
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
 	private static panelHiddenSettingKey = 'workbench.panel.hidden';
 
-	public serviceId = IPartService;
+	public _serviceBrand: any;
 
 	private container: HTMLElement;
 	private workbenchParams: WorkbenchParams;

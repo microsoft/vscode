@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
 export interface IThemeService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	setTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
 	getTheme(): string;
 	getThemes(): TPromise<IThemeData[]>;

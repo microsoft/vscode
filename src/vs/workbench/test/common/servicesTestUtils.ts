@@ -54,7 +54,7 @@ export const TestConfiguration: IConfiguration = {
 };
 
 export class TestHistoryService implements IHistoryService {
-	public serviceId = IHistoryService;
+	public _serviceBrand: any;
 
 	public forward(): void {
 
@@ -82,7 +82,7 @@ export class TestHistoryService implements IHistoryService {
 }
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
-	public serviceId = WorkspaceContextService.IWorkspaceContextService;
+	public _serviceBrand: any;
 
 	private workspace: any;
 	private configuration: any;
@@ -166,7 +166,7 @@ export abstract class TestTextFileService extends TextFileService {
 }
 
 export class TestMessageService implements IMessageService {
-	public serviceId = IMessageService;
+	public _serviceBrand: any;
 
 	private counter: number;
 
@@ -194,7 +194,7 @@ export class TestMessageService implements IMessageService {
 }
 
 export class TestPartService implements PartService.IPartService {
-	public serviceId = PartService.IPartService;
+	public _serviceBrand: any;
 
 	public layout(): void { }
 
@@ -242,11 +242,11 @@ export class TestPartService implements PartService.IPartService {
 }
 
 export class TestEventService extends EventEmitter.EventEmitter implements IEventService {
-	public serviceId = IEventService;
+	public _serviceBrand: any;
 }
 
 export class TestStorageService extends EventEmitter.EventEmitter implements IStorageService {
-	public serviceId = IStorageService;
+	public _serviceBrand: any;
 
 	private storage: Storage.Storage;
 
@@ -325,7 +325,7 @@ export class MockRequestService extends BaseRequestService {
 }
 
 export class TestUntitledEditorService implements IUntitledEditorService {
-	public serviceId = IUntitledEditorService;
+	public _serviceBrand: any;
 
 	public get(resource: URI) {
 		return null;
@@ -357,7 +357,7 @@ export class TestUntitledEditorService implements IUntitledEditorService {
 }
 
 export class TestEditorGroupService implements IEditorGroupService {
-	public serviceId = IEditorGroupService;
+	public _serviceBrand: any;
 
 	private stacksModel: EditorStacksModel;
 
@@ -447,7 +447,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 }
 
 export class TestEditorService implements WorkbenchEditorService.IWorkbenchEditorService {
-	public serviceId = WorkbenchEditorService.IWorkbenchEditorService;
+	public _serviceBrand: any;
 
 	public activeEditorInput;
 	public activeEditorOptions;
@@ -527,7 +527,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 }
 
 export class TestQuickOpenService implements QuickOpenService.IQuickOpenService {
-	public serviceId = QuickOpenService.IQuickOpenService;
+	public _serviceBrand: any;
 
 	private callback: (prefix: string) => void;
 
@@ -616,7 +616,7 @@ export const TestFileService = {
 };
 
 export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
-	public serviceId = IConfigurationService;
+	public _serviceBrand: any;
 
 	private configuration = Object.create(null);
 
@@ -645,7 +645,7 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 export class TestLifecycleService implements ILifecycleService {
 
-	public serviceId = ILifecycleService;
+	public _serviceBrand: any;
 
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<void>();

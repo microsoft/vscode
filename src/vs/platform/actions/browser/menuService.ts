@@ -56,7 +56,7 @@ export const MenuRegistry: IMenuRegistry = _registry;
 
 export class MenuService implements IMenuService {
 
-	serviceId = IMenuService;
+	_serviceBrand: any;
 
 	constructor(
 		@IExtensionService private _extensionService: IExtensionService,

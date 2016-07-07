@@ -68,7 +68,7 @@ function etag(arg1: any, arg2?: any): string {
 
 export class FileService implements IFileService {
 
-	public serviceId = IFileService;
+	public _serviceBrand: any;
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time

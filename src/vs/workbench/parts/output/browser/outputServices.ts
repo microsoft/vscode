@@ -21,7 +21,7 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 export class OutputService implements IOutputService {
-	public serviceId = IOutputService;
+	public _serviceBrand: any;
 
 	private receivedOutput: { [channel: string]: string; };
 

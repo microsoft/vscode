@@ -144,7 +144,7 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 }
 
 export abstract class AbstractKeybindingService {
-	public serviceId = IKeybindingService;
+	public _serviceBrand: any;
 
 	protected _onDidChangeContext: Event<string[]>;
 	protected _onDidChangeContextKey: Emitter<string>;

@@ -12,7 +12,7 @@ import {MainContext, MainThreadTelemetryShape} from './extHostProtocol';
 
 export class RemoteTelemetryService implements ITelemetryService {
 
-	serviceId: any;
+	_serviceBrand: any;
 
 	private _name: string;
 	private _proxy: MainThreadTelemetryShape;

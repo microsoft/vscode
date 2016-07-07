@@ -135,7 +135,7 @@ function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:
 }
 
 export class ModeServiceImpl implements IModeService {
-	public serviceId = IModeService;
+	public _serviceBrand: any;
 
 	private _instantiationService: IInstantiationService;
 	protected _extensionService: IExtensionService;

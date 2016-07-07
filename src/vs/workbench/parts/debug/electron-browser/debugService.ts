@@ -61,7 +61,7 @@ const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 
 export class DebugService implements debug.IDebugService {
-	public serviceId = debug.IDebugService;
+	public _serviceBrand: any;
 
 	private _state: debug.State;
 	private _onDidChangeState: Emitter<debug.State>;

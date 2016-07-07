@@ -21,7 +21,7 @@ import Severity from 'vs/base/common/severity';
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
-	serviceId = IExtensionTipsService;
+	_serviceBrand: any;
 
 	private _recommendations: { [id: string]: boolean; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);

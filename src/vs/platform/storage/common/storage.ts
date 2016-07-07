@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'storageService';
 
 export const IStorageService = createDecorator<IStorageService>(ID);
 
 export interface IStorageService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Store a string value under the given key to local storage.
@@ -78,7 +78,7 @@ export enum StorageScope {
 
 
 export const NullStorageService: IStorageService = {
-	serviceId: undefined,
+	_serviceBrand: undefined,
 	store() { return undefined; },
 	swap() { return undefined; },
 	remove() { return undefined; },

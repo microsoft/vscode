@@ -22,7 +22,7 @@ import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
-import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
 	OPEN: 'open',
@@ -83,7 +83,7 @@ const ReopenFoldersSetting = {
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
 export interface IWindowsService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	// TODO make proper events
 	// events
@@ -113,7 +113,7 @@ export interface IWindowsService {
 
 export class WindowsManager implements IWindowsService {
 
-	serviceId = IWindowsService;
+	_serviceBrand: any;
 
 	public static openedPathsListStorageKey = 'openedPathsList';
 

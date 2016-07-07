@@ -23,7 +23,7 @@ export var IEditorGroupService = createDecorator<IEditorGroupService>('editorGro
  * editor input and models.
  */
 export interface IEditorGroupService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Emitted when editors or inputs change. Examples: opening, closing of editors. Active editor change.
