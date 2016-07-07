@@ -31,7 +31,7 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {Match, EmptyMatch, FileMatch, SearchModel, FileMatchOrMatch} from 'vs/workbench/parts/search/common/searchModel';
+import {Match, FileMatch, SearchModel, FileMatchOrMatch} from 'vs/workbench/parts/search/common/searchModel';
 import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
 import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -915,10 +915,6 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
-		if (element instanceof EmptyMatch) {
-			return void 0;
-		}
-
 		let match: Match= null;
 		if (element instanceof Match) {
 			match= element;

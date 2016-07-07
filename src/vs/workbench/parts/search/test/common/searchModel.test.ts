@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Match, FileMatch, SearchResult, EmptyMatch} from 'vs/workbench/parts/search/common/searchModel';
+import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -45,8 +45,7 @@ suite('Search - Model', () => {
 		}]);
 		let lineMatch = fileMatch.matches()[0];
 		fileMatch.remove(lineMatch);
-		assert.equal(fileMatch.matches().length, 1);
-		assert.ok(fileMatch.matches()[0] instanceof EmptyMatch);
+		assert.equal(fileMatch.matches().length, 0);
 	});
 
 	test('File Match', function () {
@@ -77,7 +76,7 @@ suite('Search - Model', () => {
 				}]
 			});
 		}
-		searchResult.add(null, raw);
+		searchResult.add(raw);
 
 		assert.equal(searchResult.isEmpty(), false);
 		assert.equal(searchResult.matches().length, 10);
