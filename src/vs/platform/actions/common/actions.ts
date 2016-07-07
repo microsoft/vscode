@@ -10,6 +10,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
 import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
@@ -64,7 +65,7 @@ export class MenuItemAction extends Actions.Action {
 
 	constructor(
 		private _item: IMenuItem,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@ICommandService private _commandService: ICommandService
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 
@@ -93,7 +94,7 @@ export class MenuItemAction extends Actions.Action {
 
 	run(alt: boolean) {
 		const {id} = alt === true && this._item.alt || this._item.command;
-		return this._keybindingService.executeCommand(id, this._resource);
+		return this._commandService.executeCommand(id, this._resource);
 	}
 }
 
@@ -103,13 +104,13 @@ export class ExecuteCommandAction extends Actions.Action {
 	constructor(
 		id: string,
 		label: string,
-		@IKeybindingService private _keybindingService: IKeybindingService) {
+		@ICommandService private _commandService: ICommandService) {
 
 		super(id, label);
 	}
 
 	run(...args: any[]): WinJS.TPromise<any> {
-		return this._keybindingService.executeCommand(this.id, ...args);
+		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
 

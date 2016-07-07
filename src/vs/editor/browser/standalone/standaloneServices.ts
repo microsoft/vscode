@@ -260,7 +260,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
 	serviceCollection.set(ICodeEditorService, codeEditorService);
 
-	let menuService = services.menuService || new MenuService(extensionService);
+	let menuService = services.menuService || new MenuService(extensionService, commandService);
 	serviceCollection.set(IMenuService, menuService);
 
 	staticServices = {

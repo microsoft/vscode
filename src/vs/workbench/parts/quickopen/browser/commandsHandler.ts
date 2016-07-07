@@ -266,7 +266,10 @@ export class CommandsHandler extends QuickOpenHandler {
 		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		let otherActions = this.menuService.getCommandActions().map(command => new ExecuteCommandAction(command.id, command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title, this.keybindingService));
+		let otherActions = this.menuService.getCommandActions().map(command => {
+			return this.instantiationService.createInstance(ExecuteCommandAction, command.id,
+				command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title);
+		});
 		let otherEntries = this.otherActionsToEntries(otherActions, searchValue);
 
 		// Concat

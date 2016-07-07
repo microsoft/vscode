@@ -6,6 +6,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ICodeEditorWidgetCreationOptions, IConfigurationChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
@@ -24,10 +25,11 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		parentEditor:ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, keybindingService, telemetryService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, keybindingService, telemetryService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

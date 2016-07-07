@@ -12,6 +12,7 @@ import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingContextKey, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
@@ -101,6 +102,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	protected cursor:Cursor;
 
 	protected _instantiationService: IInstantiationService;
+	protected _commandService: ICommandService;
 	protected _keybindingService: IKeybindingService;
 
 	/**
@@ -123,6 +125,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		options:editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
 		codeEditorService: ICodeEditorService,
+		commandService: ICommandService,
 		keybindingService: IKeybindingService,
 		telemetryService: ITelemetryService
 	) {
@@ -138,6 +141,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
+		this._commandService = commandService;
 		this._keybindingService = keybindingService.createScoped(domElement);
 		this._editorIdContextKey = this._keybindingService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS, undefined);

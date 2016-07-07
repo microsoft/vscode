@@ -13,7 +13,7 @@ import Severity from 'vs/base/common/severity';
 import {format} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -60,7 +60,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private _commands: { [id: string]: Command } = Object.create(null);
 
 	public constructor(editor: editorBrowser.ICodeEditor, symbolRange: Range,
-		keybindingService: IKeybindingService, messageService: IMessageService) {
+		commandService: ICommandService, messageService: IMessageService) {
 
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget.ID);
 		this._editor = editor;
@@ -78,7 +78,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 				let command = this._commands[element.id];
 				if (command) {
 					editor.focus();
-					keybindingService.executeCommand(command.id, ...command.arguments).done(undefined, err => {
+					commandService.executeCommand(command.id, ...command.arguments).done(undefined, err => {
 						messageService.show(Severity.Error, err);
 					});
 				}
@@ -226,7 +226,7 @@ class CodeLens {
 	public constructor(data: ICodeLensData[], editor: editorBrowser.ICodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
-		keybindingService: IKeybindingService, messageService: IMessageService) {
+		commandService: ICommandService, messageService: IMessageService) {
 
 		this._editor = editor;
 		this._data = data;
@@ -251,7 +251,7 @@ class CodeLens {
 		});
 
 		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1);
-		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), keybindingService, messageService);
+		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), commandService, messageService);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 		this._editor.addContentWidget(this._contentWidget);
@@ -351,7 +351,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	constructor(
 		private _editor: editorBrowser.ICodeEditor,
 		@IModelService private _modelService: IModelService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@ICommandService private _commandService: ICommandService,
 		@IMessageService private _messageService: IMessageService
 	) {
 		this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
@@ -553,7 +553,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._keybindingService, this._messageService));
+						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -567,7 +567,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._keybindingService, this._messageService));
+					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService));
 					groupsIndex++;
 				}
 

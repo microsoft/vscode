@@ -94,3 +94,10 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		return this._commands;
 	}
 };
+
+export const NullCommandService: ICommandService = {
+	serviceId: undefined,
+	executeCommand() {
+		return TPromise.as(undefined);
+	}
+};

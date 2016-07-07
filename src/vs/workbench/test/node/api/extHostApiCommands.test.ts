@@ -18,8 +18,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import {ICommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
@@ -60,7 +59,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		let instantiationService = new InstantiationService(services);
 		threadService = new TestThreadService();
 
-		services.set(IKeybindingService, <IKeybindingService>{
+		services.set(ICommandService, {
+			serviceId: undefined,
 			executeCommand(id, args): any {
 				let {handler} = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));

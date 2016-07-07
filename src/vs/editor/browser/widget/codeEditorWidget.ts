@@ -11,6 +11,7 @@ import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
@@ -74,10 +75,11 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		options:editorCommon.IEditorOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, keybindingService, telemetryService);
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChage(() => {
@@ -489,6 +491,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	protected _createView(): void {
 		this._view = new View(
 			this._keybindingService,
+			this._commandService,
 			this._configuration,
 			this.viewModel,
 			(source:string, handlerId:string, payload:any) => {
