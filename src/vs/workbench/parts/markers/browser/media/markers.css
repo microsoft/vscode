@@ -63,15 +63,6 @@
 	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
-	color: #bcbcbc;
-	margin-right: 5px;
-}
-
-.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
-	color: #888;
-}
-
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source:before {
 	content: '[';
 }
@@ -80,9 +71,9 @@
 	content: ']';
 }
 
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source,
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line {
-	opacity: 0.6;
-	font-size: 85%;
+	opacity: 0.7;
 	margin-right: 5px;
 }
 
