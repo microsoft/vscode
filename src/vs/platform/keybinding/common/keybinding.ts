@@ -6,7 +6,7 @@
 
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
@@ -447,7 +447,7 @@ export interface IKeybindingScopeLocation {
 }
 
 export interface IKeybindingService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	dispose(): void;
 
 	onDidChangeContext: Event<string[]>;

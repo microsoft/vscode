@@ -30,7 +30,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
  */
 export abstract class TextFileService implements ITextFileService {
 
-	public serviceId = ITextFileService;
+	public _serviceBrand: any;
 
 	private listenerToUnbind: IDisposable[];
 

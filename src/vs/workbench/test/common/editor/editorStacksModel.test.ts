@@ -20,6 +20,7 @@ import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import 'vs/workbench/browser/parts/editor/baseEditor';
 
 function create(): EditorStacksModel {
 	let services = new ServiceCollection();

@@ -22,7 +22,7 @@ import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser
 import {TerminalPanel} from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 
 export class TerminalService implements ITerminalService {
-	public serviceId = ITerminalService;
+	public _serviceBrand: any;
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];

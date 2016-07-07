@@ -21,7 +21,7 @@ export var IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('e
  * editor input and models.
  */
 export interface IWorkbenchEditorService extends IEditorService {
-	serviceId : ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Returns the currently active editor or null if none.

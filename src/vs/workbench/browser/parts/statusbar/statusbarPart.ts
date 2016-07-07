@@ -28,7 +28,7 @@ import {IStatusbarService, IStatusbarEntry} from 'vs/platform/statusbar/common/s
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	public serviceId = IStatusbarService;
+	public _serviceBrand: any;
 
 	private static PRIORITY_PROP = 'priority';
 	private static ALIGNMENT_PROP = 'alignment';

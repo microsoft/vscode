@@ -16,7 +16,7 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/platform/product';
 import { parseArgs } from 'vs/code/node/argv';
 import pkg from 'vs/platform/package';
@@ -49,7 +49,7 @@ export interface ICommandLineArguments {
 export const IEnvironmentService = createDecorator<IEnvironmentService>('mainEnvironmentService');
 
 export interface IEnvironmentService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
 	userExtensionsHome: string;
 	isTestingFromCli: boolean;
@@ -84,7 +84,7 @@ function getNumericValue(value: string, defaultValue: number, fallback: number =
 
 export class EnvService implements IEnvironmentService {
 
-	serviceId = IEnvironmentService;
+	_serviceBrand: any;
 
 	private _cliArgs: ICommandLineArguments;
 	get cliArgs(): ICommandLineArguments { return this._cliArgs; }

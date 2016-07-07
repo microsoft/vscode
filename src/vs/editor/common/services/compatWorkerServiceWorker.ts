@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 
 export class CompatWorkerServiceWorker implements ICompatWorkerService {
-	public serviceId = ICompatWorkerService;
+	public _serviceBrand: any;
 	public isInMainThread = false;
 	private _compatModes: {[modeId:string]:ICompatMode;};
 

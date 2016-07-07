@@ -11,7 +11,7 @@ import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class CommandService implements ICommandService {
 
-	serviceId = ICommandService;
+	_serviceBrand: any;
 
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,

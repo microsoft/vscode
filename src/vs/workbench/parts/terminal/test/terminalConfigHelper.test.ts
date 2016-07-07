@@ -6,19 +6,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event from 'vs/base/common/event';
 import {Builder} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IThemeData} from 'vs/workbench/services/themes/common/themeService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {Platform} from 'vs/base/common/platform';
-import {ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 
 class MockConfigurationService implements IConfigurationService {
-	public serviceId = IConfigurationService;
+	public _serviceBrand: any;
 	public constructor(private configuration: any = {}) {}
 	public loadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
 	public getConfiguration(): any { return this.configuration; }

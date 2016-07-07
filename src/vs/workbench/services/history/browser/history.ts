@@ -212,7 +212,7 @@ interface IStackEntry {
 
 export class HistoryService extends BaseHistoryService implements IHistoryService {
 
-	public serviceId = IHistoryService;
+	public _serviceBrand: any;
 
 	private static STORAGE_KEY = 'history.entries';
 	private static MAX_HISTORY_ITEMS = 200;

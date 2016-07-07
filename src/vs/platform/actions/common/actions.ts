@@ -44,7 +44,7 @@ export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuService {
 
-	serviceId: any;
+	_serviceBrand: any;
 
 	createMenu(id: MenuId, scopedKeybindingService: IKeybindingService): IMenu;
 

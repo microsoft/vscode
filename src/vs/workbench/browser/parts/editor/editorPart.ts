@@ -69,7 +69,7 @@ interface IEditorReplacement extends EditorIdentifier {
  */
 export class EditorPart extends Part implements IEditorPart, IEditorGroupService {
 
-	public serviceId = IEditorGroupService;
+	public _serviceBrand: any;
 
 	private static GROUP_LEFT_LABEL = nls.localize('leftGroup', "Left");
 	private static GROUP_CENTER_LABEL = nls.localize('centerGroup', "Center");

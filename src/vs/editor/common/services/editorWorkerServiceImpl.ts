@@ -29,7 +29,7 @@ const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
 const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 
 export class EditorWorkerServiceImpl implements IEditorWorkerService {
-	public serviceId = IEditorWorkerService;
+	public _serviceBrand: any;
 
 	private _workerManager:WorkerManager;
 

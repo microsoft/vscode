@@ -68,7 +68,7 @@ function getExtensionId(extension: IExtensionIdentity, version: string): string 
 
 export class ExtensionManagementService implements IExtensionManagementService {
 
-	serviceId = IExtensionManagementService;
+	_serviceBrand: any;
 
 	private extensionsPath: string;
 	private obsoletePath: string;

@@ -28,7 +28,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
  */
 export class NodeConfigurationService implements IConfigurationService, IDisposable {
 
-	serviceId = IConfigurationService;
+	_serviceBrand: any;
 
 	private configurationPath: string;
 	private watcher: FSWatcher;

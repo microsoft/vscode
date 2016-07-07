@@ -5,14 +5,14 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
 
 export var ID_CODE_EDITOR_SERVICE = 'codeEditorService';
 export var ICodeEditorService = createDecorator<ICodeEditorService>(ID_CODE_EDITOR_SERVICE);
 
 export interface ICodeEditorService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	addCodeEditor(editor: ICommonCodeEditor): void;
 	onCodeEditorAdd: Event<ICommonCodeEditor>;

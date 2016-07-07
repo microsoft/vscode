@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {IViewlet} from 'vs/workbench/common/viewlet';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
@@ -45,7 +45,7 @@ export var SERVICE_ID = 'extensionsWorkbenchService';
 export var IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
 
 export interface IExtensionsWorkbenchService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	onChange: Event<void>;
 	local: IExtension[];
 	queryLocal(): TPromise<IExtension[]>;

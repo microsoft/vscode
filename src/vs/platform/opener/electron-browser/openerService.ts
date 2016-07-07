@@ -14,7 +14,7 @@ import {IOpenerService} from '../common/opener';
 
 export class OpenerService implements IOpenerService {
 
-	serviceId: any;
+	_serviceBrand: any;
 
 	constructor(
 		@IEditorService private _editorService: IEditorService,

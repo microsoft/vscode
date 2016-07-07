@@ -49,7 +49,7 @@ export interface MarkerData {
 
 
 export class MarkerService implements IMarkerService {
-	public serviceId = IMarkerService;
+	public _serviceBrand: any;
 	private _data: { [k: string]: IMarkerData[] };
 	private _stats: MarkerStatistics;
 	private _onMarkerChanged: Emitter<URI[]>;

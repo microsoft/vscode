@@ -11,7 +11,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 export var IViewletService = createDecorator<IViewletService>('viewletService');
 
 export interface IViewletService {
-	serviceId : ServiceIdentifier<any>;
+	_serviceBrand : ServiceIdentifier<any>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.

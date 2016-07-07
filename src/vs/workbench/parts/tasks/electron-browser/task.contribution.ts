@@ -550,7 +550,7 @@ class NullTaskSystem extends EventEmitter implements ITaskSystem {
 }
 
 class TaskService extends EventEmitter implements ITaskService {
-	public serviceId = ITaskService;
+	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
 	public static OutputChannelId:string = 'tasks';
 	public static OutputChannelLabel:string = nls.localize('tasks', "Tasks");

@@ -32,7 +32,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public static activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
-	public serviceId = IPanelService;
+	public _serviceBrand: any;
 	private blockOpeningPanel: boolean;
 
 	constructor(

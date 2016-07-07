@@ -179,7 +179,7 @@ interface IRawConfig {
 }
 
 export class ModelServiceImpl implements IModelService {
-	public serviceId = IModelService;
+	public _serviceBrand: any;
 
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;

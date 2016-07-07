@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {JSONPath} from 'vs/base/common/json';
@@ -11,7 +11,7 @@ import {JSONPath} from 'vs/base/common/json';
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
 export interface IConfigurationService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Fetches the appropriate section of the configuration JSON file.

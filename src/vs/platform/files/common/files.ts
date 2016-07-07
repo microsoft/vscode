@@ -9,12 +9,12 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.

@@ -29,7 +29,7 @@ interface IActivatingExtensionMap {
 }
 
 export abstract class AbstractExtensionService<T extends ActivatedExtension> implements IExtensionService {
-	public serviceId = IExtensionService;
+	public _serviceBrand: any;
 
 	private _activatingExtensions: IActivatingExtensionMap;
 	protected _activatedExtensions: IActivatedExtensionMap<T>;

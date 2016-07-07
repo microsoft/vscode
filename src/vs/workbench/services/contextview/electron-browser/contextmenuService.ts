@@ -19,7 +19,7 @@ import {remote, webFrame} from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 
-	public serviceId = IContextMenuService;
+	public _serviceBrand: any;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,

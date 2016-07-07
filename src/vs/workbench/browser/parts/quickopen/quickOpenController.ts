@@ -64,7 +64,7 @@ interface IInternalPickOptions {
 
 export class QuickOpenController extends WorkbenchComponent implements IQuickOpenService {
 
-	public serviceId = IQuickOpenService;
+	public _serviceBrand: any;
 
 	private static ID = 'workbench.component.quickopen';
 

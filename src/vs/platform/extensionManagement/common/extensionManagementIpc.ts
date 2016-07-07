@@ -40,7 +40,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 
 export class ExtensionManagementChannelClient implements IExtensionManagementService {
 
-	serviceId = IExtensionManagementService;
+	_serviceBrand: any;
 
 	constructor(private channel: IExtensionManagementChannel) { }
 

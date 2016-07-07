@@ -10,7 +10,7 @@ import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
 import {Builder} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -48,10 +48,10 @@ export interface ITerminalProcess {
 }
 
 export interface ITerminalService {
+	_serviceBrand: any;
 	onActiveInstanceChanged: Event<string>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
-	serviceId: ServiceIdentifier<any>;
 
 	close(): TPromise<any>;
 	createNew(): TPromise<any>;

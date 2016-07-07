@@ -60,7 +60,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		threadService = new TestThreadService();
 
 		services.set(ICommandService, {
-			serviceId: undefined,
+			_serviceBrand: undefined,
 			executeCommand(id, args): any {
 				let {handler} = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
@@ -72,7 +72,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		services.set(IMarkerService, new MarkerService());
 		services.set(IThreadService, threadService);
 		services.set(IModelService, <IModelService>{
-			serviceId: IModelService,
+			_serviceBrand: IModelService,
 			getModel(): any { return model; },
 			createModel(): any { throw new Error(); },
 			destroyModel(): any { throw new Error(); },

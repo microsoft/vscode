@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IChange, ILineChange, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/common/modes';
 
@@ -14,7 +14,7 @@ export var ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export var IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
 
 export interface IEditorWorkerService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<ILineChange[]>;
 	computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<IChange[]>;

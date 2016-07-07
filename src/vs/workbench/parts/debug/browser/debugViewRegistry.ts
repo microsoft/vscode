@@ -5,12 +5,11 @@
 
 import { IActionRunner } from 'vs/base/common/actions';
 import { IViewletView } from 'vs/workbench/browser/viewlet';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 // Debug view registration
 
 export interface IDebugViewConstructorSignature {
-	new (actionRunner: IActionRunner, viewletSetings: any, ...services: { serviceId: ServiceIdentifier<any>; }[]): IViewletView;
+	new (actionRunner: IActionRunner, viewletSetings: any, ...services: { _serviceBrand: any; }[]): IViewletView;
 }
 
 export interface IDebugViewRegistry {

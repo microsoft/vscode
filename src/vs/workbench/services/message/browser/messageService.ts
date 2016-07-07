@@ -21,7 +21,7 @@ interface IBufferedMessage {
 
 export class WorkbenchMessageService implements IMessageService {
 
-	public serviceId = IMessageService;
+	public _serviceBrand: any;
 
 	private handler: MessageList;
 	private disposeables: IDisposable[];

@@ -9,7 +9,7 @@ import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions} fr
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 
 export abstract class AbstractCodeEditorService implements ICodeEditorService {
-	public serviceId = ICodeEditorService;
+	public _serviceBrand: any;
 	private _onCodeEditorAdd: Emitter<ICommonCodeEditor>;
 	private _onCodeEditorRemove: Emitter<ICommonCodeEditor>;
 	private _codeEditors: {
