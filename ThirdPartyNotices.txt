@@ -9,55 +9,57 @@ This project incorporates components from the projects listed below. The origina
 2.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
 3.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
 4.	chjj-marked version 0.3.2 (https://github.com/npmcomponent/chjj-marked)
-5.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-6.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
-7.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-8.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-9.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-10.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
-11.	ionide/ionide-fsharp (https://github.com/ionide/ionide-fsharp)
-12.	js-beautify version 1.6.2 (https://github.com/beautify-web/js-beautify)
-13.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-14.	language-docker (https://github.com/docker/docker)
-15.	language-go version 0.39.0 (https://github.com/atom/language-go)
-16.	language-php version 0.29.0 (https://github.com/atom/language-php)
-17.	language-rust version 0.4.4 (https://github.com/zargony/atom-language-rust)
-18.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-19.	mmcgrana/textmate-clojure (https://github.com/mmcgrana/textmate-clojure)
-20.	octicons-code version 3.1.0 (https://octicons.github.com)
-21.	octicons-font version 3.1.0 (https://octicons.github.com)
-22.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
-23.	sublimehq/Packages (https://github.com/sublimehq/Packages)
-24.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
-25.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-26.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-27.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
-28.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
-29.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-30.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-31.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-32.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-33.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-34.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
-35.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-36.	textmate/less.tmbundle (https://github.com/textmate/less.tmbundle)
-37.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-38.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
-39.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
-40.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-41.	textmate/php.tmbundle (https://github.com/textmate/php.tmbundle)
-42.	textmate/python.tmbundle (https://github.com/textmate/python.tmbundle)
-43.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
-44.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-45.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
-46.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
-47.	textmate/xml.tmbundle (https://github.com/textmate/xml.tmbundle)
-48.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-49.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
-50.	typescript version 1.8.2 (https://github.com/Microsoft/TypeScript)
-51.	typescript-sublime-plugin version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-52.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
-53.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+5.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
+6.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+7.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
+8.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+9.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+10.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+11.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
+12.	ionide/ionide-fsharp (https://github.com/ionide/ionide-fsharp)
+13.	js-beautify version 1.6.2 (https://github.com/beautify-web/js-beautify)
+14.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+15.	language-docker (https://github.com/docker/docker)
+16.	language-go version 0.39.0 (https://github.com/atom/language-go)
+17.	language-php version 0.29.0 (https://github.com/atom/language-php)
+18.	language-rust version 0.4.4 (https://github.com/zargony/atom-language-rust)
+19.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+20.	mmcgrana/textmate-clojure (https://github.com/mmcgrana/textmate-clojure)
+21.	octicons-code version 3.1.0 (https://octicons.github.com)
+22.	octicons-font version 3.1.0 (https://octicons.github.com)
+23.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
+24.	sublimehq/Packages (https://github.com/sublimehq/Packages)
+25.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
+26.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+27.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+28.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
+29.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
+30.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+31.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+32.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+33.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+34.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+35.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
+36.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+37.	textmate/less.tmbundle (https://github.com/textmate/less.tmbundle)
+38.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+39.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
+40.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+41.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
+42.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+43.	textmate/php.tmbundle (https://github.com/textmate/php.tmbundle)
+44.	textmate/python.tmbundle (https://github.com/textmate/python.tmbundle)
+45.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
+46.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+47.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
+48.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
+49.	textmate/xml.tmbundle (https://github.com/textmate/xml.tmbundle)
+50.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+51.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
+52.	typescript version 1.8.2 (https://github.com/Microsoft/TypeScript)
+53.	typescript-sublime-plugin version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+54.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
+55.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
 
 %% atom/language-c NOTICES AND INFORMATION BEGIN HERE
@@ -201,6 +203,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
 END OF chjj-marked NOTICES AND INFORMATION
+
+%% chriskempson/tomorrow-theme NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (C) 2013 Chris Kempson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF chriskempson/tomorrow-theme NOTICES AND INFORMATION
 
 %% Colorsublime-Themes NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1423,6 +1441,24 @@ to the base-name name of the original file, and an extension of txt, html, or si
 "tidy" is accompanied by "tidy-license.txt".
 =========================================
 END OF textmate/make.tmbundle NOTICES AND INFORMATION
+
+%% textmate/markdown.tmbundle NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) markdown.tmbundle authors
+
+If not otherwise specified (see below), files in this repository fall under the following license:
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+
+An exception is made for files in readable text which contain their own license information,
+or files where an accompanying file exists (in the same directory) with a "-license" suffix added
+to the base-name name of the original file, and an extension of txt, html, or similar. For example
+"tidy" is accompanied by "tidy-license.txt".
+=========================================
+END OF textmate/markdown.tmbundle NOTICES AND INFORMATION
 
 %% textmate/objective-c.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
