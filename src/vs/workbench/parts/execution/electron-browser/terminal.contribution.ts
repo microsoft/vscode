@@ -104,13 +104,15 @@ class FileViewerActionContributor extends ActionBarContributor {
 	}
 
 	public hasSecondaryActions(context: any): boolean {
-		return !!asFileResource(context.element);
+		const element = context.element;
+		return !!asFileResource(element) || (element && element.getResource());
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
 		let fileResource = asFileResource(context.element);
-		let resource = fileResource.resource;
-		if (!fileResource.isDirectory) {
+		let resource = fileResource ? fileResource.resource : context.element.getResource();
+		// If there is no file resource, it is an open editor and not a directory.
+		if (!fileResource || !fileResource.isDirectory) {
 			resource = uri.file(paths.dirname(resource.fsPath));
 		}
 
