@@ -12,7 +12,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
@@ -140,7 +141,7 @@ export class FormatAction extends EditorAction {
 	private _disposables: IDisposable[];
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange | Behaviour.ShowInContextMenu);
+		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable);
 		this._disposables = [
 			DocumentFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState()),
 			DocumentRangeFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState())
@@ -150,20 +151,6 @@ export class FormatAction extends EditorAction {
 	public dispose() {
 		super.dispose();
 		this._disposables = dispose(this._disposables);
-	}
-
-	public getGroupId(): string {
-		return '2_change/2_format';
-	}
-
-	public isSupported(): boolean {
-		return (
-			(
-				DocumentFormattingEditProviderRegistry.has(this.editor.getModel())
-				|| DocumentRangeFormattingEditProviderRegistry.has(this.editor.getModel())
-			)
-			&& super.isSupported()
-		);
 	}
 
 	public run(): TPromise<boolean> {
@@ -224,9 +211,19 @@ export class FormatAction extends EditorAction {
 }
 
 // register action
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FormatAction, FormatAction.ID, nls.localize('formatAction.label', "Format Code"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-	linux: { primary:KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
-}, 'Format Code'));
+CommonEditorRegistry.registerEditorAction({
+	ctor: FormatAction,
+	id: FormatAction.ID,
+	label: nls.localize('formatAction.label', "Format Code"),
+	alias: 'Format Code',
+	kbOpts: {
+		context: ContextKey.EditorTextFocus,
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
+		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
+	},
+	menuOpts: {
+		group: 'modification@20',
+		kbExpr: KbExpr.has('editorHasFormattingProvider')
+	}
+});
 CommonEditorRegistry.registerEditorContribution(FormatOnType);

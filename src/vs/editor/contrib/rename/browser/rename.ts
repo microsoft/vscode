@@ -143,7 +143,7 @@ CommonEditorRegistry.registerEditorAction({
 		primary: KeyCode.F2
 	},
 	menuOpts: {
-		group: 'modification',
+		group: 'modification@10',
 		kbExpr: KbExpr.and(KbExpr.has('editorHasRenameProvider'), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
 	}
 });
