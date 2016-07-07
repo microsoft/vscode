@@ -253,6 +253,8 @@ declare module DebugProtocol {
 		breakpoints?: SourceBreakpoint[];
 		/** Deprecated: The code locations of the breakpoints. */
 		lines?: number[];
+		/** A value of true indicates that the underlying source has been modified which results in new breakpoint locations. */
+		sourceModified?: boolean;
 	}
 	/** Response to "setBreakpoints" request.
 		Returned is information about each breakpoint created by this request.
