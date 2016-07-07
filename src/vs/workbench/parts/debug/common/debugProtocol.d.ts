@@ -326,7 +326,7 @@ declare module DebugProtocol {
 
 	/** Next request; value of command field is "next".
 		The request starts the debuggee to run again for one step.
-		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter first sends the NextResponse and then a StoppedEvent (event type 'step') after the step has completed.
 	*/
 	export interface NextRequest extends Request {
 		arguments: NextArguments;
@@ -342,7 +342,7 @@ declare module DebugProtocol {
 
 	/** StepIn request; value of command field is "stepIn".
 		The request starts the debuggee to run again for one step.
-		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter first sends the StepInResponse and then a StoppedEvent (event type 'step') after the step has completed.
 	*/
 	export interface StepInRequest extends Request {
 		arguments: StepInArguments;
@@ -358,7 +358,7 @@ declare module DebugProtocol {
 
 	/** StepOut request; value of command field is "stepOut".
 		The request starts the debuggee to run again for one step.
-		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter first sends the StepOutResponse and then a StoppedEvent (event type 'step') after the step has completed.
 	*/
 	export interface StepOutRequest extends Request {
 		arguments: StepOutArguments;
@@ -374,7 +374,7 @@ declare module DebugProtocol {
 
 	/** StepBack request; value of command field is "stepBack".
 		The request starts the debuggee to run one step backwards.
-		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed.
 	*/
 	export interface StepBackRequest extends Request {
 		arguments: StepBackArguments;
@@ -390,7 +390,7 @@ declare module DebugProtocol {
 
 	/** Pause request; value of command field is "pause".
 		The request suspenses the debuggee.
-		penDebug will respond with a StoppedEvent (event type 'pause') after a successful 'pause' command.
+		The debug adapter first sends the PauseResponse and then a StoppedEvent (event type 'pause') after the thread has been paused successfully.
 	*/
 	export interface PauseRequest extends Request {
 		arguments: PauseArguments;
@@ -507,6 +507,8 @@ declare module DebugProtocol {
 		body: {
 			/** Content of the source reference */
 			content: string;
+			/** Optional content type (mime type) of the source. */
+			mimeType?: string;
 		};
 	}
 
