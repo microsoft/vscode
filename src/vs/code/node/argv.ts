@@ -89,20 +89,50 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
 	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
-	'--install-extension <extension>': localize('installExtension', "Installs an extension."),
-	'--uninstall-extension <extension>': localize('uninstallExtension', "Uninstalls an extension."),
+	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
+	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
 
-function formatOptions(options: { [name: string]: string; }): string {
-	return Object.keys(options)
-		.reduce((r, key) => r.concat([`  ${ key }`, `      ${ options[key] }`]), []).join('\n');
+export function formatOptions(options: { [name: string]: string; }, columns: number): string {
+	let keys = Object.keys(options);
+	let argLength = Math.max.apply(null, keys.map(k => k.length)) + 2/*left padding*/ + 1/*right padding*/;
+	if (columns - argLength < 25) {
+		// Use a condensed version on narrow terminals
+		return keys.reduce((r, key) => r.concat([`  ${ key }`, `      ${ options[key] }`]), []).join('\n');
+	}
+	let descriptionColumns = columns - argLength - 1;
+	let result = '';
+	keys.forEach(k => {
+		let wrappedDescription = wrapText(options[k], descriptionColumns);
+		let keyPadding = (<any>' ').repeat(argLength - k.length - 2/*left padding*/ + 1/*right padding*/);
+		result += '  ' + k + keyPadding + wrappedDescription[0] + '\n';
+		for (var i = 1; i < wrappedDescription.length; i++) {
+			result += (<any>' ').repeat(argLength) + wrappedDescription[i] + '\n';
+		}
+	});
+	return result;
 }
 
-export const helpMessage = `Visual Studio Code v${ pkg.version }
+function wrapText(text: string, columns: number) : string[] {
+	let lines = [];
+	while (text.length) {
+		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		let line = text.slice(0, index);
+		text = text.slice(index);
+		lines.push(line);
+	}
+	return lines;
+}
+
+export function buildHelpMessage(): string {
+	let columns = (<any>process.stdout).isTTY ? (<any>process.stdout).columns : 80;
+	return `Visual Studio Code v${ pkg.version }
+
 
 Usage: ${ executable } [arguments] [paths...]
 
 Options:
-${formatOptions(optionsHelp)}`;
+${formatOptions(optionsHelp, columns)}`;
+}
