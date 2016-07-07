@@ -23,7 +23,8 @@
 }
 
 .markers-panel .markers-panel-container .message-box-container {
-	padding: 20px 0 0 20px;
+	line-height: 22px;
+	padding-left: 20px;
 }
 
 .markers-panel .markers-panel-container .message-box-container span:focus {
@@ -36,7 +37,6 @@
 
 .markers-panel .markers-panel-container .tree-container {
 	height: 100%;
-	margin-top: 2px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
