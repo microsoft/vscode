@@ -5,7 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import { guessMimeTypes } from 'vs/base/common/mime';
+import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -819,7 +819,11 @@ export class DebugService implements debug.IDebugService {
 			if (source.reference !== 0 && this.session) {
 				return this.session.source({ sourceReference: source.reference }).then(response => {
 					const mime = response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
-					const editorInput = this.getDebugStringEditorInput(source, response.body.content, mime);
+					return this.getDebugStringEditorInput(source, response.body.content, mime);
+				}, (err: DebugProtocol.ErrorResponse) => {
+					// Display the error from debug adapter using a temporary editor #8836
+					return this.getDebugStringEditorInput(source, err.message, MIME_TEXT);
+				}).then(editorInput => {
 					return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({
 						selection: {
 							startLineNumber: lineNumber,
