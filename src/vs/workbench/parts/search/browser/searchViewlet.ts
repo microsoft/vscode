@@ -31,7 +31,7 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {Match, FileMatch, SearchModel, FileMatchOrMatch} from 'vs/workbench/parts/search/common/searchModel';
+import {Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent} from 'vs/workbench/parts/search/common/searchModel';
 import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
 import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -309,10 +309,27 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.viewModel.searchResult.onChange((element) => {
-			this.tree.refresh(element);
+		this.toUnbind.push(this.viewModel.searchResult.onChange((event) => {
+			this.refreshTree(event);
 			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
 		}));
+	}
+
+	private refreshTree(event: IChangeEvent): void {
+		if (event.added || event.removed) {
+			this.tree.refresh(this.viewModel.searchResult);
+			if (event.added) {
+				event.elements.forEach(element => {
+					this.autoExpandFileMatch(element, true);
+				});
+			}
+		} else {
+			if (event.elements.length === 1) {
+				this.tree.refresh(event.elements[0]);
+			} else {
+				this.tree.refresh(event.elements);
+			}
+		}
 	}
 
 	private refreshInputs(): void {
@@ -668,6 +685,15 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
+	private autoExpandFileMatch(fileMatch: FileMatch, alwaysExpandIfOneResult: boolean): void {
+		let length = fileMatch.matches().length;
+		if (length < 10 || (alwaysExpandIfOneResult && this.viewModel.searchResult.count() === 1 && length < 50)) {
+			this.tree.expand(fileMatch).done(null, errors.onUnexpectedError);
+		} else {
+			this.tree.collapse(fileMatch).done(null, errors.onUnexpectedError);
+		}
+	}
+
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
 		// Progress total is 100%
 		let progressTotal = 100;
@@ -688,15 +714,8 @@ export class SearchViewlet extends Viewlet {
 				if (handledMatches[match.id()]) {
 					return; // if we once handled a result, do not do it again to keep results stable (the user might have expanded/collapsed meanwhile)
 				}
-
 				handledMatches[match.id()] = true;
-
-				let length = match.matches().length;
-				if (length < 10 || (alwaysExpandIfOneResult && matches.length === 1 && length < 50)) {
-					this.tree.expand(match).done(null, errors.onUnexpectedError);
-				} else {
-					this.tree.collapse(match).done(null, errors.onUnexpectedError);
-				}
+				this.autoExpandFileMatch(match, alwaysExpandIfOneResult);
 			});
 		};
 
