@@ -438,7 +438,7 @@ export class SearchModel extends Disposable {
 		return this.isReplaceActive() && !!this.replaceText;
 	}
 
-	public search(query: ISearchQuery, silent: boolean= true): PPromise<ISearchComplete, ISearchProgressItem> {
+	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 		this.cancelSearch();
 		this.searchResult.clear();
 
@@ -450,21 +450,23 @@ export class SearchModel extends Disposable {
 		this.currentRequest = this.searchService.search(this._searchQuery);
 
 		this.currentRequest.then(value => this.onSearchCompleted(value),
-									e => this.onSearchError(e, silent),
-									p => this.onSearchProgress(p, silent));
+									e => this.onSearchError(e),
+									p => this.onSearchProgress(p));
 
 		return this.currentRequest;
 	}
 
 	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
 		this.timerEvent.stop();
-		this._searchResult.add(completed.results);
 		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
 		this.doneTimer.stop();
+		if (completed) {
+			this._searchResult.add(completed.results, false);
+		}
 		return completed;
 	}
 
-	private onSearchError(e: any, silent: boolean): void {
+	private onSearchError(e: any): void {
 		if (errors.isPromiseCanceledError(e)) {
 			this.onSearchCompleted(null);
 		} else {
@@ -473,18 +475,20 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchProgress(p: ISearchProgressItem, silent: boolean): void {
+	private onSearchProgress(p: ISearchProgressItem): void {
 		if (p.resource) {
-			this._searchResult.add([p], silent);
+			this._searchResult.add([p], true);
 			this.progressTimer.stop();
 		}
 	}
 
-	public cancelSearch(): void{
+	public cancelSearch(): boolean {
 		if (this.currentRequest) {
 			this.currentRequest.cancel();
 			this.currentRequest = null;
+			return true;
 		}
+		return false;
 	}
 
 	public dispose(): void {
