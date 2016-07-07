@@ -563,6 +563,17 @@ export class SelectHighlightsAction extends EditorAction {
 		let matches = this.editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord);
 
 		if (matches.length > 0) {
+			let editorSelection = this.editor.getSelection();
+			for (let i = 0, len = matches.length; i < len; i++) {
+				let match = matches[i];
+				let intersection = match.intersectRanges(editorSelection);
+				if (intersection) {
+					// bingo!
+					matches.splice(i, 1);
+					matches.unshift(match);
+					break;
+				}
+			}
 			this.editor.setSelections(matches.map(m => new Selection(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn)));
 		}
 		return TPromise.as(true);
