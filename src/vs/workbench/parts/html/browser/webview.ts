@@ -10,7 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {addDisposableListener, addClass} from 'vs/base/browser/dom';
 import {isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -26,12 +26,8 @@ declare interface WebviewElement extends HTMLElement {
 	closeDevTools(): any;
 }
 
-KeybindingsRegistry.registerCommandDesc({
-	id: '_webview.openDevTools',
-	when: null,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	primary: null,
-	handler() {
+CommandsRegistry.registerCommand('_webview.openDevTools',
+	function () {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
@@ -40,8 +36,7 @@ KeybindingsRegistry.registerCommandDesc({
 				console.error(e);
 			}
 		}
-	}
-});
+	});
 
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
