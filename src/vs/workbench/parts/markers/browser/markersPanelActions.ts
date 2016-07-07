@@ -25,7 +25,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import Tree = require('vs/base/parts/tree/browser/tree');
 
-export class ToggleProblemsPanelAction extends TogglePanelAction {
+export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 	public static ID:string = 'workbench.actions.view.problems';
 
