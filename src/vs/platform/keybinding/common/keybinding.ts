@@ -6,9 +6,8 @@
 
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
-import {TypeConstraint} from 'vs/base/common/types';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
@@ -434,21 +433,6 @@ export interface IKeybindingItem {
 	when: KbExpr;
 	weight1: number;
 	weight2: number;
-}
-
-export interface ICommandHandler {
-	(accessor: ServicesAccessor, ...args: any[]): void;
-	description?: string | ICommandHandlerDescription;
-}
-
-export interface ICommandHandlerDescription {
-	description: string;
-	args: { name: string; description?: string; constraint?: TypeConstraint; }[];
-	returns?: string;
-}
-
-export interface ICommandsMap {
-	[id: string]: ICommandHandler;
 }
 
 export interface IKeybindingContextKey<T> {

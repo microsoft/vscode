@@ -15,8 +15,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {ICommandHandler, ICommandHandlerDescription, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -207,7 +208,7 @@ export abstract class AbstractKeybindingService {
 	}
 
 	public hasCommand(commandId: string): boolean {
-		return !!KeybindingsRegistry.getCommands()[commandId];
+		return !!CommandsRegistry.getCommands()[commandId];
 	}
 
 	public abstract executeCommand(commandId: string, args: any): TPromise<any>;
@@ -312,7 +313,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	private _getAllCommandsAsComment(): string {
-		const commands = KeybindingsRegistry.getCommands();
+		const commands = CommandsRegistry.getCommands();
 		const unboundCommands: string[] = [];
 		const boundCommands = this._getResolver().getDefaultBoundCommands();
 
@@ -336,7 +337,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	protected _getCommandHandler(commandId: string): ICommandHandler {
-		return KeybindingsRegistry.getCommands()[commandId];
+		return CommandsRegistry.getCommand(commandId).handler;
 	}
 
 	private _dispatch(e: IKeyboardEvent): void {

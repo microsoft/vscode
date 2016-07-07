@@ -19,7 +19,7 @@ import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
@@ -62,7 +62,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		services.set(IKeybindingService, <IKeybindingService>{
 			executeCommand(id, args): any {
-				let handler = KeybindingsRegistry.getCommands()[id];
+				let {handler} = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
