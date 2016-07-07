@@ -9,6 +9,7 @@
 
 .monaco-resource-viewer {
 	padding: 5px 0 0 10px;
+	box-sizing: border-box;
 }
 
 .monaco-resource-viewer.image {
@@ -34,8 +35,8 @@
 }
 
 .monaco-resource-viewer img {
-	max-width: calc(100% - 20px);
-	max-height: calc(100% - 20px);
+	max-width: 100%;
+	max-height: 100%;
 }
 
 .monaco-resource-viewer.oversized img {
