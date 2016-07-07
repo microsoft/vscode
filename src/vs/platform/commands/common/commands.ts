@@ -6,13 +6,12 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
-import {IInstantiationService, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {ServicesAccessor, createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export const ICommandService = createDecorator('commandService');
+export const ICommandService = createDecorator<ICommandService>('commandService');
 
 export interface ICommandService {
+	serviceId: ServiceIdentifier<any>;
 	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
 	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
 }
@@ -95,34 +94,3 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		return this._commands;
 	}
 };
-
-class DefaultCommandService implements ICommandService {
-
-	serviceId: any;
-
-	constructor(
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IExtensionService private _extensionService: IExtensionService
-	) {
-		//
-	}
-
-	executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
-
-		const command = CommandsRegistry.getCommand(id);
-		if (!command) {
-			return TPromise.wrapError(new Error(`command '${id}' not found`));
-		}
-
-		this._extensionService.activateByEvent(`onCommand:${id}`).then(_ => {
-			try {
-				const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command].concat(args));
-				return TPromise.as(result);
-			} catch (err) {
-				return TPromise.wrapError(err);
-			}
-		});
-	}
-}
-
-registerSingleton(ICommandService, DefaultCommandService);

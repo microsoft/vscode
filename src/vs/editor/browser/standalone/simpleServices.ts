@@ -15,7 +15,7 @@ import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/c
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ICommandHandler} from 'vs/platform/commands/common/commands';
+import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
@@ -205,8 +205,8 @@ export class StandaloneKeybindingService extends KeybindingService {
 	private _dynamicKeybindings: IKeybindingItem[];
 	private _dynamicCommands: { [id: string]: ICommandHandler };
 
-	constructor(configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
-		super(configurationService, messageService);
+	constructor(commandService: ICommandService, configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
+		super(commandService, configurationService, messageService);
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);

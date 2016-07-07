@@ -9,7 +9,7 @@ import {parse} from 'vs/base/common/marshalling';
 import {Schemas} from 'vs/base/common/network';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {IOpenerService} from '../common/opener';
 
 export class OpenerService implements IOpenerService {
@@ -18,7 +18,7 @@ export class OpenerService implements IOpenerService {
 
 	constructor(
 		@IEditorService private _editorService: IEditorService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@ICommandService private _commandService: ICommandService
 	) {
 		//
 	}
@@ -31,7 +31,7 @@ export class OpenerService implements IOpenerService {
 			// open http
 			window.open(resource.toString(true));
 
-		} else if (scheme === 'command' && this._keybindingService.hasCommand(path)) {
+		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
 			// execute as command
 			let args: any;
 			try {
@@ -42,7 +42,7 @@ export class OpenerService implements IOpenerService {
 			} catch (e) {
 				//
 			}
-			promise = this._keybindingService.executeCommand(path, ...args);
+			promise = this._commandService.executeCommand(path, ...args);
 
 		} else {
 			promise = this._editorService.resolveEditorModel({ resource }).then(model => {

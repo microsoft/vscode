@@ -9,14 +9,13 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -120,26 +119,22 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;
 	private toDispose: IDisposable;
-	private _extensionService: IExtensionService;
-	private _eventService: IEventService;
 
 	constructor(
 		domNode: HTMLElement,
+		@ICommandService commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEventService eventService: IEventService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
-		@IStatusbarService statusBarService: IStatusbarService,
-		@IExtensionService extensionService: IExtensionService
+		@IStatusbarService statusBarService: IStatusbarService
 	) {
-		super(configurationService, messageService, statusBarService);
+		super(commandService, configurationService, messageService, statusBarService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
-		this._extensionService = extensionService;
 		this.toDispose = this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
-		this._eventService = eventService;
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
 
@@ -257,15 +252,6 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		}
 
 		return commandAdded;
-	}
-
-	protected _invokeHandler(commandId: string, args: any[]): TPromise<any> {
-		if (this._extensionService) {
-			return this._extensionService.activateByEvent('onCommand:' + commandId).then(_ => {
-				return super._invokeHandler(commandId, args);
-			});
-		}
-		return TPromise.as(null);
 	}
 
 	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): ICommandRule {
