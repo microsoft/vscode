@@ -9,6 +9,8 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import platform = require('vs/platform/platform');
 import {MenuId, SyncActionDescriptor} from 'vs/platform/actions/common/actions';
+import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {OutputService} from 'vs/workbench/parts/output/browser/outputServices';
@@ -16,7 +18,7 @@ import {ToggleOutputAction} from 'vs/workbench/parts/output/browser/outputAction
 import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
 import panel = require('vs/workbench/browser/panel');
 import {KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID} from 'vs/editor/common/editorCommon';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {MenuRegistry} from 'vs/platform/actions/browser/menuService';
 
@@ -52,21 +54,79 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 }), 'View: Toggle Output', nls.localize('viewCategory', "View"));
 
 
-// Define clear command, contribute to editor context menu
-{
-	const id = 'editor.action.clearoutput';
+interface IActionDescriptor {
+	id: string;
+	handler: ICommandHandler;
 
-	CommandsRegistry.registerCommand(id, function handler(accessor) {
-		accessor.get(IOutputService).getActiveChannel().clear();
-	});
+	// ICommandUI
+	title: string;
+	category?: string;
+	iconClass?: string;
+	f1?: boolean;
 
-	MenuRegistry.addCommand({
-		id,
-		title: nls.localize('clearOutput.label', "Clear Output")
-	});
+	//
+	menu?: {
+		menuId: MenuId,
+		when?: KbExpr;
+		group?: string;
+	};
 
-	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-		command: MenuRegistry.getCommand(id),
-		when: KbExpr.equals(KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, OUTPUT_MODE_ID)
-	});
+	//
+	keybinding?: {
+		when?: KbExpr;
+		weight: number;
+		keys: IKeybindings;
+	};
 }
+
+function registerAction(desc: IActionDescriptor) {
+
+	const {id, handler, title, category, iconClass, f1, menu, keybinding} = desc;
+
+	// 1) register as command
+	CommandsRegistry.registerCommand(id, handler);
+
+	// 2) command palette
+	let command = { id, title, iconClass, category };
+	if (f1) {
+		MenuRegistry.addCommand(command);
+	}
+
+	// 3) menus
+	if (menu) {
+		let {menuId, when, group} = menu;
+		MenuRegistry.appendMenuItem(menuId, {
+			command,
+			when,
+			group
+		});
+	}
+
+	// 4) keybindings
+	if (keybinding) {
+		let {when, weight, keys} = keybinding;
+		KeybindingsRegistry.registerCommandRule({
+			id,
+			when,
+			weight,
+			primary: keys.primary,
+			secondary: keys.secondary,
+			linux: keys.linux,
+			mac: keys.mac,
+			win: keys.win
+		});
+	}
+}
+
+// Define clear command, contribute to editor context menu
+registerAction({
+	id: 'editor.action.clearoutput',
+	title: nls.localize('clearOutput.label', "Clear Output"),
+	menu: {
+		menuId: MenuId.EditorContext,
+		when: KbExpr.equals(KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, OUTPUT_MODE_ID)
+	},
+	handler(accessor) {
+		accessor.get(IOutputService).getActiveChannel().clear();
+	}
+});
