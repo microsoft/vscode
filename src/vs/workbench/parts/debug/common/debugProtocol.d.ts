@@ -179,7 +179,7 @@ declare module DebugProtocol {
 		pathFormat?: string;
 
 		/** Client supports the optional type attribute for variables. */
-		supportsVariableType: boolean;
+		supportsVariableType?: boolean;
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
