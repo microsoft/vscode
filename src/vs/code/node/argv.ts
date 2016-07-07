@@ -106,10 +106,13 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 	let result = '';
 	keys.forEach(k => {
 		let wrappedDescription = wrapText(options[k], descriptionColumns);
-		let keyPadding = (<any>' ').repeat(argLength - k.length - 2/*left padding*/ + 1/*right padding*/);
-		result += '  ' + k + keyPadding + wrappedDescription[0] + '\n';
+		let keyPadding = (<any>' ').repeat(argLength - k.length - 2/*left padding*/);
+		if (result.length > 0) {
+			result += '\n';
+		}
+		result += '  ' + k + keyPadding + wrappedDescription[0];
 		for (var i = 1; i < wrappedDescription.length; i++) {
-			result += (<any>' ').repeat(argLength) + wrappedDescription[i] + '\n';
+			result += '\n' + (<any>' ').repeat(argLength) + wrappedDescription[i];
 		}
 	});
 	return result;
@@ -119,7 +122,7 @@ function wrapText(text: string, columns: number) : string[] {
 	let lines = [];
 	while (text.length) {
 		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
-		let line = text.slice(0, index);
+		let line = text.slice(0, index).trim();
 		text = text.slice(index);
 		lines.push(line);
 	}
