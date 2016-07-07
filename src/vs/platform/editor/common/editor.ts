@@ -136,7 +136,7 @@ export interface IEditorInput extends IEventEmitter {
 	matches(other: any): boolean;
 }
 
-export interface IEditorOptionsBag {
+export interface IEditorOptions {
 
 	/**
 	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
@@ -169,7 +169,7 @@ export interface IEditorOptionsBag {
 	inactive?: boolean;
 }
 
-export interface ITextEditorOptions extends IEditorOptionsBag {
+export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
@@ -181,5 +181,3 @@ export interface ITextEditorOptions extends IEditorOptionsBag {
 		endColumn?: number;
 	};
 }
-
-export interface IEditorOptions extends IEditorOptionsBag {}

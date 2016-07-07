@@ -20,7 +20,7 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 
@@ -99,11 +99,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			if (arg2 && !(arg2 instanceof EditorOptions)) {
-				arg2 = EditorOptions.create(arg2);
-			}
-
-			return this.doOpenEditor(input, <EditorOptions>arg2, arg3);
+			return this.doOpenEditor(input, this.toOptions(arg2), arg3);
 		}
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
@@ -127,6 +123,19 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
+	private toOptions(arg1?: any): EditorOptions {
+		if (!arg1 || arg1 instanceof EditorOptions) {
+			return arg1;
+		}
+
+		const textOptions: ITextEditorOptions = arg1;
+		if (!!textOptions.selection) {
+			return TextEditorOptions.create(arg1);
+		}
+
+		return EditorOptions.create(arg1);
+	}
+
 	/**
 	 * Allow subclasses to implement their own behavior for opening editor (see below).
 	 */
@@ -141,10 +150,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
 			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
-				let options = editors[index].input instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input);
-				if (options && !(options instanceof EditorOptions)) {
-					options = EditorOptions.create(options);
-				}
+				const options = editors[index].input instanceof EditorInput ? this.toOptions(editors[index].options) : TextEditorOptions.from(editors[index].input);
 
 				return {
 					input,
@@ -163,10 +169,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
 			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
 				const typedReplacements: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
-					let options = editor.toReplace instanceof EditorInput ? editor.options : TextEditorOptions.from(editor.replaceWith);
-					if (options && !(options instanceof EditorOptions)) {
-						options = EditorOptions.create(options);
-					}
+					const options = editor.toReplace instanceof EditorInput ? this.toOptions(editor.options) : TextEditorOptions.from(editor.replaceWith);
 
 					return {
 						toReplace: toReplaceInputs[index],
