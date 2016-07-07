@@ -5,7 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import mime = require('vs/base/common/mime');
+import { guessMimeTypes } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -818,7 +818,8 @@ export class DebugService implements debug.IDebugService {
 			// internal module
 			if (source.reference !== 0 && this.session) {
 				return this.session.source({ sourceReference: source.reference }).then(response => {
-					const editorInput = this.getDebugStringEditorInput(source, response.body.content, mime.guessMimeTypes(source.name)[0]);
+					const mime = response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
+					const editorInput = this.getDebugStringEditorInput(source, response.body.content, mime);
 					return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({
 						selection: {
 							startLineNumber: lineNumber,
