@@ -6,7 +6,9 @@
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IKeybindingService, ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostContext, ExtHostCommandsShape} from './extHostProtocol';
 
@@ -49,7 +51,7 @@ export class MainThreadCommands {
 	}
 
 	$getCommands(): Thenable<string[]> {
-		return TPromise.as(Object.keys(KeybindingsRegistry.getCommands()));
+		return TPromise.as(Object.keys(CommandsRegistry.getCommands()));
 	}
 }
 
@@ -61,7 +63,7 @@ KeybindingsRegistry.registerCommandDesc({
 		return accessor.get(IThreadService).get(ExtHostContext.ExtHostCommands).$getContributedCommandHandlerDescriptions().then(result => {
 
 			// add local commands
-			const commands = KeybindingsRegistry.getCommands();
+			const commands = CommandsRegistry.getCommands();
 			for (let id in commands) {
 				let {description} = commands[id];
 				if (description) {

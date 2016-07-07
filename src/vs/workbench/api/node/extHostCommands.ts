@@ -6,7 +6,7 @@
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {validateConstraint} from 'vs/base/common/types';
-import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';

@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 
 suite('Keybinding Registry', () => {
 
@@ -23,7 +24,6 @@ suite('Keybinding Registry', () => {
 
 		KeybindingsRegistry.registerCommandDesc({
 			id: 'test2',
-			description: 'test',
 			when: undefined,
 			primary: undefined,
 			weight: 0,
@@ -46,10 +46,10 @@ suite('Keybinding Registry', () => {
 			}
 		});
 
-		KeybindingsRegistry.getCommands()['test'].apply(undefined, [undefined, 'string']);
-		KeybindingsRegistry.getCommands()['test2'].apply(undefined, [undefined, 'string']);
-		assert.throws(() => KeybindingsRegistry.getCommands()['test3'].apply(undefined, [undefined, 'string']));
-		assert.equal(KeybindingsRegistry.getCommands()['test3'].apply(undefined, [undefined, 1]), true);
+		CommandsRegistry.getCommands()['test'].handler.apply(undefined, [undefined, 'string']);
+		CommandsRegistry.getCommands()['test2'].handler.apply(undefined, [undefined, 'string']);
+		assert.throws(() => CommandsRegistry.getCommands()['test3'].handler.apply(undefined, [undefined, 'string']));
+		assert.equal(CommandsRegistry.getCommands()['test3'].handler.apply(undefined, [undefined, 1]), true);
 
 	});
 });

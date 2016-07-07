@@ -10,7 +10,7 @@ import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {KeybindingsRegistry, ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {ICommandHandler} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandHandler} from 'vs/platform/commands/common/commands';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
