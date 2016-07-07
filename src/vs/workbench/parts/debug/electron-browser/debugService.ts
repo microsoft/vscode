@@ -74,6 +74,7 @@ export class DebugService implements debug.IDebugService {
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
+	private breakpointsToSendOnResourceSaved: { [uri: string]: boolean };
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -100,6 +101,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = [];
 		this.session = null;
+		this.breakpointsToSendOnResourceSaved = {};
 		this._state = debug.State.Inactive;
 		this._onDidChangeState = new Emitter<debug.State>();
 
@@ -970,8 +972,13 @@ export class DebugService implements debug.IDebugService {
 			.then(() => this.sendExceptionBreakpoints());
 	}
 
-	private sendBreakpoints(modelUri: uri): TPromise<void> {
+	private sendBreakpoints(modelUri: uri, sourceModified = false): TPromise<void> {
 		if (!this.session || !this.session.readyForBreakpoints) {
+			return TPromise.as(null);
+		}
+		if (this.textFileService.isDirty(modelUri)) {
+			// Only send breakpoints for a file once it is not dirty #8077
+			this.breakpointsToSendOnResourceSaved[modelUri.toString()] = true;
 			return TPromise.as(null);
 		}
 
@@ -984,9 +991,9 @@ export class DebugService implements debug.IDebugService {
 		return this.session.setBreakpoints({
 			source: rawSource,
 			lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber,
-			condition: bp.condition
-		}))}).then(response => {
+			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })),
+			sourceModified
+		}).then(response => {
 			const data: { [id: string]: { line?: number, verified: boolean } } = {};
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
@@ -1024,6 +1031,14 @@ export class DebugService implements debug.IDebugService {
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
 		this.model.removeBreakpoints(this.model.getBreakpoints().filter(bp =>
 			fileChangesEvent.contains(bp.source.uri, FileChangeType.DELETED)));
+
+		fileChangesEvent.getUpdated().forEach(event => {
+			if (this.breakpointsToSendOnResourceSaved[event.resource.toString()]) {
+				this.breakpointsToSendOnResourceSaved[event.resource.toString()] = false;
+				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
+			}
+		});
+
 	}
 
 	private store(): void {
