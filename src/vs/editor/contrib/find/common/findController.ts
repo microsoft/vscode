@@ -544,14 +544,7 @@ export class SelectHighlightsAction extends EditorAction {
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
 		let behaviour = Behaviour.WidgetFocus | Behaviour.Writeable;
-		if (descriptor.id === SelectHighlightsAction.COMPAT_ID) {
-			behaviour |= Behaviour.ShowInContextMenu;
-		}
 		super(descriptor, editor, behaviour);
-	}
-
-	public getGroupId(): string {
-		return '2_change/1_changeAll';
 	}
 
 	public run(): TPromise<boolean> {
@@ -731,10 +724,20 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectHighl
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L
 }, 'Select All Occurences of Find Match'));
 // register SelectHighlightsAction again to replace the now removed Change All action
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectHighlightsAction, SelectHighlightsAction.COMPAT_ID, nls.localize('changeAll.label', "Change All Occurrences"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.F2
-}, 'Change All Occurrences'));
+CommonEditorRegistry.registerEditorAction({
+	ctor: SelectHighlightsAction,
+	id: SelectHighlightsAction.COMPAT_ID,
+	label: nls.localize('changeAll.label', "Change All Occurrences"),
+	alias: 'Change All Occurrences',
+	kbOpts: {
+		context: ContextKey.EditorTextFocus,
+		primary: KeyMod.CtrlCmd | KeyCode.F2
+	},
+	menuOpts: {
+		group: 'modification',
+		kbExpr: null
+	}
+});
 
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(StartFindAction, FIND_IDS.StartFindAction, nls.localize('startFindAction',"Find"), {
