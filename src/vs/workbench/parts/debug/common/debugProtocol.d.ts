@@ -177,6 +177,9 @@ declare module DebugProtocol {
 		columnsStartAt1?: boolean;
 		/** Determines in what format paths are specified. Possible values are 'path' or 'uri'. The default is 'path', which is the native format. */
 		pathFormat?: string;
+
+		/** Client supports the optional type attribute for variables. */
+		supportsVariableType: boolean;
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
