@@ -13,6 +13,7 @@ export namespace ModeContextKeys {
 	export const hasDefinitionProvider = 'editorHasDefinitionProvider';
 	export const hasReferenceProvider = 'editorHasReferenceProvider';
 	export const hasRenameProvider = 'editorHasRenameProvider';
+	export const hasFormattingProvider = 'editorHasFormattingProvider';
 }
 
 export class EditorModeContext {
@@ -23,6 +24,7 @@ export class EditorModeContext {
 	private _hasDefinitionProvider: IKeybindingContextKey<boolean>;
 	private _hasReferenceProvider: IKeybindingContextKey<boolean>;
 	private _hasRenameProvider: IKeybindingContextKey<boolean>;
+	private _hasFormattingProvider: IKeybindingContextKey<boolean>;
 
 	constructor(
 		editor: ICommonCodeEditor,
@@ -33,6 +35,7 @@ export class EditorModeContext {
 		this._hasDefinitionProvider = keybindingService.createKey(ModeContextKeys.hasDefinitionProvider, undefined);
 		this._hasReferenceProvider = keybindingService.createKey(ModeContextKeys.hasReferenceProvider, undefined);
 		this._hasRenameProvider = keybindingService.createKey(ModeContextKeys.hasRenameProvider, undefined);
+		this._hasFormattingProvider = keybindingService.createKey(ModeContextKeys.hasFormattingProvider, undefined);
 
 		// update when model/mode changes
 		this._disposables.push(editor.onDidChangeModel(() => this._update()));
@@ -42,6 +45,8 @@ export class EditorModeContext {
 		modes.DefinitionProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.ReferenceProviderRegistry.onDidChange(this._update, this, this._disposables);
 		modes.RenameProviderRegistry.onDidChange(this._update, this, this._disposables);
+		modes.DocumentFormattingEditProviderRegistry.onDidChange(this._update, this, this._disposables);
+		modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(this._update, this, this._disposables);
 
 		this._update();
 	}
@@ -65,5 +70,7 @@ export class EditorModeContext {
 		this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
 		this._hasReferenceProvider.set(modes.ReferenceProviderRegistry.has(model));
 		this._hasRenameProvider.set(modes.ReferenceProviderRegistry.has(model));
+		this._hasFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model)
+			|| modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 	}
 }
