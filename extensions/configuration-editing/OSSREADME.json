@@ -1,9 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-
-[{
-	"name": "Microsoft/node-jsonc-parser",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/node-jsonc-parser"
-}]

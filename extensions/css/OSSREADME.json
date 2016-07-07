@@ -19,16 +19,4 @@
 		"to the base-name name of the original file, and an extension of txt, html, or similar. For example ",
 		"\"tidy\" is accompanied by \"tidy-license.txt\"."
 	]
-},{
-	"name": "Microsoft/vscode-languageserver-node",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-languageserver-node"
-},{
-	"name": "Microsoft/vscode-css-languageservice",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-css-languageservice"
 }]

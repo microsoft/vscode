@@ -4,7 +4,6 @@
 	"name": "chriskempson/tomorrow-theme",
 	"version": "0.0.0",
 	"license": "MIT",
-	"isProd": true,
 	"repositoryURL": "https://github.com/chriskempson/tomorrow-theme",
 	"licenseDetail": [
 		"Copyright (C) 2013 Chris Kempson",
@@ -17,51 +16,8 @@
 	]
 },
 {
-	"name": "markdown-it/markdown-it",
-	"version": "6.1.1",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/markdown-it/markdown-it"
-},
-{
-	"name": "isagalaev/highlight.js",
-	"version": "9.5.0",
-	"license": "BSD",
-	"isProd": true,
-	"repositoryURL": "https://github.com/isagalaev/highlight.js",
-	"licenseDetail": [
-		"Copyright (c) 2006, Ivan Sagalaev",
-		"All rights reserved.",
-		"Redistribution and use in source and binary forms, with or without",
-		"modification, are permitted provided that the following conditions are met:",
-		"",
-		"    * Redistributions of source code must retain the above copyright",
-		"      notice, this list of conditions and the following disclaimer.",
-		"    * Redistributions in binary form must reproduce the above copyright",
-		"      notice, this list of conditions and the following disclaimer in the",
-		"      documentation and/or other materials provided with the distribution.",
-		"    * Neither the name of highlight.js nor the names of its contributors",
-		"      may be used to endorse or promote products derived from this software",
-		"      without specific prior written permission.",
-		"",
-		"THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND ANY",
-		"EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED",
-		"WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE",
-		"DISCLAIMED. IN NO EVENT SHALL THE REGENTS AND CONTRIBUTORS BE LIABLE FOR ANY",
-		"DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES",
-		"(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;",
-		"LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND",
-		"ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT",
-		"(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS",
-		"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-	]
-},
-{
-	"name": "leff/markdown-it-named-headers",
-	"version": "0.0.4",
-	"license": "UNLICENSE",
-	"isProd": true,
-	"repositoryURL": "https://github.com/leff/markdown-it-named-headers",
+	"isLicense": true,
+	"name": "markdown-it-named-headers",
 	"licenseDetail": [
 		"Copyright (c) markdown-it-named-headers authors",
 		"",
@@ -95,7 +51,6 @@
 	"name": "textmate/markdown.tmbundle",
 	"version": "0.0.0",
 	"license": "TextMate Bundle License",
-	"isProd": true,
 	"repositoryURL": "https://github.com/textmate/markdown.tmbundle",
 	"licenseDetail": [
 		"Copyright (c) markdown.tmbundle authors",
@@ -114,53 +69,8 @@
 	]
 },
 {
-	"name": "argparse",
-	"version": "1.0.7",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/nodeca/argparse"
-},
-{
-	"name": "entities",
-	"version": "1.1.1",
-	"license": "Felix Böhm",
-	"isProd": true,
-	"repositoryURL": "https://github.com/fb55/entities"
-},
-{
-	"name": "linkify-it",
-	"version": "1.2.4",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/markdown-it/linkify-it"
-},
-{
-	"name": "mdurl",
-	"version": "1.0.1",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/markdown-it/mdurl"
-},
-{
-	"name": "sprintf-js",
-	"version": "1.0.3",
-	"license": "Alexandru Marasteanu",
-	"isProd": true,
-	"repositoryURL": "https://github.com/alexei/sprintf.js"
-},
-{
-	"name": "string",
-	"version": "3.3.1",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/jprichardson/string.js"
-},
-{
+	"isLicense": true,
 	"name": "uc.micro",
-	"version": "1.0.2",
-	"license": "WTFPL",
-	"isProd": true,
-	"repositoryURL": "https://github.com/markdown-it/uc.micro",
 	"licenseDetail": [
 		"           DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE",
 		"                    Version 2, December 2004",
@@ -176,12 +86,4 @@
 		"",
 		"  0. You just DO WHAT THE FUCK YOU WANT TO."
 	]
-},
-{
-	"name": "winreg",
-	"version": "0.0.13",
-	"license": "BSD",
-	"isProd": true,
-	"repositoryURL": "https://github.com/fresc81/node-winreg"
-}
-]
+}]

@@ -4,40 +4,4 @@
 	"version": "0.0.0",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/Benvie/JavaScriptNext.tmLanguage"
-},
-{
-	"name": "Microsoft/node-request-light",
-	"version": "0.1.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/node-request-light"
-},
-{
-	"name": "Microsoft/node-jsonc-parser",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/node-jsonc-parser"
-},
-{
-	"name": "Microsoft/vscode-languageserver-node",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-languageserver-node"
-},
-{
-	"name": "Microsoft/vscode-extension-telemetry",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-extension-telemetry"
-},
-{
-	"name": "Microsoft/vscode-nls",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-nls"
-}
-]
+}]
