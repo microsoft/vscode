@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/repl';
+import 'vs/css!./../browser/media/repl';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
@@ -16,10 +16,10 @@ import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
-import viewer = require('vs/workbench/parts/debug/browser/replViewer');
+import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { Panel } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

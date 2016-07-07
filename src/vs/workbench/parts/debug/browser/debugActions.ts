@@ -23,7 +23,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { clipboard } from 'electron';
 import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
@@ -566,28 +565,6 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 }
 
-export class CopyValueAction extends AbstractDebugAction {
-	static ID = 'workbench.debug.viewlet.action.copyValue';
-	static LABEL = nls.localize('copyValue', "Copy Value");
-
-	constructor(id: string, label: string, private value: any, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action copy-value', debugService, keybindingService);
-	}
-
-	public run(): TPromise<any> {
-		if (this.value instanceof model.Variable) {
-			const frameId = this.debugService.getViewModel().getFocusedStackFrame().frameId;
-			const session = this.debugService.getActiveSession();
-			return session.evaluate({ expression: model.getFullExpressionName(this.value, session.configuration.type), frameId }).then(result => {
-				clipboard.writeText(result.body.result);
-			}, err => clipboard.writeText(this.value.value));
-		}
-
-		clipboard.writeText(this.value);
-		return TPromise.as(null);
-	}
-}
-
 export class RunToCursorAction extends EditorAction {
 	static ID = 'editor.debug.action.runToCursor';
 
@@ -806,16 +783,6 @@ export class ClearReplAction extends AbstractDebugAction {
 
 		// focus back to repl
 		return this.panelService.openPanel(debug.REPL_ID, true);
-	}
-}
-
-export class CopyAction extends actions.Action {
-	static ID = 'workbench.debug.action.copy';
-	static LABEL = nls.localize('copy', "Copy");
-
-	public run(): TPromise<any> {
-		clipboard.writeText(window.getSelection().toString());
-		return TPromise.as(null);
 	}
 }
 
