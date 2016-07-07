@@ -9,6 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -39,6 +40,7 @@ export class QuickFixController implements IEditorContribution {
 	constructor(editor: ICodeEditor,
 		@IMarkerService private _markerService: IMarkerService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
+		@ICommandService private _commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEditorService editorService: IEditorService,
 		@IMessageService messageService: IMessageService
@@ -63,7 +65,7 @@ export class QuickFixController implements IEditorContribution {
 		var model = this.editor.getModel();
 		if (model) {
 			let {command} = fix;
-			return this._keybindingService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
+			return this._commandService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
 		}
 	}
 

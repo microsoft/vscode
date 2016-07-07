@@ -6,7 +6,6 @@
 
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
@@ -466,10 +465,6 @@ export interface IKeybindingService {
 	getAriaLabelFor(keybinding: Keybinding): string;
 	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
-
-	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
-	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
-	hasCommand(commandId: string): boolean;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

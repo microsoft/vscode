@@ -11,7 +11,6 @@ import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -207,11 +206,6 @@ export abstract class AbstractKeybindingService {
 		}
 	}
 
-	public hasCommand(commandId: string): boolean {
-		return !!CommandsRegistry.getCommands()[commandId];
-	}
-
-	public abstract executeCommand(commandId: string, args: any): TPromise<any>;
 	public abstract getLabelFor(keybinding: Keybinding): string;
 	public abstract getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	public abstract getAriaLabelFor(keybinding: Keybinding): string;
@@ -412,10 +406,6 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	public disposeContext(contextId: number): void {
 		delete this._contexts[String(contextId)];
 	}
-
-	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
-		return this._commandService.executeCommand(commandId, ...args);
-	}
 }
 
 KeybindingsRegistry.registerCommandDesc({
@@ -488,9 +478,5 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 
 	public disposeContext(contextId: number): void {
 		this._parent.disposeContext(contextId);
-	}
-
-	public executeCommand(commandId: string, args: any): TPromise<any> {
-		return this._parent.executeCommand(commandId, args);
 	}
 }

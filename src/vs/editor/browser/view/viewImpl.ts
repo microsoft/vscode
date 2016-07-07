@@ -12,6 +12,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
@@ -91,6 +92,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	constructor(
 		keybindingService: IKeybindingService,
+		commandService: ICommandService,
 		configuration:Configuration,
 		model:IViewModel,
 		triggerCursorHandler:TriggerCursorHandler
@@ -100,7 +102,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this._renderAnimationFrame = null;
 		this.outgoingEventBus = new EventEmitter();
 
-		var viewController = new ViewController(model, triggerCursorHandler, this.outgoingEventBus, keybindingService);
+		var viewController = new ViewController(model, triggerCursorHandler, this.outgoingEventBus, commandService);
 
 		this.listenersToRemove = [];
 		this.listenersToDispose = [];

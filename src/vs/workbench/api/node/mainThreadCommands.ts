@@ -6,48 +6,28 @@
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-
+import {ICommandService, CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostContext, ExtHostCommandsShape} from './extHostProtocol';
 
 export class MainThreadCommands {
 
-	private _threadService: IThreadService;
-	private _keybindingService: IKeybindingService;
 	private _proxy: ExtHostCommandsShape;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IThreadService private _threadService: IThreadService,
+		@ICommandService private _commandService: ICommandService
 	) {
-		this._threadService = threadService;
-		this._keybindingService = keybindingService;
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostCommands);
 	}
 
 	$registerCommand(id: string): TPromise<any> {
-
-		KeybindingsRegistry.registerCommandDesc({
-			id,
-			handler: (serviceAccessor, ...args: any[]) => {
-				return this._proxy.$executeContributedCommand(id, ...args);
-			},
-			weight: undefined,
-			when: undefined,
-			win: undefined,
-			mac: undefined,
-			linux: undefined,
-			primary: undefined,
-			secondary: undefined
-		});
-
+		CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args));
 		return undefined;
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
-		return this._keybindingService.executeCommand(id, ...args);
+		return this._commandService.executeCommand(id, ...args);
 	}
 
 	$getCommands(): Thenable<string[]> {

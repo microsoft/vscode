@@ -13,6 +13,7 @@ import {values} from 'vs/base/common/collections';
 import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {MenuId, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 
@@ -58,13 +59,14 @@ export class MenuService implements IMenuService {
 	serviceId = IMenuService;
 
 	constructor(
-		@IExtensionService private _extensionService: IExtensionService
+		@IExtensionService private _extensionService: IExtensionService,
+		@ICommandService private _commandService: ICommandService
 	) {
 		//
 	}
 
 	createMenu(id: MenuId, keybindingService: IKeybindingService): IMenu {
-		return new Menu(id, keybindingService, this._extensionService);
+		return new Menu(id, this._commandService, keybindingService, this._extensionService);
 	}
 
 	getCommandActions(): ICommandAction[] {
@@ -82,6 +84,7 @@ class Menu implements IMenu {
 
 	constructor(
 		id: MenuId,
+		@ICommandService private _commandService: ICommandService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IExtensionService private _extensionService: IExtensionService
 	) {
@@ -100,7 +103,7 @@ class Menu implements IMenu {
 					group = [groupName, []];
 					this._menuGroups.push(group);
 				}
-				group[1].push(new MenuItemAction(item, this._keybindingService));
+				group[1].push(new MenuItemAction(item, this._commandService));
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);

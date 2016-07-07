@@ -23,7 +23,7 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -167,7 +167,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@ICommandService private commandService: ICommandService
 	) {
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
@@ -276,7 +276,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				if (!commandId) {
 					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, interactiveVariable));
 				} else {
-					return this.keybindingService.executeCommand<string>(commandId, this.configuration).then(result => {
+					return this.commandService.executeCommand<string>(commandId, this.configuration).then(result => {
 						if (!result) {
 							this.configuration.silentlyAbort = true;
 						}

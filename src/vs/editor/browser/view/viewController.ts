@@ -9,7 +9,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IEditorMouseEvent, IViewController, IMouseDispatchData} from 'vs/editor/browser/editorBrowser';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
 import {Range} from 'vs/editor/common/core/range';
 
@@ -22,42 +22,42 @@ export class ViewController implements IViewController {
 	private viewModel:IViewModel;
 	private triggerCursorHandler:TriggerCursorHandler;
 	private outgoingEventBus:EventEmitter;
-	private keybindingService:IKeybindingService;
+	private commandService:ICommandService;
 
 	constructor(
 		viewModel:IViewModel,
 		triggerCursorHandler:TriggerCursorHandler,
 		outgoingEventBus:EventEmitter,
-		keybindingService:IKeybindingService
+		commandService:ICommandService
 	) {
 		this.viewModel = viewModel;
 		this.triggerCursorHandler = triggerCursorHandler;
 		this.outgoingEventBus = outgoingEventBus;
-		this.keybindingService = keybindingService;
+		this.commandService = commandService;
 	}
 
 	public paste(source:string, text:string, pasteOnNewLine:boolean): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.Paste, {
+		this.commandService.executeCommand(editorCommon.Handler.Paste, {
 			text: text,
 			pasteOnNewLine: pasteOnNewLine,
 		});
 	}
 
 	public type(source:string, text:string): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.Type, {
+		this.commandService.executeCommand(editorCommon.Handler.Type, {
 			text: text
 		});
 	}
 
 	public replacePreviousChar(source: string, text: string, replaceCharCnt:number): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
+		this.commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
 			text: text,
 			replaceCharCnt: replaceCharCnt
 		});
 	}
 
 	public cut(source:string): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.Cut, {});
+		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
 	}
 
 	private _validateViewColumn(viewPosition:Position): Position {

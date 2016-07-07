@@ -14,6 +14,7 @@ import { EditorAction } from 'vs/editor/common/editorAction';
 import { Behaviour } from 'vs/editor/common/editorActionEnablement';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
@@ -121,12 +122,12 @@ export class StartDebugAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService, @ICommandService private commandService: ICommandService) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
-		return this.keybindingService.executeCommand('_workbench.startDebug');
+		return this.commandService.executeCommand('_workbench.startDebug');
 	}
 
 	protected isEnabled(state: debug.State): boolean {
