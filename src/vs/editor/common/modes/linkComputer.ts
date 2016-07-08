@@ -55,8 +55,8 @@ class CharacterClassifier {
 	private _map: CharacterClass[];
 
 	constructor() {
-		var FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
-		var CANNOT_END_WITH_CHARACTERS = '.,;';
+		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
+		const CANNOT_END_WITH_CHARACTERS = '.,;';
 
 		this._asciiMap = [];
 		for (let i = 0; i < 256; i++) {
@@ -95,25 +95,34 @@ class CharacterClassifier {
 	}
 }
 
+const characterClassifier = new CharacterClassifier();
+
 class LinkComputer {
 
-	private static _characterClassifier = new CharacterClassifier();
-
 	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):ILink {
+		// Do not allow to end link in certain characters...
+		let lastIncludedCharIndex = linkEndIndex - 1;
+		do {
+			const chCode = line.charCodeAt(lastIncludedCharIndex);
+			const chClass = characterClassifier.classify(chCode);
+			if (chClass !== CharacterClass.CannotEndIn) {
+				break;
+			}
+			lastIncludedCharIndex--;
+		} while (lastIncludedCharIndex > linkBeginIndex);
+
 		return {
 			range: {
 				startLineNumber: lineNumber,
 				startColumn: linkBeginIndex + 1,
 				endLineNumber: lineNumber,
-				endColumn: linkEndIndex + 1
+				endColumn: lastIncludedCharIndex + 2
 			},
-			url: line.substring(linkBeginIndex, linkEndIndex)
+			url: line.substring(linkBeginIndex, lastIncludedCharIndex + 1)
 		};
 	}
 
 	public static computeLinks(model:ILinkComputerTarget):ILink[] {
-		const characterClassifier = LinkComputer._characterClassifier;
-
 		let result:ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			const line = model.getLineContent(i);
@@ -131,7 +140,7 @@ class LinkComputer {
 				let resetStateMachine = false;
 
 				if (state === ACCEPT_STATE) {
-					let chCode = line.charCodeAt(j);
+					const chCode = line.charCodeAt(j);
 					let chClass:CharacterClass;
 					switch (chCode) {
 						case _openParens:
@@ -161,24 +170,12 @@ class LinkComputer {
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
-
-						// Do not allow to end link in certain characters...
-						let lastIncludedCharIndex = j - 1;
-						do {
-							chCode = line.charCodeAt(lastIncludedCharIndex);
-							chClass = characterClassifier.classify(chCode);
-							if (chClass !== CharacterClass.CannotEndIn) {
-								break;
-							}
-							lastIncludedCharIndex--;
-						} while (lastIncludedCharIndex > linkBeginIndex);
-
-						result.push(LinkComputer._createLink(line, i, linkBeginIndex, lastIncludedCharIndex + 1));
+						result.push(LinkComputer._createLink(line, i, linkBeginIndex, j));
 						resetStateMachine = true;
 					}
 				} else if (state === END_STATE) {
-					let chCode = line.charCodeAt(j);
-					let chClass = characterClassifier.classify(chCode);
+					const chCode = line.charCodeAt(j);
+					const chClass = characterClassifier.classify(chCode);
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
@@ -187,7 +184,7 @@ class LinkComputer {
 						state = ACCEPT_STATE;
 					}
 				} else {
-					let ch = line.charAt(j);
+					const ch = line.charAt(j);
 					if (STATE_MAP[state].hasOwnProperty(ch)) {
 						state = STATE_MAP[state][ch];
 					} else {
