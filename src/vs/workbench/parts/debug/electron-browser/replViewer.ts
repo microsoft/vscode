@@ -380,7 +380,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		event.preventDefault();
 
 		this.editorService.openEditor({
-			resource: resource,
+			resource,
 			options: {
 				selection: {
 					startLineNumber: line,

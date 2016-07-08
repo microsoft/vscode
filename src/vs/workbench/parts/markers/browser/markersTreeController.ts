@@ -59,8 +59,8 @@ export class Controller extends treedefaults.DefaultController {
 						endLineNumber: marker.endLineNumber,
 						endColumn: marker.endColumn
 					},
-					preserveFocus: preserveFocus,
-					pinned: pinned
+					preserveFocus,
+					pinned
 				},
 			}, sideByside).done(null, errors.onUnexpectedError);
 			return true;
