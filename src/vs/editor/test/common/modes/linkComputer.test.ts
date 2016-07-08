@@ -181,7 +181,9 @@ suite('Editor Modes - Link Computer', () => {
 			'x = "file://shäres/foo.bar";',
 			'     file://shäres/foo.bar  '
 		);
-
-		// foo bar (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)
+		assertLink(
+			'Some text, then http://www.bing.com.',
+			'                http://www.bing.com '
+		);
 	});
 });
