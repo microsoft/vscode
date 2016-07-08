@@ -172,9 +172,6 @@ export class ElectronIntegration {
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map((id) => {
-				if (!this.commandService.isKnownCommand(id)) {
-					console.warn('Menu uses unknown command: ' + id);
-				}
 				let bindings = this.keybindingService.lookupKeybindings(id);
 
 				// return the first binding that can be represented by electron
