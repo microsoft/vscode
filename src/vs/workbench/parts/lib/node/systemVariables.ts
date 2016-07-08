@@ -48,6 +48,10 @@ export class SystemVariables extends AbstractSystemVariables {
 		return this.getFilePath();
 	}
 
+	public get relFile(): string {
+		return Paths.relative(this.cwd, this.file);
+	}
+
 	public get fileBasename(): string {
 		return Paths.basename(this.getFilePath());
 	}
