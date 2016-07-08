@@ -57,7 +57,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private editors: EditorInput[];
 	private mru: EditorInput[];
-	private mapResourceToEditor: { [resource: string]: EditorInput };
+	private mapResourceToEditorCount: { [resource: string]: number };
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
@@ -86,7 +86,7 @@ export class EditorGroup implements IEditorGroup {
 		this.editors = [];
 		this.mru = [];
 		this.toDispose = [];
-		this.mapResourceToEditor = Object.create(null);
+		this.mapResourceToEditorCount = Object.create(null);
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		this._onEditorActivated = new Emitter<EditorInput>();
@@ -516,7 +516,20 @@ export class EditorGroup implements IEditorGroup {
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
 		const resource = getUntitledOrFileResource(editor, true /* include diff editors */);
 		if (resource) {
-			this.mapResourceToEditor[resource.toString()] = remove ? void 0 : editor;
+
+			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
+			// So we need to do ref counting on the resource to provide the correct picture
+			let counter = this.mapResourceToEditorCount[resource.toString()] || 0;
+			let newCounter;
+			if (remove) {
+				if (counter > 1) {
+					newCounter = counter - 1;
+				}
+			} else {
+				newCounter = counter + 1;
+			}
+
+			this.mapResourceToEditorCount[resource.toString()] = newCounter;
 		}
 	}
 
@@ -541,7 +554,9 @@ export class EditorGroup implements IEditorGroup {
 			return this.indexOf(arg1) >= 0;
 		}
 
-		return !!this.mapResourceToEditor[(<URI>arg1).toString()];
+		const counter = this.mapResourceToEditorCount[(<URI>arg1).toString()];
+
+		return typeof counter === 'number' && counter > 0;
 	}
 
 	private setMostRecentlyUsed(editor: EditorInput): void {
