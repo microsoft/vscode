@@ -13,9 +13,9 @@
 }
 
 .monaco-resource-viewer.image {
-	padding: 10px;
-	background-position: 0 0, 6px 6px;
-	background-size: 12px 12px;
+	padding: 10px 10px 0 10px;
+	background-position: 0 0, 8px 8px;
+	background-size: 16px 16px;
 }
 
 .monaco-resource-viewer.image.full-size {
@@ -24,19 +24,19 @@
 
 .vs .monaco-resource-viewer.image {
 	background-image:
-		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220)),
-		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220));
+		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230)),
+		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230));
 }
 
 .vs-dark .monaco-resource-viewer.image {
 	background-image:
-		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80)),
-		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80));
+		linear-gradient(45deg, rgb(40, 40, 40) 25%, transparent 25%, transparent 75%, rgb(40, 40, 40) 75%, rgb(40, 40, 40)),
+		linear-gradient(45deg, rgb(40, 40, 40) 25%, transparent 25%, transparent 75%, rgb(40, 40, 40) 75%, rgb(40, 40, 40));
 }
 
 .monaco-resource-viewer img {
 	max-width: 100%;
-	max-height: 100%;
+	max-height: calc(100% - 10px); /* somehow this prevents scrollbars from showing up */
 }
 
 .monaco-resource-viewer.oversized img {

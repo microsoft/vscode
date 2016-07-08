@@ -104,6 +104,9 @@ export class ResourceViewer {
 						});
 					}
 
+					// Update title when we know the image bounds
+					img.title(nls.localize('imgTitle', "{0} ({1}x{2})", paths.basename(resource.fsPath), imgElement.naturalWidth, imgElement.naturalHeight));
+
 					scrollbar.scanDomNode();
 				});
 		}
