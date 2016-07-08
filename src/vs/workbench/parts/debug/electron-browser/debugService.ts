@@ -499,7 +499,11 @@ export class DebugService implements debug.IDebugService {
 			variable.value = response.body.value;
 			// Evaluate all watch expressions again since changing variable value might have changed some #8118.
 			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
-		}, err => (<model.Variable>variable).errorMessage = err.message);
+		}, err => {
+			(<model.Variable>variable).errorMessage = err.message;
+			// On error still show bad value so the user can fix it #8055
+			(<model.Variable>variable).value = value;
+		});
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
