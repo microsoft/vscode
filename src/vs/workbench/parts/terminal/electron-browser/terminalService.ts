@@ -230,6 +230,9 @@ export class TerminalService implements ITerminalService {
 			env[`PTYSHELLARG${i}`] = arg;
 		});
 		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
+		if (!env['LANG'] && platform.locale) {
+			env['LANG'] = this.getLang(platform.locale);
+		}
 		let terminalProcess = {
 			title: '',
 			process: cp.fork('./terminalProcess', [], {
@@ -256,5 +259,14 @@ export class TerminalService implements ITerminalService {
 			newEnv[key] = process.env[key];
 		});
 		return newEnv;
+	}
+
+	private getLang(locale: string) {
+		const parts = locale.split('-');
+		const n = parts.length;
+		if (n > 1) {
+			parts[n - 1] = parts[n - 1].toUpperCase();
+		}
+		return parts.join('_') + '.UTF-8';
 	}
 }
