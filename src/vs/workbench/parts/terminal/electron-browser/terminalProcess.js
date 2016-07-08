@@ -63,7 +63,7 @@ function getArgs() {
 
 function cleanEnv() {
 	var keys = [
-		'ELECTRON_RUN_AS_NODE',
+		'ATOM_SHELL_INTERNAL_RUN_AS_NODE',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL'
