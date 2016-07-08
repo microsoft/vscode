@@ -911,9 +911,9 @@ export class SearchViewlet extends Viewlet {
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
-				preserveFocus: preserveFocus,
-				pinned: pinned,
-				selection: selection
+				preserveFocus,
+				pinned,
+				selection
 			}
 		}, sideBySide);
 	}
