@@ -48,6 +48,14 @@ export class SimpleMap<K extends Key, T> {
 		return keys;
 	}
 
+	public values(): T[] {
+		var values: T[] = [];
+		for (let key in this.map) {
+			values.push(this.map[key].value);
+		}
+		return values;
+	}
+
 	public entries(): Entry<K, T>[] {
 		var entries: Entry<K, T>[] = [];
 		for (let key in this.map) {

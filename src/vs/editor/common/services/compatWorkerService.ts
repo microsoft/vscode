@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IRawText} from 'vs/editor/common/editorCommon';
 
 export var ICompatWorkerService = createDecorator<ICompatWorkerService>('compatWorkerService');
@@ -24,7 +24,7 @@ export interface ICompatMode {
 }
 
 export interface ICompatWorkerService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	isInMainThread: boolean;
 	registerCompatMode(compatMode:ICompatMode): void;
 	CompatWorker(obj: ICompatMode, methodName: string, target: Function, param: any[]): TPromise<any>;

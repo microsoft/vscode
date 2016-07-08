@@ -6,13 +6,13 @@
 'use strict';
 
 import * as path from 'path';
+import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import pkg from 'vs/platform/package';
-import extfs = require('vs/base/node/extfs');
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
@@ -22,7 +22,7 @@ import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
-import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
 	OPEN: 'open',
@@ -83,7 +83,7 @@ const ReopenFoldersSetting = {
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
 export interface IWindowsService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	// TODO make proper events
 	// events
@@ -113,7 +113,7 @@ export interface IWindowsService {
 
 export class WindowsManager implements IWindowsService {
 
-	serviceId = IWindowsService;
+	_serviceBrand: any;
 
 	public static openedPathsListStorageKey = 'openedPathsList';
 
@@ -506,7 +506,7 @@ export class WindowsManager implements IWindowsService {
 
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
-					let options = {
+					let options:Electron.ShowMessageBoxOptions = {
 						title: this.envService.product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
@@ -811,7 +811,7 @@ export class WindowsManager implements IWindowsService {
 
 		let candidate = path.normalize(anyPath);
 		try {
-			let candidateStat = extfs.statSync(candidate);
+			let candidateStat = fs.statSync(candidate);
 			if (candidateStat) {
 				return candidateStat.isFile() ?
 					{
@@ -1039,7 +1039,7 @@ export class WindowsManager implements IWindowsService {
 		let workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
 		let focussedWindow = this.getFocusedWindow();
 
-		let pickerProperties: string[];
+		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
 		if (options.pickFiles && options.pickFolders) {
 			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
 		} else {

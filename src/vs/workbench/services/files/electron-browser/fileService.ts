@@ -28,7 +28,7 @@ const NET_VERSION_ERROR = 'System.MissingMethodException';
 
 export class FileService implements IFileService {
 
-	public serviceId = IFileService;
+	public _serviceBrand: any;
 
 	private raw: IFileService;
 

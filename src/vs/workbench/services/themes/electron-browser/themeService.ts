@@ -98,7 +98,7 @@ interface IInternalThemeData extends IThemeData {
 }
 
 export class ThemeService implements IThemeService {
-	serviceId = IThemeService;
+	_serviceBrand: any;
 
 	private knownThemes: IInternalThemeData[];
 	private currentTheme: string;
@@ -372,7 +372,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	}
 	if (editorSettings.lineHighlight) {
 		let lineHighlight = new Color(editorSettings.lineHighlight);
-		cssRules.push(`.monaco-editor.${themeSelector}.focused .current-line { background-color: ${lineHighlight}; border:0; }`);
+		cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; border:0; }`);
 	}
 	if (editorSettings.caret) {
 		let caret = new Color(editorSettings.caret);
@@ -382,7 +382,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	if (editorSettings.invisibles) {
 		let invisibles = new Color(editorSettings.invisibles);
 		cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
-		cssRules.push(`.monaco-editor.${themeSelector} .token.indent-guide { border-left: 1px solid ${invisibles}; }`);
+		cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${invisibles}; }`);
 	}
 
 	return cssRules.join('\n');

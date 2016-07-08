@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExtensionManifest {
 	name: string;
@@ -94,7 +94,7 @@ export interface IQueryOptions {
 }
 
 export interface IExtensionGalleryService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 }
@@ -103,7 +103,7 @@ export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; }
 export type DidInstallExtensionEvent = { id: string; local?: ILocalExtension; error?: Error; };
 
 export interface IExtensionManagementService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
@@ -119,7 +119,7 @@ export interface IExtensionManagementService {
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
-	serviceId: ServiceIdentifier<IExtensionTipsService>;
+	_serviceBrand: any;
 	getRecommendations(): TPromise<IGalleryExtension[]>;
 }
 

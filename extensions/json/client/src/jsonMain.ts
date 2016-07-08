@@ -90,14 +90,16 @@ export function activate(context: ExtensionContext) {
 
 		languages.setLanguageConfiguration('json', {
 			wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g,
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"', notIn: ['string'] },
-				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-				{ open: '`', close: '`', notIn: ['string', 'comment'] }
-			]
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] }
+				]
+			}
 		});
 	});
 }

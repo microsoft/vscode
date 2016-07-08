@@ -9,7 +9,8 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandService} from 'vs/platform/commands/common/commands';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -39,6 +40,7 @@ export class QuickFixController implements IEditorContribution {
 	constructor(editor: ICodeEditor,
 		@IMarkerService private _markerService: IMarkerService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
+		@ICommandService private _commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEditorService editorService: IEditorService,
 		@IMessageService messageService: IMessageService
@@ -63,7 +65,7 @@ export class QuickFixController implements IEditorContribution {
 		var model = this.editor.getModel();
 		if (model) {
 			let {command} = fix;
-			return this._keybindingService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
+			return this._commandService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
 		}
 	}
 
@@ -151,7 +153,7 @@ CommonEditorRegistry.registerEditorCommand('closeQuickFixWidget', weight, { prim
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.closeWidget();
 });
-CommonEditorRegistry.registerEditorCommand('selectNextQuickFix', weight, { primary: KeyCode.DownArrow }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectNextQuickFix', weight, { primary: KeyCode.DownArrow , mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] } }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.selectNextSuggestion();
 });
@@ -159,7 +161,7 @@ CommonEditorRegistry.registerEditorCommand('selectNextPageQuickFix', weight, { p
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.selectNextPageSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectPrevQuickFix', weight, { primary: KeyCode.UpArrow }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectPrevQuickFix', weight, { primary: KeyCode.UpArrow , mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }}, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.selectPrevSuggestion();
 });

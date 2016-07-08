@@ -10,7 +10,7 @@ declare module "vscode-textmate" {
  */
 export interface IGrammarLocator {
 	getFilePath(scopeName:string): string;
-	getInjections(scopeName:string): string[];
+	getInjections?(scopeName:string): string[];
 }
 
 /**
@@ -18,10 +18,7 @@ export interface IGrammarLocator {
  */
 export class Registry {
 
-	public static readGrammarInfo(path:string, callback:(err:any, grammarInfo:IGrammarInfo)=>void): void;
-	public static readGrammarInfoSync(path:string): IGrammarInfo;
-
-	constructor(locator?:IGrammarLocator);
+	constructor(locator?:IGrammarLocator, useExperimentalParser?:boolean);
 
 	/**
 	 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
@@ -53,18 +50,18 @@ export interface IGrammar {
 	/**
 	 * Tokenize `lineText` using previous line state `prevState`.
 	 */
-	tokenizeLine(lineText: string, prevState: StackElement[]): ITokenizeLineResult;
+	tokenizeLine(lineText: string, prevState: StackElement): ITokenizeLineResult;
 }
 
 export interface ITokenizeLineResult {
-	tokens: ITMToken[];
+	tokens: IToken[];
 	/**
 	 * The `prevState` to be passed on to the next line tokenization.
 	 */
-	ruleStack: StackElement[];
+	ruleStack: StackElement;
 }
 
-export interface ITMToken {
+export interface IToken {
 	startIndex: number;
 	endIndex: number;
 	scopes: string[];
@@ -74,14 +71,9 @@ export interface ITMToken {
  * Should not be used by consumers, as its shape might change at any time.
  */
 export interface StackElement {
-	ruleId: number;
-	enterPos: number;
-	endRule: string;
-	scopeName: string;
-	contentName: string;
+	_stackElementBrand: void;
 
-	clone(): StackElement;
+	equals(other:StackElement): boolean;
 }
-
 
 }

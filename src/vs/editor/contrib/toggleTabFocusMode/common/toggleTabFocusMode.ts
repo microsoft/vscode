@@ -10,7 +10,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ToggleTabFocusModeAction extends EditorAction {
 
@@ -22,11 +24,8 @@ export class ToggleTabFocusModeAction extends EditorAction {
 
 	public run():TPromise<boolean> {
 
-		if(this.editor.getConfiguration().tabFocusMode) {
-			this.editor.updateOptions({tabFocusMode: false});
-		} else {
-			this.editor.updateOptions({tabFocusMode: true});
-		}
+		let oldValue = TabFocus.getTabFocusMode();
+		TabFocus.setTabFocusMode(!oldValue);
 
 		return TPromise.as(true);
 	}
@@ -34,7 +33,14 @@ export class ToggleTabFocusModeAction extends EditorAction {
 
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleTabFocusModeAction, ToggleTabFocusModeAction.ID, nls.localize('toggle.tabfocusmode', "Toggle Use of Tab Key for Setting Focus"), {
-	context: ContextKey.EditorTextFocus,
+	primary: null,
+	context: null
+}, 'Toggle Use of Tab Key for Setting Focus'));
+
+KeybindingsRegistry.registerCommandRule({
+	id: ToggleTabFocusModeAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	when: null,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
-}, 'Toggle Use of Tab Key for Setting Focus'));
+});

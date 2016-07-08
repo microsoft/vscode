@@ -22,8 +22,7 @@ export interface Settings {
 	scss: LanguageSettings;
 }
 
-// Create a connection for the server. The connection uses for
-// stdin / stdout for message passing
+// Create a connection for the server.
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
 
 console.log = connection.console.log.bind(connection.console);
@@ -91,27 +90,31 @@ function updateConfiguration(settings: Settings) {
 	documents.all().forEach(triggerValidation);
 }
 
+let pendingValidationRequests : {[uri:string]:number} = {};
+const validationDelayMs = 200;
+
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
 	triggerValidation(change.document);
 });
 
-let pendingValidationRequests : {[uri:string]:number} = {};
-const validationDelayMs = 200;
-documents.onDidClose(e => {
-	let request = pendingValidationRequests[e.document.uri];
-	if (request) {
-		clearTimeout(request);
-		delete pendingValidationRequests[e.document.uri];
-	}
+// a document has closed: clear all diagnostics
+documents.onDidClose(event => {
+	cleanPendingValidation(event.document);
+	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
-function triggerValidation(textDocument: TextDocument): void {
+function cleanPendingValidation(textDocument: TextDocument): void {
 	let request = pendingValidationRequests[textDocument.uri];
 	if (request) {
 		clearTimeout(request);
+		delete pendingValidationRequests[textDocument.uri];
 	}
+}
+
+function triggerValidation(textDocument: TextDocument): void {
+	cleanPendingValidation(textDocument);
 	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
 		delete pendingValidationRequests[textDocument.uri];
 		validateTextDocument(textDocument);

@@ -707,7 +707,7 @@ suite('Colorizing - HTML', () => {
 
 	test('onEnter 2', function() {
 		function onEnter(line:string, offset:number): Modes.EnterAction {
-			let model = new TextModelWithTokens([], TextModel.toRawText(line, TextModel.DEFAULT_CREATION_OPTIONS), false, _mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(line, TextModel.DEFAULT_CREATION_OPTIONS), _mode);
 			let result = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, 1, offset + 1);
 			model.dispose();
 			return result;
@@ -750,7 +750,7 @@ suite('Colorizing - HTML', () => {
 		}
 
 		function assertBracket(lines:string[], lineNumber:number, column:number, expected:[Range, Range]): void {
-			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), false, _mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), _mode);
 			// force tokenization
 			model.getLineContext(model.getLineCount());
 			let actual = model.matchBracket({

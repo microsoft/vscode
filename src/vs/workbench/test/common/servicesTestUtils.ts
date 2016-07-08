@@ -11,7 +11,7 @@ import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {NullTelemetryService, ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
-import {EditorInputEvent} from 'vs/workbench/common/editor';
+import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
@@ -34,10 +34,12 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
+import {TextFileService} from 'vs/workbench/parts/files/common/textFileServices';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IFileService} from 'vs/platform/files/common/files';
+import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
+import {RawText} from 'vs/editor/common/model/textModel';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -52,7 +54,7 @@ export const TestConfiguration: IConfiguration = {
 };
 
 export class TestHistoryService implements IHistoryService {
-	public serviceId = IHistoryService;
+	public _serviceBrand: any;
 
 	public forward(): void {
 
@@ -80,7 +82,7 @@ export class TestHistoryService implements IHistoryService {
 }
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
-	public serviceId = WorkspaceContextService.IWorkspaceContextService;
+	public _serviceBrand: any;
 
 	private workspace: any;
 	private configuration: any;
@@ -144,10 +146,27 @@ export abstract class TestTextFileService extends TextFileService {
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService, modelService);
 	}
+
+	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+		return this.fileService.resolveContent(resource, options).then((content) => {
+			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
+
+			return <IRawTextContent> {
+				resource: content.resource,
+					name: content.name,
+					mtime: content.mtime,
+					etag: content.etag,
+					mime: content.mime,
+					encoding: content.encoding,
+					value: raw,
+					valueLogicalHash: null
+			};
+		});
+	}
 }
 
 export class TestMessageService implements IMessageService {
-	public serviceId = IMessageService;
+	public _serviceBrand: any;
 
 	private counter: number;
 
@@ -175,7 +194,7 @@ export class TestMessageService implements IMessageService {
 }
 
 export class TestPartService implements PartService.IPartService {
-	public serviceId = PartService.IPartService;
+	public _serviceBrand: any;
 
 	public layout(): void { }
 
@@ -223,11 +242,11 @@ export class TestPartService implements PartService.IPartService {
 }
 
 export class TestEventService extends EventEmitter.EventEmitter implements IEventService {
-	public serviceId = IEventService;
+	public _serviceBrand: any;
 }
 
 export class TestStorageService extends EventEmitter.EventEmitter implements IStorageService {
-	public serviceId = IStorageService;
+	public _serviceBrand: any;
 
 	private storage: Storage.Storage;
 
@@ -306,7 +325,7 @@ export class MockRequestService extends BaseRequestService {
 }
 
 export class TestUntitledEditorService implements IUntitledEditorService {
-	public serviceId = IUntitledEditorService;
+	public _serviceBrand: any;
 
 	public get(resource: URI) {
 		return null;
@@ -338,7 +357,7 @@ export class TestUntitledEditorService implements IUntitledEditorService {
 }
 
 export class TestEditorGroupService implements IEditorGroupService {
-	public serviceId = IEditorGroupService;
+	public _serviceBrand: any;
 
 	private stacksModel: EditorStacksModel;
 
@@ -385,15 +404,21 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onEditorsMoved.event;
 	}
 
-	public focusGroup(position: Position): void {
+	public focusGroup(group: IEditorGroup): void;
+	public focusGroup(position: Position): void;
+	public focusGroup(arg1: any): void {
 
 	}
 
-	public activateGroup(position: Position): void {
+	public activateGroup(group: IEditorGroup): void;
+	public activateGroup(position: Position): void;
+	public activateGroup(arg1: any): void {
 
 	}
 
-	public moveGroup(from: Position, to: Position): void {
+	public moveGroup(from: IEditorGroup, to: IEditorGroup): void;
+	public moveGroup(from: Position, to: Position): void;
+	public moveGroup(arg1: any, arg2: any): void {
 
 	}
 
@@ -401,13 +426,19 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	}
 
-	public pinEditor(position: Position, input: IEditorInput): void {
+	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
+	public pinEditor(position: Position, input: IEditorInput): void;
+	public pinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public unpinEditor(position: Position, input: IEditorInput): void {
+	public unpinEditor(group: IEditorGroup, input: IEditorInput): void;
+	public unpinEditor(position: Position, input: IEditorInput): void;
+	public unpinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
+	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, index?: number): void;
+	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
+	public moveEditor(input: IEditorInput, from: any, to: any, index?: number): void {
 	}
 
 	public getStacksModel(): EditorStacksModel {
@@ -416,7 +447,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 }
 
 export class TestEditorService implements WorkbenchEditorService.IWorkbenchEditorService {
-	public serviceId = WorkbenchEditorService.IWorkbenchEditorService;
+	public _serviceBrand: any;
 
 	public activeEditorInput;
 	public activeEditorOptions;
@@ -496,7 +527,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 }
 
 export class TestQuickOpenService implements QuickOpenService.IQuickOpenService {
-	public serviceId = QuickOpenService.IQuickOpenService;
+	public _serviceBrand: any;
 
 	private callback: (prefix: string) => void;
 
@@ -585,7 +616,7 @@ export const TestFileService = {
 };
 
 export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
-	public serviceId = IConfigurationService;
+	public _serviceBrand: any;
 
 	private configuration = Object.create(null);
 
@@ -614,7 +645,7 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 export class TestLifecycleService implements ILifecycleService {
 
-	public serviceId = ILifecycleService;
+	public _serviceBrand: any;
 
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<void>();

@@ -16,7 +16,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 
 export class InstantiationService implements IInstantiationService {
 
-	serviceId: any;
+	_serviceBrand: any;
 
 	private _services: ServiceCollection;
 	private _strict: boolean;

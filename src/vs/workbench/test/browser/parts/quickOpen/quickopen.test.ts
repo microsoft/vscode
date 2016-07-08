@@ -10,7 +10,7 @@ import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to 
 import {TestQuickOpenService} from 'vs/workbench/test/common/servicesTestUtils';
 import {Registry} from 'vs/platform/platform';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {Extensions} from 'vs/workbench/common/editor';
 
 suite('Workbench QuickOpen', () => {
 

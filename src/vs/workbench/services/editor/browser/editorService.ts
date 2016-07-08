@@ -13,14 +13,14 @@ import {basename, dirname} from 'vs/base/common/paths';
 import types = require('vs/base/common/types');
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
-import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions} from 'vs/workbench/common/editor';
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 
@@ -39,7 +39,7 @@ export interface IEditorPart {
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
 
-	public serviceId = IWorkbenchEditorService;
+	public _serviceBrand: any;
 
 	private editorPart: IEditorPart | IWorkbenchEditorService;
 	private fileInputDescriptor: AsyncDescriptor0<IFileEditorInput>;
@@ -99,7 +99,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			return this.doOpenEditor(input, <EditorOptions>arg2, arg3);
+			return this.doOpenEditor(input, this.toOptions(arg2), arg3);
 		}
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
@@ -123,6 +123,19 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
+	private toOptions(arg1?: any): EditorOptions {
+		if (!arg1 || arg1 instanceof EditorOptions) {
+			return arg1;
+		}
+
+		const textOptions: ITextEditorOptions = arg1;
+		if (!!textOptions.selection) {
+			return TextEditorOptions.create(arg1);
+		}
+
+		return EditorOptions.create(arg1);
+	}
+
 	/**
 	 * Allow subclasses to implement their own behavior for opening editor (see below).
 	 */
@@ -137,9 +150,11 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
 			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
+				const options = editors[index].input instanceof EditorInput ? this.toOptions(editors[index].options) : TextEditorOptions.from(editors[index].input);
+
 				return {
 					input,
-					options: editors[index].input instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input),
+					options,
 					position: editors[index].position
 				};
 			});
@@ -149,15 +164,17 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	public replaceEditors(editors: { toReplace: IResourceInput, replaceWith: IResourceInput }[]): TPromise<BaseEditor[]>;
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: IEditorOptions }[]): TPromise<BaseEditor[]>;
 	public replaceEditors(editors: any[]): TPromise<BaseEditor[]> {
 		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
 			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
 				const typedReplacements: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
+					const options = editor.toReplace instanceof EditorInput ? this.toOptions(editor.options) : TextEditorOptions.from(editor.replaceWith);
+
 					return {
 						toReplace: toReplaceInputs[index],
 						replaceWith: replaceWithInputs[index],
-						options: editor.toReplace instanceof EditorInput ? editor.options : TextEditorOptions.from(editor.replaceWith)
+						options
 					};
 				});
 

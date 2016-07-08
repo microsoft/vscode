@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {Platform} from 'vs/base/common/platform';
 import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -93,8 +92,7 @@ export class TerminalConfigHelper {
 		private panelContainer: Builder) {
 	}
 
-	public getTheme(themeId: string): string[] {
-		let baseThemeId = getBaseThemeId(themeId);
+	public getTheme(baseThemeId: string): string[] {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
@@ -137,6 +135,10 @@ export class TerminalConfigHelper {
 		return this.measureFont(fontFamily, fontSize + 'px', lineHeight === 0 ? 'normal' : lineHeight + 'px');
 	}
 
+	public getFontLigaturesEnabled(): boolean {
+		return this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated.fontLigatures;
+	}
+
 	public getCursorBlink(): boolean {
 		let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
 		return editorConfig.editor.cursorBlinking === 'blink';
@@ -150,7 +152,6 @@ export class TerminalConfigHelper {
 		};
 		if (this.platform === Platform.Windows) {
 			shell.executable = config.terminal.integrated.shell.windows;
-			shell.args = config.terminal.integrated.shellArgs.windows;
 		} else if (this.platform === Platform.Mac) {
 			shell.executable = config.terminal.integrated.shell.osx;
 			shell.args = config.terminal.integrated.shellArgs.osx;

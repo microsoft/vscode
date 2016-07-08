@@ -68,12 +68,12 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, Goto
 			{
 				prefix: GOTO_SYMBOL_PREFIX,
 				needsEditor: true,
-				description: env.isMacintosh ? nls.localize('gotoSymbolDescriptionNormalMac', "Go to Symbol") : nls.localize('gotoSymbolDescriptionNormalWin', "Go to Symbol")
+				description: nls.localize('gotoSymbolDescription', "Go to Symbol in File")
 			},
 			{
 				prefix: GOTO_SYMBOL_PREFIX + SCOPE_PREFIX,
 				needsEditor: true,
-				description: nls.localize('gotoSymbolDescriptionScoped', "Go to Symbol by Category")
+				description: nls.localize('gotoSymbolDescriptionScoped', "Go to Symbol in File by Category")
 			}
 		]
 	)

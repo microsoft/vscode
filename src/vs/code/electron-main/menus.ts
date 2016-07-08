@@ -193,7 +193,7 @@ export class VSCodeMenu {
 
 		// Goto
 		let gotoMenu = new Menu();
-		let gotoMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Goto")), submenu: gotoMenu });
+		let gotoMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
 		this.setGotoMenu(gotoMenu);
 
 		// Mac: Window
@@ -463,11 +463,11 @@ export class VSCodeMenu {
 		});
 	}
 
-	private createRoleMenuItem(label: string, actionId: string, role: string): Electron.MenuItem {
+	private createRoleMenuItem(label: string, actionId: string, role: Electron.MenuItemRole): Electron.MenuItem {
 		let options: Electron.MenuItemOptions = {
 			label: mnemonicLabel(label),
 			accelerator: this.getAccelerator(actionId),
-			role: role,
+			role,
 			enabled: true
 		};
 
@@ -501,6 +501,7 @@ export class VSCodeMenu {
 		let find = this.createMenuItem(nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"), 'actions.find');
 		let replace = this.createMenuItem(nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"), 'editor.action.startFindReplaceAction');
 		let findInFiles = this.createMenuItem(nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"), 'workbench.view.search');
+		let replaceInFiles = this.createMenuItem(nls.localize({ key: 'miReplaceInFiles', comment: ['&& denotes a mnemonic'] }, "Replace &&in Files"), 'workbench.action.replaceInFiles');
 
 		[
 			undo,
@@ -514,7 +515,8 @@ export class VSCodeMenu {
 			find,
 			replace,
 			__separator__(),
-			findInFiles
+			findInFiles,
+			replaceInFiles
 		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
@@ -541,7 +543,7 @@ export class VSCodeMenu {
 
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
-		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacters');
+		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
 
 
 		let zoomIn = this.createMenuItem(nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"), 'workbench.action.zoomIn');
@@ -796,8 +798,8 @@ export class VSCodeMenu {
 					return;
 				}
 
-				if (windowInFocus.win.isDevToolsFocused()) {
-					devToolsFocusedFn(windowInFocus.win.devToolsWebContents);
+				if (windowInFocus.win.webContents.isDevToolsFocused()) {
+					devToolsFocusedFn(windowInFocus.win.webContents.devToolsWebContents);
 				} else {
 					this.windowsService.sendToFocused('vscode:runAction', actionId);
 				}

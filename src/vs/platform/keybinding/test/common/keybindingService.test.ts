@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {BinaryKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IOSupport, KeybindingResolver, NormalizedKeybindingItem} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem, KbAndExpression, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingItem, KbAndExpression, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 suite('Keybinding Service', () => {
 

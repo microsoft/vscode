@@ -68,7 +68,7 @@ export class ExtensionHostMain {
 
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 
-		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, {serviceId: 'optionalArgs', workspaceStoragePath });
+		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, {_serviceBrand: 'optionalArgs', workspaceStoragePath });
 
 		// Connect to shared process services
 		const channel = sharedProcessClient.getChannel<IExtensionManagementChannel>('extensions');

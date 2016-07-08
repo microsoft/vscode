@@ -15,7 +15,7 @@ import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import {Registry} from 'vs/platform/platform';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IAction} from 'vs/base/common/actions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Part} from 'vs/workbench/browser/part';
@@ -28,7 +28,7 @@ import {IStatusbarService, IStatusbarEntry} from 'vs/platform/statusbar/common/s
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	public serviceId = IStatusbarService;
+	public _serviceBrand: any;
 
 	private static PRIORITY_PROP = 'priority';
 	private static ALIGNMENT_PROP = 'alignment';
@@ -190,7 +190,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 	constructor(
 		entry: IStatusbarEntry,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -272,7 +272,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		// Fallback to the keybinding service for any other case
 		else {
-			this.keybindingService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+			this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
 		}
 	}
 }

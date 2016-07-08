@@ -1197,6 +1197,115 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('bug #2938 (1): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
+		usingCursor({
+			text: [
+				'\tfunction baz() {',
+				'\t\tfunction hello() { // something here',
+				'\t\t',
+				'\t',
+				'\t\t}',
+				'\t}'
+			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			},
+			mode: new OnEnterMode(IndentAction.Indent),
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 2, false);
+			cursorEqual(cursor, 4, 2, 4, 2);
+
+			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			assert.equal(model.getLineContent(4), '\t\t\t');
+		});
+	});
+
+
+	test('bug #2938 (2): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
+		usingCursor({
+			text: [
+				'\tfunction baz() {',
+				'\t\tfunction hello() { // something here',
+				'\t\t',
+				'    ',
+				'\t\t}',
+				'\t}'
+			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			},
+			mode: new OnEnterMode(IndentAction.Indent),
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 1, false);
+			cursorEqual(cursor, 4, 1, 4, 1);
+
+			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			assert.equal(model.getLineContent(4), '\t\t\t');
+		});
+	});
+
+	test('bug #2938 (3): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
+		usingCursor({
+			text: [
+				'\tfunction baz() {',
+				'\t\tfunction hello() { // something here',
+				'\t\t',
+				'\t\t\t',
+				'\t\t}',
+				'\t}'
+			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			},
+			mode: new OnEnterMode(IndentAction.Indent),
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 3, false);
+			cursorEqual(cursor, 4, 3, 4, 3);
+
+			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			assert.equal(model.getLineContent(4), '\t\t\t\t');
+		});
+	});
+
+	test('bug #2938 (4): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
+		usingCursor({
+			text: [
+				'\tfunction baz() {',
+				'\t\tfunction hello() { // something here',
+				'\t\t',
+				'\t\t\t\t',
+				'\t\t}',
+				'\t}'
+			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			},
+			mode: new OnEnterMode(IndentAction.Indent),
+		}, (model, cursor) => {
+			moveTo(cursor, 4, 4, false);
+			cursorEqual(cursor, 4, 4, 4, 4);
+
+			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			assert.equal(model.getLineContent(4), '\t\t\t\t\t');
+		});
+	});
+
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 		usingCursor({
 			text: [

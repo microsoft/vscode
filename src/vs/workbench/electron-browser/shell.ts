@@ -17,7 +17,7 @@ import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
-import {Workbench} from 'vs/workbench/browser/workbench';
+import {Workbench} from 'vs/workbench/electron-browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ITelemetryAppenderChannel, TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
@@ -59,6 +59,8 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import {ICommandService} from 'vs/platform/commands/common/commands';
+import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
@@ -72,7 +74,9 @@ import {connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import {IExtensionManagementService} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
-import 'vs/platform/opener/electron-browser/opener.contribution'; // self registering service
+
+// self registering services
+import 'vs/platform/opener/electron-browser/opener.contribution';
 
 /**
  * Services that we require for the Shell
@@ -270,6 +274,8 @@ export class WorkbenchShell {
 
 		let extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, extensionService);
+
+		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
 
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);

@@ -15,10 +15,10 @@ import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroup, IEditorIdentifier, asFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings as Kb} from 'vs/base/common/keyCodes';
+import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
 import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -28,12 +28,12 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {extractResources} from 'vs/base/browser/dnd';
 
 export class TabsTitleControl extends TitleControl {
@@ -97,7 +97,7 @@ export class TabsTitleControl extends TitleControl {
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
 
-				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true })); // untitled are always pinned
+				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true }); // untitled are always pinned
 			}
 		}));
 
@@ -156,16 +156,14 @@ export class TabsTitleControl extends TitleControl {
 					if (draggedEditor) {
 						DOM.EventHelper.stop(e, true);
 
-						const sourcePosition = this.stacks.positionOfGroup(draggedEditor.group);
-
 						// Move editor to target position and index
 						if (this.isMoveOperation(e, draggedEditor.group, group)) {
-							this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
+							this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
 						}
 
 						// Copy: just open editor at target index
 						else {
-							this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
+							this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
 						}
 
 						this.onEditorDragEnd();
@@ -239,7 +237,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 
-		// Ensure active tab is always revealed
+		// Ensure the active tab is always revealed
 		this.layout();
 	}
 
@@ -292,11 +290,14 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
+			const description = editor.getDescription(true) || '';
+
 			const tabContainer = document.createElement('div');
+			tabContainer.title = description;
 			tabContainer.draggable = true;
 			tabContainer.tabIndex = 0;
-			tabContainer.setAttribute('role', 'tab');
-			tabContainer.setAttribute('aria-label', editor.getName());
+			tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
+			tabContainer.setAttribute('aria-label', `tab, ${editor.getName()}`);
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
@@ -308,7 +309,6 @@ export class TabsTitleControl extends TitleControl {
 			// Tab Label
 			const tabLabel = document.createElement('a');
 			tabLabel.innerText = editor.getName();
-			tabLabel.title = editor.getDescription(true) || '';
 			tabLabelContainer.appendChild(tabLabel);
 
 			// Tab Close
@@ -357,8 +357,8 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}
 
-		// Tab is overlflowng to the left: Scroll it into view to the left
-		else if (containerScrollPosX > activeTabPosX) {
+		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
+		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
 			this.scrollbar.updateState({
 				scrollLeft: this.activeTab.offsetLeft
 			});
@@ -392,6 +392,16 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		// Context menu on Shift+F10
+		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.shiftKey && event.keyCode === KeyCode.F10) {
+				DOM.EventHelper.stop(e);
+
+				this.onContextMenu(identifier, e, tab);
+			}
+		}));
+
 		// Keyboard accessibility
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -421,7 +431,7 @@ export class TabsTitleControl extends TitleControl {
 				const target = group.getEditor(targetIndex);
 				if (target) {
 					handled = true;
-					this.editorService.openEditor(target, EditorOptions.create({ preserveFocus: true }), position).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(target, { preserveFocus: true }, position).done(null, errors.onUnexpectedError);
 					(<HTMLElement>this.tabsContainer.childNodes[targetIndex]).focus();
 				}
 			}
@@ -429,13 +439,18 @@ export class TabsTitleControl extends TitleControl {
 			if (handled) {
 				DOM.EventHelper.stop(e, true);
 			}
+
+			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
+			this.scrollbar.updateState({
+				scrollLeft: this.tabsContainer.scrollLeft
+			});
 		}));
 
 		// Pin on double click
 		this.tabDisposeables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
-			this.editorGroupService.pinEditor(position, editor);
+			this.editorGroupService.pinEditor(group, editor);
 		}));
 
 		// Context menu
@@ -482,16 +497,14 @@ export class TabsTitleControl extends TitleControl {
 			if (draggedEditor) {
 				DOM.EventHelper.stop(e, true);
 
-				const sourcePosition = this.stacks.positionOfGroup(draggedEditor.group);
-
 				// Move editor to target position and index
 				if (this.isMoveOperation(e, draggedEditor.group, group)) {
-					this.editorGroupService.moveEditor(draggedEditor.editor, sourcePosition, targetPosition, targetIndex);
+					this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
 				}
 
 				// Copy: just open editor at target index
 				else {
-					this.editorService.openEditor(draggedEditor.editor, EditorOptions.create({ pinned: true, index: targetIndex }), targetPosition).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
 				}
 
 				this.onEditorDragEnd();

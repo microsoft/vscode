@@ -10,18 +10,17 @@ import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
-import {TextEditorOptions, EditorInput, IGroupEvent} from 'vs/workbench/common/editor';
+import {EditorInput, IGroupEvent, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
-import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
+import {Position, IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -208,12 +207,12 @@ export abstract class BaseHistoryService {
 
 interface IStackEntry {
 	input: IEditorInput;
-	options?: TextEditorOptions;
+	options?: ITextEditorOptions;
 }
 
 export class HistoryService extends BaseHistoryService implements IHistoryService {
 
-	public serviceId = IHistoryService;
+	public _serviceBrand: any;
 
 	private static STORAGE_KEY = 'history.entries';
 	private static MAX_HISTORY_ITEMS = 200;
@@ -442,10 +441,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
 			this.currentFileEditorState = stateCandidate;
 
-			let options: TextEditorOptions;
+			let options: ITextEditorOptions;
 			if (storeSelection) {
-				options = new TextEditorOptions();
-				options.selection(editor.getSelection().startLineNumber, editor.getSelection().startColumn);
+				const selection = editor.getSelection();
+				options = {
+					selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn }
+				};
 			}
 
 			this.addToStack(editor.input, options);
@@ -461,7 +462,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.addToStack(editor.input);
 	}
 
-	private addToStack(input: IEditorInput, options?: TextEditorOptions): void {
+	private addToStack(input: IEditorInput, options?: ITextEditorOptions): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific.
@@ -626,21 +627,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		let entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			entries = JSON.parse(entriesRaw);
-		} else {
-			// TODO@Ben migration
-			try {
-				const oldMementoRaw = this.storageService.get('memento/workbench.component.quickopen', StorageScope.WORKSPACE);
-				if (oldMementoRaw) {
-					const oldMemento = JSON.parse(oldMementoRaw);
-					const oldEntries = oldMemento['quickopen.editorhistory'].entries;
-
-					if (oldEntries) {
-						entries = oldEntries;
-					}
-				}
-			} catch (error) {
-				console.error(error);
-			}
 		}
 
 		this.history = entries.map(entry => {

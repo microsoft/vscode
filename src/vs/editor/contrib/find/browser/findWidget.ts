@@ -16,7 +16,7 @@ import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {IMessage as InputBoxMessage, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';
@@ -71,8 +71,6 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 
-	private focusTracker: dom.IFocusTracker;
-
 	constructor(
 		codeEditor: ICodeEditor,
 		controller: IFindController,
@@ -95,9 +93,6 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._buildDomNode();
 		this._updateButtons();
 
-		this.focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
-		this.focusTracker.addFocusListener(() => this._reseedFindScope());
-
 		this._register(this._codeEditor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.readOnly) {
 				if (this._codeEditor.getConfiguration().readOnly) {
@@ -114,14 +109,6 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		}));
 
 		this._codeEditor.addOverlayWidget(this);
-	}
-
-	private _reseedFindScope(): void {
-		let selection = this._codeEditor.getSelection();
-		if (selection.startLineNumber !== selection.endLineNumber) {
-			// Reseed find scope
-			this._state.change({ searchScope: selection }, true);
-		}
 	}
 
 	// ----- IOverlayWidget API
@@ -461,7 +448,10 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
 			onChange: () => {
 				if (this._toggleSelectionFind.checked) {
-					this._reseedFindScope();
+					let selection = this._codeEditor.getSelection();
+					if (!selection.isEmpty()) {
+						this._state.change({ searchScope: selection }, true);
+					}
 				} else {
 					this._state.change({ searchScope: null }, true);
 				}

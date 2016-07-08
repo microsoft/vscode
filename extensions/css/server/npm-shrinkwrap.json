@@ -1,0 +1,31 @@
+{
+  "name": "vscode-css-server",
+  "version": "0.0.1",
+  "dependencies": {
+    "vscode-css-languageservice": {
+      "version": "1.0.4",
+      "from": "vscode-css-languageservice@>=1.0.4 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-1.0.4.tgz"
+    },
+    "vscode-jsonrpc": {
+      "version": "2.2.0",
+      "from": "vscode-jsonrpc@>=2.2.0 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-2.2.0.tgz"
+    },
+    "vscode-languageserver": {
+      "version": "2.2.1",
+      "from": "vscode-languageserver@>=2.2.0 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-2.2.1.tgz"
+    },
+    "vscode-languageserver-types": {
+      "version": "1.0.1",
+      "from": "vscode-languageserver-types@>=1.0.1 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-1.0.1.tgz"
+    },
+    "vscode-nls": {
+      "version": "1.0.7",
+      "from": "vscode-nls@>=1.0.4 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+    }
+  }
+}

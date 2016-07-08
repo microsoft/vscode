@@ -14,7 +14,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 
 export class MainThreadCompatWorkerService implements ICompatWorkerService {
-	public serviceId = ICompatWorkerService;
+	public _serviceBrand: any;
 	public isInMainThread = true;
 
 	private _workerFactory: DefaultWorkerFactory;

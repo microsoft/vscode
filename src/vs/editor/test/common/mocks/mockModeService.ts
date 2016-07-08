@@ -7,12 +7,11 @@
 import Event from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
 import {IModeService, IModeLookupResult} from 'vs/editor/common/services/modeService';
 
 export class MockModeService implements IModeService {
-	serviceId: ServiceIdentifier<any> = IModeService;
+	_serviceBrand: any;
 
 	onDidAddModes: Event<string[]> = undefined;
 	onDidCreateMode: Event<modes.IMode> = undefined;

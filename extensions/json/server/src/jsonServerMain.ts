@@ -36,8 +36,7 @@ namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
 }
 
-// Create a connection for the server. The connection uses for
-// stdin / stdout for message passing
+// Create a connection for the server
 let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
 
 console.log = connection.console.log.bind(connection.console);
@@ -107,6 +106,7 @@ let schemaRequestService = (uri:string): Thenable<string> => {
 	});
 };
 
+// create the JSON language service
 let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
@@ -117,14 +117,7 @@ let languageService = getLanguageService({
 	]
 });
 
-
-// The content of a text document has changed. This event is emitted
-// when the text document first opened or when its content has changed.
-documents.onDidChangeContent((change) => {
-	triggerValidation(change.document);
-});
-
-// The settings interface describe the server relevant settings part
+// The settings interface describes the server relevant settings part
 interface Settings {
 	json: {
 		schemas: JSONSchemaSettings[];
@@ -201,21 +194,31 @@ function updateConfiguration() {
 	documents.all().forEach(triggerValidation);
 }
 
-let pendingValidationRequests : {[uri:string]:number} = {};
-const validationDelayMs = 200;
-documents.onDidClose(e => {
-	let request = pendingValidationRequests[e.document.uri];
-	if (request) {
-		clearTimeout(request);
-		delete pendingValidationRequests[e.document.uri];
-	}
+// The content of a text document has changed. This event is emitted
+// when the text document first opened or when its content has changed.
+documents.onDidChangeContent((change) => {
+	triggerValidation(change.document);
 });
 
-function triggerValidation(textDocument: TextDocument): void {
+// a document has closed: clear all diagnostics
+documents.onDidClose(event => {
+	cleanPendingValidation(event.document);
+	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+});
+
+let pendingValidationRequests : {[uri:string]:number} = {};
+const validationDelayMs = 200;
+
+function cleanPendingValidation(textDocument: TextDocument): void {
 	let request = pendingValidationRequests[textDocument.uri];
 	if (request) {
 		clearTimeout(request);
+		delete pendingValidationRequests[textDocument.uri];
 	}
+}
+
+function triggerValidation(textDocument: TextDocument): void {
+	cleanPendingValidation(textDocument);
 	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
 		delete pendingValidationRequests[textDocument.uri];
 		validateTextDocument(textDocument);

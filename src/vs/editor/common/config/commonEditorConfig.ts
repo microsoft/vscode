@@ -14,7 +14,18 @@ import {Registry} from 'vs/platform/platform';
 import {DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE, GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+
+// TODO@Alex: investigate if it is better to stick to 31 bits (see smi = SMall Integer)
+// See https://thibaultlaurens.github.io/javascript/2013/04/29/how-the-v8-engine-works/#tagged-values
+/**
+ * MAX_INT that fits in 32 bits
+ */
+const MAX_SAFE_INT = 0x7fffffff;
+/**
+ * MIN_INT that fits in 32 bits
+ */
+const MIN_SAFE_INT = -0x80000000;
 
 export interface IEditorZoom {
 	onDidChangeZoomLevel:Event<number>;
@@ -41,6 +52,38 @@ export const EditorZoom: IEditorZoom = new class {
 
 		this._zoomLevel = zoomLevel;
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+	}
+};
+
+/**
+ * Control what pressing Tab does.
+ * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
+ * If it is true, pressing Tab or Shift-Tab will move the browser focus.
+ * Defaults to false.
+ */
+export interface ITabFocus {
+	onDidChangeTabFocus:Event<boolean>;
+	getTabFocusMode(): boolean;
+	setTabFocusMode(tabFocusMode:boolean): void;
+}
+
+export const TabFocus: ITabFocus = new class {
+	private _tabFocus: boolean = false;
+
+	private _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
+	public onDidChangeTabFocus:Event<boolean> = this._onDidChangeTabFocus.event;
+
+	public getTabFocusMode(): boolean {
+		return this._tabFocus;
+	}
+
+	public setTabFocusMode(tabFocusMode:boolean): void {
+		if (this._tabFocus === tabFocusMode) {
+			return;
+		}
+
+		this._tabFocus = tabFocusMode;
+		this._onDidChangeTabFocus.fire(this._tabFocus);
 	}
 };
 
@@ -177,7 +220,7 @@ class InternalEditorOptionsHelper {
 
 		let readOnly = toBoolean(opts.readOnly);
 
-		let tabFocusMode = toBoolean(opts.tabFocusMode);
+		let tabFocusMode = TabFocus.getTabFocusMode();
 		if (readOnly) {
 			tabFocusMode = true;
 		}
@@ -194,7 +237,8 @@ class InternalEditorOptionsHelper {
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
 			roundedSelection: toBoolean(opts.roundedSelection),
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
-			cursorBlinking: opts.cursorBlinking,
+			cursorBlinking: cursorBlinkingStyleFromString(opts.cursorBlinking),
+			mouseWheelZoom: toBoolean(opts.mouseWheelZoom),
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
@@ -202,7 +246,7 @@ class InternalEditorOptionsHelper {
 			stopRenderingLineAfter: stopRenderingLineAfter,
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
-			indentGuides: toBoolean(opts.indentGuides),
+			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			scrollbar: scrollbar,
 		});
 
@@ -218,7 +262,6 @@ class InternalEditorOptionsHelper {
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			selectionHighlight: toBoolean(opts.selectionHighlight),
-			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
 			folding: toBoolean(opts.folding),
 		});
@@ -294,18 +337,14 @@ function toFloat(source: any, defaultValue: number): number {
 	return r;
 }
 
-function toInteger(source:any, minimum?:number, maximum?:number): number {
+function toInteger(source:any, minimum:number = MIN_SAFE_INT, maximum:number = MAX_SAFE_INT): number {
 	let r = parseInt(source, 10);
 	if (isNaN(r)) {
 		r = 0;
 	}
-	if (typeof minimum === 'number') {
-		r = Math.max(minimum, r);
-	}
-	if (typeof maximum === 'number') {
-		r = Math.min(maximum, r);
-	}
-	return r;
+	r = Math.max(minimum, r);
+	r = Math.min(maximum, r);
+	return r | 0;
 }
 
 function toSortedIntegerArray(source:any): number[] {
@@ -337,6 +376,23 @@ function cursorStyleFromString(cursorStyle:string): editorCommon.TextEditorCurso
 		return editorCommon.TextEditorCursorStyle.Underline;
 	}
 	return editorCommon.TextEditorCursorStyle.Line;
+}
+
+function cursorBlinkingStyleFromString(cursorBlinkingStyle: string): editorCommon.TextEditorCursorBlinkingStyle {
+	switch (cursorBlinkingStyle) {
+		case 'blink':
+			return editorCommon.TextEditorCursorBlinkingStyle.Blink;
+		case 'smooth':
+			return editorCommon.TextEditorCursorBlinkingStyle.Smooth;
+		case 'phase':
+			return editorCommon.TextEditorCursorBlinkingStyle.Phase;
+		case 'expand':
+			return editorCommon.TextEditorCursorBlinkingStyle.Expand;
+		case 'visible': // maintain compatibility
+		case 'solid':
+			return editorCommon.TextEditorCursorBlinkingStyle.Solid;
+	}
+	return editorCommon.TextEditorCursorBlinkingStyle.Blink;
 }
 
 function toIntegerWithDefault(source:any, defaultValue:number): number {
@@ -383,6 +439,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this.editor = this._computeInternalOptions();
 		this.editorClone = this.editor.clone();
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
 	public dispose(): void {
@@ -655,11 +712,6 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.selectionHighlight,
 			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight similar matches to the selection")
 		},
-//		'editor.outlineMarkers' : {
-//			'type': 'boolean',
-//			'default': DefaultConfig.editor.outlineMarkers,
-//			'description': nls.localize('outlineMarkers', "Controls whether the editor should draw horizontal lines before classes and methods")
-//		},
 		'editor.overviewRulerLanes' : {
 			'type': 'integer',
 			'default': 3,
@@ -667,15 +719,20 @@ let editorConfiguration:IConfigurationNode = {
 		},
 		'editor.cursorBlinking' : {
 			'type': 'string',
-			'enum': ['blink', 'visible', 'hidden'],
+			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
 			'default': DefaultConfig.editor.cursorBlinking,
-			'description': nls.localize('cursorBlinking', "Controls the cursor blinking animation, accepted values are 'blink', 'visible', and 'hidden'")
+			'description': nls.localize('cursorBlinking', "Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'")
+		},
+		'editor.mouseWheelZoom': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.mouseWheelZoom,
+			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl")
 		},
 		'editor.cursorStyle' : {
 			'type': 'string',
-			'enum': ['block', 'line'],
+			'enum': ['block', 'line', 'underline'],
 			'default': DefaultConfig.editor.cursorStyle,
-			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block' and 'line'")
+			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'line' and 'underline'")
 		},
 		'editor.fontLigatures' : {
 			'type': 'boolean',
@@ -697,11 +754,11 @@ let editorConfiguration:IConfigurationNode = {
 			default: DefaultConfig.editor.renderControlCharacters,
 			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters")
 		},
-		// 'editor.indentGuides': {
-		// 	'type': 'boolean',
-		// 	default: DefaultConfig.editor.indentGuides,
-		// 	description: nls.localize('indentGuides', "Controls whether the editor should render indent guides")
-		// },
+		'editor.renderIndentGuides': {
+			'type': 'boolean',
+			default: DefaultConfig.editor.renderIndentGuides,
+			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
+		},
 		'editor.referenceInfos' : {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.referenceInfos,

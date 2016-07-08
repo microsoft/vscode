@@ -7,6 +7,7 @@
 import {IDisposable}  from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 /**
  * To an event a function with one or zero parameters
@@ -149,6 +150,33 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 		}
 		return result;
 	};
+}
+
+export function fromPromise<T>(promise: TPromise<Event<T>>): Event<T> {
+	let toCancel: TPromise<any> = null;
+	let listener: IDisposable = null;
+
+	const emitter = new Emitter<T>({
+		onFirstListenerAdd() {
+			toCancel = promise.then(
+				event => listener = event(e => emitter.fire(e)),
+				() => null
+			);
+		},
+		onLastListenerRemove() {
+			if (toCancel) {
+				toCancel.cancel();
+				toCancel = null;
+			}
+
+			if (listener) {
+				listener.dispose();
+				listener = null;
+			}
+		}
+	});
+
+	return emitter.event;
 }
 
 export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {

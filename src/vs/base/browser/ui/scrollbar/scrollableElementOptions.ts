@@ -4,11 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export enum ScrollbarVisibility {
-	Auto = 1,
-	Hidden = 2,
-	Visible = 3
-}
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 
 export interface ScrollableElementCreationOptions {
 	/**

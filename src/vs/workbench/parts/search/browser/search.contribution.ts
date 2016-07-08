@@ -21,15 +21,17 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {OpenSearchViewletAction} from 'vs/workbench/parts/search/browser/searchActions';
+import {OpenSearchViewletAction, ReplaceInFilesAction} from 'vs/workbench/parts/search/browser/searchActions';
 import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
-import { registerContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
+import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
+import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
 
-registerContributions();
+replaceContributions();
+searchWidgetContributions();
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',
@@ -120,6 +122,13 @@ const openSearchViewletKb: IKeybindings = {
 	nls.localize('view', "View")
 );
 
+(<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).registerWorkbenchAction(
+	new SyncActionDescriptor(ReplaceInFilesAction, ReplaceInFilesAction.ID, ReplaceInFilesAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H
+	}),
+	'Replace in Files'
+);
+
 // Contribute to Explorer Viewer
 const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
@@ -130,7 +139,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
-		nls.localize('openAnythingHandlerDescription', "Open Files and Symbols by Name")
+		nls.localize('openAnythingHandlerDescription', "Open Files and Global Symbols by Name")
 	)
 );
 
@@ -143,7 +152,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 			{
 				prefix: ALL_SYMBOLS_PREFIX,
 				needsEditor: false,
-				description: nls.localize('openSymbolDescriptionNormal', "Open Symbol By Name")
+				description: nls.localize('openSymbolDescriptionNormal', "Open Any Symbol By Name")
 			}
 		]
 	)

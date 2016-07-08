@@ -9,7 +9,8 @@ import nls = require('vs/nls');
 import {Action, IAction} from 'vs/base/common/actions';
 import {IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor} from 'vs/workbench/browser/quickopen';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -17,10 +18,9 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
@@ -276,7 +276,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousRecentlyUs
 		primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab
 	}
 }), 'Open Previous Recently Used Editor in Group');
-registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllEditorsAction, ShowAllEditorsAction.ID, ShowAllEditorsAction.LABEL, { primary: null, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllEditorsAction, ShowAllEditorsAction.ID, ShowAllEditorsAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P), mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, ShowEditorsInLeftGroupAction.LABEL), 'View: Show Editors in Left Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, ShowEditorsInCenterGroupAction.LABEL), 'View: Show Editors in Center Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, ShowEditorsInRightGroupAction.LABEL), 'View: Show Editors in Left Group', category);
@@ -384,7 +384,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.editor.showTabs': {
 			'type': 'boolean',
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
-			'default': false
+			'default': true
 		},
 		'workbench.editor.enablePreview': {
 			'type': 'boolean',
@@ -403,52 +403,4 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		}
 	}
-});
-
-// TODO@Ben remove me next version
-
-const mapDeprecatedCommands = {
-	'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
-	'workbench.action.focusSecondEditor': 'workbench.action.focusSecondEditorGroup',
-	'workbench.action.focusThirdEditor': 'workbench.action.focusThirdEditorGroup',
-	'workbench.action.focusLeftEditor': 'workbench.action.focusPreviousGroup',
-	'workbench.action.focusRightEditor': 'workbench.action.focusNextGroup',
-	'workbench.action.moveActiveEditorLeft': 'workbench.action.moveActiveEditorGroupLeft',
-	'workbench.action.moveActiveEditorRight': 'workbench.action.moveActiveEditorGroupRight',
-	'workbench.action.openPreviousEditor': 'workbench.action.openPreviousEditorFromHistory',
-	'workbench.files.action.addToWorkingFiles': 'workbench.action.keepEditor',
-	'workbench.files.action.closeAllFiles': 'workbench.action.closeAllEditors',
-	'workbench.files.action.closeFile': 'workbench.action.closeActiveEditor',
-	'workbench.files.action.closeOtherFiles': 'workbench.action.closeOtherEditors',
-	'workbench.files.action.focusWorkingFiles': 'workbench.files.action.focusOpenEditorsView',
-	'workbench.files.action.openNextWorkingFile': 'workbench.action.nextEditor',
-	'workbench.files.action.openPreviousWorkingFile': 'workbench.action.previousEditor',
-	'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
-	'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
-	'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups'
-};
-
-Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
-	const newCommandId = mapDeprecatedCommands[deprecatedCommandId];
-
-	KeybindingsRegistry.registerCommandDesc({
-		id: deprecatedCommandId,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-		handler(accessor: ServicesAccessor) {
-			const messageService = accessor.get(IMessageService);
-			const keybindingService = accessor.get(IKeybindingService);
-
-			messageService.show(Severity.Warning, {
-				message: nls.localize('commandDeprecated', "Command **{0}** is now deprecated. You can use **{1}** instead", deprecatedCommandId, newCommandId),
-				actions: [
-					CloseAction,
-					new Action('openKeybindings', nls.localize('openKeybindings', "Configure Keyboard Shortcuts"), null, true, () => {
-						return keybindingService.executeCommand('workbench.action.openGlobalKeybindings');
-					})
-				]
-			});
-		},
-		when: undefined,
-		primary: undefined
-	});
 });

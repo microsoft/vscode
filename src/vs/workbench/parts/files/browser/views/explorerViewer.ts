@@ -21,12 +21,13 @@ import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {$} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
-import {EditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
+import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -38,7 +39,8 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -591,12 +593,10 @@ export class FileController extends DefaultController {
 
 	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean, pinned = false): void {
 		if (stat && !stat.isDirectory) {
-			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			let editorOptions = EditorOptions.create({ preserveFocus, pinned });
-
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor(editorInput, editorOptions, sideBySide).done(null, errors.onUnexpectedError);
+			const editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
+			this.editorService.openEditor(editorInput, { preserveFocus, pinned }, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -696,6 +696,8 @@ export class FileFilter implements IFilter {
 
 // Explorer Drag And Drop Controller
 export class FileDragAndDrop implements IDragAndDrop {
+	private toDispose: IDisposable[];
+	private dropEnabled: boolean;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -703,9 +705,23 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@IEventService private eventService: IEventService,
 		@IProgressService private progressService: IProgressService,
 		@IFileService private fileService: IFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
+		this.toDispose = [];
+
+		this.onConfigurationUpdated(configurationService.getConfiguration<IFilesConfiguration>());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(config: IFilesConfiguration): void {
+		this.dropEnabled = config && config.explorer && config.explorer.enableDragAndDrop;
 	}
 
 	public getDragURI(tree: ITree, stat: FileStat): string {
@@ -734,6 +750,10 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (!this.dropEnabled) {
+			return DRAG_OVER_REJECT;
+		}
+
 		let isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
 		let fromDesktop = data instanceof DesktopDragAndDropData;
 

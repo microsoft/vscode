@@ -10,7 +10,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 export var IPanelService = createDecorator<IPanelService>('panelService');
 
 export interface IPanelService {
-	serviceId : ServiceIdentifier<any>;
+	_serviceBrand : ServiceIdentifier<any>;
 
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.

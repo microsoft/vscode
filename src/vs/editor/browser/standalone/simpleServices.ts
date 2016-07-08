@@ -15,9 +15,10 @@ import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/c
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {ICommandHandler, ICommandsMap, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -72,7 +73,7 @@ export interface IOpenEditorDelegate {
 }
 
 export class SimpleEditorService implements IEditorService {
-	public serviceId = IEditorService;
+	public _serviceBrand: any;
 
 	private editor:SimpleEditor;
 	private openEditorDelegate:IOpenEditorDelegate;
@@ -163,7 +164,7 @@ export class SimpleEditorService implements IEditorService {
 }
 
 export class SimpleMessageService implements IMessageService {
-	public serviceId = IMessageService;
+	public _serviceBrand: any;
 
 	private static Empty = function() { /* nothing */};
 
@@ -202,10 +203,10 @@ export class StandaloneKeybindingService extends KeybindingService {
 	private static LAST_GENERATED_ID = 0;
 
 	private _dynamicKeybindings: IKeybindingItem[];
-	private _dynamicCommands: ICommandsMap;
+	private _dynamicCommands: { [id: string]: ICommandHandler };
 
-	constructor(configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
-		super(configurationService, messageService);
+	constructor(commandService: ICommandService, configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
+		super(commandService, configurationService, messageService);
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);

@@ -159,7 +159,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 			if (d.options.isWholeLine) {
 				continue;
 			}
-			let linesVisibleRanges = ctx.linesVisibleRangesForRange(d.range, false);
+			let linesVisibleRanges = ctx.linesVisibleRangesForRange(d.range, /*TODO@Alex*/d.options.className === 'findMatch');
 			if (!linesVisibleRanges) {
 				continue;
 			}

@@ -98,7 +98,7 @@ export class RatingsWidget implements IDisposable {
 	}
 
 	private render(): void {
-		const rating = this.extension.rating;
+		const rating = Math.round(this.extension.rating * 2) / 2;
 		this.container.innerHTML = '';
 
 		if (rating === null) {

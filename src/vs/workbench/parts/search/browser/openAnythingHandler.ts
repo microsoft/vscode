@@ -64,7 +64,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
-		this.openSymbolHandler.setStandalone(false);
+		this.openSymbolHandler.setOptions({
+			skipDelay: true,		// we have our own delay
+			skipLocalSymbols: true,	// we only want global symbols
+			skipSorting: true 		// we sort combined with file results
+		});
 
 		this.resultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);

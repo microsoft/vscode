@@ -11,7 +11,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
 	private session: MockRawSession;
-	public serviceId = debug.IDebugService;
+	public _serviceBrand: any;
 
 	constructor() {
 		this.session = new MockRawSession();

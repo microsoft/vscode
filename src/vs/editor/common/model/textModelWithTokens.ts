@@ -172,7 +172,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
 
-	private _shouldAutoTokenize:boolean;
 	private _mode: IMode;
 	private _modeListener: IDisposable;
 	private _modeToModelBinder:ModeToModelBinder;
@@ -185,13 +184,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _scheduleRetokenizeNow: RunOnceScheduler;
 	private _retokenizers:IRetokenizeRequest[];
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, shouldAutoTokenize:boolean, modeOrPromise:IMode|TPromise<IMode>) {
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
 		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelModeChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelModeSupportChanged);
 		super(allowedEventTypes, rawText);
 
-		this._shouldAutoTokenize = shouldAutoTokenize;
 		this._mode = null;
 		this._modeListener = null;
 		this._modeToModelBinder = null;
@@ -245,6 +243,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._scheduleRetokenizeNow.dispose();
 
 		super.dispose();
+	}
+
+	protected _shouldAutoTokenize(): boolean {
+		return false;
 	}
 
 	private _massageMode(mode: IMode): IMode {
@@ -505,7 +507,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _beginBackgroundTokenization(): void {
-		if (this._shouldAutoTokenize && this._revalidateTokensTimeout === -1) {
+		if (this._shouldAutoTokenize() && this._revalidateTokensTimeout === -1) {
 			this._revalidateTokensTimeout = setTimeout(() => {
 				this._revalidateTokensTimeout = -1;
 				this._revalidateTokensNow();
@@ -526,6 +528,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 		}
 		this._revalidateTokensNow(toLineNumber);
+
+		if (this._invalidLineStartIndex < this._lines.length) {
+			this._beginBackgroundTokenization();
+		}
 	}
 
 	private _revalidateTokensNow(toLineNumber:number = this._invalidLineStartIndex + 1000000): void {

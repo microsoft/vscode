@@ -21,7 +21,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
  * between different layers of the platform.
  */
 export class BaseRequestService implements IRequestService {
-	public serviceId = IRequestService;
+	public _serviceBrand: any;
 	private _serviceMap: { [service: string]: string; };
 	private _origin: string;
 

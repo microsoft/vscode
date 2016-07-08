@@ -16,7 +16,7 @@ import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInpu
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {Position} from 'vs/platform/editor/common/editor';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';

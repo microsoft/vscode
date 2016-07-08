@@ -42,17 +42,19 @@ export class DelayedDragHandler {
 	}
 }
 
-export function extractResources(e: DragEvent): URI[] {
+export function extractResources(e: DragEvent, externalOnly?: boolean): URI[] {
 	const resources: URI[] = [];
 	if (e.dataTransfer.types.length > 0) {
 
 		// Check for in-app DND
-		const rawData = e.dataTransfer.getData(e.dataTransfer.types[0]);
-		if (rawData) {
-			try {
-				resources.push(URI.parse(rawData));
-			} catch (error) {
-				// Invalid URI
+		if (!externalOnly) {
+			const rawData = e.dataTransfer.getData(e.dataTransfer.types[0]);
+			if (rawData) {
+				try {
+					resources.push(URI.parse(rawData));
+				} catch (error) {
+					// Invalid URI
+				}
 			}
 		}
 

@@ -10,65 +10,45 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {values} from 'vs/base/common/collections';
-import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {MenuId, CommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
+import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {MenuId, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 
-export interface IDeclaredMenuItem {
-	command: string;
-	alt?: string;
-	when?: string;
-	group?: string;
-}
-
 export interface IMenuRegistry {
-	addCommand(userCommand: CommandAction): boolean;
-	hasCommand(id: string): boolean;
-	addMenuItems(location: MenuId, items: IDeclaredMenuItem[]): void;
+	addCommand(userCommand: ICommandAction): boolean;
+	getCommand(id: string): ICommandAction;
+	appendMenuItem(menu: MenuId, item: IMenuItem): void;
 }
 
 const _registry = new class {
 
-	commands: { [id: string]: CommandAction } = Object.create(null);
+	commands: { [id: string]: ICommandAction } = Object.create(null);
 
-	menuItems: { [loc: number]: IDeclaredMenuItem[] } = Object.create(null);
+	menuItems: { [loc: number]: IMenuItem[] } = Object.create(null);
 
-	addCommand(command: CommandAction): boolean {
+	addCommand(command: ICommandAction): boolean {
 		const old = this.commands[command.id];
 		this.commands[command.id] = command;
 		return old !== void 0;
 	}
 
-	hasCommand(id: string): boolean {
-		return this.commands[id] !== void 0;
+	getCommand(id: string): ICommandAction {
+		return this.commands[id];
 	}
 
-	addMenuItems(loc: MenuId, items: IDeclaredMenuItem[]): void {
+	appendMenuItem(loc: MenuId, items: IMenuItem): void {
 		let array = this.menuItems[loc];
 		if (!array) {
-			this.menuItems[loc] = items;
+			this.menuItems[loc] = [items];
 		} else {
-			array.push(...items);
+			array.push(items);
 		}
 	}
 	getMenuItems(loc: MenuId): IMenuItem[] {
-		const result: IMenuItem[] = [];
-		const menuItems = this.menuItems[loc];
-		if (menuItems) {
-			for (let item of menuItems) {
-				const command = this.commands[item.command];
-				if (!command) {
-					// warn?
-					continue;
-				}
-				const when = KbExpr.deserialize(item.when);
-				const alt = this.commands[item.alt];
-				result.push({ when, command, alt, group: item.group });
-			}
-		}
-		return result;
+		return this.menuItems[loc] || [];
 	}
 };
 
@@ -76,24 +56,25 @@ export const MenuRegistry: IMenuRegistry = _registry;
 
 export class MenuService implements IMenuService {
 
-	serviceId = IMenuService;
+	_serviceBrand: any;
 
 	constructor(
-		@IExtensionService private _extensionService: IExtensionService
+		@IExtensionService private _extensionService: IExtensionService,
+		@ICommandService private _commandService: ICommandService
 	) {
 		//
 	}
 
 	createMenu(id: MenuId, keybindingService: IKeybindingService): IMenu {
-		return new Menu(id, keybindingService, this._extensionService);
+		return new Menu(id, this._commandService, keybindingService, this._extensionService);
 	}
 
-	getCommandActions(): CommandAction[] {
+	getCommandActions(): ICommandAction[] {
 		return values(_registry.commands);
 	}
 }
 
-type MenuItemGroup = [string, IMenuItem[]];
+type MenuItemGroup = [string, MenuItemAction[]];
 
 class Menu implements IMenu {
 
@@ -103,6 +84,7 @@ class Menu implements IMenu {
 
 	constructor(
 		id: MenuId,
+		@ICommandService private _commandService: ICommandService,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IExtensionService private _extensionService: IExtensionService
 	) {
@@ -121,7 +103,7 @@ class Menu implements IMenu {
 					group = [groupName, []];
 					this._menuGroups.push(group);
 				}
-				group[1].push(item);
+				group[1].push(new MenuItemAction(item, this._commandService));
 
 				// keep keys for eventing
 				Menu._fillInKbExprKeys(item.when, keysFilter);
@@ -151,19 +133,18 @@ class Menu implements IMenu {
 	}
 
 	getActions(): [string, IAction[]][] {
-		const result: [string, IAction[]][] = [];
+		const result: MenuItemGroup[] = [];
 		for (let group of this._menuGroups) {
-			const [id, items] = group;
-			const actions: IAction[] = [];
-			for (let item of items) {
-				if (this._keybindingService.contextMatchesRules(item.when)) {
-					actions.push(new MenuItemAction(item,
-						this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource),
-						this._keybindingService));
+			const [id, actions] = group;
+			const activeActions: MenuItemAction[] = [];
+			for (let action of actions) {
+				if (this._keybindingService.contextMatchesRules(action.item.when)) {
+					action.resource = this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource);
+					activeActions.push(action);
 				}
 			}
 			if (actions.length > 0) {
-				result.push([id, actions]);
+				result.push([id, activeActions]);
 			}
 		}
 		return result;
@@ -171,25 +152,22 @@ class Menu implements IMenu {
 
 	private static _fillInKbExprKeys(exp: KbExpr, set: { [k: string]: boolean }): void {
 		if (exp) {
-			const parts = exp.serialize().split(' && ');
-			for (let part of parts) {
-				const m = /^\S+/.exec(part);
-				if (m) {
-					set[m[0]] = true;
-				}
+			for (let key of exp.keys()) {
+				set[key] = true;
 			}
 		}
 	}
 
 	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
-		let ret: number;
-		if (a.group && b.group) {
-			ret = Menu._compareGroupId(a.group, b.group);
+		if (a.group === b.group) {
+			return a.command.title.localeCompare(b.command.title);
+		} else if (!a.group) {
+			return 1;
+		} else if (!b.group) {
+			return -1;
+		} else {
+			return Menu._compareGroupId(a.group, b.group);
 		}
-		if (!ret) {
-			ret = a.command.title.localeCompare(b.command.title);
-		}
-		return ret;
 	}
 
 	private static _compareGroupId(a: string, b: string): number {

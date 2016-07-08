@@ -30,6 +30,7 @@ var commit = util.getVersion(root);
 var dependencies = Object.keys(shrinkwrap.dependencies);
 var baseModules = Object.keys(process.binding('natives')).filter(function (n) { return !/^_|\//.test(n); });
 var nodeModules = ['electron'].concat(dependencies).concat(baseModules);
+nodeModules.push('original-fs'); // provided by electron to have original fs functionality without ASAR support
 
 // Build
 
@@ -60,6 +61,7 @@ var vscodeResources = [
 	'out-build/vs/workbench/parts/git/**/*.html',
 	'out-build/vs/workbench/parts/git/**/*.sh',
 	'out-build/vs/workbench/parts/html/browser/webview.html',
+	'out-build/vs/workbench/parts/extensions/electron-browser/media/markdown.css',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',

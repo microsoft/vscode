@@ -9,13 +9,13 @@
 	margin: 4px 10px 0 0;
 }
 
-.vs .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
-	border: 1px solid #ddd;
+.monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	height: 25px;
 }
 
-.monaco-action-bar .action-item.markers-panel-action-filter .filterIcon {
-	margin: 2px 0 0 4px;
-	background: url('filter.svg') center center no-repeat;
+.vs .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	height: 25px;
+	border: 1px solid #ddd;
 }
 
 .markers-panel .markers-panel-container {
@@ -23,7 +23,8 @@
 }
 
 .markers-panel .markers-panel-container .message-box-container {
-	padding: 20px 0 0 20px;
+	line-height: 22px;
+	padding-left: 20px;
 }
 
 .markers-panel .markers-panel-container .message-box-container span:focus {
@@ -36,7 +37,6 @@
 
 .markers-panel .markers-panel-container .tree-container {
 	height: 100%;
-	margin-top: 2px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
@@ -63,15 +63,6 @@
 	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
-	color: #bcbcbc;
-	margin-right: 5px;
-}
-
-.vs-dark .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source {
-	color: #888;
-}
-
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source:before {
 	content: '[';
 }
@@ -80,9 +71,9 @@
 	content: ']';
 }
 
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source,
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line {
-	opacity: 0.6;
-	font-size: 85%;
+	opacity: 0.7;
 	margin-right: 5px;
 }
 
@@ -96,12 +87,10 @@
 }
 
 .markers-panel .icon {
-	float: left;
-	display: block;
-	width: 16px;
 	height: 22px;
 	margin-right: 4px;
 	margin-left: 4px;
+	flex: 0 0 16px;
 }
 
 .markers-panel .icon.warning {

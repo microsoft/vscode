@@ -20,7 +20,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
+import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
 import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

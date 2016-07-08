@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 // Model raw interfaces
@@ -291,7 +291,7 @@ export var GIT_SERVICE_ID = 'gitService';
 export var IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
 
 export interface IGitService extends IEventEmitter {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	allowHugeRepositories: boolean;
 	onOutput: Event<string>;
 	status(): TPromise<IModel>;

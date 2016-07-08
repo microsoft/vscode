@@ -28,7 +28,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity, IMessageWithAction} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const ALL_COMMANDS_PREFIX = '>';
@@ -67,7 +67,13 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.keyLabel = keyLabel;
 		this.keyAriaLabel = keyAriaLabel;
 		this.label = label;
-		this.alias = alias;
+
+		if (label !== alias) {
+			this.alias = alias;
+		} else {
+			aliasHighlights = null;
+		}
+
 		this.setHighlights(labelHighlights, null, aliasHighlights);
 	}
 
@@ -260,7 +266,10 @@ export class CommandsHandler extends QuickOpenHandler {
 		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		let otherActions = this.menuService.getCommandActions().map(command => new ExecuteCommandAction(command.id, command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title, this.keybindingService));
+		let otherActions = this.menuService.getCommandActions().map(command => {
+			return this.instantiationService.createInstance(ExecuteCommandAction, command.id,
+				command.category ? nls.localize('', "{0}: {1}", command.category, command.title) : command.title);
+		});
 		let otherEntries = this.otherActionsToEntries(otherActions, searchValue);
 
 		// Concat

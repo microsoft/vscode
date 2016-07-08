@@ -5,14 +5,14 @@
 
 import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
+import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export class TerminalInstance {
 	private isExiting: boolean = false;
@@ -28,18 +28,13 @@ export class TerminalInstance {
 		private parentDomElement: HTMLElement,
 		private contextService: IWorkspaceContextService,
 		private terminalService: ITerminalService,
+		private messageService: IMessageService,
 		private onExitCallback: (TerminalInstance) => void
 	) {
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.terminalDomElement = document.createElement('div');
-		let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
-			canUseTranslate3d: false,
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto
-		});
-		this.toDispose.push(terminalScrollbar);
 		this.xterm = xterm();
 
 		this.terminalProcess.process.on('message', (message) => {
@@ -60,7 +55,7 @@ export class TerminalInstance {
 				this.isExiting = true;
 				this.dispose();
 				if (exitCode) {
-					console.error('Integrated terminal exited with code ' + exitCode);
+					this.messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
 				}
 				this.onExitCallback(this);
 			}
@@ -85,7 +80,7 @@ export class TerminalInstance {
 		}));
 
 		this.xterm.open(this.terminalDomElement);
-		this.wrapperElement.appendChild(terminalScrollbar.getDomNode());
+		this.wrapperElement.appendChild(this.terminalDomElement);
 		this.parentDomElement.appendChild(this.wrapperElement);
 	}
 
@@ -136,10 +131,6 @@ export class TerminalInstance {
 		if (!text || force) {
 			this.xterm.focus();
 		}
-	}
-
-	public dispatchEvent(event: Event) {
-		this.xterm.element.dispatchEvent(event);
 	}
 
 	public dispose(): void {

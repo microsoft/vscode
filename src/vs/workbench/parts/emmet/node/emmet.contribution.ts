@@ -16,6 +16,7 @@ import './actions/matchingPair';
 import './actions/wrapWithAbbreviation';
 import './actions/editPoints';
 import './actions/selectItem';
+import './actions/toggleComment';
 import './actions/splitJoinTag';
 import './actions/removeTag';
 import './actions/mergeLines';
@@ -23,7 +24,7 @@ import './actions/updateImageSize';
 import './actions/evaluateMath';
 import './actions/incrementDecrement';
 import './actions/reflectCssValue';
-import './actions/base64';
+// import './actions/base64'; // disabled - we will revisit the implementation
 import './actions/updateTag';
 
 // Configuration: emmet

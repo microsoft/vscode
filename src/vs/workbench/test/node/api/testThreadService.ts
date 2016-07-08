@@ -10,7 +10,7 @@ import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstrac
 import {IThreadService, ProxyIdentifier} from 'vs/workbench/services/thread/common/threadService';
 
 export class TestThreadService extends AbstractThreadService implements IThreadService {
-	public serviceId = IThreadService;
+	public _serviceBrand: any;
 
 	constructor() {
 		super(false);

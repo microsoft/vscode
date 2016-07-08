@@ -173,7 +173,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 
 export class ExtensionGalleryService implements IExtensionGalleryService {
 
-	serviceId = IExtensionGalleryService;
+	_serviceBrand: any;
 
 	private extensionsGalleryUrl: string;
 	private machineId: TPromise<string>;

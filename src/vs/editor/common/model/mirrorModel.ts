@@ -25,7 +25,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	_associatedResource:URI;
 
 	constructor(allowedEventTypes:string[], versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
-		super(allowedEventTypes.concat([editorCommon.EventType.ModelDispose]), value, false, mode);
+		super(allowedEventTypes.concat([editorCommon.EventType.ModelDispose]), value, mode);
 
 		this._setVersionId(versionId);
 		this._associatedResource = associatedResource;
