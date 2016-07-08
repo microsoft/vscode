@@ -11,19 +11,23 @@ export interface ILinkComputerTarget {
 	getLineContent(lineNumber:number): string;
 }
 
-// State machine for http:// or https://
-var STATE_MAP:{[ch:string]:number}[] = [], START_STATE = 1, END_STATE = 9, ACCEPT_STATE = 10;
-STATE_MAP[1] = { 'h': 2, 'H': 2, 'f': 11, 'F': 11 };
+// State machine for http:// or https:// or file://
+const STATE_MAP:{[ch:string]:number}[] = [];
+const START_STATE = 1;
+const END_STATE = 12;
+const ACCEPT_STATE = 13;
+
+STATE_MAP[1] = { 'h': 2, 'H': 2, 'f': 6, 'F': 6 };
 STATE_MAP[2] = { 't': 3, 'T': 3 };
 STATE_MAP[3] = { 't': 4, 'T': 4 };
 STATE_MAP[4] = { 'p': 5, 'P': 5 };
-STATE_MAP[5] = { 's': 6, 'S': 6, ':': 7 };
-STATE_MAP[6] = { ':': 7 };
-STATE_MAP[7] = { '/': 8 };
-STATE_MAP[8] = { '/': 9 };
-STATE_MAP[11] = { 'i': 12, 'I': 12 };
-STATE_MAP[12] = { 'l': 13, 'L': 13 };
-STATE_MAP[13] = { 'e': 6, 'E': 6 };
+STATE_MAP[5] = { 's': 9, 'S': 9, ':': 10 };
+STATE_MAP[6] = { 'i': 7, 'I': 7 };
+STATE_MAP[7] = { 'l': 8, 'L': 8 };
+STATE_MAP[8] = { 'e': 9, 'E': 9 };
+STATE_MAP[9] = { ':': 10 };
+STATE_MAP[10] = { '/': 11 };
+STATE_MAP[11] = { '/': END_STATE };
 
 enum CharacterClass {
 	None = 0,
@@ -31,12 +35,12 @@ enum CharacterClass {
 	CannotEndIn = 2
 }
 
-let _openParens = '('.charCodeAt(0);
-let _closeParens = ')'.charCodeAt(0);
-let _openSquareBracket = '['.charCodeAt(0);
-let _closeSquareBracket = ']'.charCodeAt(0);
-let _openCurlyBracket = '{'.charCodeAt(0);
-let _closeCurlyBracket = '}'.charCodeAt(0);
+const _openParens = '('.charCodeAt(0);
+const _closeParens = ')'.charCodeAt(0);
+const _openSquareBracket = '['.charCodeAt(0);
+const _closeSquareBracket = ']'.charCodeAt(0);
+const _openCurlyBracket = '{'.charCodeAt(0);
+const _closeCurlyBracket = '}'.charCodeAt(0);
 
 class CharacterClassifier {
 
@@ -108,43 +112,27 @@ class LinkComputer {
 	}
 
 	public static computeLinks(model:ILinkComputerTarget):ILink[] {
+		const characterClassifier = LinkComputer._characterClassifier;
 
-		var i:number,
-			lineCount:number,
-			result:ILink[] = [];
+		let result:ILink[] = [];
+		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
+			const line = model.getLineContent(i);
+			const len = line.length;
 
-		var line:string,
-			j:number,
-			lastIncludedCharIndex:number,
-			len:number,
-			linkBeginIndex:number,
-			state:number,
-			ch:string,
-			chCode:number,
-			chClass:CharacterClass,
-			resetStateMachine:boolean,
-			hasOpenParens:boolean,
-			hasOpenSquareBracket:boolean,
-			hasOpenCurlyBracket:boolean,
-			characterClassifier = LinkComputer._characterClassifier;
-
-		for (i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
-			line = model.getLineContent(i);
-			j = 0;
-			len = line.length;
-			linkBeginIndex = 0;
-			state = START_STATE;
-			hasOpenParens = false;
-			hasOpenSquareBracket = false;
-			hasOpenCurlyBracket = false;
+			let j = 0;
+			let linkBeginIndex = 0;
+			let state = START_STATE;
+			let hasOpenParens = false;
+			let hasOpenSquareBracket = false;
+			let hasOpenCurlyBracket = false;
 
 			while (j < len) {
-				ch = line.charAt(j);
-				chCode = line.charCodeAt(j);
-				resetStateMachine = false;
+
+				let resetStateMachine = false;
 
 				if (state === ACCEPT_STATE) {
-
+					let chCode = line.charCodeAt(j);
+					let chClass:CharacterClass;
 					switch (chCode) {
 						case _openParens:
 							hasOpenParens = true;
@@ -175,7 +163,7 @@ class LinkComputer {
 					if (chClass === CharacterClass.ForceTermination) {
 
 						// Do not allow to end link in certain characters...
-						lastIncludedCharIndex = j - 1;
+						let lastIncludedCharIndex = j - 1;
 						do {
 							chCode = line.charCodeAt(lastIncludedCharIndex);
 							chClass = characterClassifier.classify(chCode);
@@ -189,7 +177,8 @@ class LinkComputer {
 						resetStateMachine = true;
 					}
 				} else if (state === END_STATE) {
-					chClass = characterClassifier.classify(chCode);
+					let chCode = line.charCodeAt(j);
+					let chClass = characterClassifier.classify(chCode);
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
@@ -198,6 +187,7 @@ class LinkComputer {
 						state = ACCEPT_STATE;
 					}
 				} else {
+					let ch = line.charAt(j);
 					if (STATE_MAP[state].hasOwnProperty(ch)) {
 						state = STATE_MAP[state][ch];
 					} else {
