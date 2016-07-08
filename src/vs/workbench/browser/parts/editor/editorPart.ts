@@ -192,7 +192,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (!options) { options = null; }
 
 		// Determine position to open editor in (left, center, right)
-		const position = this.validatePosition(arg3, widthRatios);
+		const position = this.findPosition(input, options, arg3, widthRatios);
 
 		// Some conditions under which we prevent the request
 		if (
@@ -1151,9 +1151,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		super.dispose();
 	}
 
-	private validatePosition(sideBySide?: boolean, widthRatios?: number[]): Position;
-	private validatePosition(desiredPosition?: Position, widthRatios?: number[]): Position;
-	private validatePosition(arg1?: any, widthRatios?: number[]): Position {
+	private findPosition(input: EditorInput, options?: EditorOptions, sideBySide?: boolean, widthRatios?: number[]): Position;
+	private findPosition(input: EditorInput, options?: EditorOptions, desiredPosition?: Position, widthRatios?: number[]): Position;
+	private findPosition(input: EditorInput, options?: EditorOptions, arg1?: any, widthRatios?: number[]): Position {
 
 		// With defined width ratios, always trust the provided position
 		if (widthRatios && types.isNumber(arg1)) {
@@ -1165,6 +1165,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		let activeEditor = this.getActiveEditor();
 		if (visibleEditors.length === 0 || !activeEditor) {
 			return Position.LEFT; // can only be LEFT
+		}
+
+		// Respect option to reveal an editor if it is already opened
+		if (options && options.revealIfOpened) {
+			if (typeof arg1 === 'number') {
+				const desiredGroup = this.stacks.groupAt(arg1);
+				if (desiredGroup && desiredGroup.contains(input)) {
+					return arg1;
+				}
+			}
+
+			const groups = this.stacks.groups;
+			for (let i = 0; i < groups.length; i++) {
+				const group = groups[i];
+				if (group.contains(input)) {
+					return this.stacks.positionOfGroup(group);
+				}
+			}
 		}
 
 		// Position is unknown: pick last active or LEFT
