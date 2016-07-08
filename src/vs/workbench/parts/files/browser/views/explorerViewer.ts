@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import path = require('path');
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -279,7 +280,8 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		let el = $(domElement).clearChildren();
-		let item = $('.explorer-item').addClass(this.iconClass(stat)).appendTo(el);
+		let item = $('.explorer-item');
+		item.addClass.apply(item, this.iconClasses(stat)).appendTo(el);
 
 		// File/Folder label
 		let editableData: IEditableData = this.state.getEditableData(stat);
@@ -337,12 +339,23 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		return () => done(true);
 	}
 
-	private iconClass(element: FileStat): string {
+	private iconClasses(element: FileStat): string[] {
 		if (element.isDirectory) {
-			return 'folder-icon';
+			return ['folder-icon'];
 		}
 
-		return 'text-file-icon';
+		let filePath = element.resource.fsPath;
+		let extension = path.extname(filePath);
+		if (filePath.match(/\.d\.ts$/)) {
+			extension = 'd-ts';
+		}
+		if (extension.length === 0) {
+			// Treat dot files (eg. .gitignore) as extensions
+			extension = path.basename(filePath);
+		}
+		extension = extension.replace('.', '');
+
+		return ['text-file-icon', `text-file-ext-${extension}`];
 	}
 }
 

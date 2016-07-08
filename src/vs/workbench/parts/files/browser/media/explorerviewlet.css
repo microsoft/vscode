@@ -128,3 +128,18 @@
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
 }
+
+/* Icons */
+
+.explorer-viewlet .explorer-item {
+	background-size: 16px !important;
+	padding-left: 22px;
+}
+
+.explorer-viewlet .explorer-item.text-file-icon { background: url(icons/file.svg) 1px 3px no-repeat; }
+.explorer-viewlet .explorer-item.folder-icon { background: url(icons/folder.svg) 1px 3px no-repeat; }
+.explorer-viewlet .expanded .explorer-item.folder-icon { background: url(icons/folder_expanded.svg) 1px 3px no-repeat; }
+
+.explorer-viewlet .explorer-item.text-file-ext-ts { background: url(icons/file_type_ts@2x.png) 1px 3px no-repeat; }
+.explorer-viewlet .explorer-item.text-file-ext-d-ts { background: url(icons/file_type_d-ts@2x.png) 1px 3px no-repeat; }
+.explorer-viewlet .explorer-item.text-file-ext-js { background: url(icons/file_type_js@2x.png) 1px 3px no-repeat; }
