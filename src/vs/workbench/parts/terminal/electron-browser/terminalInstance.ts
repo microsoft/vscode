@@ -49,7 +49,7 @@ export class TerminalInstance {
 		this.xterm.on('data', (data) => {
 			this.terminalProcess.process.send({
 				event: 'input',
-				data: data && data.replace(TerminalInstance.eolRegex, os.EOL)
+				data: this.sanitizeInput(data)
 			});
 			return false;
 		});
@@ -86,6 +86,10 @@ export class TerminalInstance {
 		this.xterm.open(this.terminalDomElement);
 		this.wrapperElement.appendChild(this.terminalDomElement);
 		this.parentDomElement.appendChild(this.wrapperElement);
+	}
+
+	private sanitizeInput(data: any) {
+		return typeof data === 'string' ? data.replace(TerminalInstance.eolRegex, os.EOL) : data;
 	}
 
 	public layout(dimension: Dimension): void {
