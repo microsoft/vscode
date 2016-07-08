@@ -2270,7 +2270,7 @@ declare namespace Electron {
 		 * @param x Horizontal coordinate where the menu will be placed.
 		 * @param y Vertical coordinate where the menu will be placed.
 		 */
-		popup(browserWindow?: BrowserWindow, x?: number, y?: number): void;
+		popup(browserWindow?: BrowserWindow, x?: number, y?: number, select?: number): void;
 		/**
 		 * Appends the menuItem to the menu.
 		 */
