@@ -161,7 +161,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	}
 
 	public getRelativeTop(element: any): number {
-		let item= this.model.getItem(element);
+		let item = this.model.getItem(element);
 		return this.view.getRelativeTop(item);
 	}
 

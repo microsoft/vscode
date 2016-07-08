@@ -126,7 +126,7 @@ export interface ITree extends Events.IEventEmitter {
 
 	/**
 	 * Returns the relative top position of any given element, if visible.
-	 * If not visible, returns -1.
+	 * If not visible, returns a negative number or a number > 1.
 	 * Useful when calling `reveal(element, relativeTop)`.
 	 */
 	getRelativeTop(element: any): number;
