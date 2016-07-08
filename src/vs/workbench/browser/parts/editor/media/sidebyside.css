@@ -129,4 +129,5 @@
 
 .monaco-workbench > .editor > .content .editor-container {
 	height: calc(100% - 35px); /* Editor is below editor title */
+	padding-top: 5px;
 }
