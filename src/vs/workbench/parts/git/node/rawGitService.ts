@@ -193,6 +193,10 @@ export class RawGitService implements IRawGitService {
 		});
 	}
 
+	/**
+	 * Gets `ICommitInfo`, including the template and previous commit message.
+	 * @returns `IRawStatus` with `commitInfo` set.
+	 */
 	getCommitInfo(): TPromise<IRawStatus> {
 		console.log('RawGitService.getCommitInfo');
 
@@ -210,8 +214,7 @@ export class RawGitService implements IRawGitService {
 			console.log('RawGitService.getCommitInfo=>Promise.join');
 			let status = <IRawStatus>r[2];
 			status.commitInfo = {
-				template: r[0] ? this.tryReadFile(r[0].stdout.trim()) : "",
-				// template: r[0] ? r[0].stdout : "",
+				template: r[0] ? this.readCommitTemplateFile(r[0].stdout.trim()) : "",
 				prevCommitMsg: r[1]
 			};
 			return status;
@@ -220,16 +223,27 @@ export class RawGitService implements IRawGitService {
 
 	/**
 	 * Reads the given file, if exists and is valid.
-	 * @returns file contents if exists and valid, else ""
+	 * @returns commit template file contents if exists and valid, else ""
 	 */
-	private tryReadFile(file: string): string {
+	private readCommitTemplateFile(file: string): string {
 		try {
 			// Check the file itself
-			// if (!fs.existsSync(file)) {
-			// 	console.log(`file doesnt exist. file: ${file}`)
-			// }
+			if (fs.existsSync(file)) {
+				return fs.readFileSync(file, 'utf8');
+			} else {
+				// File doesn't exist. Try converting ~/path to absolute path
+				console.log(`file doesnt exist. file: ${file}`);
 
-			return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : "";
+				// Try checking in local repo git folder
+				let repo_file = file.replace('~', `${this.repo.path}\\.git`).replace('/', '\\');
+				if (fs.existsSync(repo_file)) {
+					return fs.readFileSync(repo_file, 'utf8');
+				} else {
+					// Check global (not implemented)
+					console.error(`file doesnt exist in repo local git config. repo_file: ${repo_file}`);
+					return "";
+				}
+			}
 		} catch (error) {
 			console.error(`Error reading file. file: ${file}, error: ${error.message})`);
 			return "";
