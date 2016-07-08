@@ -249,19 +249,14 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	}
 
 	public onCommitInputShown(): WinJS.TPromise<void> {
-		console.log('onCommitInputShown');
-
 		if (this.storageService.get('prevCommitMsg')) {
 			this.commitInputBox.value = this.storageService.get('prevCommitMsg');
 			this.storageService.remove('prevCommitMsg');
 		} else if (!this.commitInputBox.value) {
 			return this.gitService.getCommitInfo().then((status) => {
 				if (!status || !status.getCommitInfo()) {
-					console.error(`error: status should have commit info. status: ${JSON.stringify(status)}`);
-
+					this.messageService.show(Severity.Warning, 'status contains no commit info');
 				} else {
-					console.log(`onCommitInputShown=>status.getCommitInfo: ${JSON.stringify(status.getCommitInfo())}`);
-
 					let { template } = status.getCommitInfo();
 					this.commitInputBox.value = template ? template : "";
 				}
@@ -269,29 +264,6 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		} else {
 			return WinJS.TPromise.as(null);
 		}
-	}
-
-	private _lastKeyTimestamp: number;
-
-	/** Simple debounce method to limit rate of firing `fn`. */
-	private debounce(fn: Function, ms: number) {
-		this._lastKeyTimestamp = Date.now();
-		setTimeout(() => {
-			if (!this._lastKeyTimestamp) { return; }
-
-			let elapsed = Date.now() - this._lastKeyTimestamp;
-
-			console.warn(`lasttime: ${this._lastKeyTimestamp}, elapsed: ${elapsed}`);
-			if (elapsed >= ms) {
-				try {
-					fn();
-				} catch (error) {
-					throw error;
-				} finally {
-					this._lastKeyTimestamp = null;
-				}
-			}
-		}, ms);
 	}
 
 	public getControl(): Tree.ITree {

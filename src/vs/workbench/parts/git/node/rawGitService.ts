@@ -198,20 +198,12 @@ export class RawGitService implements IRawGitService {
 	 * @returns `IRawStatus` with `commitInfo` set.
 	 */
 	getCommitInfo(): TPromise<IRawStatus> {
-		console.log('RawGitService.getCommitInfo');
-
 		return Promise.join([
-			this.repo.run(['config', '--get', 'commit.template']).then(filename => {
-				console.log(`getCommitInfo.config filename=> ${filename}`);
-				return filename;
-			}, err => {
-				console.log(`getCommitInfo.config err=> ${err.message}`);
-				return "";
-			}),
+			// if either of these do not exist or throw an error, then we return ""
+			this.repo.run(['config', '--get', 'commit.template']).then(filename => filename, err => ""),
 			this.repo.getLog({ prevCount: 1, format: '%B' }).then(log => log, err => ""),
 			this.status()
 		]).then(r => {
-			console.log('RawGitService.getCommitInfo=>Promise.join');
 			let status = <IRawStatus>r[2];
 			status.commitInfo = {
 				template: r[0] ? this.readCommitTemplateFile(r[0].stdout.trim()) : "",
@@ -232,15 +224,15 @@ export class RawGitService implements IRawGitService {
 				return fs.readFileSync(file, 'utf8');
 			} else {
 				// File doesn't exist. Try converting ~/path to absolute path
-				console.log(`file doesnt exist. file: ${file}`);
 
 				// Try checking in local repo git folder
 				let repo_file = file.replace('~', `${this.repo.path}\\.git`).replace('/', '\\');
 				if (fs.existsSync(repo_file)) {
 					return fs.readFileSync(repo_file, 'utf8');
 				} else {
-					// Check global (not implemented)
-					console.error(`file doesnt exist in repo local git config. repo_file: ${repo_file}`);
+					// Check global (e.g. Windows user folder, Linux: home git config)
+					// not implemented
+					console.warn(`file doesnt exist in repo local git config. global git config template not implemented. (commit template file: ${file})`);
 					return "";
 				}
 			}

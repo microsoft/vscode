@@ -118,10 +118,7 @@ export class GitChannel implements IGitChannel {
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
-			case 'getCommitInfo': {
-				console.log("GitChannel.call->case getCommitInfo");
-				return this.service.then(s => s.getCommitInfo());
-			}
+			case 'getCommitInfo': return this.service.then(s => s.getCommitInfo());
 		}
 	}
 }
@@ -224,7 +221,6 @@ export class GitChannelClient implements IRawGitService {
 	}
 
 	getCommitInfo(): TPromise<ICommitInfo> {
-		console.log('GitChannelClient.getCommitInfo');
 		return this.channel.call('getCommitInfo');
 	}
 }

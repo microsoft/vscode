@@ -664,8 +664,6 @@ export class GitService extends ee.EventEmitter
 	}
 
 	public getCommitInfo(): winjs.Promise {
-		console.log('GitService(browser).getCommitInfo');
-
 		return this.run(git.ServiceOperations.GET_COMMIT_INFO, () => this.raw.getCommitInfo());
 	}
 

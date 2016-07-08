@@ -559,7 +559,6 @@ export class Repository {
 
 	/** Only implemented for use case `git log` and `git log -N`. */
 	getLog(options?: ILogOptions): TPromise<string> {
-		console.log('repository.getLog');
 		const args = ['log'];
 
 		if (options) {
@@ -567,10 +566,7 @@ export class Repository {
 			if (options.format) { args.push(`--format=${options.format}`); }
 		}
 
-		return this.run(args, { log: false }).then(result => {
-			console.log(`Repository.getLog=>result: ${result.stdout.trim()}`);
-			return result.stdout.trim();
-		});
+		return this.run(args, { log: false }).then(result => result.stdout.trim());
 	}
 
 	getStatus(): TPromise<IRawFileStatus[]> {
