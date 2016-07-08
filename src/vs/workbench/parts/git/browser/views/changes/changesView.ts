@@ -253,11 +253,11 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			this.commitInputBox.value = this.storageService.get('prevCommitMsg');
 			this.storageService.remove('prevCommitMsg');
 		} else if (!this.commitInputBox.value) {
-			return this.gitService.getCommitInfo().then((status) => {
-				if (!status || !status.getCommitInfo()) {
+			return this.gitService.getCommitInfo().then((model) => {
+				if (!model || !model.getCommitInfo()) {
 					this.messageService.show(Severity.Warning, 'status contains no commit info');
 				} else {
-					let { template } = status.getCommitInfo();
+					let { template } = model.getCommitInfo();
 					this.commitInputBox.value = template ? template : "";
 				}
 			});
