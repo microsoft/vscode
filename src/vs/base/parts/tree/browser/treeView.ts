@@ -986,7 +986,7 @@ export class TreeView extends HeightMap {
 	}
 
 	public getRelativeTop(item: Model.Item): number {
-		if (item.isVisible()) {
+		if (item && item.isVisible()) {
 			var viewItem = this.items[item.id];
 			if (viewItem) {
 				return (viewItem.top - this.scrollTop) / (this.viewHeight - viewItem.height);
