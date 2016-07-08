@@ -826,15 +826,7 @@ export class DebugService implements debug.IDebugService {
 					// Display the error from debug adapter using a temporary editor #8836
 					return this.getDebugStringEditorInput(source, err.message, MIME_TEXT);
 				}).then(editorInput => {
-					return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({
-						selection: {
-							startLineNumber: lineNumber,
-							startColumn: 1,
-							endLineNumber: lineNumber,
-							endColumn: 1
-						},
-						preserveFocus: preserveFocus
-					}), sideBySide);
+					return this.editorService.openEditor(editorInput, { preserveFocus, selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 } }, sideBySide);
 				});
 			}
 

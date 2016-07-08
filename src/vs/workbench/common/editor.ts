@@ -494,6 +494,7 @@ export class TextEditorOptions extends EditorOptions {
 	protected startColumn: number;
 	protected endLineNumber: number;
 	protected endColumn: number;
+	
 	private editorViewState: IEditorViewState;
 
 	public static from(input: IResourceInput): TextEditorOptions {
