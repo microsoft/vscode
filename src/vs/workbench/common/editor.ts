@@ -430,6 +430,7 @@ export class EditorOptions implements IEditorOptions {
 		let options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -443,6 +444,7 @@ export class EditorOptions implements IEditorOptions {
 	public mixin(other: EditorOptions): void {
 		this.preserveFocus = other.preserveFocus;
 		this.forceOpen = other.forceOpen;
+		this.revealIfOpened = other.revealIfOpened;
 		this.pinned = other.pinned;
 		this.index = other.index;
 	}
@@ -459,6 +461,12 @@ export class EditorOptions implements IEditorOptions {
 	 * one showing.
 	 */
 	public forceOpen: boolean;
+
+	/**
+	 * Will reveal the editor if it is already opened in any editor group.
+	 * This prevents duplicates of the same editor input showing up.
+	 */
+	public revealIfOpened: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -482,16 +490,16 @@ export class EditorOptions implements IEditorOptions {
  * Base Text Editor Options.
  */
 export class TextEditorOptions extends EditorOptions {
-	private startLineNumber: number;
-	private startColumn: number;
-	private endLineNumber: number;
-	private endColumn: number;
+	protected startLineNumber: number;
+	protected startColumn: number;
+	protected endLineNumber: number;
+	protected endColumn: number;
 	private editorViewState: IEditorViewState;
 
 	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.forceOpen || input.options.revealIfOpened || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -502,6 +510,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.forceOpen) {
 				options.forceOpen = true;
+			}
+
+			if (input.options.revealIfOpened) {
+				options.revealIfOpened = true;
 			}
 
 			if (input.options.preserveFocus) {
@@ -531,6 +543,7 @@ export class TextEditorOptions extends EditorOptions {
 		let options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 
@@ -616,6 +629,15 @@ export class TextEditorOptions extends EditorOptions {
 	}
 }
 
+export interface ITextDiffEditorOptions extends ITextEditorOptions {
+
+	/**
+	 * Whether to auto reveal the first change when the text editor is opened or not. By default
+	 * the first change will not be revealed.
+	 */
+	autoRevealFirstChange: boolean;
+}
+
 /**
  * Base Text Diff Editor Options.
  */
@@ -624,11 +646,23 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	/**
 	 * Helper to create TextDiffEditorOptions inline.
 	 */
-	public static create(settings: { autoRevealFirstChange?: boolean; preserveFocus?: boolean; forceOpen?: boolean; }): TextDiffEditorOptions {
+	public static create(settings: ITextDiffEditorOptions): TextDiffEditorOptions {
 		let options = new TextDiffEditorOptions();
+
 		options.autoRevealFirstChange = settings.autoRevealFirstChange;
+
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
+		options.revealIfOpened = settings.revealIfOpened;
+		options.pinned = settings.pinned;
+		options.index = settings.index;
+
+		if (settings.selection) {
+			options.startLineNumber = settings.selection.startLineNumber;
+			options.startColumn = settings.selection.startColumn;
+			options.endLineNumber = settings.selection.endLineNumber || settings.selection.startLineNumber;
+			options.endColumn = settings.selection.endColumn || settings.selection.startColumn;
+		}
 
 		return options;
 	}
