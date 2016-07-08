@@ -495,7 +495,11 @@ export class DebugService implements debug.IDebugService {
 			name: variable.name,
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
-		}).then(response => variable.value = response.body.value, err => (<model.Variable>variable).errorMessage = err.message);
+		}).then(response => {
+			variable.value = response.body.value;
+			// Evaluate all watch expressions again since changing variable value might have changed some #8118.
+			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
+		}, err => (<model.Variable>variable).errorMessage = err.message);
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
