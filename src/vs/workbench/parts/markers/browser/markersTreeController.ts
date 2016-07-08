@@ -46,7 +46,7 @@ export class Controller extends treedefaults.DefaultController {
 		return false;
 	}
 
-	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean) {
+	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
 			this.telemetryService.publicLog('problems.marker.opened', {source: element.source});
 			let marker = <IMarker>element.marker;

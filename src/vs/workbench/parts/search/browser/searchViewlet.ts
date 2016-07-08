@@ -921,7 +921,7 @@ export class SearchViewlet extends Viewlet {
 	private openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		this.telemetryService.publicLog('replace.open.previewEditor');
 		return this.replaceService.getInput(element instanceof Match ? element.parent() : element, this.viewModel.replaceText).then((editorInput) => {
-			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned: pinned}).then((editor) => {
+			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned}).then((editor) => {
 				let editorControl= (<IDiffEditor>editor.getControl());
 				if (element instanceof Match) {
 					editorControl.revealLineInCenter(element.range().startLineNumber);
