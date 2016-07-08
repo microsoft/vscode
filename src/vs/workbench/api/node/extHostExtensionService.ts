@@ -119,7 +119,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(threadService: IThreadService, telemetryService: ITelemetryService, args: { serviceId: any; workspaceStoragePath: string; }) {
+	constructor(threadService: IThreadService, telemetryService: ITelemetryService, args: { _serviceBrand: any; workspaceStoragePath: string; }) {
 		super(false);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);

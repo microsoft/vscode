@@ -5,12 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened

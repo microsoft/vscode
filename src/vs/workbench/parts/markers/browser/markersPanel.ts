@@ -19,7 +19,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { FileEditorInput } from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -155,7 +155,7 @@ export class MarkersPanel extends Panel {
 			dataSource: new Viewer.DataSource(),
 			renderer: renderer,
 			controller: controller,
-			accessibilityProvider: new Viewer.ProblemsTreeAccessibilityProvider()
+			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider()
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
@@ -251,11 +251,11 @@ export class MarkersPanel extends Panel {
 	private autoReveal(focus: boolean= false): void {
 		let conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
 		if (conf && conf.problems && conf.problems.autoReveal) {
-			this.revealProblemsForCurrentActiveEditor(focus);
+			this.revealMarkersForCurrentActiveEditor(focus);
 		}
 	}
 
-	private revealProblemsForCurrentActiveEditor(focus: boolean= false): void {
+	private revealMarkersForCurrentActiveEditor(focus: boolean= false): void {
 		let currentActiveResource = this.getResourceForCurrentActiveFile();
 		if (currentActiveResource) {
 			if (this.tree.isExpanded(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {

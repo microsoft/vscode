@@ -56,3 +56,7 @@
 .monaco-list-row.selected { background-color: #4FA7FF; color: white; }
 .vs-dark .monaco-list-row.selected { background-color: #0E639C; color: white; }
 .hc-black .monaco-list-row.selected { border: 1px solid #f38518; }
+
+/* Selection and focus */
+.monaco-list-row.selected.focused { background-color: #3399FF; color: white; }
+.vs-dark .monaco-list-row.selected.focused { background-color: #094771; color: white; }

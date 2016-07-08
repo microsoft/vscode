@@ -32,7 +32,7 @@ exports.collectModules = function(excludes) {
 		createModuleDescription('vs/workbench/parts/output/browser/outputPanel', excludes),
 
 		createModuleDescription('vs/workbench/parts/debug/browser/debugViewlet', excludes),
-		createModuleDescription('vs/workbench/parts/debug/browser/repl', excludes),
+		createModuleDescription('vs/workbench/parts/debug/electron-browser/repl', excludes),
 		createModuleDescription('vs/workbench/parts/debug/node/telemetryApp', []),
 
 		createModuleDescription('vs/workbench/parts/extensions/electron-browser/extensionsViewlet', excludes),

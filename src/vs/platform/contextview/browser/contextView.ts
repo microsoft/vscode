@@ -9,12 +9,12 @@ import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Keybinding } from 'vs/base/common/keyCodes';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
 
 export interface IContextViewService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	showContextView(delegate: IContextViewDelegate): void;
 	hideContextView(data?: any): void;
 	layout(): void;
@@ -31,7 +31,7 @@ export interface IContextViewDelegate {
 export const IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
 
 export interface IContextMenuService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	showContextMenu(delegate: IContextMenuDelegate): void;
 }
 

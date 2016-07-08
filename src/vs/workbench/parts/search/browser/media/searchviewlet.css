@@ -29,6 +29,10 @@
 	margin-left: 17px;
 }
 
+.search-viewlet .search-widget .input-box .monaco-inputbox {
+	height: 25px;
+}
+
 .search-viewlet .search-widget .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
@@ -195,7 +199,7 @@
 	background-image: url('replace-all.svg');
 }
 
-hc-black .search-viewlet .action-replace,
+.hc-black .search-viewlet .action-replace,
 .vs-dark .search-viewlet .action-replace {
 	background-image: url('replace-inverse.svg');
 }
@@ -288,6 +292,21 @@ hc-black .search-viewlet .action-replace,
 	animation-name: inherit !important;
 }
 
+.search-viewlet .replace.findInFileMatch {
+	text-decoration: line-through;
+	background-color: rgba(255, 0, 0, 0.2);
+}
+
+.search-viewlet .findInFileMatch,
+.search-viewlet .replaceMatch {
+	white-space: pre;
+}
+
+.search-viewlet .replaceMatch {
+	background-color: rgba(155, 185, 85, 0.5);
+}
+
+.hc-black .monaco-workbench .search-viewlet .replaceMatch,
 .hc-black .monaco-workbench .search-viewlet .findInFileMatch,
 .monaco-editor.hc-black .findInFileMatch {
 	background: none !important;
@@ -295,18 +314,12 @@ hc-black .search-viewlet .action-replace,
 	box-sizing: border-box;
 }
 
-
-.search-viewlet .replaceMatch {
-	background-color: rgba(234, 92, 0, 0.45);
+.hc-black .monaco-workbench .search-viewlet .replace.findInFileMatch {
+	border: 1px dashed #FF008F;
 }
 
-.search-viewlet .removeMatch {
-	text-decoration: line-through;
-}
-
-.hc-black .monaco-workbench .search-viewlet .replaceMatch,
-.monaco-editor.hc-black .replaceMatch {
-	border-color: #F44336;
+.hc-black .monaco-workbench .search-viewlet .replaceMatch {
+	border: 1px dashed rgb(51, 255, 46);
 }
 
 /* Theming */

@@ -5,11 +5,9 @@
 
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IActionRunner } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import { IViewletView } from 'vs/workbench/browser/viewlet';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range } from 'vs/editor/common/core/range';
@@ -198,23 +196,17 @@ export interface IEnvConfig {
 	name?: string;
 	type: string;
 	request: string;
-	program?: string;
-	stopOnEntry?: boolean;
-	args?: string[];
-	cwd?: string;
-	runtimeExecutable?: string;
-	runtimeArgs?: string[];
-	env?: { [key: string]: string; };
-	sourceMaps?: boolean;
-	outDir?: string;
-	address?: string;
 	internalConsoleOptions?: string;
-	port?: number;
 	preLaunchTask?: string;
-	externalConsole?: boolean;
 	debugServer?: number;
 	noDebug?: boolean;
 	silentlyAbort?: boolean;
+}
+
+export interface IExtHostConfig extends IEnvConfig {
+	port?: number;
+	sourceMaps?: boolean;
+	outDir?: string;
 }
 
 export interface IConfig extends IEnvConfig {
@@ -276,7 +268,7 @@ export interface IConfigurationManager {
 export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
 export interface IDebugService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Gets the current debug state.
@@ -420,36 +412,6 @@ export interface IDebugService {
 export interface IDebugEditorContribution extends editor.IEditorContribution {
 	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
 }
-
-// Debug view registration
-
-export interface IDebugViewConstructorSignature {
-	new (actionRunner: IActionRunner, viewletSetings: any, ...services: { serviceId: ServiceIdentifier<any>; }[]): IViewletView;
-}
-
-export interface IDebugViewRegistry {
-	registerDebugView(view: IDebugViewConstructorSignature, order: number): void;
-	getDebugViews(): IDebugViewConstructorSignature[];
-}
-
-class DebugViewRegistryImpl implements IDebugViewRegistry {
-	private debugViews: { view: IDebugViewConstructorSignature, order: number }[];
-
-	constructor() {
-		this.debugViews = [];
-	}
-
-	public registerDebugView(view: IDebugViewConstructorSignature, order: number): void {
-		this.debugViews.push({ view, order });
-	}
-
-	public getDebugViews(): IDebugViewConstructorSignature[] {
-		return this.debugViews.sort((first, second) => first.order - second.order)
-			.map(viewWithOrder => viewWithOrder.view);
-	}
-}
-
-export var DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();
 
 // utils
 

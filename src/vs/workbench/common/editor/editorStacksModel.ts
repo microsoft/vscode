@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
+import {IEditorRegistry, Extensions, EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -14,7 +14,6 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -251,8 +250,8 @@ export class EditorGroup implements IEditorGroup {
 				// Replace existing preview with this editor if we have a preview
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
-					if (targetIndex >= indexOfPreview) {
-						targetIndex--;
+					if (targetIndex > indexOfPreview) {
+						targetIndex--; // accomodate for the fact that the preview editor closes
 					}
 
 					this.closeEditor(this.preview, !makeActive); // optimization to prevent multiple setActive() in one call
@@ -992,7 +991,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		if (modelRaw) {
 			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);
 
-			// TODO@Ben remove this once stacks are stable; prevent bad stored state
 			const invalidId = this.doValidate(serialized);
 			if (invalidId) {
 				console.warn(`Ignoring invalid stacks model (Error code: ${invalidId}): ${JSON.stringify(serialized)}`);
@@ -1002,55 +1000,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 			this._groups = serialized.groups.map(s => this.doCreateGroup(s));
 			this._activeGroup = this._groups[serialized.active];
-		} else {
-			this.migrate();
-		}
-	}
-
-	// TODO@Ben migration
-	private migrate(): void {
-		const LEGACY_EDITOR_STATE_STORAGE_KEY = 'memento/workbench.parts.editor';
-		const legacyModelRaw = this.storageService.get(LEGACY_EDITOR_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (legacyModelRaw) {
-			try {
-				const legacyModel = JSON.parse(legacyModelRaw);
-				const state = legacyModel['editorpart.editorState'];
-				const editorsRaw: { inputId: string; inputValue: string }[] = state.editors;
-
-				const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-				const editors = editorsRaw.map(editorRaw => {
-					const factory = registry.getEditorInputFactory(editorRaw.inputId);
-					if (factory) {
-						return factory.deserialize(this.instantiationService, editorRaw.inputValue);
-					}
-
-					return null;
-				}).filter(editor => !!editor);
-
-				if (editors.length > 0) {
-					const leftGroup = this.openGroup('', true);
-					leftGroup.openEditor(editors[0], { active: true, pinned: true });
-				}
-
-				if (editors.length > 1) {
-					const centerGroup = this.openGroup('', true);
-					centerGroup.openEditor(editors[1], { active: true, pinned: true });
-				}
-
-				if (editors.length > 2) {
-					const rightGroup = this.openGroup('', true);
-					rightGroup.openEditor(editors[2], { active: true, pinned: true });
-				}
-
-				this.storageService.remove(LEGACY_EDITOR_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-			} catch (error) {
-				console.warn('Unable to migrate previous editor state', error, legacyModelRaw);
-
-				// Reset
-				this._groups = [];
-				this._activeGroup = void 0;
-				this.groupToIdentifier = Object.create(null);
-			}
 		}
 	}
 

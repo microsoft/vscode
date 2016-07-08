@@ -7,15 +7,15 @@
 import URI from 'vs/base/common/uri';
 import Actions = require('vs/base/common/actions');
 import WinJS = require('vs/base/common/winjs.base');
-import Assert = require('vs/base/common/assert');
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
-export interface CommandAction {
+export interface ICommandAction {
 	id: string;
 	title: string;
 	category?: string;
@@ -28,8 +28,8 @@ export interface IMenu extends IDisposable {
 }
 
 export interface IMenuItem {
-	command: CommandAction;
-	alt?: CommandAction;
+	command: ICommandAction;
+	alt?: ICommandAction;
 	when?: KbExpr;
 	group?: string;
 }
@@ -44,11 +44,11 @@ export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuService {
 
-	serviceId: any;
+	_serviceBrand: any;
 
 	createMenu(id: MenuId, scopedKeybindingService: IKeybindingService): IMenu;
 
-	getCommandActions(): CommandAction[];
+	getCommandActions(): ICommandAction[];
 }
 
 export class MenuItemAction extends Actions.Action {
@@ -61,14 +61,27 @@ export class MenuItemAction extends Actions.Action {
 		return result;
 	}
 
+	private _resource: URI;
+
 	constructor(
 		private _item: IMenuItem,
-		private _resource: URI,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@ICommandService private _commandService: ICommandService
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 
 		this.order = 100000; //TODO@Ben order is menu item property, not an action property
+	}
+
+	set resource(value: URI) {
+		this._resource = value;
+	}
+
+	get resource() {
+		return this._resource;
+	}
+
+	get item(): IMenuItem {
+		return this._item;
 	}
 
 	get command() {
@@ -79,13 +92,9 @@ export class MenuItemAction extends Actions.Action {
 		return this._item.alt;
 	}
 
-	get selectedCommand() {
-		return this.command;
-	}
-
 	run(alt: boolean) {
-		const {id} = alt && this._item.alt || this._item.command;
-		return this._keybindingService.executeCommand(id, this._resource);
+		const {id} = alt === true && this._item.alt || this._item.command;
+		return this._commandService.executeCommand(id, this._resource);
 	}
 }
 
@@ -95,13 +104,13 @@ export class ExecuteCommandAction extends Actions.Action {
 	constructor(
 		id: string,
 		label: string,
-		@IKeybindingService private _keybindingService: IKeybindingService) {
+		@ICommandService private _commandService: ICommandService) {
 
 		super(id, label);
 	}
 
 	run(...args: any[]): WinJS.TPromise<any> {
-		return this._keybindingService.executeCommand(this.id, ...args);
+		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
 
@@ -159,7 +168,8 @@ export class DeferredAction extends Actions.Action {
 	private _cachedAction: Actions.IAction;
 	private _emitterUnbind: IDisposable;
 
-	constructor(private _instantiationService: Instantiation.IInstantiationService, private _descriptor: Descriptors.AsyncDescriptor0<Actions.Action>,
+	constructor(private _instantiationService: Instantiation.IInstantiationService,
+		private _descriptor: Descriptors.AsyncDescriptor0<Actions.Action>,
 		id: string, label = '', cssClass = '', enabled = true) {
 
 		super(id, label, cssClass, enabled);
@@ -256,13 +266,15 @@ export class DeferredAction extends Actions.Action {
 		let promise = WinJS.TPromise.as(undefined);
 		return promise.then(() => {
 			return this._instantiationService.createInstance(this._descriptor);
+		}).then(action => {
+			if (action instanceof Actions.Action) {
+				this._cachedAction = action;
+				// Pipe events from the instantated action through this deferred action
+				this._emitterUnbind = action.onDidChange(e => this._onDidChange.fire(e));
 
-		}).then((action) => {
-			Assert.ok(action instanceof Actions.Action, 'Action must be an instanceof Base Action');
-			this._cachedAction = action;
-
-			// Pipe events from the instantated action through this deferred action
-			this._emitterUnbind = this.addEmitter2(<Actions.Action>this._cachedAction);
+			} else {
+				throw new Error('Action must be an instanceof Base Action');
+			}
 
 			return action;
 		});

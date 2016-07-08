@@ -54,9 +54,10 @@
 			{
 				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewSide.title%",
+				"category": "%markdown.category%",
 				"icon": {
-					"light": "./media/Preview.svg",
-					"dark": "./media/Preview_inverse.svg"
+					"light": "./media/PreviewOnRightPane_16x.svg",
+					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
 				}
 			},
 			{
@@ -115,9 +116,9 @@
 			"order": 20,
 			"properties": {
 				"markdown.styles": {
-					"type": ["array", "null"],
-					"default": null,
-					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview."
+					"type": ["array"],
+					"default": [],
+					"description": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file. All '\\' need to be written as '\\\\'."
 				}
 			}
 		}

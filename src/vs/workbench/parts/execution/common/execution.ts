@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export var ITerminalService = createDecorator<ITerminalService>('nativeTerminalService');
 
 export interface ITerminalService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	openTerminal(path: string): void;
 }

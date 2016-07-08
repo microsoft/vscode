@@ -107,10 +107,6 @@
 	background: url('pause.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.attach {
-	background: url('attach.svg') center center no-repeat;
-}
-
 .monaco-workbench .debug-action.stop {
 	background: url('stop.svg') center center no-repeat;
 }
@@ -162,11 +158,12 @@
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.monaco-workbench .monaco-tree-row .expression.mac {
+.monaco-workbench.mac .monaco-tree-row .expression {
 	font-size: 11px;
 }
 
-.monaco-workbench .monaco-tree-row .expression.win-linux {
+.monaco-workbench.windows .monaco-tree-row .expression,
+.monaco-workbench.linux .monaco-tree-row .expression {
 	font-size: 13px;
 }
 

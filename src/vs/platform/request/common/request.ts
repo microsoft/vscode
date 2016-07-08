@@ -6,12 +6,12 @@
 
 import http = require('vs/base/common/http');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Wraps the call into WinJS.XHR to allow for mocking and telemetry. Use this instead

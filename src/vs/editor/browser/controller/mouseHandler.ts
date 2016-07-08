@@ -167,6 +167,9 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		this.listenersToRemove.push(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
 
 		let onMouseWheel = (browserEvent: MouseWheelEvent) => {
+			if (!this._context.configuration.editor.viewInfo.mouseWheelZoom) {
+				return;
+			}
 			let e = new StandardMouseWheelEvent(browserEvent);
 			if (e.browserEvent.ctrlKey) {
 				let zoomLevel:number = EditorZoom.getZoomLevel();

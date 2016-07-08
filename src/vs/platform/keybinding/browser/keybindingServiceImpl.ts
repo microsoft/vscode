@@ -11,17 +11,16 @@ import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ICommandService, CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {ICommandHandler, ICommandHandlerDescription, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -126,9 +125,7 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 		this._parent = parent;
 		this._key = key;
 		this._defaultValue = defaultValue;
-		if (typeof this._defaultValue !== 'undefined') {
-			this._parent.setContext(this._key, this._defaultValue);
-		}
+		this.reset();
 	}
 
 	public set(value: T): void {
@@ -146,7 +143,7 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 }
 
 export abstract class AbstractKeybindingService {
-	public serviceId = IKeybindingService;
+	public _serviceBrand: any;
 
 	protected _onDidChangeContext: Event<string[]>;
 	protected _onDidChangeContextKey: Emitter<string>;
@@ -208,11 +205,6 @@ export abstract class AbstractKeybindingService {
 		}
 	}
 
-	public hasCommand(commandId: string): boolean {
-		return !!KeybindingsRegistry.getCommands()[commandId];
-	}
-
-	public abstract executeCommand(commandId: string, args: any): TPromise<any>;
 	public abstract getLabelFor(keybinding: Keybinding): string;
 	public abstract getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	public abstract getAriaLabelFor(keybinding: Keybinding): string;
@@ -238,10 +230,11 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
+	private _commandService: ICommandService;
 	private _statusService: IStatusbarService;
 	private _messageService: IMessageService;
 
-	constructor(configurationService: IConfigurationService, messageService: IMessageService, statusService?: IStatusbarService) {
+	constructor(commandService: ICommandService, configurationService: IConfigurationService, messageService: IMessageService, statusService?: IStatusbarService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -254,6 +247,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
+		this._commandService = commandService;
 		this._statusService = statusService;
 		this._messageService = messageService;
 	}
@@ -314,7 +308,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	private _getAllCommandsAsComment(): string {
-		const commands = KeybindingsRegistry.getCommands();
+		const commands = CommandsRegistry.getCommands();
 		const unboundCommands: string[] = [];
 		const boundCommands = this._getResolver().getDefaultBoundCommands();
 
@@ -338,7 +332,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	protected _getCommandHandler(commandId: string): ICommandHandler {
-		return KeybindingsRegistry.getCommands()[commandId];
+		return CommandsRegistry.getCommand(commandId).handler;
 	}
 
 	private _dispatch(e: IKeyboardEvent): void {
@@ -382,23 +376,9 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 				e.preventDefault();
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._invokeHandler(commandId, [{}]).done(undefined, err => {
+			this._commandService.executeCommand(commandId, {}).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
-		}
-	}
-
-	protected _invokeHandler(commandId: string, args: any[]): TPromise<any> {
-
-		let handler = this._getCommandHandler(commandId);
-		if (!handler) {
-			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'. An extension might be missing an activation event.`));
-		}
-		try {
-			let result = this._instantiationService.invokeFunction.apply(this._instantiationService, [handler].concat(args));
-			return TPromise.as(result);
-		} catch (err) {
-			return TPromise.wrapError(err);
 		}
 	}
 
@@ -425,20 +405,10 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	public disposeContext(contextId: number): void {
 		delete this._contexts[String(contextId)];
 	}
-
-	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
-		return this._invokeHandler(commandId, args);
-	}
 }
 
-KeybindingsRegistry.registerCommandDesc({
-	id: SET_CONTEXT_COMMAND_ID,
-	handler: (accessor:ServicesAccessor, contextKey:any, contextValue:any) => {
-		accessor.get(IKeybindingService).createKey(String(contextKey), contextValue);
-	},
-	weight: 0,
-	primary: undefined,
-	when: null
+CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
+	accessor.get(IKeybindingService).createKey(String(contextKey), contextValue);
 });
 
 class ScopedKeybindingService extends AbstractKeybindingService {
@@ -501,9 +471,5 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 
 	public disposeContext(contextId: number): void {
 		this._parent.disposeContext(contextId);
-	}
-
-	public executeCommand(commandId: string, args: any): TPromise<any> {
-		return this._parent.executeCommand(commandId, args);
 	}
 }

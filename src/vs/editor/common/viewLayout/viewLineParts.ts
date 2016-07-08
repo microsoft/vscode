@@ -14,10 +14,10 @@ function cmpLineDecorations(a:InlineDecoration, b:InlineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:InlineDecoration[], renderWhitespace:boolean, indentGuides:number): LineParts {
-	if (indentGuides || renderWhitespace) {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:InlineDecoration[], renderWhitespace:boolean): LineParts {
+	if (renderWhitespace) {
 		let oldLength = rawLineDecorations.length;
-		rawLineDecorations = insertCustomLineDecorations(indentGuides, renderWhitespace, lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		rawLineDecorations = insertWhitespaceLineDecorations(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
 		if (rawLineDecorations.length !== oldLength) {
 			rawLineDecorations.sort(cmpLineDecorations);
 		}
@@ -100,17 +100,13 @@ function insertOneCustomLineDecoration(dest:InlineDecoration[], lineNumber:numbe
 	dest.push(new InlineDecoration(new Range(lineNumber, startColumn, lineNumber, endColumn), className));
 }
 
-function insertCustomLineDecorations(indentGuides:number, renderWhitespace:boolean, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
-	if (indentGuides === 0 && !renderWhitespace) {
-		return rawLineDecorations;
-	}
-
+function insertWhitespaceLineDecorations(lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
 	let lineLength = lineContent.length;
 	if (lineLength === fauxIndentLength) {
 		return rawLineDecorations;
 	}
 
-	let firstChar = indentGuides ? lineContent.charCodeAt(0) : lineContent.charCodeAt(fauxIndentLength);
+	let firstChar = lineContent.charCodeAt(fauxIndentLength);
 	let lastChar = lineContent.charCodeAt(lineLength - 1);
 
 	if (firstChar !== _tab && firstChar !== _space && lastChar !== _tab && lastChar !== _space) {
@@ -134,26 +130,12 @@ function insertCustomLineDecorations(indentGuides:number, renderWhitespace:boole
 	if (fauxIndentLength > 0) {
 		// add faux indent state
 		sm_endIndex.push(fauxIndentLength - 1);
-		sm_decoration.push(indentGuides ? 'indent-guide' : null);
+		sm_decoration.push(null);
 	}
 	if (firstNonWhitespaceIndex > fauxIndentLength) {
 		// add leading whitespace state
 		sm_endIndex.push(firstNonWhitespaceIndex - 1);
-
-		let leadingClassName:string = null;
-
-		if (fauxIndentLength > 0) {
-			leadingClassName = (renderWhitespace ? 'leading whitespace' : null);
-		} else {
-			if (indentGuides && renderWhitespace) {
-				leadingClassName = 'leading whitespace indent-guide';
-			} else if (indentGuides) {
-				leadingClassName = 'indent-guide';
-			} else {
-				leadingClassName = 'leading whitespace';
-			}
-		}
-		sm_decoration.push(leadingClassName);
+		sm_decoration.push('leading whitespace');
 
 	}
 	// add content state
@@ -162,7 +144,7 @@ function insertCustomLineDecorations(indentGuides:number, renderWhitespace:boole
 
 	// add trailing whitespace state
 	sm_endIndex.push(lineLength - 1);
-	sm_decoration.push(renderWhitespace ? 'trailing whitespace' : null);
+	sm_decoration.push('trailing whitespace');
 
 	// add dummy state to avoid array length checks
 	sm_endIndex.push(lineLength);

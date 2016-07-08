@@ -1,5 +1,5 @@
 environment:
-  ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1
+  ELECTRON_RUN_AS_NODE: 1
 
 install:
   - ps: Install-Product node 5.10.1 x64

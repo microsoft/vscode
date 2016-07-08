@@ -16,7 +16,7 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {EditorAction} from 'vs/editor/common/editorAction';

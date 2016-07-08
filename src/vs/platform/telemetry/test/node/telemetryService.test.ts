@@ -645,7 +645,7 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({
 			appender: testAppender
 		}, {
-				serviceId: undefined,
+				_serviceBrand: undefined,
 				hasWorkspaceConfiguration() {
 					return false;
 				},

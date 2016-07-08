@@ -17,23 +17,23 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import {isMacintosh} from 'vs/base/common/platform';
-import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOptions} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {extractResources} from 'vs/base/browser/dnd';
 
@@ -169,11 +169,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		const useTabs = configuration.workbench.editor.showTabs;
+
 		POSITIONS.forEach(position => {
+
+			// TItle Container
+			const titleContainer = this.titleContainer[position];
+			if (useTabs) {
+				titleContainer.addClass('tabs');
+			} else {
+				titleContainer.removeClass('tabs');
+			}
+
+			// Title Control
 			const titleControl = this.titleAreaControl[position];
 			if (titleControl) {
 				const usingTabs = (titleControl instanceof TabsTitleControl);
-				const useTabs = configuration.workbench.editor.showTabs;
 				if (usingTabs !== useTabs) {
 
 					// Dispose old
@@ -754,13 +765,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		POSITIONS.forEach(position => {
 			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
 				[IKeybindingService, this.keybindingService.createScoped(this.containers[position].getHTMLElement())]
-				// [IProgressService, ]
 			));
 		});
 
 		// Title containers
+		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
 			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
+			if (useTabs) {
+				this.titleContainer[position].addClass('tabs');
+			}
 			this.hookTitleDragListener(position);
 
 			// Title Control
@@ -790,7 +804,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
 			const freeGroup = (stacks.groups.length === 1) ? Position.CENTER : Position.RIGHT;
-			const pinned = EditorOptions.create({ pinned: true });
 
 			// Check for transfer from title control
 			const draggedEditor = TitleControl.getDraggedEditor();
@@ -800,13 +813,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Copy editor to new location
 				if (isCopy) {
 					if (splitEditor) {
-						editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+						editorService.openEditor(draggedEditor.editor, { pinned: true }, freeGroup).then(() => {
 							if (splitTo !== freeGroup) {
 								groupService.moveGroup(freeGroup, splitTo);
 							}
 						}).done(null, errors.onUnexpectedError);
 					} else {
-						editorService.openEditor(draggedEditor.editor, pinned, position).done(null, errors.onUnexpectedError);
+						editorService.openEditor(draggedEditor.editor, { pinned: true }, position).done(null, errors.onUnexpectedError);
 					}
 				}
 
@@ -817,7 +830,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						if (draggedEditor.group.count === 1) {
 							groupService.moveGroup(sourcePosition, splitTo);
 						} else {
-							editorService.openEditor(draggedEditor.editor, pinned, freeGroup).then(() => {
+							editorService.openEditor(draggedEditor.editor, { pinned: true }, freeGroup).then(() => {
 								if (splitTo !== freeGroup) {
 									groupService.moveGroup(freeGroup, splitTo);
 								}
@@ -967,21 +980,30 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Let a dropped file open inside Code (only if dropped over editor area)
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.EventHelper.stop(e, true);
-			onDrop(e, Position.LEFT);
+			if (e.target === node) {
+				DOM.EventHelper.stop(e, true);
+				onDrop(e, Position.LEFT);
+			} else {
+				DOM.removeClass(node, 'dropfeedback');
+			}
 		}));
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			DOM.addClass(node, 'dropfeedback');
+			if (e.target === node) {
+				DOM.addClass(node, 'dropfeedback');
+			}
 
 			const target = <HTMLElement>e.target;
 			if (target) {
 				if (overlay && target.id !== overlayId) {
 					destroyOverlay(); // somehow we managed to move the mouse quickly out of the current overlay, so destroy it
 				}
-
 				createOverlay(target);
+
+				if (overlay) {
+					DOM.removeClass(node, 'dropfeedback'); // if we show an overlay, we can remove the drop feedback from the editor background
+				}
 			}
 		}));
 
@@ -1047,9 +1069,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			let startX = mouseDownEvent.posx;
 			let oldNewLeft: number = null;
 
-			this.containers[position].style({
-				zIndex: 2000000
-			});
+			this.containers[position].addClass('drag');
+			this.parent.addClass('drag');
 
 			let $window = $(window);
 			$window.on(DOM.EventType.MOUSE_MOVE, (e: MouseEvent) => {
@@ -1152,8 +1173,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move the editor to provide feedback to the user and add class
 				if (newLeft !== null) {
 					this.containers[position].style({ left: newLeft + 'px' });
-					this.containers[position].addClass('dragged');
-					this.parent.addClass('dragged');
+					this.containers[position].addClass('dragging');
+					this.parent.addClass('dragging');
 				}
 			}).once(DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 				DOM.EventHelper.stop(e, false);
@@ -1165,9 +1186,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.dragging = false;
 
 				// Restore styles
-				this.parent.removeClass('dragged');
-				this.containers[position].removeClass('dragged');
-				this.containers[position].style({ zIndex: 'auto' });
+				this.parent.removeClass('drag');
+				this.containers[position].removeClass('drag');
+				this.parent.removeClass('dragging');
+				this.containers[position].removeClass('dragging');
 				POSITIONS.forEach((p) => this.containers[p].removeClass('draggedunder'));
 				this.containers[Position.LEFT].style({ left: 0, right: 'auto' });
 				this.containers[Position.CENTER].style({ left: 'auto', right: 'auto', borderLeftWidth: '1px' });

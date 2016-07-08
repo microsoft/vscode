@@ -14,7 +14,6 @@ import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
 import errors = require('vs/base/common/errors');
-import extfs = require('vs/base/node/extfs');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -96,7 +95,7 @@ class OpenSnippetsAction extends actions.Action {
 
 function fileExists(path: string): winjs.TPromise<boolean> {
 	return new winjs.TPromise<boolean>((c, e, p) => {
-		extfs.stat(path,(err, stats) => {
+		fs.stat(path,(err, stats) => {
 			if (err) {
 				return c(false);
 			}

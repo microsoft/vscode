@@ -6,19 +6,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event from 'vs/base/common/event';
 import {Builder} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IThemeData} from 'vs/workbench/services/themes/common/themeService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {Platform} from 'vs/base/common/platform';
-import {ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 
 class MockConfigurationService implements IConfigurationService {
-	public serviceId = IConfigurationService;
+	public _serviceBrand: any;
 	public constructor(private configuration: any = {}) {}
 	public loadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
 	public getConfiguration(): any { return this.configuration; }
@@ -164,9 +160,6 @@ suite('Workbench - TerminalConfigHelper', () => {
 				integrated: {
 					shell: {
 						windows: 'foo'
-					},
-					shellArgs: {
-						windows: []
 					}
 				}
 			}
@@ -180,7 +173,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		let configHelper: TerminalConfigHelper;
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme('hc-black foo'), [
+		assert.deepEqual(configHelper.getTheme('hc-black'), [
 			'#000000',
 			'#cd0000',
 			'#00cd00',
@@ -200,7 +193,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		], 'The high contrast terminal theme should be selected when the hc-black theme is active');
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme('vs foo'), [
+		assert.deepEqual(configHelper.getTheme('vs'), [
 			'#000000',
 			'#cd3131',
 			'#008000',
@@ -220,7 +213,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		], 'The light terminal theme should be selected when a vs theme is active');
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme('vs-dark foo'), [
+		assert.deepEqual(configHelper.getTheme('vs-dark'), [
 			'#000000',
 			'#cd3131',
 			'#09885a',

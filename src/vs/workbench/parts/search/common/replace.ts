@@ -5,7 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Match, FileMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { EditorInput } from 'vs/workbench/common/editor';
 
@@ -13,7 +13,7 @@ export var IReplaceService = createDecorator<IReplaceService>('replaceService');
 
 export interface IReplaceService {
 
-	serviceId : ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Replace the match with the given text.

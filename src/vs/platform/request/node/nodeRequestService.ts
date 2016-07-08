@@ -30,7 +30,7 @@ interface IHTTPConfiguration {
  */
 export class NodeRequestService implements IRequestService {
 
-	serviceId = IRequestService;
+	_serviceBrand: any;
 
 	private disposables: IDisposable[];
 	private proxyUrl: string = null;

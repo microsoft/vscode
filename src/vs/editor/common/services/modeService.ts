@@ -7,7 +7,7 @@
 import Event from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
 
 export var IModeService = createDecorator<IModeService>('modeService');
@@ -40,7 +40,7 @@ export interface IValidLanguageExtensionPoint {
 }
 
 export interface IModeService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	onDidAddModes: Event<string[]>;
 	onDidCreateMode: Event<modes.IMode>;

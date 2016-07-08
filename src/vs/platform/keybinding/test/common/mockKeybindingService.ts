@@ -6,9 +6,8 @@
 
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
-import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 	private _key: string;
@@ -31,11 +30,9 @@ class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 }
 
 export class MockKeybindingService implements IKeybindingService {
-	public serviceId = IKeybindingService;
+	public _serviceBrand: any;
 
 	public dispose(): void { }
-	public executeCommand(commandId: string, ...args: any[]): TPromise<any> { return; }
-	public hasCommand(commandId) { return false; }
 
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
 		return new MockKeybindingContextKey(key, defaultValue);

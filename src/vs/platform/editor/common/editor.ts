@@ -7,13 +7,12 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
-
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IEditorService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	/**
 	 * Specific overload to open an instance of IResourceInput.
 	 */
@@ -137,7 +136,7 @@ export interface IEditorInput extends IEventEmitter {
 	matches(other: any): boolean;
 }
 
-export interface IEditorOptionsBag {
+export interface IEditorOptions {
 
 	/**
 	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
@@ -151,6 +150,12 @@ export interface IEditorOptionsBag {
 	 * one showing.
 	 */
 	forceOpen?: boolean;
+
+	/**
+	 * Will reveal the editor if it is already opened in any editor group.
+	 * This prevents duplicates of the same editor input showing up.
+	 */
+	revealIfOpened?: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -170,7 +175,7 @@ export interface IEditorOptionsBag {
 	inactive?: boolean;
 }
 
-export interface ITextEditorOptions extends IEditorOptionsBag {
+export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
@@ -182,5 +187,3 @@ export interface ITextEditorOptions extends IEditorOptionsBag {
 		endColumn?: number;
 	};
 }
-
-export interface IEditorOptions extends IEditorOptionsBag {}

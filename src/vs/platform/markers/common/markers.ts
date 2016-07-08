@@ -7,12 +7,12 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const IMarkerService = createDecorator<IMarkerService>('markerService');
 
 export interface IMarkerService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	getStatistics(): MarkerStatistics;
 

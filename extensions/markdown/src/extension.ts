@@ -49,8 +49,9 @@ export function activate(context: ExtensionContext) {
 	});
 
 	vscode.workspace.onDidChangeConfiguration(() => {
-		vscode.workspace.textDocuments.forEach((document) => {
-			if (isMarkdownFile) {
+		vscode.workspace.textDocuments.forEach(document => {
+			if (document.uri.scheme === 'markdown') {
+				// update all generated md documents
 				provider.update(document.uri);
 			}
 		});
@@ -182,17 +183,33 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		return md;
 	}
 
-	private getMediaPath(mediaFile) {
+	private getMediaPath(mediaFile) : string {
 		return this._context.asAbsolutePath(path.join('media', mediaFile));
 	}
 
-	private fixHref(resource: Uri, href: string) {
+	private isAbsolute(p) : boolean {
+		return path.normalize(p + '/') === path.normalize(path.resolve(p) + '/');
+	}
+
+	private fixHref(resource: Uri, href: string) : string {
 		if (href) {
-			// Return early if href is already a URL
+			// Use href if it is already an URL
 			if (Uri.parse(href).scheme) {
 				return href;
 			}
-			// Otherwise convert to a file URI by joining the href with the resource location
+
+			// Use href as file URI if it is absolute
+			if (this.isAbsolute(href)) {
+				return Uri.file(href).toString();
+			}
+
+			// use a workspace relative path if there is a workspace
+			let rootPath = vscode.workspace.rootPath;
+			if (rootPath) {
+				return Uri.file(path.join(rootPath, href)).toString();
+			}
+
+			// otherwise look relative to the markdown file
 			return Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
 		}
 		return href;
@@ -200,7 +217,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 
 	private computeCustomStyleSheetIncludes(uri: Uri): string[] {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
-		if (styles && Array.isArray(styles)) {
+		if (styles && Array.isArray(styles) && styles.length > 0) {
 			return styles.map((style) => {
 				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			});

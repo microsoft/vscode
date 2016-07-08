@@ -6,8 +6,10 @@
 'use strict';
 
 import {localize} from 'vs/nls';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenu, MenuItemAction} from 'vs/platform/actions/common/actions';
+import {IMessageService} from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import {IAction} from 'vs/base/common/actions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -40,9 +42,9 @@ export function fillInActions(menu: IMenu, target: IAction[] | { primary: IActio
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService): ActionItem {
+export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService): ActionItem {
 	if (action instanceof MenuItemAction) {
-		return new MenuItemActionItem(action, keybindingService);
+		return new MenuItemActionItem(action, keybindingService, messageService);
 	}
 }
 
@@ -52,19 +54,16 @@ const _altKey = new class extends Emitter<boolean> {
 	private _subscriptions: IDisposable[] = [];
 
 	constructor() {
-		super({
-			onFirstListenerAdd: () => {
-				domEvent(document.body, 'keydown')(this._key, this, this._subscriptions);
-				domEvent(document.body, 'keyup')(this._key, this, this._subscriptions);
-			},
-			onLastListenerRemove: () => {
-				this._subscriptions = dispose(this._subscriptions);
-			}
-		});
+		super();
+
+		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.fire(e.altKey)));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
+		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
 	}
 
-	private _key(e: KeyboardEvent) {
-		this.fire(e.type === 'keydown' && e.altKey);
+	dispose() {
+		super.dispose();
+		this._subscriptions = dispose(this._subscriptions);
 	}
 };
 
@@ -74,7 +73,8 @@ class MenuItemActionItem extends ActionItem {
 
 	constructor(
 		action: MenuItemAction,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IMessageService private _messageService: IMessageService
 	) {
 		super(undefined, action, { icon: !!action.command.iconClass, label: !action.command.iconClass });
 	}
@@ -88,7 +88,9 @@ class MenuItemActionItem extends ActionItem {
 		event.preventDefault();
 		event.stopPropagation();
 
-		(<MenuItemAction>this._action).run(this._altKeyDown).done(undefined, console.error);
+		(<MenuItemAction>this._action).run(this._altKeyDown).done(undefined, err => {
+			this._messageService.show(Severity.Error, err);
+		});
 	}
 
 	render(container: HTMLElement): void {
@@ -97,21 +99,25 @@ class MenuItemActionItem extends ActionItem {
 		let altSubscription: IDisposable;
 		let mouseOver: boolean;
 		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
-			if (!this._altKeyDown) {
-				dispose(altSubscription);
-			}
 			mouseOver = false;
+			if (!this._altKeyDown) {
+				// stop listen on ALT
+				altSubscription.dispose();
+			}
 		}));
 		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
 			mouseOver = true;
 			altSubscription = _altKey.event(value => {
-				if (!mouseOver) {
-					dispose(altSubscription);
-				}
+
 				this._altKeyDown = value;
 				this._updateLabel();
 				this._updateTooltip();
 				this._updateClass();
+
+				if (!mouseOver) {
+					// stop listening on ALT
+					altSubscription.dispose();
+				}
 			});
 		}));
 	}

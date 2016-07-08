@@ -10,9 +10,9 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import {IModel, IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
 /**
@@ -64,6 +64,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 			dynamicHeight: boolean;
 		};
 		autoReveal: boolean;
+		enableDragAndDrop: boolean;
 	};
 	editor: IEditorOptions;
 }
@@ -244,10 +245,14 @@ export enum AutoSaveMode {
 	ON_FOCUS_CHANGE
 }
 
+export interface IFileEditorDescriptor extends IEditorDescriptor {
+	getMimeTypes(): string[];
+}
+
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface IRawTextContent extends IBaseStat {
-	
+
 	/**
 	 * The line grouped content of a text file.
 	 */
@@ -265,7 +270,7 @@ export interface IRawTextContent extends IBaseStat {
 }
 
 export interface ITextFileService extends IDisposable {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.

@@ -11,14 +11,13 @@ import {Builder, $} from 'vs/base/browser/builder';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {Action} from 'vs/base/common/actions';
 import {BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge} from 'vs/workbench/services/activity/common/activityService';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export class ActivityAction extends Action {
 
-	static BADGE = 'badge';
-
 	private badge: IBadge;
+	private _onDidChangeBadge = new Emitter<this>();
 
 	constructor(id: string, name: string, clazz: string) {
 		super(id, name, clazz);
@@ -26,17 +25,19 @@ export class ActivityAction extends Action {
 		this.badge = null;
 	}
 
+	public get onDidChangeBadge(): Event<this> {
+		return this._onDidChangeBadge.event;
+	}
+
 	public activate(): void {
 		if (!this.checked) {
-			this.checked = true;
-			this.emit('checked', { source: this });
+			this._setChecked(true);
 		}
 	}
 
 	public deactivate(): void {
 		if (this.checked) {
-			this.checked = false;
-			this.emit('checked', { source: this });
+			this._setChecked(false);
 		}
 	}
 
@@ -46,7 +47,7 @@ export class ActivityAction extends Action {
 
 	public setBadge(badge: IBadge): void {
 		this.badge = badge;
-		this.emit(ActivityAction.BADGE, { source: this });
+		this._onDidChangeBadge.fire(this);
 	}
 }
 
@@ -59,12 +60,13 @@ export class ActivityActionItem extends BaseActionItem {
 	private $badge: Builder;
 	private $badgeContent: Builder;
 
-	constructor(action: Action, activityName: string = action.label, keybinding: string = null) {
+	constructor(action: ActivityAction, activityName: string = action.label, keybinding: string = null) {
 		super(null, action);
 
 		this.cssClass = action.class;
 		this.name = activityName;
 		this._keybinding = keybinding;
+		action.onDidChangeBadge(this._handleBadgeChangeEvenet, this, this._callOnDispose);
 	}
 
 	public render(container: HTMLElement): void {
@@ -158,7 +160,7 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 	}
 
-	public _updateClass(): void {
+	protected _updateClass(): void {
 		if (this.cssClass) {
 			this.$badge.removeClass(this.cssClass);
 		}
@@ -167,7 +169,7 @@ export class ActivityActionItem extends BaseActionItem {
 		this.$badge.addClass(this.cssClass);
 	}
 
-	public _updateChecked(): void {
+	protected _updateChecked(): void {
 		if (this.getAction().checked) {
 			this.$e.addClass('active');
 		} else {
@@ -175,16 +177,14 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 	}
 
-	public _updateUnknown(event: EmitterEvent): void {
-		if (event.getType() === ActivityAction.BADGE) {
-			let action = this.getAction();
-			if (action instanceof ActivityAction) {
-				this.updateBadge((<ActivityAction> action).getBadge());
-			}
+	private _handleBadgeChangeEvenet(): void {
+		let action = this.getAction();
+		if (action instanceof ActivityAction) {
+			this.updateBadge((<ActivityAction>action).getBadge());
 		}
 	}
 
-	public _updateEnabled(): void {
+	protected _updateEnabled(): void {
 		if (this.getAction().enabled) {
 			this.builder.removeClass('disabled');
 		} else {

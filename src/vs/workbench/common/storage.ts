@@ -22,7 +22,7 @@ export interface IStorage {
 
 export class Storage implements IStorageService {
 
-	public serviceId = IStorageService;
+	public _serviceBrand: any;
 
 	private static COMMON_PREFIX = 'storage://';
 	private static GLOBAL_PREFIX = Storage.COMMON_PREFIX + 'global/';

@@ -45,7 +45,7 @@ export class LegacyRenderer implements _.IRenderer {
 			templateData.previousCleanupFn(tree, templateData.element);
 		}
 
-		while (templateData.root.firstChild) {
+		while (templateData.root && templateData.root.firstChild) {
 			templateData.root.removeChild(templateData.root.firstChild);
 		}
 

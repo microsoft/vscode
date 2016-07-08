@@ -906,14 +906,14 @@ export class ProblemMatcherParser extends Parser {
 			if (result.location) {
 				result = Objects.mixin(result, {
 					file: 1,
-					message: 4
+					message: 0
 				}, false);
 			} else {
 				result = Objects.mixin(result, {
 					file: 1,
 					line: 2,
 					column: 3,
-					message: 4
+					message: 0
 				}, false);
 			}
 		}
@@ -924,10 +924,10 @@ export class ProblemMatcherParser extends Parser {
 		let file: boolean, message: boolean, location: boolean, line: boolean;
 		let regexp: number = 0;
 		values.forEach(pattern => {
-			file = file || !!pattern.file;
-			message = message || !!pattern.message;
-			location = location || !!pattern.location;
-			line = line || !!pattern.line;
+			file = file || !Types.isUndefined(pattern.file);
+			message = message || !Types.isUndefined(pattern.message);
+			location = location || !Types.isUndefined(pattern.location);
+			line = line || !Types.isUndefined(pattern.line);
 			if (pattern.regexp) {
 				regexp++;
 			}

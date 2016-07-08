@@ -54,7 +54,7 @@ export abstract class ScopedService {
 }
 
 export class WorkbenchProgressService extends ScopedService implements IProgressService {
-	public serviceId = IProgressService;
+	public _serviceBrand: any;
 	private isActive: boolean;
 	private progressbar: ProgressBar;
 	private progressState: ProgressState;

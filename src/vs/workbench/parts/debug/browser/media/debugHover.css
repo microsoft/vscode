@@ -25,6 +25,7 @@
 	font-size: 11px;
 	word-break: normal;
 	text-overflow: ellipsis;
+	height: 18px;
 	overflow: hidden;
 	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
 }

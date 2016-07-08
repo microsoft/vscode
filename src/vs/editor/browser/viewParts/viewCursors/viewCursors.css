@@ -46,3 +46,61 @@
 	border-color: #fff;
 	color: #000; /* opposite of #fff */
 }
+
+@keyframes cursor-blink {
+	50% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+@keyframes cursor-smooth {
+	0%,
+	20% {
+		opacity: 0;
+	}
+	60%,
+	100% {
+		opacity: 1;
+	}
+}
+
+@keyframes cursor-phase {
+	0%,
+	20% {
+		opacity: 0;
+	}
+	90%,
+	100% {
+		opacity: 1;
+	}
+}
+
+@keyframes cursor-expand {
+	0%,
+	20% {
+		transform: scaleY(0);
+	}
+	80%,
+	100% {
+		transform: scaleY(1);
+	}
+}
+
+.cursor-blink > .cursor {
+	animation: cursor-blink 1s step-start 0s infinite;
+}
+
+.cursor-smooth > .cursor {
+	animation: cursor-smooth 0.5s ease-in-out 0s infinite alternate;
+}
+
+.cursor-phase > .cursor {
+	animation: cursor-phase 0.5s ease-in-out 0s infinite alternate;
+}
+
+.cursor-expand > .cursor {
+	animation: cursor-expand 0.5s ease-in-out 0s infinite alternate;
+}

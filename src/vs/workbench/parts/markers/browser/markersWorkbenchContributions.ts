@@ -11,7 +11,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import * as panel from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import * as problemsPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
 export function registerContributions(): void {
 
@@ -40,12 +40,13 @@ export function registerContributions(): void {
 
 	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
 
-	registry.registerWorkbenchAction(new SyncActionDescriptor(problemsPanelActions.ToggleProblemsPanelAction, problemsPanelActions.ToggleProblemsPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
+	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
 		primary: null,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M }
 	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
 
-	registry.registerWorkbenchAction(new SyncActionDescriptor(problemsPanelActions.ToggleErrorsAndWarningsAction, problemsPanelActions.ToggleErrorsAndWarningsAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL), Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL);
+	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
+	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleErrorsAndWarningsAction, markersPanelActions.ToggleErrorsAndWarningsAction.ID, ''), Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL);
 }

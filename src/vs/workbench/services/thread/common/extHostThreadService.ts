@@ -10,7 +10,7 @@ import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstrac
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostThreadService extends AbstractThreadService implements IThreadService {
-	public serviceId = IThreadService;
+	public _serviceBrand: any;
 	protected _remoteCom: IRemoteCom;
 
 	constructor(remoteCom: IRemoteCom) {

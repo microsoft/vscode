@@ -926,6 +926,7 @@ declare module monaco.editor {
         theme?: string;
         mimeType?: string;
     }
+
     export enum ScrollbarVisibility {
         Auto = 1,
         Hidden = 2,
@@ -1113,10 +1114,15 @@ declare module monaco.editor {
          */
         overviewRulerLanes?: number;
         /**
-         * Control the cursor blinking animation.
+         * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
          * Defaults to 'blink'.
          */
         cursorBlinking?: string;
+        /**
+         * Zoom the font in the editor when using the mouse wheel in combination with holding Ctrl.
+         * Defaults to false.
+         */
+        mouseWheelZoom?: boolean;
         /**
          * Control the cursor style, either 'block' or 'line'.
          * Defaults to 'line'.
@@ -1176,13 +1182,6 @@ declare module monaco.editor {
          * Defaults to '.'.
          */
         wordWrapBreakObtrusiveCharacters?: string;
-        /**
-         * Control what pressing Tab does.
-         * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
-         * If it is true, pressing Tab or Shift-Tab will move the browser focus.
-         * Defaults to false.
-         */
-        tabFocusMode?: boolean;
         /**
          * Performance guard: Stop rendering a line after x characters.
          * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
@@ -1249,11 +1248,6 @@ declare module monaco.editor {
          */
         selectionHighlight?: boolean;
         /**
-         * Show lines before classes and methods (based on outline info).
-         * Defaults to false.
-         */
-        outlineMarkers?: boolean;
-        /**
          * Show reference infos (a.k.a. code lenses) for modes that support it
          * Defaults to true.
          */
@@ -1277,7 +1271,7 @@ declare module monaco.editor {
          * Enable rendering of indent guides.
          * Defaults to true.
          */
-        indentGuides?: boolean;
+        renderIndentGuides?: boolean;
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1361,7 +1355,8 @@ declare module monaco.editor {
         revealHorizontalRightPadding: number;
         roundedSelection: boolean;
         overviewRulerLanes: number;
-        cursorBlinking: string;
+        cursorBlinking: TextEditorCursorBlinkingStyle;
+        mouseWheelZoom: boolean;
         cursorStyle: TextEditorCursorStyle;
         hideCursorInOverviewRuler: boolean;
         scrollBeyondLastLine: boolean;
@@ -1369,7 +1364,7 @@ declare module monaco.editor {
         stopRenderingLineAfter: number;
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
-        indentGuides: boolean;
+        renderIndentGuides: boolean;
         scrollbar: InternalEditorScrollbarOptions;
     }
 
@@ -1386,6 +1381,7 @@ declare module monaco.editor {
         roundedSelection: boolean;
         overviewRulerLanes: boolean;
         cursorBlinking: boolean;
+        mouseWheelZoom: boolean;
         cursorStyle: boolean;
         hideCursorInOverviewRuler: boolean;
         scrollBeyondLastLine: boolean;
@@ -1393,7 +1389,7 @@ declare module monaco.editor {
         stopRenderingLineAfter: boolean;
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
-        indentGuides: boolean;
+        renderIndentGuides: boolean;
         scrollbar: boolean;
     }
 
@@ -1409,7 +1405,6 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         selectionHighlight: boolean;
-        outlineMarkers: boolean;
         referenceInfos: boolean;
         folding: boolean;
     }
@@ -2738,6 +2733,11 @@ declare module monaco.editor {
     export const KEYBINDING_CONTEXT_EDITOR_FOCUS: string;
 
     /**
+     * A context key that is set when the editor's text is readonly.
+     */
+    export const KEYBINDING_CONTEXT_EDITOR_READONLY: string;
+
+    /**
      * A context key that is set when the editor has multiple selections (multiple cursors).
      */
     export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: string;
@@ -3127,6 +3127,10 @@ declare module monaco.editor {
          */
         executeCommand(source: string, command: ICommand): void;
         /**
+         * Push an "undo stop" in the undo-redo stack.
+         */
+        pushUndoStop(): boolean;
+        /**
          * Execute a command on the editor.
          * @param source The source of the call.
          * @param command The command to execute
@@ -3299,6 +3303,36 @@ declare module monaco.editor {
          * As a horizontal line (sitting under a character).
          */
         Underline = 3,
+    }
+
+    /**
+     * The kind of animation in which the editor's cursor should be rendered.
+     */
+    export enum TextEditorCursorBlinkingStyle {
+        /**
+         * Hidden
+         */
+        Hidden = 0,
+        /**
+         * Blinking
+         */
+        Blink = 1,
+        /**
+         * Blinking with smooth fading
+         */
+        Smooth = 2,
+        /**
+         * Blinking with prolonged filled state and smooth fading
+         */
+        Phase = 3,
+        /**
+         * Expand collapse animation on the y axis
+         */
+        Expand = 4,
+        /**
+         * No-Blinking
+         */
+        Solid = 5,
     }
 
     /**
@@ -3898,8 +3932,8 @@ declare module monaco.languages {
     }
 
     /**
-     * The language configuration interfaces defines the contract between extensions
-     * and various editor features, like automatic bracket insertion, automatic indentation etc.
+     * The language configuration interface defines the contract between extensions and
+     * various editor features, like automatic bracket insertion, automatic indentation etc.
      */
     export interface LanguageConfiguration {
         /**

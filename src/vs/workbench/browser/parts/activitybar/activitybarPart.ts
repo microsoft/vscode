@@ -26,14 +26,14 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 // import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 // import Severity from 'vs/base/common/severity';
 // import {IAction} from 'vs/base/common/actions';
 // import events = require('vs/base/common/events');
 
 export class ActivitybarPart extends Part implements IActivityService {
-	public serviceId = IActivityService;
+	public _serviceBrand: any;
 	private viewletSwitcherBar: ActionBar;
 	// private globalViewletSwitcherBar: ActionBar;
 	private globalToolBar: ToolBar;

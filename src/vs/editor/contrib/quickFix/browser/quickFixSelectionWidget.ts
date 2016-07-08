@@ -21,7 +21,7 @@ import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWi
 import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
 import {alert} from 'vs/base/browser/ui/aria/aria';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 var $ = dom.emmet;

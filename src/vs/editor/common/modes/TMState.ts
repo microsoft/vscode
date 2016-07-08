@@ -8,47 +8,21 @@ import {IMode, IState, ITokenizationResult} from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {StackElement} from 'vscode-textmate';
 
-function stackElementEquals(a:StackElement, b:StackElement): boolean {
-	if (!a && !b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-	// Not comparing enterPos since it does not represent state across lines
-	return (
-		a.ruleId === b.ruleId
-		&& a.endRule === b.endRule
-		&& a.scopeName === b.scopeName
-		&& a.contentName === b.contentName
-	);
-}
-
 export class TMState implements IState {
 
 	private _mode: IMode;
 	private _parentEmbedderState: IState;
-	private _ruleStack: StackElement[];
+	private _ruleStack: StackElement;
 
-	constructor(mode: IMode, parentEmbedderState: IState, ruleStack: StackElement[]) {
+	constructor(mode: IMode, parentEmbedderState: IState, ruleStack: StackElement) {
 		this._mode = mode;
 		this._parentEmbedderState = parentEmbedderState;
-		this._ruleStack = ruleStack || null;
+		this._ruleStack = ruleStack;
 	}
 
 	public clone():TMState {
 		let parentEmbedderStateClone = AbstractState.safeClone(this._parentEmbedderState);
-
-		let ruleStackClone: StackElement[] = null;
-		if (this._ruleStack) {
-			ruleStackClone = [];
-			for (let i = 0, len = this._ruleStack.length; i < len; i++) {
-				let rule = this._ruleStack[i];
-				ruleStackClone.push(rule.clone());
-			}
-		}
-
-		return new TMState(this._mode, parentEmbedderStateClone, ruleStackClone);
+		return new TMState(this._mode, parentEmbedderStateClone, this._ruleStack);
 	}
 
 	public equals(other:IState):boolean {
@@ -69,16 +43,7 @@ export class TMState implements IState {
 		if (this._ruleStack === null || otherState._ruleStack === null) {
 			return false;
 		}
-		if (this._ruleStack.length !== otherState._ruleStack.length) {
-			return false;
-		}
-
-		for (var i = 0, len = this._ruleStack.length; i < len; i++) {
-			if (!stackElementEquals(this._ruleStack[i], otherState._ruleStack[i])) {
-				return false;
-			}
-		}
-		return true;
+		return this._ruleStack.equals(otherState._ruleStack);
 	}
 
 	public getMode():IMode {
@@ -97,11 +62,11 @@ export class TMState implements IState {
 		this._parentEmbedderState = state;
 	}
 
-	public getRuleStack(): StackElement[] {
+	public getRuleStack(): StackElement {
 		return this._ruleStack;
 	}
 
-	public setRuleStack(ruleStack:StackElement[]): void {
+	public setRuleStack(ruleStack:StackElement): void {
 		this._ruleStack = ruleStack;
 	}
 }

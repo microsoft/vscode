@@ -123,7 +123,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private static SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
-	serviceId = IExtensionsWorkbenchService;
+	_serviceBrand: any;
 	private stateProvider: IExtensionStateProvider;
 	private installing: { id: string; extension: Extension; }[] = [];
 	private installed: Extension[] = [];

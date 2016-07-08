@@ -13,7 +13,7 @@ export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
 export interface IOpenerService {
 
-	serviceId: any;
+	_serviceBrand: any;
 
 	/**
 	 * Opens a resource, like a webadress, a document uri, or executes command.
@@ -25,6 +25,6 @@ export interface IOpenerService {
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({
-	serviceId: undefined,
+	_serviceBrand: undefined,
 	open() { return TPromise.as(undefined);}
 });

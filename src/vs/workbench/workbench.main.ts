@@ -54,7 +54,7 @@ import 'vs/workbench/parts/output/browser/output.contribution';
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
 
-import 'vs/workbench/browser/workbench';
+import 'vs/workbench/electron-browser/workbench';
 
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 
@@ -83,10 +83,3 @@ import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/electron-browser/main';
 
 import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution';
-
-// require.config({
-// 	ignoreDuplicateModules: [
-// 		'vs/workbench/parts/search/common/searchModel',
-// 		'vs/workbench/parts/search/common/searchQuery'
-// 	]
-// });

@@ -31,7 +31,7 @@ var stdErrPipeName = process.env['STDERR_PIPE_NAME'];
 log('STDIN_PIPE_NAME: ' + stdInPipeName);
 log('STDOUT_PIPE_NAME: ' + stdOutPipeName);
 log('STDERR_PIPE_NAME: ' + stdErrPipeName);
-log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE']);
+log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 
 // stdout redirection to named pipe
 (function() {
@@ -147,7 +147,7 @@ log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_A
 		delete process.env['STDIN_PIPE_NAME'];
 		delete process.env['STDOUT_PIPE_NAME'];
 		delete process.env['STDERR_PIPE_NAME'];
-		delete process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		delete process.env['ELECTRON_RUN_AS_NODE'];
 
 		require(program);
 

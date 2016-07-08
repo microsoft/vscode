@@ -19,11 +19,11 @@ import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/l
 import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { Match, EmptyMatch, SearchResult, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, SearchResult, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CommonKeybindings}  from 'vs/base/common/keyCodes';
+import { CommonKeybindings }  from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -91,19 +91,21 @@ class SearchActionProvider extends ContributableActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return element instanceof FileMatch || (tree.getInput().isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
+		let input= <SearchResult>tree.getInput();
+		return element instanceof FileMatch || (input.searchModel.isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
 		return super.getActions(tree, element).then(actions => {
+			let input= <SearchResult>tree.getInput();
 			if (element instanceof FileMatch) {
 				actions.unshift(new RemoveAction(tree, element));
-				if (tree.getInput().isReplaceActive() && element.count() > 0) {
+				if (input.searchModel.isReplaceActive() && element.count() > 0) {
 					actions.unshift(this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet));
 				}
 			}
-			if (element instanceof Match && !(element instanceof EmptyMatch)) {
-				if (tree.getInput().isReplaceActive()) {
+			if (element instanceof Match) {
+				if (input.searchModel.isReplaceActive()) {
 					actions.unshift(this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet), new RemoveAction(tree, element));
 				}
 			}
@@ -156,12 +158,6 @@ export class SearchRenderer extends ActionsRenderer {
 			return widget.dispose.bind(widget);
 		}
 
-		// Empty
-		else if (element instanceof EmptyMatch) {
-			dom.addClass(domElement, 'linematch');
-			$('a.plain.label').innerHtml(nls.localize('noMatches', "no matches")).appendTo(domElement);
-		}
-
 		// Match
 		else if (element instanceof Match) {
 			dom.addClass(domElement, 'linematch');
@@ -173,18 +169,12 @@ export class SearchRenderer extends ActionsRenderer {
 			elements.push(strings.escape(preview.before));
 
 			let input= <SearchResult>tree.getInput();
-			if (input.isReplaceActive()) {
-				let replaceValue= input.replaceText;
-				if (replaceValue) {
-					elements.push('</span><span class="findInFileMatch replaceMatch">');
-					elements.push(strings.escape(replaceValue));
-				} else {
-					elements.push('</span><span class="findInFileMatch replaceMatch removeMatch">');
-					elements.push(strings.escape(preview.inside));
-				}
-			} else {
-				elements.push('</span><span class="findInFileMatch">');
-				elements.push(strings.escape(preview.inside));
+			let showReplaceText= input.searchModel.hasReplaceText();
+			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
+			elements.push(strings.escape(preview.inside));
+			if (showReplaceText) {
+				elements.push('</span><span class="replaceMatch">');
+				elements.push(strings.escape(input.searchModel.replaceText));
 			}
 			elements.push('</span><span>');
 			elements.push(strings.escape(preview.after));
@@ -192,7 +182,7 @@ export class SearchRenderer extends ActionsRenderer {
 
 			$('a.plain')
 				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + (input.isReplaceActive() ? input.replaceText : preview.inside) + preview.after).trim().substr(0, 999))
+				.title((preview.before + (input.searchModel.isReplaceActive() ? input.searchModel.replaceText : preview.inside) + preview.after).trim().substr(0, 999))
 				.appendTo(domElement);
 		}
 
@@ -212,15 +202,11 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
-		if (element instanceof EmptyMatch) {
-			return nls.localize('emptyMatchAriaLabel', "No matches");
-		}
-
 		if (element instanceof Match) {
 			let input= <SearchResult>tree.getInput();
-			if (input.isReplaceActive()) {
+			if (input.searchModel.isReplaceActive()) {
 				let preview = element.preview();
-				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + input.replaceText + preview.after);
+				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + input.searchModel.replaceText + preview.after);
 			}
 			return nls.localize('searchResultAria', "{0}, Search result", element.text());
 		}
@@ -229,7 +215,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 export class SearchController extends DefaultController {
 
-	constructor(private viewlet: SearchViewlet) {
+	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
 		if (platform.isMacintosh) {
@@ -240,6 +226,8 @@ export class SearchController extends DefaultController {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
 		}
 
+		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
+		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
@@ -252,11 +240,35 @@ export class SearchController extends DefaultController {
 	}
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
+		let input= <SearchResult>tree.getInput();
 		let result = false;
 		let element = tree.getFocus();
 		if (element instanceof FileMatch ||
-				(element instanceof Match && tree.getInput().isReplaceActive() && !(element instanceof EmptyMatch))) {
+				(element instanceof Match && input.searchModel.isReplaceActive())) {
 			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
+			result = true;
+		}
+
+		return result;
+	}
+
+	private onReplace(tree: ITree, event: IKeyboardEvent): boolean {
+		let input= <SearchResult>tree.getInput();
+		let result = false;
+		let element = tree.getFocus();
+		if (element instanceof Match && input.searchModel.isReplaceActive()) {
+			this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
+			result = true;
+		}
+
+		return result;
+	}
+
+	private onReplaceAll(tree: ITree, event: IKeyboardEvent): boolean {
+		let result = false;
+		let element = tree.getFocus();
+		if (element instanceof FileMatch && element.count() > 0) {
+			this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
 			result = true;
 		}
 

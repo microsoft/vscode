@@ -10,7 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {ShallowCancelThenPromise} from 'vs/base/common/async';
 import {StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, startup, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IEditorOverrideServices, ensureDynamicPlatformServices, ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -416,6 +416,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		CursorChangeReason: editorCommon.CursorChangeReason,
 		MouseTargetType: editorCommon.MouseTargetType,
 		TextEditorCursorStyle: editorCommon.TextEditorCursorStyle,
+		TextEditorCursorBlinkingStyle: editorCommon.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 
@@ -437,6 +438,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		// consts
 		KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS,
 		KEYBINDING_CONTEXT_EDITOR_FOCUS: editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS,
+		KEYBINDING_CONTEXT_EDITOR_READONLY: editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY,
 		KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS,
 		KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION,
 		KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID,

@@ -29,7 +29,7 @@ export class TelemetryService implements ITelemetryService {
 	static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
-	serviceId = ITelemetryService;
+	_serviceBrand: any;
 
 	private _appender: ITelemetryAppender;
 	private _commonProperties: TPromise<{ [name: string]: any; }>;

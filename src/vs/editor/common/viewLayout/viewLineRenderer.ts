@@ -89,10 +89,6 @@ function isWhitespace(type:string): boolean {
 	return (type.indexOf('whitespace') >= 0);
 }
 
-function isIndentGuide(type:string): boolean {
-	return (type.indexOf('indent-guide') >= 0);
-}
-
 function isControlCharacter(characterCode: number): boolean {
 	return characterCode < 32;
 }
@@ -116,7 +112,6 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 		let part = actualLineParts[partIndex];
 
 		let parsRendersWhitespace = (renderWhitespace && isWhitespace(part.type));
-		let partIsFixedWidth = parsRendersWhitespace || isIndentGuide(part.type);
 
 		let toCharIndex = lineTextLength;
 		if (partIndex + 1 < partIndexLen) {
@@ -125,7 +120,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 		}
 
 		charOffsetInPart = 0;
-		if (partIsFixedWidth) {
+		if (parsRendersWhitespace) {
 
 			let partContentCnt = 0;
 			let partContent = '';
@@ -138,7 +133,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						partContent += parsRendersWhitespace ? '&rarr;' : '&nbsp;';
+						partContent += '&rarr;';
 						partContentCnt++;
 						insertSpacesCount--;
 					}
@@ -149,7 +144,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					}
 				} else {
 					// must be _space
-					partContent += parsRendersWhitespace ? '&middot;' : '&nbsp;';
+					partContent += '&middot;';
 					partContentCnt++;
 				}
 

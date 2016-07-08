@@ -30,7 +30,7 @@ class ModelLineBasedBuilder {
 		this.currLineIndex = 0;
 	}
 
-	public acceptLines(lines:string[], linesLength:number): void {
+	public acceptLines(lines:string[]): void {
 		if (this.currLineIndex === 0) {
 			// Remove the BOM (if present)
 			if (strings.startsWithUTF8BOM(lines[0])) {
@@ -39,10 +39,10 @@ class ModelLineBasedBuilder {
 			}
 		}
 
-		for (let i = 0; i < linesLength; i++) {
+		for (let i = 0, len = lines.length; i < len; i++) {
 			this.lines[this.currLineIndex++] = lines[i];
-			this.hash.update(lines[i] + '\n');
 		}
+		this.hash.update(lines.join('\n') + '\n');
 	}
 
 	public finish(totalLength:number, carriageReturnCnt:number, opts:ITextModelCreationOptions): ModelBuilderResult {
@@ -178,7 +178,7 @@ export class ModelBuilder {
 		}
 
 		lines[0] = this.leftoverPrevChunk + lines[0];
-		this.lineBasedBuilder.acceptLines(lines, lines.length - 1);
+		this.lineBasedBuilder.acceptLines(lines.slice(0, lines.length - 1));
 		this.leftoverPrevChunk = lines[lines.length - 1];
 	}
 
@@ -187,7 +187,7 @@ export class ModelBuilder {
 		if (this.leftoverEndsInCR) {
 			finalLines.push('');
 		}
-		this.lineBasedBuilder.acceptLines(finalLines, finalLines.length);
+		this.lineBasedBuilder.acceptLines(finalLines);
 		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, opts);
 	}
 }

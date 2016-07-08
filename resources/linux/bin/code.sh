@@ -33,5 +33,5 @@ fi
 
 ELECTRON="$VSCODE_PATH/@@NAME@@"
 CLI="$VSCODE_PATH/resources/app/out/cli.js"
-ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?

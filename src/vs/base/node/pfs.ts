@@ -32,8 +32,8 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 	const mkdir = () => nfcall(fs.mkdir, path, mode)
 		.then(null, (err: NodeJS.ErrnoException) => {
 			if (err.code === 'EEXIST') {
-				return nfcall(extfs.stat, path)
-					.then((stat: extfs.IRawStat) => stat.isDirectory
+				return nfcall(fs.stat, path)
+					.then((stat:fs.Stats) => stat.isDirectory
 						? null
 						: Promise.wrapError(new Error(`'${ path }' exists and is not a directory.`)));
 			}
@@ -76,15 +76,15 @@ export function realpath(path: string): TPromise<string> {
 	return nfcall(fs.realpath, path, null);
 }
 
-export function stat(path: string): TPromise<extfs.IRawStat> {
-	return nfcall(extfs.stat, path);
+export function stat(path: string): TPromise<fs.Stats> {
+	return nfcall(fs.stat, path);
 }
 
-export function lstat(path: string): TPromise<extfs.IRawStat> {
-	return nfcall(extfs.lstat, path);
+export function lstat(path: string): TPromise<fs.Stats> {
+	return nfcall(fs.lstat, path);
 }
 
-export function mstat(paths: string[]): TPromise<{ path: string; stats: extfs.IRawStat; }> {
+export function mstat(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
 	return doStatMultiple(paths.slice(0));
 }
 
@@ -108,7 +108,7 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-function doStatMultiple(paths: string[]): TPromise<{ path: string; stats: extfs.IRawStat; }> {
+function doStatMultiple(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
 	let path = paths.shift();
 	return stat(path).then((value) => {
 		return {

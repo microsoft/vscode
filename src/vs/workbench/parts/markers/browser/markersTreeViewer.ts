@@ -167,14 +167,14 @@ export class Renderer implements IRenderer {
 	}
 }
 
-export class ProblemsTreeAccessibilityProvider implements IAccessibilityProvider {
+export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Resource) {
-			return Messages.PROBLEMS_TREE_ARIA_LABEL_RESOURCE(element.name, element.markers.length);
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.markers.length);
 		}
 		if (element instanceof Marker) {
-			return Messages.PROBLEMS_TREE_ARIA_LABEL_MARKER(element.marker);
+			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element.marker);
 		}
 		return null;
 	}

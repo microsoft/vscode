@@ -38,7 +38,7 @@ export interface ILogEntry {
 }
 
 export class MainThreadService extends AbstractThreadService implements IThreadService {
-	public serviceId = IThreadService;
+	public _serviceBrand: any;
 
 	private extensionHostProcessManager: ExtensionHostProcessManager;
 	private remoteCom: IMainProcessExtHostIPC;

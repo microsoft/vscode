@@ -60,8 +60,16 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Pr
 				return;
 			}
 
-			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+
+			// directory file names end with '/'
+			if (/\/$/.test(fileName)) {
+				const targetFileName = path.join(targetPath, fileName);
+				last = mkdirp(targetFileName);
+				return;
+			}
+
+			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const mode = modeFromEntry(entry);
 
 			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
@@ -69,7 +77,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Pr
 	});
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions): Promise {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): Promise {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${ options.sourcePath }` : '');
 
 	let promise = nfcall<ZipFile>(openZip, zipPath);

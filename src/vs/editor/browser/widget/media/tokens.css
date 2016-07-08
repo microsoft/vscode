@@ -36,17 +36,3 @@
 .monaco-editor .markup.bold { font-weight: bold; }
 .monaco-editor .markup.italic { font-style: italic; }
 .monaco-editor .markup.underline { text-decoration: underline; }
-
-
-/* -------------------- Indent Guides -------------------- */
-
-.monaco-editor .token.indent-guide {
-	display:inline-block;
-	border-left: 1px solid lightgray;
-	box-sizing: border-box;
-}
-.monaco-editor.vs-dark .token.indent-guide,
-.monaco-editor.hc-black .token.indent-guide {
-	border-left: 1px solid #353535;
-}
-

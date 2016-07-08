@@ -150,7 +150,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: message });
 					}
 				}
-				if (error && error.showUser === false) {
+				if (errors.isPromiseCanceledError(errorResponse) || (error && error.showUser === false)) {
+					// Do not show error message to user if showUser === false or 'canceled' error message #7906
 					return TPromise.as(null);
 				}
 

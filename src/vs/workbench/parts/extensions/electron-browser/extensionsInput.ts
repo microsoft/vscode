@@ -41,4 +41,8 @@ export class ExtensionsInput extends EditorInput {
 	resolve(refresh?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
+
+	supportsSplitEditor(): boolean {
+		return false;
+	}
 }

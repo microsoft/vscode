@@ -107,7 +107,7 @@ function readDir(path: string): winjs.TPromise<string[]> {
 
 function fileExists(path: string): winjs.TPromise<boolean> {
 	return new winjs.TPromise<boolean>((c, e, p) => {
-		extfs.stat(path,(err, stats) => {
+		fs.stat(path,(err, stats) => {
 			if (err) {
 				return c(false);
 			}

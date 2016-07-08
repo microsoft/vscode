@@ -23,7 +23,7 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -65,8 +65,8 @@ export class BaseTwoEditorsAction extends Action {
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.createInput({ resource: editableResource }).then((typedRightHandEditableInput) => {
 				const editors = [
-					{ input: leftHandDefaultInput, position: Position.LEFT },
-					{ input: typedRightHandEditableInput, position: Position.CENTER }
+					{ input: leftHandDefaultInput, position: Position.LEFT, options: { pinned: true } },
+					{ input: typedRightHandEditableInput, position: Position.CENTER, options: { pinned: true } }
 				];
 
 				return this.editorService.openEditors(editors).then(() => {
@@ -139,7 +139,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
 						return this.editorService.createInput({ resource: this.contextService.toResource('.vscode/settings.json') }).then((typedInput) => {
-							return this.editorService.openEditor(typedInput, null, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
+							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
 					})
 				]

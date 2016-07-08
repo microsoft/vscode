@@ -12,7 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -259,10 +259,15 @@ export interface IEditorOptions {
 	 */
 	overviewRulerLanes?:number;
 	/**
-	 * Control the cursor blinking animation.
+	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
 	 * Defaults to 'blink'.
 	 */
 	cursorBlinking?:string;
+	/**
+	 * Zoom the font in the editor when using the mouse wheel in combination with holding Ctrl.
+	 * Defaults to false.
+	 */
+	mouseWheelZoom?: boolean;
 	/**
 	 * Control the cursor style, either 'block' or 'line'.
 	 * Defaults to 'line'.
@@ -322,14 +327,6 @@ export interface IEditorOptions {
 	 * Defaults to '.'.
 	 */
 	wordWrapBreakObtrusiveCharacters?: string;
-
-	/**
-	 * Control what pressing Tab does.
-	 * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
-	 * If it is true, pressing Tab or Shift-Tab will move the browser focus.
-	 * Defaults to false.
-	 */
-	tabFocusMode?:boolean;
 
 	/**
 	 * Performance guard: Stop rendering a line after x characters.
@@ -397,11 +394,6 @@ export interface IEditorOptions {
 	 */
 	selectionHighlight?:boolean;
 	/**
-	 * Show lines before classes and methods (based on outline info).
-	 * Defaults to false.
-	 */
-	outlineMarkers?: boolean;
-	/**
 	 * Show reference infos (a.k.a. code lenses) for modes that support it
 	 * Defaults to true.
 	 */
@@ -425,7 +417,7 @@ export interface IEditorOptions {
 	 * Enable rendering of indent guides.
 	 * Defaults to true.
 	 */
-	indentGuides?: boolean;
+	renderIndentGuides?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -610,7 +602,8 @@ export class InternalEditorViewOptions {
 	revealHorizontalRightPadding:number;
 	roundedSelection:boolean;
 	overviewRulerLanes:number;
-	cursorBlinking:string;
+	cursorBlinking:TextEditorCursorBlinkingStyle;
+	mouseWheelZoom:boolean;
 	cursorStyle:TextEditorCursorStyle;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
@@ -618,7 +611,7 @@ export class InternalEditorViewOptions {
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
-	indentGuides: boolean;
+	renderIndentGuides: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
 	/**
@@ -636,7 +629,8 @@ export class InternalEditorViewOptions {
 		revealHorizontalRightPadding:number;
 		roundedSelection:boolean;
 		overviewRulerLanes:number;
-		cursorBlinking:string;
+		cursorBlinking:TextEditorCursorBlinkingStyle;
+		mouseWheelZoom:boolean;
 		cursorStyle:TextEditorCursorStyle;
 		hideCursorInOverviewRuler:boolean;
 		scrollBeyondLastLine:boolean;
@@ -644,7 +638,7 @@ export class InternalEditorViewOptions {
 		stopRenderingLineAfter: number;
 		renderWhitespace: boolean;
 		renderControlCharacters: boolean;
-		indentGuides: boolean;
+		renderIndentGuides: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
 		this.theme = String(source.theme);
@@ -658,7 +652,8 @@ export class InternalEditorViewOptions {
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
 		this.roundedSelection = Boolean(source.roundedSelection);
 		this.overviewRulerLanes = source.overviewRulerLanes|0;
-		this.cursorBlinking = String(source.cursorBlinking);
+		this.cursorBlinking = source.cursorBlinking|0;
+		this.mouseWheelZoom = Boolean(source.mouseWheelZoom);
 		this.cursorStyle = source.cursorStyle|0;
 		this.hideCursorInOverviewRuler = Boolean(source.hideCursorInOverviewRuler);
 		this.scrollBeyondLastLine = Boolean(source.scrollBeyondLastLine);
@@ -666,7 +661,7 @@ export class InternalEditorViewOptions {
 		this.stopRenderingLineAfter = source.stopRenderingLineAfter|0;
 		this.renderWhitespace = Boolean(source.renderWhitespace);
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
-		this.indentGuides = Boolean(source.indentGuides);
+		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.scrollbar = source.scrollbar.clone();
 	}
 
@@ -715,6 +710,7 @@ export class InternalEditorViewOptions {
 			&& this.roundedSelection === other.roundedSelection
 			&& this.overviewRulerLanes === other.overviewRulerLanes
 			&& this.cursorBlinking === other.cursorBlinking
+			&& this.mouseWheelZoom === other.mouseWheelZoom
 			&& this.cursorStyle === other.cursorStyle
 			&& this.hideCursorInOverviewRuler === other.hideCursorInOverviewRuler
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
@@ -722,7 +718,7 @@ export class InternalEditorViewOptions {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
-			&& this.indentGuides === other.indentGuides
+			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.scrollbar.equals(other.scrollbar)
 		);
 	}
@@ -744,6 +740,7 @@ export class InternalEditorViewOptions {
 			roundedSelection: this.roundedSelection !== newOpts.roundedSelection,
 			overviewRulerLanes: this.overviewRulerLanes !== newOpts.overviewRulerLanes,
 			cursorBlinking: this.cursorBlinking !== newOpts.cursorBlinking,
+			mouseWheelZoom: this.mouseWheelZoom !== newOpts.mouseWheelZoom,
 			cursorStyle: this.cursorStyle !== newOpts.cursorStyle,
 			hideCursorInOverviewRuler: this.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler,
 			scrollBeyondLastLine: this.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine,
@@ -751,7 +748,7 @@ export class InternalEditorViewOptions {
 			stopRenderingLineAfter: this.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter,
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
 			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
-			indentGuides: this.indentGuides !== newOpts.indentGuides,
+			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
 		};
 	}
@@ -777,6 +774,7 @@ export interface IViewConfigurationChangedEvent {
 	roundedSelection: boolean;
 	overviewRulerLanes: boolean;
 	cursorBlinking: boolean;
+	mouseWheelZoom: boolean;
 	cursorStyle: boolean;
 	hideCursorInOverviewRuler: boolean;
 	scrollBeyondLastLine: boolean;
@@ -784,7 +782,7 @@ export interface IViewConfigurationChangedEvent {
 	stopRenderingLineAfter:  boolean;
 	renderWhitespace:  boolean;
 	renderControlCharacters: boolean;
-	indentGuides:  boolean;
+	renderIndentGuides:  boolean;
 	scrollbar: boolean;
 }
 
@@ -800,7 +798,6 @@ export class EditorContribOptions {
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
 	selectionHighlight:boolean;
-	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	folding: boolean;
 
@@ -819,7 +816,6 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		selectionHighlight:boolean;
-		outlineMarkers: boolean;
 		referenceInfos: boolean;
 		folding: boolean;
 	}) {
@@ -834,7 +830,6 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.selectionHighlight = Boolean(source.selectionHighlight);
-		this.outlineMarkers = Boolean(source.outlineMarkers);
 		this.referenceInfos = Boolean(source.referenceInfos);
 		this.folding = Boolean(source.folding);
 	}
@@ -855,7 +850,6 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.selectionHighlight === other.selectionHighlight
-			&& this.outlineMarkers === other.outlineMarkers
 			&& this.referenceInfos === other.referenceInfos
 			&& this.folding === other.folding
 		);
@@ -3042,6 +3036,10 @@ export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
  */
 export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
 /**
+ * A context key that is set when the editor's text is readonly.
+ */
+export const KEYBINDING_CONTEXT_EDITOR_READONLY = 'editorReadonly';
+/**
  * A context key that is set when the editor has multiple selections (multiple cursors).
  */
 export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
@@ -3926,6 +3924,11 @@ export interface ICommonCodeEditor extends IEditor {
 	executeCommand(source: string, command: ICommand): void;
 
 	/**
+	 * Push an "undo stop" in the undo-redo stack.
+	 */
+	pushUndoStop(): boolean;
+
+	/**
 	 * Execute a command on the editor.
 	 * @param source The source of the call.
 	 * @param command The command to execute
@@ -4257,6 +4260,36 @@ export enum TextEditorCursorStyle {
 	 * As a horizontal line (sitting under a character).
 	 */
 	Underline = 3
+}
+
+/**
+ * The kind of animation in which the editor's cursor should be rendered.
+ */
+export enum TextEditorCursorBlinkingStyle {
+	/**
+	 * Hidden
+	 */
+	Hidden = 0,
+	/**
+	 * Blinking
+	 */
+	Blink = 1,
+	/**
+	 * Blinking with smooth fading
+	 */
+	Smooth = 2,
+	/**
+	 * Blinking with prolonged filled state and smooth fading
+	 */
+	Phase = 3,
+	/**
+	 * Expand collapse animation on the y axis
+	 */
+	Expand = 4,
+	/**
+	 * No-Blinking
+	 */
+	Solid = 5
 }
 
 /**

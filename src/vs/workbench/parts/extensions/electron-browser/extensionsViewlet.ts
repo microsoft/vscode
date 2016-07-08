@@ -18,14 +18,14 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, emmet as $ } from 'vs/base/browser/dom';
+import { append, emmet as $, addStandardDisposableListener, EventType, addClass, removeClass } from 'vs/base/browser/dom';
 import { IPager, PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
-import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction } from './extensionsActions';
+import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ListOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -39,6 +39,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private extensionsBox: HTMLElement;
 	private list: PagedList<IExtension>;
 	private disposables: IDisposable[] = [];
+	private focusInvokedByTab: boolean;
+	private clearAction: ClearExtensionsInputAction;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -61,8 +63,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const header = append(this.root, $('.header'));
 
 		this.searchBox = append(header, $<HTMLInputElement>('input.search-box'));
-		this.searchBox.type = 'search';
 		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
+		this.disposables.push(addStandardDisposableListener(this.searchBox, EventType.FOCUS, () => addClass(this.searchBox, 'synthetic-focus')));
+		this.disposables.push(addStandardDisposableListener(this.searchBox, EventType.BLUR, () => removeClass(this.searchBox, 'synthetic-focus')));
 		this.extensionsBox = append(this.root, $('.extensions'));
 
 		const delegate = new Delegate();
@@ -75,16 +78,24 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const onEscape = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Escape);
 		const onUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow);
 		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
+		const onTab = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Tab);
 
 		onEnter(this.onEnter, this, this.disposables);
 		onEscape(this.onEscape, this, this.disposables);
 		onUpArrow(this.onUpArrow, this, this.disposables);
 		onDownArrow(this.onDownArrow, this, this.disposables);
+		onTab(this.onTab, this, this.disposables);
 
 		const onInput = domEvent(this.searchBox, 'input');
 		onInput(() => this.triggerSearch(), null, this.disposables);
 
-		this.list.onDOMFocus(() => this.searchBox.focus(), null, this.disposables);
+		this.list.onDOMFocus(focusEvent => {
+			// Allow tab to move focus out of search box #7966
+			if (!this.focusInvokedByTab) {
+				this.searchBox.focus();
+			}
+			this.focusInvokedByTab = false;
+		}, null, this.disposables);
 
 		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
 		onSelectedExtension(this.onExtensionSelected, this, this.disposables);
@@ -113,9 +124,21 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	getActions(): IAction[] {
+		if (!this.clearAction) {
+			this.clearAction = this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL);
+		}
+
 		return [
-			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL)
+			this.clearAction
+		];
+	}
+
+	getSecondaryActions(): IAction[] {
+		return [
+			this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
+			this.instantiationService.createInstance(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL),
+			this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL),
+			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
 		];
 	}
 
@@ -126,6 +149,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private triggerSearch(immediate = false, suggestPopular = false): void {
 		const text = this.searchBox.value;
+		// Joao do not kill me for this hack -isidor
+		this.clearAction.enabled = !!text;
 		this.searchDelayer.trigger(() => this.doSearch(text, suggestPopular), immediate || !text ? 0 : 500);
 	}
 
@@ -178,6 +203,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private onDownArrow(): void {
 		this.list.focusNext();
+	}
+
+	private onTab(): void {
+		this.focusInvokedByTab = true;
 	}
 
 	dispose(): void {

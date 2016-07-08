@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable} from 'vs/base/common/lifecycle';
 
 export var IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
@@ -44,7 +44,7 @@ export interface IStatusbarEntry {
 
 export interface IStatusbarService {
 
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned IDisposable

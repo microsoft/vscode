@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import DOM = require('vs/base/browser/dom');
+import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
 import {Action, IAction} from 'vs/base/common/actions';
@@ -12,6 +13,7 @@ import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceActio
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ITerminalProcess, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
@@ -29,6 +31,7 @@ export class TerminalPanel extends Panel {
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
 	private terminalContainer: HTMLElement;
+	private currentBaseThemeId: string;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 
@@ -38,7 +41,8 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
 	}
@@ -57,8 +61,8 @@ export class TerminalPanel extends Panel {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchTerminalInstanceAction, SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL),
-				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL),
-				this.instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL)
+				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
+				this.instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
 
 			this.actions.forEach(a => {
@@ -90,16 +94,13 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(this.terminalContainer);
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
-		this.toDispose.push(DOM.addDisposableListener(this.terminalContainer, 'wheel', (event: WheelEvent) => {
-			this.terminalInstances[this.terminalService.getActiveTerminalIndex()].dispatchEvent(new WheelEvent(event.type, event));
-		}));
 
 		return this.terminalService.createNew();
 	}
 
 	public createNewTerminalInstance(terminalProcess: ITerminalProcess): TPromise<void> {
 		return this.createTerminal(terminalProcess).then(() => {
-			this.updateFont();
+			this.updateConfig();
 			this.focus();
 		});
 	}
@@ -118,7 +119,7 @@ export class TerminalPanel extends Panel {
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
 			if (this.terminalInstances.length > 0) {
-				this.updateFont();
+				this.updateConfig();
 				this.updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
@@ -131,12 +132,13 @@ export class TerminalPanel extends Panel {
 
 	private createTerminal(terminalProcess: ITerminalProcess): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
-			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextService, this.terminalService, this.onTerminalInstanceExit.bind(this));
+			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextService, this.terminalService, this.messageService, this.onTerminalInstanceExit.bind(this));
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
-			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateFont.bind(this)));
-			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateCursorBlink.bind(this)));
+			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateConfig.bind(this)));
+			this.updateTheme();
+			this.updateConfig();
 			resolve(terminalInstance);
 		});
 	}
@@ -167,7 +169,14 @@ export class TerminalPanel extends Panel {
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
-		let theme = this.configurationHelper.getTheme(themeId);
+
+		let baseThemeId = getBaseThemeId(themeId);
+		if (baseThemeId === this.currentBaseThemeId) {
+			return;
+		}
+		this.currentBaseThemeId = baseThemeId;
+
+		let theme = this.configurationHelper.getTheme(baseThemeId);
 
 		let css = '';
 		theme.forEach((color: string, index: number) => {
@@ -191,11 +200,17 @@ export class TerminalPanel extends Panel {
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
+	private updateConfig(): void {
+		this.updateFont();
+		this.updateCursorBlink();
+	}
+
 	private updateFont(): void {
 		if (this.terminalInstances.length === 0) {
 			return;
 		}
 		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].setFont(this.configurationHelper.getFont());
+		DOM.toggleClass(this.parentDomElement, 'enable-ligatures', this.configurationHelper.getFontLigaturesEnabled());
 		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
 	}
 

@@ -196,16 +196,24 @@ class ViewOverlayLine implements IVisibleLineData {
 export class ContentViewOverlays extends ViewOverlays {
 
 	private _scrollWidth: number;
+	private _contentWidth:number;
 
 	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._scrollWidth = this._layoutProvider.getScrollWidth();
+		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 
 		this.domNode.setWidth(this._scrollWidth);
 		this.domNode.setHeight(0);
 	}
 
+	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+		if (e.layoutInfo) {
+			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		}
+		return super.onConfigurationChanged(e);
+	}
 	public onScrollChanged(e:IScrollEvent): boolean {
 		this._scrollWidth = e.scrollWidth;
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
@@ -214,7 +222,7 @@ export class ContentViewOverlays extends ViewOverlays {
 	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
-		this.domNode.setWidth(this._scrollWidth);
+		this.domNode.setWidth(Math.max(this._scrollWidth, this._contentWidth));
 	}
 }
 

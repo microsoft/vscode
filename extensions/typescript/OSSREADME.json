@@ -256,19 +256,4 @@
 		"",
 		"END OF TERMS AND CONDITIONS"
 	]
-},
-{
-	"name": "Microsoft/vscode-extension-telemetry",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-extension-telemetry"
-},
-{
-	"name": "Microsoft/vscode-nls",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-nls"
-}
-]
+}]

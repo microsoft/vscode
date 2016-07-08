@@ -13,7 +13,7 @@ import {$} from 'vs/base/browser/builder';
 import Event, {Emitter} from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -23,7 +23,7 @@ import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEdi
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
 export interface IPeekViewService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	isActive: boolean;
 	contextKey: string;
 }
@@ -38,7 +38,7 @@ export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCo
 
 export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
-	public serviceId = IPeekViewService;
+	public _serviceBrand: any;
 	public contextKey: string;
 
 	private _onDidClose = new Emitter<PeekViewWidget>();

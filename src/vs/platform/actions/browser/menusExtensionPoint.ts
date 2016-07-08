@@ -11,12 +11,20 @@ import {IdGenerator} from 'vs/base/common/idGenerator';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {forEach} from 'vs/base/common/collections';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IDeclaredMenuItem, MenuRegistry} from './menuService';
+import {MenuRegistry} from './menuService';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {MenuId} from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
 	// --- menus contribution point
+
+	export interface IUserFriendlyMenuItem {
+		command: string;
+		alt?: string;
+		when?: string;
+		group?: string;
+	}
 
 	export function parseMenuId(value: string): MenuId {
 		switch (value) {
@@ -26,7 +34,7 @@ namespace schema {
 		}
 	}
 
-	export function isValidMenuItems(menu: IDeclaredMenuItem[], collector: IExtensionMessageCollector): boolean {
+	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: IExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
 			collector.error(localize('requirearry', "menu items must be an arry"));
 			return false;
@@ -237,7 +245,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 });
 
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', schema.menusContribtion).setHandler(extensions => {
 	for (let extension of extensions) {
 		const {value, collector} = extension;
 
@@ -253,18 +261,30 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IDeclaredMenuItem[] }
 			}
 
 			for (let item of entry.value) {
-				if (!MenuRegistry.hasCommand(item.command)) {
-					collector.warn(localize('missing.command', "Menu item references command `{0}` but is not defined in the `commands` section.", item.command));
-				}
-				if (item.alt && !MenuRegistry.hasCommand(item.alt)) {
-					collector.warn(localize('missing.altCommand', "Menu item references alt-command `{0}` but is not defined in the `commands` section.", item.alt));
-				}
-				if (item.command || item.alt) {
-					collector.info(localize('dupe.command', "Menu item references the same command as default and alternative command"));
-				}
-			}
+				let command = MenuRegistry.getCommand(item.command);
+				let alt = item.alt && MenuRegistry.getCommand(item.alt);
 
-			MenuRegistry.addMenuItems(menu, entry.value);
+				if (!command) {
+					collector.warn(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
+				}
+				if (item.alt && !alt) {
+					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));
+				}
+				if (item.command === item.alt) {
+					collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
+				}
+
+				if (item.alt && menu !== MenuId.EditorTitle && item.group !== 'navigation') {
+					collector.info(localize('nosupport.altCommand', "Sorry, but currently only the 'navigation' group of the 'editor/title' menu supports alt-commands"));
+				}
+
+				MenuRegistry.appendMenuItem(menu, {
+					command,
+					alt,
+					group: item.group || undefined,
+					when: KbExpr.deserialize(item.when)
+				});
+			}
 		});
 	}
 });

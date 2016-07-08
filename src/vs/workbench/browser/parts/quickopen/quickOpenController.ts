@@ -22,7 +22,7 @@ import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import {Registry} from 'vs/platform/platform';
-import {EditorInput, EditorOptions, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
@@ -39,7 +39,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
@@ -64,7 +64,7 @@ interface IInternalPickOptions {
 
 export class QuickOpenController extends WorkbenchComponent implements IQuickOpenService {
 
-	public serviceId = IQuickOpenService;
+	public _serviceBrand: any;
 
 	private static ID = 'workbench.component.quickopen';
 
@@ -1025,7 +1025,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
 
-			this.editorService.openEditor(this.input, EditorOptions.create({ pinned }), sideBySide).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
 
 			return true;
 		}

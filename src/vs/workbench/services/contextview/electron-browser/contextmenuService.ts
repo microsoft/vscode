@@ -13,13 +13,13 @@ import dom = require('vs/base/browser/dom');
 import {IContextMenuService, IContextMenuDelegate, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 
 import {remote, webFrame} from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 
-	public serviceId = IContextMenuService;
+	public _serviceBrand: any;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,

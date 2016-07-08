@@ -6,7 +6,7 @@
 
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
+import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 
 export interface IGlobalSettings {
 	settings: any;

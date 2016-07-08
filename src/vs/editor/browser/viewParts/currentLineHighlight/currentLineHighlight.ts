@@ -21,6 +21,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _primaryCursorIsInEditableRange:boolean;
 	private _primaryCursorLineNumber:number;
 	private _scrollWidth:number;
+	private _contentWidth:number;
 
 	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super();
@@ -34,6 +35,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
 		this._scrollWidth = this._layoutProvider.getScrollWidth();
+		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 
 		this._context.addEventHandler(this);
 	}
@@ -85,6 +87,9 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		if (e.readOnly) {
 			this._readOnly = this._context.configuration.editor.readOnly;
 		}
+		if (e.layoutInfo) {
+			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
@@ -111,7 +116,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 			if (this._shouldShowCurrentLine()) {
 				return (
 					'<div class="current-line" style="width:'
-					+ String(this._scrollWidth)
+					+ String(Math.max(this._scrollWidth, this._contentWidth))
 					+ 'px; height:'
 					+ String(this._lineHeight)
 					+ 'px;"></div>'

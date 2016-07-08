@@ -13,7 +13,6 @@
 }
 
 .monaco-workbench .monaco-editor .margin-view-overlays .line-numbers {
-	/* Specific fix for blurry cursor on hdpi screens in Chrome and Chromium (Windows and other) */
 	cursor: -webkit-image-set(
 		url('./flipped-cursor.svg') 1x,
 		url('./flipped-cursor-2x.svg') 2x
@@ -21,7 +20,6 @@
 }
 
 .monaco-workbench .monaco-editor.mac .margin-view-overlays .line-numbers {
-	/* Specific fix for blurry cursor on hdpi screens in Chrome and Chromium (Mac) */
 	cursor: -webkit-image-set(
 		url('./flipped-cursor-mac.svg') 1x,
 		url('./flipped-cursor-mac-2x.svg') 2x

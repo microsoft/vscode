@@ -10,6 +10,7 @@ import os = require('os');
 import path = require('path');
 import platform = require('vs/base/common/platform');
 import {Builder} from 'vs/base/browser/builder';
+import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -22,7 +23,7 @@ import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser
 import {TerminalPanel} from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 
 export class TerminalService implements ITerminalService {
-	public serviceId = ITerminalService;
+	public _serviceBrand: any;
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
@@ -108,9 +109,9 @@ export class TerminalService implements ITerminalService {
 	public runSelectedText(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
 			let editor = this.codeEditorService.getFocusedCodeEditor();
-			let selection = editor.getModel().getValueInRange(editor.getSelection());
+			let selection = editor.getModel().getValueInRange(editor.getSelection(), os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF);
 			// Add a new line if one doesn't already exist so the text is executed
-			let text = selection + (selection[selection.length - 1] === '\n' ? '' : '\n');
+			let text = selection + (selection.substr(selection.length - os.EOL.length) === os.EOL ? '' : os.EOL);
 			this.terminalProcesses[this.activeTerminalIndex].process.send({
 				event: 'input',
 				data: text
@@ -150,7 +151,7 @@ export class TerminalService implements ITerminalService {
 			// TerminalPanel has been initialized. In this case, skip creating the terminal here
 			// data rely on TerminalPanel's constructor creating the new instance.
 			if (!terminalPanel) {
-				return;
+				return TPromise.as(void 0);
 			}
 
 			// Only create a new process if none have been created since toggling the terminal panel
@@ -161,12 +162,13 @@ export class TerminalService implements ITerminalService {
 			self.initConfigHelper(terminalPanel.getContainer());
 			terminalPanel.createNewTerminalInstance(self.createTerminalProcess());
 			self._onInstancesChanged.fire();
+			return TPromise.as(void 0);
 		});
 	}
 
 	public close(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
-			terminalPanel.closeActiveTerminal();
+			return terminalPanel.closeActiveTerminal();
 		});
 	}
 
@@ -178,8 +180,9 @@ export class TerminalService implements ITerminalService {
 					panel = this.panelService.getActivePanel();
 					complete(<TerminalPanel>panel);
 				});
+			} else {
+				complete(<TerminalPanel>panel);
 			}
-			complete(<TerminalPanel>panel);
 		});
 	}
 

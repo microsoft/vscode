@@ -17,7 +17,6 @@ import {IStat, IContent, ConfigurationService as CommonConfigurationService} fro
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {readFile, writeFile} from 'vs/base/node/pfs';
 import {JSONPath} from 'vs/base/common/json';
@@ -26,7 +25,7 @@ import {setProperty} from 'vs/base/common/jsonEdit';
 
 export class ConfigurationService extends CommonConfigurationService {
 
-	public serviceId = IConfigurationService;
+	public _serviceBrand: any;
 
 	protected contextService: IWorkspaceContextService;
 	private toDispose: IDisposable;

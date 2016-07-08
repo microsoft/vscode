@@ -32,8 +32,6 @@ export interface INewFindReplaceState {
 	wholeWord?: boolean;
 	matchCase?: boolean;
 	searchScope?: Range;
-	// matchesPosition?: number;
-	// matchesCount?: number;
 }
 
 export class FindReplaceState implements IDisposable {

@@ -21,7 +21,7 @@ import {IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, IR
 import {ISearchChannel, SearchChannelClient} from './searchIpc';
 
 export class SearchService implements ISearchService {
-	public serviceId = ISearchService;
+	public _serviceBrand: any;
 
 	private diskSearch: DiskSearch;
 

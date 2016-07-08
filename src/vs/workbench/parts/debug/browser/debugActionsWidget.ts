@@ -15,7 +15,7 @@ import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import constants = require('vs/workbench/common/constants');
 import wbext = require('vs/workbench/common/contributions');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -83,12 +83,22 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		}));
 		$(window).on(dom.EventType.RESIZE, () => this.setXCoordinate(), this.toDispose);
 
-		this.dragArea.on(dom.EventType.MOUSE_DOWN, event => {
+		this.dragArea.on(dom.EventType.MOUSE_UP, (event: MouseEvent) => {
+			const mouseClickEvent = new StandardMouseEvent(event);
+			if (mouseClickEvent.detail === 2) {
+				// double click on debug bar centers it again #8250
+				this.setXCoordinate(0.5 * window.innerWidth);
+			}
+		});
+
+		this.dragArea.on(dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
 			const $window = $(window);
 			this.dragArea.addClass('dragged');
 
 			$window.on('mousemove', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
+				// Prevent default to stop editor selecting text #8524
+				mouseMoveEvent.preventDefault();
 				this.setXCoordinate(mouseMoveEvent.posx);
 			}).once('mouseup', (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);

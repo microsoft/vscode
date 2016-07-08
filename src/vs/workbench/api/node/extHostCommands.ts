@@ -6,7 +6,7 @@
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {validateConstraint} from 'vs/base/common/types';
-import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
@@ -85,13 +85,20 @@ export class ExtHostCommands {
 		if (!command) {
 			return Promise.reject<T>(`Contributed command '${id}' does not exist.`);
 		}
-		try {
-			let {callback, thisArg, description} = command;
-			if (description) {
-				for (let i = 0; i < description.args.length; i++) {
+
+		let {callback, thisArg, description} = command;
+
+		if (description) {
+			for (let i = 0; i < description.args.length; i++) {
+				try {
 					validateConstraint(args[i], description.args[i].constraint);
+				} catch (err) {
+					return Promise.reject<T>(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
 				}
 			}
+		}
+
+		try {
 			let result = callback.apply(thisArg, args);
 			return Promise.resolve(result);
 		} catch (err) {
