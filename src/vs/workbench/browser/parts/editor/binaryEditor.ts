@@ -15,7 +15,7 @@ import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 
 /*
  * This class is only intended to be subclassed and not instantiated.

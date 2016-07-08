@@ -33,7 +33,7 @@ import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {extractResources} from 'vs/base/browser/dnd';
 
 export class TabsTitleControl extends TitleControl {
