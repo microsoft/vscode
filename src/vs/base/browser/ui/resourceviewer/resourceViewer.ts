@@ -63,20 +63,28 @@ const mapExtToMediaMimes = {
 	'.movie': 'video/x-sgi-movie'
 };
 
+export interface IResourceDescriptor {
+	resource: URI;
+	name: string;
+	size: number;
+}
+
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading
  * progress of the binary resource.
  */
 export class ResourceViewer {
 
-	public static show(name: string, resource: URI, container: Builder, scrollbar: DomScrollableElement): void {
+	private static MAX_IMAGE_SIZE = 1024 * 1024; // showing images inline is memory intense, so we have a limit
+
+	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement): void {
 
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
 
 		// Lookup media mime if any
 		let mime: string;
-		const ext = paths.extname(resource.toString());
+		const ext = paths.extname(descriptor.resource.toString());
 		if (ext) {
 			mime = mapExtToMediaMimes[ext.toLowerCase()];
 		}
@@ -86,12 +94,12 @@ export class ResourceViewer {
 		}
 
 		// Show Image inline
-		if (mime.indexOf('image/') >= 0) {
+		if (mime.indexOf('image/') >= 0 && descriptor.size <= ResourceViewer.MAX_IMAGE_SIZE) {
 			$(container)
 				.empty()
 				.addClass('image')
 				.img({
-					src: resource.toString() // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: descriptor.resource.toString() // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 				}).on(DOM.EventType.LOAD, (e, img) => {
 					const imgElement = <HTMLImageElement>img.getHTMLElement();
 					if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
@@ -105,7 +113,7 @@ export class ResourceViewer {
 					}
 
 					// Update title when we know the image bounds
-					img.title(nls.localize('imgTitle', "{0} ({1}x{2})", paths.basename(resource.fsPath), imgElement.naturalWidth, imgElement.naturalHeight));
+					img.title(nls.localize('imgTitle', "{0} ({1}x{2})", paths.basename(descriptor.resource.fsPath), imgElement.naturalWidth, imgElement.naturalHeight));
 
 					scrollbar.scanDomNode();
 				});
@@ -117,7 +125,7 @@ export class ResourceViewer {
 				.empty()
 				.element('object')
 				.attr({
-					data: resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					data: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					width: '100%',
 					height: '100%',
 					type: mime
@@ -130,7 +138,7 @@ export class ResourceViewer {
 				.empty()
 				.element('audio')
 				.attr({
-					src: resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
@@ -144,7 +152,7 @@ export class ResourceViewer {
 				.empty()
 				.element('video')
 				.attr({
-					src: resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275 + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
+					src: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275 + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
@@ -157,7 +165,7 @@ export class ResourceViewer {
 			$(container)
 				.empty()
 				.span({
-					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
+					text: nls.localize('nativeBinaryError', "The file will not be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
 			scrollbar.scanDomNode();
