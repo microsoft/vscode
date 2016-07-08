@@ -10,14 +10,14 @@ import {Action} from 'vs/base/common/actions';
 import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor, Direction, IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 
 export class SplitEditorAction extends Action {

@@ -9,11 +9,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 
-export enum GroupArrangement {
-	MINIMIZE_OTHERS,
-	EVEN_WIDTH
-}
-
 export var IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
 /**
