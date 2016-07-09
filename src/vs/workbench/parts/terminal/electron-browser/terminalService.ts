@@ -222,17 +222,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private createTerminalProcess(): ITerminalProcess {
-		let env = this.cloneEnv();
-		let shell = this.configHelper.getShell();
-		env['PTYPID'] = process.pid.toString();
-		env['PTYSHELL'] = shell.executable;
-		shell.args.forEach((arg, i) => {
-			env[`PTYSHELLARG${i}`] = arg;
-		});
-		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
-		if (!env['LANG'] && platform.locale) {
-			env['LANG'] = this.getLang(platform.locale);
-		}
+		let env = this.createTerminalEnv();
 		let terminalProcess = {
 			title: '',
 			process: cp.fork('./terminalProcess', [], {
@@ -253,6 +243,21 @@ export class TerminalService implements ITerminalService {
 		return terminalProcess;
 	}
 
+	private createTerminalEnv(): IStringDictionary<string> {
+		let env = this.cloneEnv();
+		let shell = this.configHelper.getShell();
+		env['PTYPID'] = process.pid.toString();
+		env['PTYSHELL'] = shell.executable;
+		shell.args.forEach((arg, i) => {
+			env[`PTYSHELLARG${i}`] = arg;
+		});
+		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
+		if (!env['LANG'] && platform.locale) {
+			env['LANG'] = this.getLangEnvVariable(platform.locale);
+		}
+		return env;
+	}
+
 	private cloneEnv(): IStringDictionary<string> {
 		let newEnv: IStringDictionary<string> = Object.create(null);
 		Object.keys(process.env).forEach((key) => {
@@ -261,7 +266,7 @@ export class TerminalService implements ITerminalService {
 		return newEnv;
 	}
 
-	private getLang(locale: string) {
+	private getLangEnvVariable(locale: string) {
 		const parts = locale.split('-');
 		const n = parts.length;
 		if (n > 1) {
