@@ -59,8 +59,8 @@ export class FileAccessor implements emmet.File {
 	public read(path: string, callback: any): void {
 		if (isURL(path)) {
 			buffer({ url: path }).then(buf => callback(null, buf.toString('binary')), err => {
-				const errCode = err.code ? err.code : err;
-				const message = nls.localize('requestError', "Request error: **{0}**", errCode);
+				const errMessage = err.code ? err.code : err;
+				const message = nls.localize('requestError', "Request error: **{0}**", errMessage);
 				this.messageService.show(Severity.Error, message);
 			});
 		} else {
