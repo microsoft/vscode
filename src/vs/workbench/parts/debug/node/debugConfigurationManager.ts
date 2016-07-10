@@ -168,7 +168,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		this.systemVariables = new ConfigVariables(this.configurationService, this.editorService, this.contextService);
+		this.systemVariables = this.contextService.getWorkspace() ? new ConfigVariables(this.configurationService, this.editorService, this.contextService) : null;
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.setConfiguration(configName);
 		this.adapters = [];

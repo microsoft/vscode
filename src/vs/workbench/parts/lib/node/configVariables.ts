@@ -19,7 +19,7 @@ export class ConfigVariables extends SystemVariables {
 	protected resolveString(value: string): string {
 		value = super.resolveString(value);
 
-		let regexp = /\$\{settings\.(.*?)\}/g;
+		let regexp = /\$\{config\.(.*?)\}/g;
 		return value.replace(regexp, (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
 			let newValue = new Function('_', 'try {return _.' + name + ';} catch (ex) { return "";}')(config);
