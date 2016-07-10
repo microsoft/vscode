@@ -310,60 +310,6 @@ export class ActionItem extends BaseActionItem {
 	}
 }
 
-export class ProgressItem extends BaseActionItem {
-
-	public render(parent: HTMLElement): void {
-
-		let container = document.createElement('div');
-		$(container).addClass('progress-item');
-
-		let label = document.createElement('div');
-		$(label).addClass('label');
-		label.textContent = this.getAction().label;
-		label.title = this.getAction().label;
-		super.render(label);
-
-		let progress = document.createElement('div');
-		progress.textContent = '\u2026';
-		$(progress).addClass('tag', 'progress');
-
-		let done = document.createElement('div');
-		done.textContent = '\u2713';
-		$(done).addClass('tag', 'done');
-
-		let error = document.createElement('div');
-		error.textContent = '!';
-		$(error).addClass('tag', 'error');
-
-		this.callOnDispose.push(this.addListener2(CommonEventType.BEFORE_RUN, () => {
-			$(progress).addClass('active');
-			$(done).removeClass('active');
-			$(error).removeClass('active');
-		}));
-
-		this.callOnDispose.push(this.addListener2(CommonEventType.RUN, (result) => {
-			$(progress).removeClass('active');
-			if (result.error) {
-				$(done).removeClass('active');
-				$(error).addClass('active');
-			} else {
-				$(error).removeClass('active');
-				$(done).addClass('active');
-			}
-		}));
-
-		container.appendChild(label);
-		container.appendChild(progress);
-		container.appendChild(done);
-		container.appendChild(error);
-		parent.appendChild(container);
-	}
-
-	public dispose(): void {
-		super.dispose();
-	}
-}
-
 export enum ActionsOrientation {
 	HORIZONTAL = 1,
 	VERTICAL = 2
