@@ -21,7 +21,7 @@ export class SystemVariables extends AbstractSystemVariables {
 	constructor(private editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService, workspaceRoot: URI = null, envVariables: { [key: string]: string } = process.env) {
 		super();
 		let fsPath = '';
-		if (workspaceRoot || contextService.getWorkspace()) {
+		if (workspaceRoot || (contextService && contextService.getWorkspace())) {
 			fsPath = workspaceRoot ? workspaceRoot.fsPath : contextService.getWorkspace().resource.fsPath;
 		}
 		this._workspaceRoot = Paths.normalize(fsPath, true);
