@@ -9,6 +9,8 @@
 	"gitCommands": "Comandos Git",
 	"gitConfigurationTitle": "Configuración Git",
 	"gitEnabled": "Habilitado para GIT",
+	"gitLargeRepos": "Permitir siempre que Code administre grandes repositorios.",
+	"gitLongCommit": "Si se debe advertir sobre los mensajes de confirmación largos.",
 	"gitPath": "Ruta del Git ejecutable",
 	"gitPendingChangesBadge": "{0} cambios pendientes",
 	"gitProgressBadge": "Estado del Git en ejecución",

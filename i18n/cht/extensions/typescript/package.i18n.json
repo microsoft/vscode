@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "啟用 / 停用 JavaScript 驗證",
 	"typescript.reloadProjects.title": "重新載入 TypeScript 專案",
 	"typescript.tsdk.desc": "指定資料夾路徑，其中包含要使用的 tsserver 和 lib*.d.ts 檔案。",
+	"typescript.tsserver.experimentalAutoBuild": "啟用實驗性自動建置。需要 1.9 dev 或 2.x tsserver 版本，且在變更後必須重新啟動 VS Code。",
 	"typescript.tsserver.trace": "允許追蹤傳送到 TS 伺服器的訊息",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "使用其參數簽章完成函式。",
 	"typescript.validate.enable": "啟用 / 停用 TypeScript 驗證"

@@ -8,9 +8,10 @@
 	"file": "Datei",
 	"openFilesInNewWindow": "Wenn diese Option aktiviert ist, werden Dateien in einem neuen Fenster geöffnet anstatt eine vorhandene Instanz wiederzuverwenden.",
 	"reopenFolders": "Steuert, wie Ordner nach einem Neustart erneut geöffnet werden. Wählen Sie \"none\" aus, um Ordner nie erneut zu öffnen, \"one\", um den zuletzt bearbeiteten Ordner erneut zu öffnen, oder \"all\", um alle Ordner der letzten Sitzung erneut zu öffnen.",
-	"updateChannel": "Konfiguriert den Updatekanal, aus dem Updates empfangen werden. Erfordert einen Neustart nach der Änderung.",
-	"updateConfigurationTitle": "Konfiguration aktualisieren",
+	"restoreFullscreen": "Steuert, ob ein Fenster im Vollbildmodus wiederhergestellt wird, wenn es im Vollbildmodus beendet wurde.",
+	"updateChannel": "Konfiguriert, ob automatische Updates aus einem Updatekanal empfangen werden sollen. Erfordert einen Neustart nach der Änderung.",
+	"updateConfigurationTitle": "Update",
 	"view": "Anzeigen",
-	"windowConfigurationTitle": "Fensterkonfiguration",
+	"windowConfigurationTitle": "Fenster",
 	"zoomLevel": "Passen Sie den Zoomfaktor des Fensters an. Die ursprüngliche Größe ist 0. Jede Inkrementierung nach oben (z. B. 1) oder unten (z. B. -1) stellt eine Vergrößerung bzw. Verkleinerung um 20 % dar. Sie können auch Dezimalwerte eingeben, um den Zoomfaktor genauer anzupassen."
 }

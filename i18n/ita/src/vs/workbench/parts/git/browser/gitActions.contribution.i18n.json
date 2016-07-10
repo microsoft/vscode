@@ -9,5 +9,7 @@
 	"openFile": "Apri file",
 	"openInEditor": "Passa alla visualizzazione editor",
 	"stageSelectedLines": "Gestisci temporaneamente le righe selezionate",
-	"switchToChangesView": "Passa alla visualizzazione modifiche"
+	"switchToChangesView": "Passa alla visualizzazione modifiche",
+	"workbenchStage": "Prepara",
+	"workbenchUnstage": "Annulla preparazione"
 }

@@ -9,5 +9,6 @@
 	"peekView.alternateTitle": "参照",
 	"referenceCount": "{0} 個の参照",
 	"referencesCount": "{0} 個の参照",
+	"referencesFailre": "ファイルを解決できませんでした。",
 	"treeAriaLabel": "参照"
 }

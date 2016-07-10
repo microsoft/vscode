@@ -9,6 +9,8 @@
 	"gitCommands": "Git 命令",
 	"gitConfigurationTitle": "Git 組態",
 	"gitEnabled": "已啟用 Git",
+	"gitLargeRepos": "一律允許 Code 管理大型儲存機制。",
+	"gitLongCommit": "是否對長認可訊息發出警告。",
 	"gitPath": "Git 可執行檔的路徑",
 	"gitPendingChangesBadge": "{0} 個暫止的變更",
 	"gitProgressBadge": "正在執行 Git 狀態",

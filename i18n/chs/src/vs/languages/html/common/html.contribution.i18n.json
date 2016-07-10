@@ -10,7 +10,7 @@
 	"format.indentInnerHtml": "缩进 <head> 和 <body> 部分。",
 	"format.maxPreserveNewLines": "要保留在一个区块中的换行符的最大数量。对于无限制使用 \"null\"。",
 	"format.preserveNewLines": "是否要保留元素前面的现有换行符。仅适用于元素前，不适用于标记内或文本。",
-	"format.unformatted": "标记列表，以逗号分隔，不应重设格式。\"null\" 默认为所有内联标记。",
+	"format.unformatted": "以逗号分隔的标记列表不应重设格式。\"null\" 默认为所有列于 https://www.w3.org/TR/html5/dom.html#phrasing-content 的标记。",
 	"format.wrapLineLength": "每行最大字符数(0 = 禁用)。",
 	"htmlConfigurationTitle": "HTML 配置"
 }

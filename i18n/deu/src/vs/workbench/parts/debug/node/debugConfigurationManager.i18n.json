@@ -6,10 +6,11 @@
 {
 	"DebugConfig.failed": "Die Datei \"launch.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
 	"app.launch.json.configurations": "Die Liste der Konfigurationen. Fügen Sie neue Konfigurationen hinzu, oder bearbeiten Sie vorhandene Konfigurationen.",
-	"app.launch.json.title": "Startkonfiguration",
+	"app.launch.json.title": "Starten",
 	"app.launch.json.version": "Die Version dieses Dateiformats.",
 	"debugNoType": "Der \"type\" des Debugadapters kann nicht ausgelassen werden und muss vom Typ \"string\" sein.",
 	"duplicateDebuggerType": "Der Debugtyp \"{0}\" ist bereits registriert und weist das Attribut \"{1}\" auf. Das Attribut \"{1}\" wird ignoriert.",
+	"interactiveVariableNotFound": "Der Adapter {0} trägt nicht die Variable \"{1}\" bei, die in der Startkonfiguration angegeben ist.",
 	"selectDebug": "Umgebung auswählen",
 	"vscode.extension.contributes.debuggers": "Trägt Debugadapter bei.",
 	"vscode.extension.contributes.debuggers.args": "Optionale Argumente, die an den Adapter übergeben werden sollen.",
@@ -26,6 +27,7 @@
 	"vscode.extension.contributes.debuggers.runtime": "Optionale Laufzeit für den Fall, dass das Programmattribut keine ausführbare Datei ist und eine Laufzeit erfordert.",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "Optionale Laufzeitargumente.",
 	"vscode.extension.contributes.debuggers.type": "Der eindeutige Bezeichner für diese Debugadapter.",
+	"vscode.extension.contributes.debuggers.variables": "Eine Zuordnung von interaktiven Variablen (z. B. \"${action.pickProcess}\") in \"launch.json\" zu einem Befehl.",
 	"vscode.extension.contributes.debuggers.windows": "Windows-spezifische Einstellungen.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Die für Windows verwendete Laufzeit."
 }

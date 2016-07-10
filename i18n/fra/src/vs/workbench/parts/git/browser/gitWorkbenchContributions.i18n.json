@@ -9,6 +9,8 @@
 	"gitCommands": "Commandes Git",
 	"gitConfigurationTitle": "Configuration Git",
 	"gitEnabled": "Vérification de l'activation de git",
+	"gitLargeRepos": "Toujours autoriser la gestion des grands référentiels par le code.",
+	"gitLongCommit": "Si les messages de validation longs doivent faire l'objet d'un avertissement.",
 	"gitPath": "Chemin d'accès à l'exécutable git",
 	"gitPendingChangesBadge": "{0} changements en attente",
 	"gitProgressBadge": "État d'exécution de git",
