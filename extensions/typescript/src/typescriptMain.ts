@@ -275,6 +275,7 @@ class LanguageProvider {
 
 	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
 		this.syntaxDiagnostics[file] = diagnostics;
+		this.currentDiagnostics.set(Uri.file(file), diagnostics);
 	}
 
 	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
