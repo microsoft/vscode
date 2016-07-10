@@ -249,9 +249,8 @@ a:active {
 	background-color: #E1E1E1;
 }
 
-/**
- * Dark Theme
- */
+/* ---------- Dark Theme ---------- */
+
 .monaco-shell.vs-dark {
 	color: #BBB;
 	background-color: #1E1E1E;
@@ -278,9 +277,8 @@ a:active {
 	background-color: #333;
 }
 
-/**
- * High Contrast Theme
- */
+/* ---------- High Contrast Theme ---------- */
+
 .monaco-shell.hc-black { color: #fff; background-color: #000; }
 
 .monaco-shell.hc-black .context-view .tooltip {

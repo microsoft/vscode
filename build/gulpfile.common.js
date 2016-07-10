@@ -42,8 +42,10 @@ exports.loaderConfig = function (emptyPaths) {
 			'vs': 'out-build/vs',
 			'vscode': 'empty:'
 		},
-		nodeModules: emptyPaths||[]
+		nodeModules: emptyPaths||[],
 	};
+
+	result['vs/css'] = { inlineResources: true };
 
 	return result;
 };

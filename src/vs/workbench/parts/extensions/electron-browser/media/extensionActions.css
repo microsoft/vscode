@@ -62,7 +62,8 @@
 	background: url('clear.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-action-bar .action-item .action-label.clear-extensions {
+.vs-dark .monaco-action-bar .action-item .action-label.clear-extensions,
+.hc-black .monaco-action-bar .action-item .action-label.clear-extensions {
 	background: url('clear-inverse.svg') center center no-repeat;
 }
 
@@ -77,8 +78,4 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable {
 	display: none;
-}
-
-.hc-black .monaco-action-bar .action-item .action-label.clear-extensions {
-	background: url('clear-inverse.svg') center center no-repeat;
 }
