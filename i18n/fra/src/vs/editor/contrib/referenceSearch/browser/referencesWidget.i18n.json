@@ -8,5 +8,6 @@
 	"peekView.alternateTitle": "Références",
 	"referenceCount": "{0} référence",
 	"referencesCount": "{0} références",
+	"referencesFailre": "Échec de la résolution du fichier.",
 	"treeAriaLabel": "Références"
 }

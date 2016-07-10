@@ -7,6 +7,7 @@
 	"alreadyCheckedOut": "{0} 분기는 이미 현재 분기입니다.",
 	"branchAriaLabel": "{0}, git 분기",
 	"checkoutBranch": "{0}의 분기",
+	"checkoutRemoteBranch": "{0}에서 원격 분기",
 	"checkoutTag": "{0}의 태그",
 	"createBranch": "분기 {0} 만들기",
 	"noBranches": "다른 분기 없음",

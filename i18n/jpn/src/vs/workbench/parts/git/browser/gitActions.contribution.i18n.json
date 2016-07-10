@@ -9,5 +9,8 @@
 	"openFile": "ファイルを開く",
 	"openInEditor": "エディター ビューに切り替える",
 	"stageSelectedLines": "選択した行のステージング",
-	"switchToChangesView": "変更の表示に切り替え"
+	"switchToChangesView": "変更の表示に切り替え",
+	"unstageSelectedLines": "選択した行のステージング解除",
+	"workbenchStage": "ステージ",
+	"workbenchUnstage": "ステージング解除"
 }

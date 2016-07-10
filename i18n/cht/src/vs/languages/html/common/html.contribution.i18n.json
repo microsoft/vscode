@@ -10,7 +10,7 @@
 	"format.indentInnerHtml": "縮排 <head> 及 <body> 區段。",
 	"format.maxPreserveNewLines": "一個區塊要保留的最大分行符號數。使用 'null' 表示無限制。",
 	"format.preserveNewLines": "是否應保留項目前方現有的分行符號。僅適用於項目前方，而不適用於標記內或文字。",
-	"format.unformatted": "不應重新格式化的標記清單，須以逗號分隔。'null' 的預設值為所有內嵌標記。",
+	"format.unformatted": "不應重新格式化的逗號分隔標記清單。'null' 預設為 https://www.w3.org/TR/html5/dom.html#phrasing-content 中列出的所有標記。",
 	"format.wrapLineLength": "每行的字元數上限 (0 = 停用)。",
 	"htmlConfigurationTitle": "HTML 設定"
 }

@@ -9,6 +9,8 @@
 	"gitCommands": "GIT 命令",
 	"gitConfigurationTitle": "GIT 配置",
 	"gitEnabled": "是否启用了 GIT",
+	"gitLargeRepos": "始终允许大型存储库由 Code 托管。",
+	"gitLongCommit": "是否应警告提交长段消息。",
 	"gitPath": "可执行 GIT 的路径",
 	"gitPendingChangesBadge": "{0} 个挂起的更改",
 	"gitProgressBadge": "正在运行 GIT 状态",

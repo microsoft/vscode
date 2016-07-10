@@ -6,10 +6,12 @@
 {
 	"DebugTaskNotFound": "No se encontró el elemento preLaunchTask '{0}'.",
 	"NewLaunchConfig": "Defina los valores del archivo de configuración de inicio para la aplicación.",
+	"breakpointAdded": "Punto de interrupción agregado, línea {0}, archivo {1}",
+	"breakpointRemoved": "Punto de interrupción quitado, línea {0}, archivo {1}",
 	"debugAdapterCrash": "El proceso de adaptación del depurador finalizó inesperadamente",
 	"debugAnyway": "Depurar de todos modos",
 	"debugSourceNotAvailable": "El origen {0} no está disponible.",
-	"debugTypeMissing": "Falta la propiedad \"type\" de la configuración seleccionada en launch.json.",
+	"debugTypeMissing": "Falta la propiedad \"type\" en la configuración de inicio seleccionada.",
 	"debugTypeNotSupported": "El tipo de depuración '{0}' configurado no es compatible.",
 	"debuggingContinued": "La depuración continúa.",
 	"debuggingPaused": "La depuración se ha pausado. Motivo: {0}, {1} {2}",

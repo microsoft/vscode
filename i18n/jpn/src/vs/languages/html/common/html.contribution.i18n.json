@@ -10,7 +10,7 @@
 	"format.indentInnerHtml": "<head> セクションと <body> セクションをインデントします。",
 	"format.maxPreserveNewLines": "1 つのチャンク内に保持できる改行の最大数。無制限にするには、'null' を使います。",
 	"format.preserveNewLines": "要素の前にある既存の改行を保持するかどうか。要素の前でのみ機能し、タグの内側やテキストに対しては機能しません。",
-	"format.unformatted": "再フォーマットしてはならないタグを、コンマで区切ってリストにします。'null' は、既定値の \"すべてのインライン タグ\" を表します。",
+	"format.unformatted": "再フォーマットしてはならないタグの、コンマ区切りの一覧。'null' の場合、既定で https://www.w3.org/TR/html5/dom.html#phrasing-content にリストされているすべてのタグになります。",
 	"format.wrapLineLength": "1 行あたりの最大文字数 (0 = 無効にする)。",
 	"htmlConfigurationTitle": "HTML 構成"
 }

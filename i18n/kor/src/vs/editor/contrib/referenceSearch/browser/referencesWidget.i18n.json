@@ -8,5 +8,6 @@
 	"peekView.alternateTitle": "참조",
 	"referenceCount": "참조 {0}개",
 	"referencesCount": "참조 {0}개",
+	"referencesFailre": "파일을 확인하지 못했습니다.",
 	"treeAriaLabel": "참조"
 }

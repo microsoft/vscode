@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "JavaScript の検証を有効/無効にします",
 	"typescript.reloadProjects.title": "TypeScript プロジェクトを再度読み込みます",
 	"typescript.tsdk.desc": "使用する tsserver と lib*.d.ts ファイルが含まれているフォルダーのパスを指定します。",
+	"typescript.tsserver.experimentalAutoBuild": "試験的な自動ビルドを有効にします。1.9 dev または 2.x tsserver バージョンと、変更後に VS Code の再起動が必要です。",
 	"typescript.tsserver.trace": "TS サーバーに送信されるメッセージのトレースをオンにします",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "パラメーター シグネチャを含む完全な関数。",
 	"typescript.validate.enable": "TypeScript の検証を有効/無効にします"

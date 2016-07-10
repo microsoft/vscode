@@ -9,5 +9,6 @@
 	"peekView.alternateTitle": "引用",
 	"referenceCount": "{0} 个引用",
 	"referencesCount": "{0} 个引用",
+	"referencesFailre": "解析文件失败。",
 	"treeAriaLabel": "引用"
 }
