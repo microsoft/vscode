@@ -225,7 +225,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public show(editor: BaseEditor, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
-		let visibleEditorCount = this.getVisibleEditorCount();
+		const visibleEditorCount = this.getVisibleEditorCount();
 
 		// Store into editor bucket
 		this.visibleEditors[position] = editor;
@@ -239,12 +239,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.trackFocus(editor, position);
 
 		// Find target container and build into
-		let target = this.containers[position];
+		const target = this.containers[position];
 		editor.getContainer().build(target);
 
 		// Adjust layout according to provided ratios (used when restoring multiple editors at once)
 		if (widthRatios && (widthRatios.length === 2 || widthRatios.length === 3)) {
-			let hasLayoutInfo = this.dimension && this.dimension.width;
+			const hasLayoutInfo = this.dimension && this.dimension.width;
 
 			// We received width ratios but were not layouted yet. So we keep these ratios for when we layout()
 			if (!hasLayoutInfo) {
@@ -412,10 +412,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	public hide(editor: BaseEditor, position: Position, layoutAndRochade: boolean): Rochade {
 		let result = Rochade.NONE;
 
-		let visibleEditorCount = this.getVisibleEditorCount();
+		const visibleEditorCount = this.getVisibleEditorCount();
 
-		let hasCenter = !!this.visibleEditors[Position.CENTER];
-		let hasRight = !!this.visibleEditors[Position.RIGHT];
+		const hasCenter = !!this.visibleEditors[Position.CENTER];
+		const hasRight = !!this.visibleEditors[Position.RIGHT];
 
 		// If editor is not showing for position, return
 		if (editor !== this.visibleEditors[position]) {
@@ -518,7 +518,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private updateParentStyle(): void {
-		let editorCount = this.getVisibleEditorCount();
+		const editorCount = this.getVisibleEditorCount();
 		if (editorCount > 1) {
 			this.parent.addClass('multiple-editors');
 		} else {
@@ -546,12 +546,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private rochade(from: Position, to: Position): void {
 
 		// Move editor to new position
-		let editor = this.visibleEditors[from];
+		const editor = this.visibleEditors[from];
 		editor.getContainer().offDOM().build(this.containers[to]);
 		editor.changePosition(to);
 
 		// Change data structures
-		let listeners = this.visibleEditorFocusTrackers[from];
+		const listeners = this.visibleEditorFocusTrackers[from];
 		this.visibleEditorFocusTrackers[to] = listeners;
 		this.visibleEditorFocusTrackers[from] = null;
 
@@ -615,7 +615,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			editorPos2.getContainer().offDOM().build(this.containers[newCenterPosition]);
 			editorPos2.changePosition(newCenterPosition);
 
-			let editorPos3 = this.visibleEditors[Position.RIGHT];
+			const editorPos3 = this.visibleEditors[Position.RIGHT];
 			editorPos3.getContainer().offDOM().build(this.containers[newRightPosition]);
 			editorPos3.changePosition(newRightPosition);
 
@@ -652,7 +652,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		let availableWidth = this.dimension.width;
-		let visibleEditors = this.getVisibleEditorCount();
+		const visibleEditors = this.getVisibleEditorCount();
 
 		if (visibleEditors <= 1) {
 			return; // need more editors
@@ -685,10 +685,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public getWidthRatios(): number[] {
-		let ratio: number[] = [];
+		const ratio: number[] = [];
 
 		if (this.dimension) {
-			let fullWidth = this.dimension.width;
+			const fullWidth = this.dimension.width;
 
 			POSITIONS.forEach(position => {
 				if (this.visibleEditors[position]) {
@@ -955,7 +955,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 		}
 
-		// Let a dropped file open inside Code (only if dropped over editor area)
+		// const a dropped file open inside Code (only if dropped over editor area)
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
 			if (e.target === node) {
 				DOM.EventHelper.stop(e, true);
@@ -1032,7 +1032,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			DOM.EventHelper.stop(e);
 
 			// Overlay the editor area with a div to be able to capture all mouse events
-			let overlayDiv = $('div').style({
+			const overlayDiv = $('div').style({
 				top: SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px',
 				height: '100%'
 			}).id('monaco-workbench-editor-move-overlay');
@@ -1041,20 +1041,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// Update flag
 			this.dragging = true;
 
-			let visibleEditorCount = this.getVisibleEditorCount();
-			let mouseDownEvent = new StandardMouseEvent(e);
-			let startX = mouseDownEvent.posx;
+			const visibleEditorCount = this.getVisibleEditorCount();
+			const mouseDownEvent = new StandardMouseEvent(e);
+			const startX = mouseDownEvent.posx;
 			let oldNewLeft: number = null;
 
 			this.containers[position].addClass('drag');
 			this.parent.addClass('drag');
 
-			let $window = $(window);
+			const $window = $(window);
 			$window.on(DOM.EventType.MOUSE_MOVE, (e: MouseEvent) => {
 				DOM.EventHelper.stop(e, false);
 
-				let mouseMoveEvent = new StandardMouseEvent(e);
-				let diffX = mouseMoveEvent.posx - startX;
+				const mouseMoveEvent = new StandardMouseEvent(e);
+				const diffX = mouseMoveEvent.posx - startX;
 				let newLeft: number = null;
 
 				if (Math.abs(diffX) > 5) {
@@ -1098,7 +1098,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				oldNewLeft = newLeft;
 
 				// Live drag Feedback
-				let moveTo: Position = this.findMoveTarget(position, diffX);
+				const moveTo: Position = this.findMoveTarget(position, diffX);
 				switch (position) {
 					case Position.LEFT: {
 						if (moveTo === Position.LEFT || moveTo === null) {
@@ -1173,9 +1173,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.containers[Position.RIGHT].style({ left: 'auto', right: 0, borderLeftWidth: '1px' });
 
 				// Find move target
-				let mouseUpEvent = new StandardMouseEvent(e);
-				let diffX = mouseUpEvent.posx - startX;
-				let moveTo: Position = this.findMoveTarget(position, diffX);
+				const mouseUpEvent = new StandardMouseEvent(e);
+				const diffX = mouseUpEvent.posx - startX;
+				const moveTo: Position = this.findMoveTarget(position, diffX);
 
 				// Move to valid position if any
 				if (moveTo !== null) {
@@ -1204,7 +1204,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private findMoveTarget(position: Position, diffX: number): Position {
-		let visibleEditorCount = this.getVisibleEditorCount();
+		const visibleEditorCount = this.getVisibleEditorCount();
 
 		switch (position) {
 			case Position.LEFT: {
@@ -1270,8 +1270,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private centerSash(a: Position, b: Position): void {
-		let sumWidth = this.containerWidth[a] + this.containerWidth[b];
-		let meanWidth = sumWidth / 2;
+		const sumWidth = this.containerWidth[a] + this.containerWidth[b];
+		const meanWidth = sumWidth / 2;
 		this.containerWidth[a] = meanWidth;
 		this.containerWidth[b] = sumWidth - meanWidth;
 		this.layoutContainers();
@@ -1522,12 +1522,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// We have width to take
 			else if (overflow > 0) {
 				POSITIONS.forEach(position => {
-					let maxCompensation = this.containerWidth[position] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
+					const maxCompensation = this.containerWidth[position] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
 					if (maxCompensation >= overflow) {
 						this.containerWidth[position] -= overflow;
 						overflow = 0;
 					} else if (maxCompensation > 0) {
-						let compensation = overflow - maxCompensation;
+						const compensation = overflow - maxCompensation;
 						this.containerWidth[position] -= compensation;
 						overflow -= compensation;
 					}
@@ -1578,7 +1578,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private layoutEditor(position: Position): void {
-		let editorWidth = this.containerWidth[position];
+		const editorWidth = this.containerWidth[position];
 		if (editorWidth && this.visibleEditors[position]) {
 			this.visibleEditors[position].layout(new Dimension(editorWidth, this.dimension.height - SideBySideEditorControl.EDITOR_TITLE_HEIGHT));
 		}
