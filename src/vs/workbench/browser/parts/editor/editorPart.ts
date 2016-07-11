@@ -486,12 +486,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doCloseEditor(group: EditorGroup, input: EditorInput, focusNext?: boolean): void {
-
-		// Only focus next if the group is the active one
-		if (!(typeof focusNext === 'boolean')) {
-			focusNext = this.stacks.isActive(group);
-		}
+	private doCloseEditor(group: EditorGroup, input: EditorInput, focusNext = this.stacks.isActive(group)): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (group.activeEditor && group.activeEditor.matches(input)) {
@@ -512,7 +507,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Close group is this is the last editor in group
 		if (group.count === 0) {
-			this.doCloseGroup(group);
+			this.doCloseGroup(group, focusNext);
 		}
 
 		// Otherwise open next active
@@ -527,7 +522,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		group.closeEditor(input);
 	}
 
-	private doCloseGroup(group: EditorGroup): void {
+	private doCloseGroup(group: EditorGroup, focusNext = true): void {
 		const position = this.stacks.positionOfGroup(group);
 
 		// Update stacks model
@@ -542,7 +537,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Focus next group if we have an active one left
 		const currentActiveGroup = this.stacks.activeGroup;
 		if (currentActiveGroup) {
-			this.focusGroup(currentActiveGroup);
+			if (focusNext) {
+				this.focusGroup(currentActiveGroup);
+			} else {
+				this.activateGroup(currentActiveGroup);
+			}
 
 			// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
 			// the user is actively changing focus with the mouse from left to right.
@@ -1236,12 +1235,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				});
 
 				// Close all hidden first
-				hiddenEditors.forEach(hidden => this.doCloseEditor(<EditorGroup>hidden.group, hidden.editor));
+				hiddenEditors.forEach(hidden => this.doCloseEditor(<EditorGroup>hidden.group, hidden.editor, false));
 
 				// Close visible ones second
 				visibleEditors
 					.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right first
-					.forEach(visible => this.doCloseEditor(<EditorGroup>visible.group, visible.editor));
+					.forEach(visible => this.doCloseEditor(<EditorGroup>visible.group, visible.editor, false));
 
 				// Reset
 				this.pendingEditorInputCloseTimeout = null;
