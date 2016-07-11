@@ -53,12 +53,12 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	private install(extensions: string[]): Promise {
 		return Promise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
-			.then(extensions => {
+			.then(() => {
 				this.messageService.show(
 					Severity.Info,
 					{
 						message: extensions.length > 1 ? localize('success', "Extensions were successfully installed. Restart to enable them.")
-							: localize('successSingle', "{0} was successfully installed. Restart to enable it.", extensions[0].displayName),
+							: localize('successSingle', "Extension was successfully installed. Restart to enable it."),
 						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Restart Now"))]
 					}
 				);
