@@ -73,7 +73,8 @@
 
 /* Actionbar actions */
 
-.monaco-workbench .debug-action.step-over {
+.monaco-workbench .debug-action.step-over,
+.monaco-workbench .debug-action.step-back {
 	background: url('step-over.svg') center center no-repeat;
 }
 
@@ -86,14 +87,10 @@
 }
 
 .monaco-workbench .debug-action.step-back {
-	background: url('step-over.svg') center center no-repeat;
 	transform: scaleX(-1);
 }
 
-.monaco-workbench .debug-action.continue {
-	background: url('continue.svg') center center no-repeat;
-}
-
+.monaco-workbench .debug-action.continue,
 .monaco-workbench .debug-action.start {
 	background: url('continue.svg') center center no-repeat;
 }
