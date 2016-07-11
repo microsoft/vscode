@@ -9,5 +9,8 @@
 	"openFile": "Abrir archivo",
 	"openInEditor": "Cambiar a la vista de editor",
 	"stageSelectedLines": "Almacenar provisionalmente las líneas seleccionadas",
-	"switchToChangesView": "Cambiar a la vista de cambios"
+	"switchToChangesView": "Cambiar a la vista de cambios",
+	"unstageSelectedLines": "Deshacer la preparación de las líneas seleccionadas",
+	"workbenchStage": "Almacenar provisionalmente",
+	"workbenchUnstage": "Cancelar almacenamiento provisional"
 }

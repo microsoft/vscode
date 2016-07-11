@@ -9,5 +9,8 @@
 	"openFile": "파일 열기",
 	"openInEditor": "편집기 보기로 전환",
 	"stageSelectedLines": "선택한 줄 스테이징",
-	"switchToChangesView": "변경 내용 보기로 전환"
+	"switchToChangesView": "변경 내용 보기로 전환",
+	"unstageSelectedLines": "선택한 줄 스테이징 취소",
+	"workbenchStage": "스테이징",
+	"workbenchUnstage": "스테이징 취소"
 }

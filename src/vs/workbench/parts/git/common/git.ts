@@ -230,9 +230,11 @@ export var ServiceOperations = {
 export interface IGitConfiguration {
 	enabled: boolean;
 	path: string;
+	autorefresh: boolean;
 	autofetch: boolean;
 	enableLongCommitWarning: boolean;
 	allowLargeRepositories: boolean;
+	confirmSync: boolean;
 }
 
 // Service interfaces

@@ -104,9 +104,3 @@
 	height: calc(100% - 168px);
 	overflow: hidden;
 }
-
-.extension-editor > .body.loading {
-	background-image: url('loading.svg');
-	background-position: center center;
-	background-repeat: no-repeat;
-}

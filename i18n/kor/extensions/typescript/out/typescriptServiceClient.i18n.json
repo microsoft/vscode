@@ -7,7 +7,7 @@
 	"channelName": "TypeScript",
 	"noServerFound": "경로 {0}이(가) 올바른 tsserver 설치를 가리키지 않습니다. TypeScript 언어 기능이 사용되지 않도록 설정됩니다.",
 	"serverCouldNotBeStarted": "TypeScript 언어 서버를 시작할 수 없습니다. 오류 메시지: {0}",
-	"serverDied": "Typescript 언어 서비스가 지난 5분 동안 예기치 않게 5번 종료되었습니다. 버그 보고서를 열어 보세요.",
-	"serverDiedAfterStart": "Typescript 언어 서비스가 시작된 직후 5번 종료되었습니다. 서비스가 다시 시작되지 않습니다. 버그 보고서를 열어 보세요.",
+	"serverDied": "TypeScript 언어 서비스가 지난 5분 동안 예기치 않게 5번 종료되었습니다. 버그 보고서를 열어 보세요.",
+	"serverDiedAfterStart": "TypeScript 언어 서비스가 시작된 직후 5번 종료되었습니다. 서비스가 다시 시작되지 않습니다. 버그 보고서를 열어 보세요.",
 	"versionNumber.custom": "사용자 지정"
 }

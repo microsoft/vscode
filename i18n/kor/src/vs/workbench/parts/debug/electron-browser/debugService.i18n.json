@@ -6,10 +6,12 @@
 {
 	"DebugTaskNotFound": "preLaunchTask '{0}'을(를) 찾을 수 없습니다.",
 	"NewLaunchConfig": "응용 프로그램에 사용할 구성 시작 파일을 설정하세요.",
+	"breakpointAdded": "파일 {1}, 줄 {0}에 중단점이 추가되었습니다.",
+	"breakpointRemoved": "파일 {1}, 줄 {0}에서 중단점이 제거되었습니다.",
 	"debugAdapterCrash": "디버그 어댑터 프로세스가 예기치 않게 종료되었습니다.",
 	"debugAnyway": "디버그",
 	"debugSourceNotAvailable": "소스 {0}을(를) 사용할 수 없습니다.",
-	"debugTypeMissing": "launch.json에서 선택된 구성에 대한 '형식' 속성이 없습니다.",
+	"debugTypeMissing": "선택한 시작 구성에 대한 'type' 속성이 없습니다.",
 	"debugTypeNotSupported": "구성된 디버그 형식 '{0}'은(는) 지원되지 않습니다.",
 	"debuggingContinued": "디버그를 계속합니다.",
 	"debuggingPaused": "디버그가 일시 중지되었습니다. 이유 {0}, {1} {2}",

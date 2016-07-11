@@ -8,6 +8,8 @@
 	"globalConsoleActionWin": "Abrir nuevo símbolo del sistema",
 	"scopedConsoleActionMacLinux": "Abrir en terminal",
 	"scopedConsoleActionWin": "Abrir en símbolo del sistema",
+	"terminal.external.linuxExec": "Personaliza qué terminal debe ejecutarse en Linux.",
+	"terminal.external.osxExec": "Personaliza qué aplicación terminal se ejecutará en OS X.",
 	"terminal.external.windowsExec": "Personaliza qué terminal debe ejecutarse en Windows.",
 	"terminalConfigurationTitle": "Configuración de terminal"
 }

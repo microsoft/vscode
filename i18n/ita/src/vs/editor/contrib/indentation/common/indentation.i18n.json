@@ -11,5 +11,6 @@
 	"indentationToSpaces": "Converti rientro in spazi",
 	"indentationToTabs": "Converti rientro in tabulazioni",
 	"selectTabWidth": "Seleziona dimensione tabulazione per il file corrente",
+	"toggleRenderControlCharacters": "Attiva/Disattiva caratteri di controllo",
 	"toggleRenderWhitespace": "Attiva/Disattiva rendering spazi vuoti"
 }

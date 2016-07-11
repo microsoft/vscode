@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import {TestStorageService, TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestStorageService, TestContextService} from 'vs/test/utils/servicesTestUtils';
 
 suite('Telemetry - common properties', function () {
 

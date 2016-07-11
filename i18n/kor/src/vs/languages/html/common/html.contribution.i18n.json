@@ -10,7 +10,7 @@
 	"format.indentInnerHtml": "<head> 및 <body> 섹션을 들여쓰기합니다.",
 	"format.maxPreserveNewLines": "청크 한 개에 유지할 수 있는 최대 줄 바꿈 수입니다. 무제한일 때는 'null'을 사용합니다.",
 	"format.preserveNewLines": "요소 앞에 있는 기존 줄 바꿈의 유지 여부입니다. 요소 앞에만 적용되며 태그 안이나 텍스트에는 적용되지 않습니다.",
-	"format.unformatted": "쉼표로 분리된 태그 목록으로, 서식을 다시 지정해서는 안 됩니다. 모든 인라인 태그의 기본값은 'null'로 설정됩니다.",
+	"format.unformatted": "쉼표로 분리된 태그 목록으로, 서식을 다시 지정해서는 안 됩니다. https://www.w3.org/TR/html5/dom.html#phrasing-content에 나열된 모든 태그의 기본값은 'null'로 설정됩니다.",
 	"format.wrapLineLength": "한 줄당 최대 문자 수입니다(0 = 사용 안 함).",
 	"htmlConfigurationTitle": "HTML 구성"
 }

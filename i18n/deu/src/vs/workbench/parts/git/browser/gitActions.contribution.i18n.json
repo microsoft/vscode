@@ -9,5 +9,8 @@
 	"openFile": "Datei öffnen",
 	"openInEditor": "Zur Editor-Ansicht wechseln",
 	"stageSelectedLines": "Ausgewählte Zeilen bereitstellen",
-	"switchToChangesView": "Zur Änderungsansicht wechseln"
+	"switchToChangesView": "Zur Änderungsansicht wechseln",
+	"unstageSelectedLines": "Bereitstellung ausgewählter Zeilen aufheben",
+	"workbenchStage": "Stufe",
+	"workbenchUnstage": "Bereitstellung aufheben"
 }

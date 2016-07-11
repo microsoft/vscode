@@ -7,7 +7,7 @@
 	"git": "GIT",
 	"gitAutoFetch": "Indica se il recupero automatico è abilitato.",
 	"gitCommands": "Comandi GIT",
-	"gitConfigurationTitle": "Configurazione GIT",
+	"gitConfigurationTitle": "GIT",
 	"gitEnabled": "GIT abilitato",
 	"gitPath": "Percorso dell'eseguibile di GIT",
 	"gitPendingChangesBadge": "{0} modifiche in sospeso",

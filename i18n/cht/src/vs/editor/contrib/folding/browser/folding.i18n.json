@@ -11,6 +11,8 @@
 	"foldLevel3Action.label": "摺疊層級 3",
 	"foldLevel4Action.label": "摺疊層級 4",
 	"foldLevel5Action.label": "摺疊層級 5",
+	"foldRecursivelyAction.label": "以遞迴方式摺疊",
+	"unFoldRecursivelyAction.label": "以遞迴方式展開",
 	"unfoldAction.label": "展開",
 	"unfoldAllAction.label": "全部展開"
 }

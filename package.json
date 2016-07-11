@@ -14,7 +14,6 @@
     "watch": "gulp watch"
   },
   "dependencies": {
-    "ansi-regex": "^2.0.0",
     "applicationinsights": "0.15.6",
     "chokidar": "1.0.5",
     "emmet": "1.3.1",

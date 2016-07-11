@@ -135,6 +135,7 @@
 }
 
 .hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
+	content: "";
 	opacity: 0.6;
 	position: absolute;
 	top: 4px;

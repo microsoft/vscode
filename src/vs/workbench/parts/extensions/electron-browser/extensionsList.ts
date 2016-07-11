@@ -48,7 +48,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const details = append(element, $('.details'));
 		const header = append(details, $('.header'));
 		const name = append(header, $('span.name'));
-		const version = append(header, $('span.version.ellipsis'));
+		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
 		const description = append(details, $('.description.ellipsis'));
@@ -88,8 +88,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
-		data.installCount.style.display = 'initial';
-		data.ratings.style.display = 'initial';
+		data.installCount.style.display = '';
+		data.ratings.style.display = '';
 
 		const version = this.instantiationService.createInstance(Label, data.version, extension, e => e.version);
 		const installCount = this.instantiationService.createInstance(InstallWidget, data.installCount, extension, { small: true });

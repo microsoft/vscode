@@ -10,7 +10,7 @@
 	"format.indentInnerHtml": "Nimmt einen Einzug für <head>- und <body>-Abschnitte vor.",
 	"format.maxPreserveNewLines": "Die maximale Anzahl von Zeilenumbrüchen, die in einem Block beibehalten werden soll. Verwenden Sie \"null\" für eine unbegrenzte Anzahl.",
 	"format.preserveNewLines": "Gibt an, ob vorhandene Zeilenumbrüche vor Elemente beibehalten werden sollen. Funktioniert nur vor Elementen, nicht in Tags oder für Text.",
-	"format.unformatted": "Die Liste der Tags (durch Kommas getrennt), die nicht erneut formatiert werden sollen. \"null\" bezieht sich standardmäßig auf alle Inlinetags.",
+	"format.unformatted": "Die Liste der Tags (durch Kommas getrennt), die nicht erneut formatiert werden sollen. \"null\" bezieht sich standardmäßig auf alle Tags, die unter https://www.w3.org/TR/html5/dom.html#phrasing-content aufgeführt werden.",
 	"format.wrapLineLength": "Die maximale Anzahl von Zeichen pro Zeile (0 = deaktiviert).",
-	"htmlConfigurationTitle": "HTML-Konfiguration"
+	"htmlConfigurationTitle": "HTML"
 }

@@ -6,6 +6,7 @@
 {
 	"commitMessage": "Nachricht (drücken Sie {0}, um den Commit auszuführen)",
 	"commitMessageAriaLabel": "Git: Geben Sie die Commitnachricht ein, und drücken Sie {0}, um den Commit auszuführen.",
+	"longCommit": "Es wird empfohlen, dass die erste Zeile des Commits weniger als 50 Zeichen lang ist. Sie können weitere Zeilen für zusätzliche Informationen verwenden.",
 	"needMessage": "Geben Sie eine Commit-Meldung an. Sie können jederzeit **{0}** drücken, um einen Commit für die Änderungen auszuführen. Wenn bereitgestellte Änderungen vorliegen, wird nur für diese ein Commit ausgeführt; andernfalls für alle Änderungen.",
 	"nothingToCommit": "Sobald Änderungen für einen Commit vorliegen, geben Sie die Commit-Meldung ein, und drücken Sie **{0}**, um den Commit für die Änderungen auszuführen. Wenn bereitgestellte Änderungen vorliegen, wird nur für diese ein Commit ausgeführt; andernfalls für alle Änderungen.",
 	"showOutput": "Git-Ausgabe anzeigen",

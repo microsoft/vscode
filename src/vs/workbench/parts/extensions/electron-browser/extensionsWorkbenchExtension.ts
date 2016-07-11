@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -51,14 +51,14 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		});
 	}
 
-	private install(extensions: string[]): Promise {
-		return Promise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
-			.then(extensions => {
+	private install(extensions: string[]): TPromise<void> {
+		return TPromise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
+			.then(() => {
 				this.messageService.show(
 					Severity.Info,
 					{
 						message: extensions.length > 1 ? localize('success', "Extensions were successfully installed. Restart to enable them.")
-							: localize('successSingle', "{0} was successfully installed. Restart to enable it.", extensions[0].displayName),
+							: localize('successSingle', "Extension was successfully installed. Restart to enable it."),
 						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Restart Now"))]
 					}
 				);

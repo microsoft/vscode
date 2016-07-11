@@ -10,6 +10,7 @@
 	"debugCategory": "Debuggen",
 	"debugEvaluate": "Debuggen: Auswerten",
 	"debugPanel": "Debugkonsole",
+	"launchConfigDoesNotExist": "Die Startkonfiguration \"{0}\" ist nicht vorhanden.",
 	"runToCursor": "Debuggen: Ausführen bis Cursor",
 	"showDebugHover": "Debuggen: Hover anzeigen",
 	"toggleBreakpointAction": "Debuggen: Haltepunkt umschalten",

@@ -599,7 +599,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, '  A'],
 			[1, '    A'],
 			[2, '      A'],
-			[1, 'A'],
+			[0, 'A'],
 		]);
 	});
 
@@ -695,6 +695,17 @@ suite('TextModel.getLineIndentGuide', () => {
 			[2, '\t\tindent2'],
 			[2, '\t\tindent2'],
 			[1, '\tindent1'],
+		]);
+	});
+
+	test('issue #8952 - Indentation guide lines going through text on .yml file', () => {
+		assertIndentGuides([
+			[0, 'properties:'],
+			[1, '    emailAddress:'],
+			[2, '        - bla'],
+			[2, '        - length:'],
+			[3, '            max: 255'],
+			[0, 'getters:'],
 		]);
 	});
 });

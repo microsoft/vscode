@@ -10,6 +10,7 @@
 	"debugCategory": "デバッグ",
 	"debugEvaluate": "デバッグ: 評価",
 	"debugPanel": "デバッグ コンソール",
+	"launchConfigDoesNotExist": "起動の構成 '{0}' がありません。",
 	"runToCursor": "デバッグ: カーソル行の前まで実行",
 	"showDebugHover": "デバッグ: ホバーの表示",
 	"toggleBreakpointAction": "デバッグ: ブレークポイントの切り替え",

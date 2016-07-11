@@ -151,28 +151,7 @@ export class TabsTitleControl extends TitleControl {
 					const targetPosition = this.stacks.positionOfGroup(group);
 					const targetIndex = group.count;
 
-					// Local DND
-					const draggedEditor = TitleControl.getDraggedEditor();
-					if (draggedEditor) {
-						DOM.EventHelper.stop(e, true);
-
-						// Move editor to target position and index
-						if (this.isMoveOperation(e, draggedEditor.group, group)) {
-							this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
-						}
-
-						// Copy: just open editor at target index
-						else {
-							this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
-						}
-
-						this.onEditorDragEnd();
-					}
-
-					// External DND
-					else {
-						this.handleExternalDrop(e, targetPosition, targetIndex);
-					}
+					this.onDrop(e, group, targetPosition, targetIndex);
 				}
 			}
 		}));
@@ -461,10 +440,12 @@ export class TabsTitleControl extends TitleControl {
 			this.onEditorDragStart({ editor, group });
 			e.dataTransfer.effectAllowed = 'copyMove';
 
-			// Enable support to drag a file to desktop
+			// Insert transfer accordingly
 			const fileInput = asFileEditorInput(editor, true);
 			if (fileInput) {
-				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), fileInput.getResource().toString()].join(':'));
+				const resource = fileInput.getResource().toString();
+				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
+				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
 			}
 		}));
 
@@ -492,29 +473,34 @@ export class TabsTitleControl extends TitleControl {
 			const targetPosition = this.stacks.positionOfGroup(group);
 			const targetIndex = group.indexOf(editor);
 
-			// Local DND
-			const draggedEditor = TabsTitleControl.getDraggedEditor();
-			if (draggedEditor) {
-				DOM.EventHelper.stop(e, true);
-
-				// Move editor to target position and index
-				if (this.isMoveOperation(e, draggedEditor.group, group)) {
-					this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
-				}
-
-				// Copy: just open editor at target index
-				else {
-					this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
-				}
-
-				this.onEditorDragEnd();
-			}
-
-			// External DND
-			else {
-				this.handleExternalDrop(e, targetPosition, targetIndex);
-			}
+			this.onDrop(e, group, targetPosition, targetIndex);
 		}));
+	}
+
+	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+
+		// Local DND
+		const draggedEditor = TabsTitleControl.getDraggedEditor();
+		if (draggedEditor) {
+			DOM.EventHelper.stop(e, true);
+
+			// Move editor to target position and index
+			if (this.isMoveOperation(e, draggedEditor.group, group)) {
+				this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
+			}
+
+			// Copy: just open editor at target index
+			else {
+				this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
+			}
+
+			this.onEditorDragEnd();
+		}
+
+		// External DND
+		else {
+			this.handleExternalDrop(e, targetPosition, targetIndex);
+		}
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {

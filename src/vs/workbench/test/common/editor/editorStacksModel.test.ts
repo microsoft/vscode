@@ -9,10 +9,9 @@ import * as assert from 'assert';
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/test/utils/servicesTestUtils';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -23,16 +22,15 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import 'vs/workbench/browser/parts/editor/baseEditor';
 
 function create(): EditorStacksModel {
-	let services = new ServiceCollection();
-	services.set(IStorageService, new TestStorageService());
-	services.set(ILifecycleService, new TestLifecycleService());
-	services.set(IWorkspaceContextService, new TestContextService());
+	let inst = new TestInstantiationService();
+	inst.stub(IStorageService, new TestStorageService());
+	inst.stub(ILifecycleService, new TestLifecycleService());
+	inst.stub(IWorkspaceContextService, new TestContextService());
 
 	const config = new TestConfigurationService();
 	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
-	services.set(IConfigurationService, config);
+	inst.stub(IConfigurationService, config);
 
-	let inst = new InstantiationService(services);
 
 	return inst.createInstance(EditorStacksModel);
 }
@@ -637,16 +635,15 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
-		let services = new ServiceCollection();
-		services.set(IStorageService, new TestStorageService());
-		services.set(ILifecycleService, new TestLifecycleService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		let inst = new TestInstantiationService();
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(ILifecycleService, new TestLifecycleService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 
 		const config = new TestConfigurationService();
-		services.set(IConfigurationService, config);
+		inst.stub(IConfigurationService, config);
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
-		let inst = new InstantiationService(services);
 
 		const model = inst.createInstance(EditorStacksModel);
 
@@ -1170,17 +1167,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Single Group, Single Editor - persist', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
-		services.set(IConfigurationService, config);
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1214,17 +1210,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple Groups, Multiple editors - persist', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
-		services.set(IConfigurationService, config);
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1296,17 +1291,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Single group, multiple editors - persist (some not persistable)', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
-		services.set(IConfigurationService, config);
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1346,17 +1340,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
-		services.set(IConfigurationService, config);
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1388,17 +1381,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple groups, multiple editors - persist (ignore persisted when editors to open on startup)', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
-		services.set(IConfigurationService, config);
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
