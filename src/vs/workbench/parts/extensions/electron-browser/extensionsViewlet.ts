@@ -18,7 +18,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, emmet as $, addStandardDisposableListener, EventType, addClass, removeClass } from 'vs/base/browser/dom';
+import { append, emmet as $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IPager, PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
@@ -119,8 +119,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.searchBox.focus();
 	}
 
-	layout({ height }: Dimension):void {
+	layout({ height, width }: Dimension):void {
 		this.list.layout(height - 38);
+		toggleClass(this.root, 'narrow', width <= 300);
+	}
+
+	getOptimalWidth(): number {
+		return 400;
 	}
 
 	getActions(): IAction[] {

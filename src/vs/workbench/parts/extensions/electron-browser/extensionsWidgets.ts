@@ -101,24 +101,30 @@ export class RatingsWidget implements IDisposable {
 		const rating = Math.round(this.extension.rating * 2) / 2;
 		this.container.innerHTML = '';
 
-		if (rating === null) {
+		if (this.extension.rating === null) {
 			return;
 		}
 
-		for (let i = 1; i <= 5; i++) {
-			if (rating >= i) {
-				append(this.container, $('span.full.star'));
-			} else if (rating >= i - 0.5) {
-				append(this.container, $('span.half.star'));
-			} else {
-				append(this.container, $('span.empty.star'));
+		if (this.options.small && this.extension.ratingCount === 0) {
+			return;
+		}
+
+		if (this.options.small) {
+			append(this.container, $('span.full.star'));
+		} else {
+			for (let i = 1; i <= 5; i++) {
+				if (rating >= i) {
+					append(this.container, $('span.full.star'));
+				} else if (rating >= i - 0.5) {
+					append(this.container, $('span.half.star'));
+				} else {
+					append(this.container, $('span.empty.star'));
+				}
 			}
 		}
 
-		if (!this.options.small) {
-			const count = append(this.container, $('span.count'));
-			count.textContent = String(this.extension.ratingCount);
-		}
+		const count = append(this.container, $('span.count'));
+		count.textContent = String(this.options.small ? rating : this.extension.ratingCount);
 	}
 
 	dispose(): void {

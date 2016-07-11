@@ -7,6 +7,10 @@
 	display: inline-block;
 }
 
+.extension-ratings.small {
+	font-size: 80%;
+}
+
 .extension-ratings > .star {
 	display: inline-block;
 	width: 16px;
@@ -38,4 +42,8 @@
 
 .extension-ratings > .count {
 	margin-left: 6px;
+}
+
+.extension-ratings.small > .count {
+	margin-left: 2px;
 }
