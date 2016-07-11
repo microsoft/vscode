@@ -36,6 +36,7 @@ import * as semver from 'semver';
 import { shell } from 'electron';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import Event from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 function toReadablePath(path: string): string {
@@ -402,6 +403,8 @@ export class GitService extends ee.EventEmitter
 	private statusDelayer: async.ThrottledDelayer<void>;
 	private reactiveStatusDelayer: async.PeriodThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
+	private isStatusPending = false;
+	private isFocused = false;
 
 	private _allowHugeRepositories: boolean;
 	get allowHugeRepositories(): boolean { return this._allowHugeRepositories; }
@@ -453,7 +456,7 @@ export class GitService extends ee.EventEmitter
 
 		this.inputCache = this.instantiationService.createInstance(EditorInputCache, this);
 
-		this.triggerStatus(); // trigger initial status
+		this.triggerAutoStatus(true); // trigger initial status
 
 		if (!storageService.getBoolean(IgnoreOldGitStorageKey, StorageScope.GLOBAL, false)) {
 			this.raw.serviceState().done(state => {
@@ -500,10 +503,22 @@ export class GitService extends ee.EventEmitter
 			this._allowHugeRepositories = config.allowLargeRepositories;
 
 			if (this._allowHugeRepositories) {
-				this.triggerStatus();
+				this.triggerAutoStatus();
 			}
 		}));
 		this.lifecycleService.onShutdown(this.dispose, this);
+
+		const focusEvent = domEvent(window, 'focus');
+		this.toDispose.push(focusEvent(() => {
+			this.isFocused = true;
+
+			if (this.isStatusPending) {
+				this.triggerAutoStatus();
+			}
+		}));
+
+		const blurEvent = domEvent(window, 'blur');
+		this.toDispose.push(blurEvent(() => this.isFocused = false));
 	}
 
 	private onTextFileChange(e:filesCommon.TextFileChangeEvent): void {
@@ -513,7 +528,7 @@ export class GitService extends ee.EventEmitter
 			return;
 		}
 
-		this.triggerStatus();
+		this.triggerAutoStatus();
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
@@ -547,12 +562,12 @@ export class GitService extends ee.EventEmitter
 			return;
 		}
 
-		this.triggerStatus();
+		this.triggerAutoStatus();
 	}
 
 	private onGitServiceOperationEnd(e: { operation: git.IGitOperation; }): void {
 		if (e.operation.id === git.ServiceOperations.COMMAND) {
-			this.triggerStatus();
+			this.triggerAutoStatus();
 		}
 	}
 
@@ -589,7 +604,15 @@ export class GitService extends ee.EventEmitter
 		});
 	}
 
-	private triggerStatus(): void {
+	private triggerAutoStatus(force = false): void {
+		this.isStatusPending = true;
+
+		if (!this.isFocused && !force) {
+			return;
+		}
+
+		this.isStatusPending = false;
+
 		this.reactiveStatusDelayer.trigger(() => this.status()).done(null, e => {
 			if (errors.isPromiseCanceledError(e)) {
 				return;
