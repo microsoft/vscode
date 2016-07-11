@@ -91,20 +91,6 @@
 	background-color: #2D2D2D;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
-	opacity: 0.7 !important;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
-	opacity: 0.5 !important;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active .tab-label,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback .tab-label {
-	opacity: 1 !important;
-}
-
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab  {
 	border-left-color: #DDDDDD;
 }
@@ -154,6 +140,23 @@
 	margin-bottom: auto;
 }
 
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
+	opacity: 0.7 !important;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
+	opacity: 0.5 !important;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active .tab-label,
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback .tab-label {
+	opacity: 1 !important;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
+	opacity: 1 !important;
+}
+
 /* Tab Close */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab > .tab-close {
@@ -162,16 +165,16 @@
 	width: 28px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active > .tab-close .action-label,				/* always show it for active tab */
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab > .tab-close .action-label:focus,				/* always show it on focus */
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab:hover > .tab-close .action-label,				/* always show it on hover */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active > .tab-close .action-label,			/* always show it for active tab */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab > .tab-close .action-label:focus,			/* always show it on focus */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab:hover > .tab-close .action-label,			/* always show it on hover */
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .tabs-container > .tab.active:hover > .tab-close .action-label,		/* always show it on hover */
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty > .tab-close .action-label {					/* always show it for dirty tabs */
 	opacity: 1;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active > .tab-close .action-label,					/* show dimmed for inactive group */
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active:hover > .tab-close .action-label {				/* show dimmed for inactive group */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.active:hover > .tab-close .action-label {			/* show dimmed for inactive group */
 	opacity: 0.5;
 }
 
@@ -190,11 +193,16 @@
 	margin-right: 0.5em;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab > .tab-close .action-label {
+	opacity: 1 !important;
+}
+
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
 	background: url('close-dirty.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
 	background: url('close-dirty-inverse.svg') center center no-repeat;
 }
 
@@ -202,22 +210,9 @@
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
 	background: url('close-inverse.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
-	background: none;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
-	content: url('close-dirty-inverse.svg');
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .close-editor-action,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
-	content: url('close-inverse.svg');
 }
 
 /* Group Actions */
