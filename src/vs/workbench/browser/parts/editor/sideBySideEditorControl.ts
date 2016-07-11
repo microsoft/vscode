@@ -950,6 +950,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						overlay.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
 							destroyOverlay();
 						});
+
+						// Under some circumstances we have seen reports where the drop overlay is not being
+						// cleaned up and as such the editor area remains under the overlay so that you cannot
+						// type into the editor anymore. This seems related to using VMs and DND via host and
+						// guest OS, though some users also saw it without VMs.
+						// To protect against this issue we always destroy the overlay as soon as we detect a
+						// mouse event over it. The delay is used to guarantee we are not interfering with the
+						// actual DROP event that can also trigger a mouse over event.
+						overlay.once(DOM.EventType.MOUSE_OVER, () => {
+							setTimeout(() => {
+								destroyOverlay();
+							}, 100);
+						});
 					}
 				});
 			}
