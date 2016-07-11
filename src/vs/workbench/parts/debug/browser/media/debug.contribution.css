@@ -179,10 +179,6 @@
 	font-style: italic;
 }
 
-.monaco-workbench.mac .monaco-tree-row .expression .unavailable {
-	font-weight: 300; /* makes the italic font appear the same as normal */
-}
-
 .monaco-workbench .monaco-tree-row:not(.selected) .expression .error {
 	color: #E51400;
 }

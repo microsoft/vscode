@@ -210,11 +210,6 @@
 	font-style: italic;
 }
 
-.monaco-workbench.mac .search-viewlet .label,
-.monaco-workbench.mac .search-viewlet .linematch.changedOrRemoved {
-	font-weight: 300; /* makes the italic font appear the same as normal */
-}
-
 .search-viewlet .monaco-count-badge {
 	margin-right: 12px;
 }
