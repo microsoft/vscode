@@ -31,7 +31,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 import * as cp from 'child_process';
-import * as ansiregex from 'ansi-regex';
+import { generateUuid } from 'vs/base/common/uuid';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -287,13 +287,15 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 	const promise = new TPromise((c, e) => {
 		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
+		const regex = new RegExp(mark + '(.*)' + mark);
 
 		const env = assign({}, process.env, {
 			ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1',
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
 		});
 
-		const command = `'${process.execPath}' -p 'JSON.stringify(process.env)'`;
+		const command = `'${process.execPath}' -p '"${ mark }" + JSON.stringify(process.env) + "${ mark }"'`;
 		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
@@ -309,16 +311,12 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 				return e(new Error('Failed to get environment'));
 			}
 
-			const raw = Buffer
-				.concat(buffers)
-				.toString('utf8')
-				// remove regular ANSI escape sequences
-				.replace(ansiregex(), '')
-				// remove OSC ANSI escape sequences
-				.replace(/\u001b\].*?(\u0007|\u001b\\)/g, '');
+			const raw = Buffer.concat(buffers).toString('utf8');
+			const match = regex.exec(raw);
+			const rawStripped = match ? match[1] : '{}';
 
 			try {
-				const env = JSON.parse(raw);
+				const env = JSON.parse(rawStripped);
 
 				if (runAsNode) {
 					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;

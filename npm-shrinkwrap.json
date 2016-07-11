@@ -7,11 +7,6 @@
       "from": "agent-base@>=1.0.1 <1.1.0",
       "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-1.0.2.tgz"
     },
-    "ansi-regex": {
-      "version": "2.0.0",
-      "from": "ansi-regex@latest",
-      "resolved": "https://registry.npmjs.org/ansi-regex/-/ansi-regex-2.0.0.tgz"
-    },
     "anymatch": {
       "version": "1.3.0",
       "from": "anymatch@>=1.1.0 <2.0.0",
