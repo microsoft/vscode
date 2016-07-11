@@ -14,6 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 
 suite('SearchResult', () => {
 
@@ -67,7 +68,7 @@ suite('SearchResult', () => {
 		assert(fileMatch.parent() === searchResult);
 	});
 
-	test('Search Result: Adding a raw match will add a file match with line matches', function () {
+	test('Adding a raw match will add a file match with line matches', function () {
 		let testObject = aSearchResult();
 		let target= [aRawMatch('file://c:/', aLineMatch('preview 1', 1, [[1, 3], [4, 7]]), aLineMatch('preview 2'))];
 
@@ -92,7 +93,7 @@ suite('SearchResult', () => {
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[2].range()));
 	});
 
-	test('Search Result: Adding multiple raw matches', function () {
+	test('Adding multiple raw matches', function () {
 		let testObject = aSearchResult();
 		let target= [aRawMatch('file://c:/1', aLineMatch('preview 1', 1, [[1, 3], [4, 7]])), aRawMatch('file://c:/2', aLineMatch('preview 2'))];
 
@@ -117,7 +118,7 @@ suite('SearchResult', () => {
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
-	test('Search Result: Dispose disposes matches', function () {
+	test('Dispose disposes matches', function () {
 		let target1= sinon.spy();
 		let target2= sinon.spy();
 
@@ -134,7 +135,33 @@ suite('SearchResult', () => {
 		assert.ok(target2.calledOnce);
 	});
 
-	test('Search Result: Removing all line matches and adding back will add file back to result', function () {
+	test('remove triggers change event', function () {
+		let target= sinon.spy();
+		let testObject = aSearchResult();
+		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
+		let objectRoRemove= testObject.matches()[0];
+		testObject.onChange(target);
+
+		testObject.remove(objectRoRemove);
+
+		assert.ok(target.calledOnce);
+		assert.deepEqual([{elements: [objectRoRemove], removed: true}], target.args[0]);
+	});
+
+	test('remove triggers change event', function () {
+		let target= sinon.spy();
+		let testObject = aSearchResult();
+		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
+		let objectRoRemove= testObject.matches()[0];
+		testObject.onChange(target);
+
+		testObject.remove(objectRoRemove);
+
+		assert.ok(target.calledOnce);
+		assert.deepEqual([{elements: [objectRoRemove], removed: true}], target.args[0]);
+	});
+
+	test('Removing all line matches and adding back will add file back to result', function () {
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
 		let target= testObject.matches()[0];
@@ -146,6 +173,40 @@ suite('SearchResult', () => {
 
 		assert.equal(1, testObject.fileCount());
 		assert.equal(target, testObject.matches()[0]);
+	});
+
+	test('replace should remove the file match', function () {
+		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		let testObject = aSearchResult();
+		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
+
+		testObject.replace(testObject.matches()[0], '');
+
+		assert.ok(testObject.isEmpty());
+	});
+
+	test('replace should trigger the change event', function () {
+		let target= sinon.spy();
+		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		let testObject = aSearchResult();
+		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
+		testObject.onChange(target);
+		let objectRoRemove= testObject.matches()[0];
+
+		testObject.replace(objectRoRemove, '');
+
+		assert.ok(target.calledOnce);
+		assert.deepEqual([{elements: [objectRoRemove], removed: true}], target.args[0]);
+	});
+
+	test('replaceAll should remove all file matches', function () {
+		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		let testObject = aSearchResult();
+		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1')), aRawMatch('file://c:/2', aLineMatch('preview 2'))]);
+
+		testObject.replaceAll('', null);
+
+		assert.ok(testObject.isEmpty());
 	});
 
 	//// ----- utils

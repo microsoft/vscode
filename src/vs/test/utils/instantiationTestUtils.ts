@@ -24,6 +24,8 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { SimpleExtensionService } from 'vs/editor/browser/standalone/simpleServices';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import { ReplaceService } from 'vs/workbench/parts/search/browser/replaceService';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
@@ -45,6 +47,7 @@ export class TestInstantiationService extends InstantiationService {
 		this._servciesMap.set(IModeService, ModeServiceImpl);
 		this._servciesMap.set(IExtensionService, SimpleExtensionService);
 		this._servciesMap.set(IMarkerService, MarkerService);
+		this._servciesMap.set(IReplaceService, ReplaceService);
 	}
 
 	public mock<T>(service:ServiceIdentifier<T>): T | sinon.SinonMock {

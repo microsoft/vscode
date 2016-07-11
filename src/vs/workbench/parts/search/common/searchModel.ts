@@ -297,12 +297,11 @@ export class SearchResult extends Disposable {
 
 	public remove(match: FileMatch): void {
 		this.doRemove(match);
-		this._onChange.fire({elements: [match], removed: true});
 	}
 
 	public replace(match: FileMatch, replaceText: string): TPromise<any> {
 		return this.replaceService.replace([match], replaceText).then(() => {
-			this.doRemove(match, false);
+			this.doRemove(match, false, true);
 		});
 	}
 
@@ -357,7 +356,7 @@ export class SearchResult extends Disposable {
 			added= true;
 		}
 		if (fileMatch.count() === 0) {
-			this.doRemove(fileMatch, false);
+			this.doRemove(fileMatch, false, false);
 			added= false;
 			removed= true;
 		}
@@ -373,12 +372,16 @@ export class SearchResult extends Disposable {
 		}
 	}
 
-	private doRemove(fileMatch: FileMatch, dispose:boolean= true): void {
+	private doRemove(fileMatch: FileMatch, dispose:boolean= true, trigger: boolean= true): void {
 		this._fileMatches.delete(fileMatch.resource());
 		if (dispose) {
 			fileMatch.dispose();
 		} else {
 			this._unDisposedFileMatches.set(fileMatch.resource(), fileMatch);
+		}
+
+		if (trigger) {
+			this._onChange.fire({elements: [fileMatch], removed: true});
 		}
 	}
 
