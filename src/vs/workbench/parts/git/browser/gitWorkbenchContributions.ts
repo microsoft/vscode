@@ -542,6 +542,11 @@ export function registerContributions(): void {
 				type: 'boolean',
 				description: nls.localize('gitLargeRepos', "Always allow large repositories to be managed by Code."),
 				default: false
+			},
+			'git.confirmSync': {
+				type: 'boolean',
+				description: nls.localize('confirmSync', "Confirm before synchronizing git repositories."),
+				default: false
 			}
 		}
 	});

@@ -234,6 +234,7 @@ export interface IGitConfiguration {
 	autofetch: boolean;
 	enableLongCommitWarning: boolean;
 	allowLargeRepositories: boolean;
+	confirmSync: boolean;
 }
 
 // Service interfaces
