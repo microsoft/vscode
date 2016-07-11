@@ -234,7 +234,8 @@
 	background-color: #333;
 }
 
-.search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
+.search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,
+.vs-dark .monaco-workbench .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
 	background: url("action-remove-focus.svg") center center no-repeat;
 }
 
@@ -263,10 +264,6 @@
 .vs-dark .monaco-workbench .search-action.clear-search-results,
 .hc-black .monaco-workbench .search-action.clear-search-results {
 	background: url('clear-search-results-dark.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
-	background: url("action-remove-focus.svg") center center no-repeat;
 }
 
 .vs .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern {

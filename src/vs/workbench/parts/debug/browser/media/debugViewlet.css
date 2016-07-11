@@ -31,18 +31,12 @@
 	border: 1px solid white;
 }
 
-.vs-dark .monaco-workbench .debug-action.configure {
-	background: url('configure-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .debug-action.toggle-repl {
-	background: url('repl-inverse.svg') center center no-repeat;
-}
-
+.vs-dark .monaco-workbench .debug-action.configure,
 .hc-black .monaco-workbench .debug-action.configure {
 	background: url('configure-inverse.svg') center center no-repeat;
 }
 
+.vs-dark .monaco-workbench .debug-action.toggle-repl,
 .hc-black .monaco-workbench .debug-action.toggle-repl {
 	background: url('repl-inverse.svg') center center no-repeat;
 }
