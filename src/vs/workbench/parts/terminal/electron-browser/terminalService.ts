@@ -6,6 +6,7 @@
 import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
 import cp = require('child_process');
+import nls = require('vs/nls');
 import os = require('os');
 import path = require('path');
 import platform = require('vs/base/common/platform');
@@ -13,10 +14,12 @@ import {Builder} from 'vs/base/browser/builder';
 import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStringDictionary} from 'vs/base/common/collections';
-import {ITerminalProcess, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalProcess, ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -27,6 +30,7 @@ export class TerminalService implements ITerminalService {
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
+	protected _terminalFocusContextKey: IKeybindingContextKey<boolean>;
 
 	private configHelper: TerminalConfigHelper;
 	private _onActiveInstanceChanged: Emitter<string>;
@@ -36,6 +40,8 @@ export class TerminalService implements ITerminalService {
 	constructor(
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMessageService private messageService: IMessageService,
 		@IPanelService private panelService: IPanelService,
 		@IPartService private partService: IPartService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
@@ -43,6 +49,7 @@ export class TerminalService implements ITerminalService {
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 		this._onInstanceTitleChanged = new Emitter<string>();
+		this._terminalFocusContextKey = this.keybindingService.createKey(KEYBINDING_CONTEXT_TERMINAL_FOCUS, undefined);
 	}
 
 	public get onActiveInstanceChanged(): Event<string> {
@@ -160,7 +167,7 @@ export class TerminalService implements ITerminalService {
 			}
 
 			self.initConfigHelper(terminalPanel.getContainer());
-			terminalPanel.createNewTerminalInstance(self.createTerminalProcess());
+			terminalPanel.createNewTerminalInstance(self.createTerminalProcess(), this._terminalFocusContextKey);
 			self._onInstancesChanged.fire();
 			return TPromise.as(void 0);
 		});
@@ -169,6 +176,21 @@ export class TerminalService implements ITerminalService {
 	public close(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
 			return terminalPanel.closeActiveTerminal();
+		});
+	}
+
+	public copySelection(): TPromise<any> {
+		if (document.activeElement.classList.contains('xterm')) {
+			document.execCommand('copy');
+		} else {
+			this.messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
+		}
+		return TPromise.as(void 0);
+	}
+
+	public paste(): TPromise<any> {
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+			document.execCommand('paste');
 		});
 	}
 

@@ -5,17 +5,18 @@
 
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
-import nls = require('vs/nls');
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
-import {KillTerminalAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import * as panel from 'vs/workbench/browser/panel';
-import {Registry} from 'vs/platform/platform';
+import nls = require('vs/nls');
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, TerminalPasteAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {Registry} from 'vs/platform/platform';
+import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
+import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
+import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -95,6 +96,9 @@ registerSingleton(ITerminalService, TerminalService);
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), KillTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
+}, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
@@ -102,6 +106,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTermina
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), FocusTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), KillTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), KillTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V
+}, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), RunSelectedTextInTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
