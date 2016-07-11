@@ -8,6 +8,7 @@ import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITerminalConfiguration} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {Builder} from 'vs/base/browser/builder';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 const DEFAULT_ANSI_COLORS = {
 	'hc-black': [
@@ -130,6 +131,9 @@ export class TerminalConfigHelper {
 
 		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
 		let fontSize = this.toInteger(terminalConfig.fontSize, 0) || editorConfig.editor.fontSize;
+		if (fontSize <= 0) {
+			fontSize = DefaultConfig.editor.fontSize;
+		}
 		let lineHeight = this.toInteger(terminalConfig.lineHeight, 0);
 
 		return this.measureFont(fontFamily, fontSize + 'px', lineHeight === 0 ? 'normal' : lineHeight + 'px');
