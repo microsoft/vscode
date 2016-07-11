@@ -109,10 +109,6 @@
 	font-style: italic;
 }
 
-.monaco-workbench.mac .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
-	font-weight: 300; /* makes the italic font appear the same as normal */
-}
-
 /* High Contrast Theming */
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,
 .hc-black .monaco-workbench .explorer-viewlet .open-editor,
