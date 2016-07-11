@@ -404,7 +404,7 @@ export class GitService extends ee.EventEmitter
 	private reactiveStatusDelayer: async.PeriodThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
 	private isStatusPending = false;
-	private isFocused = false;
+	private isFocused = true;
 
 	private _allowHugeRepositories: boolean;
 	get allowHugeRepositories(): boolean { return this._allowHugeRepositories; }
@@ -612,6 +612,12 @@ export class GitService extends ee.EventEmitter
 		}
 
 		this.isStatusPending = false;
+
+		const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+
+		if (!config.autorefresh) {
+			return;
+		}
 
 		this.reactiveStatusDelayer.trigger(() => this.status()).done(null, e => {
 			if (errors.isPromiseCanceledError(e)) {

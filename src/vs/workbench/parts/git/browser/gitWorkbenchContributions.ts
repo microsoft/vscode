@@ -523,6 +523,11 @@ export function registerContributions(): void {
 				description: nls.localize('gitPath', "Path to the git executable"),
 				default: null
 			},
+			'git.autorefresh': {
+				type: 'boolean',
+				description: nls.localize('gitAutoRefresh', "Whether auto refreshing is enabled"),
+				default: true
+			},
 			'git.autofetch': {
 				type: 'boolean',
 				description: nls.localize('gitAutoFetch', "Whether auto fetching is enabled."),
