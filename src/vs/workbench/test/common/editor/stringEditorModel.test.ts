@@ -6,22 +6,24 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-
-import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import {createMockModelService} from 'vs/test/utils/servicesTestUtils';
 
 suite('Workbench - StringEditorModel', () => {
 
+	let instantiationService: TestInstantiationService;
+
+	setup(() => {
+		instantiationService= new TestInstantiationService();
+		instantiationService.stub(IModeService);
+	});
+
 	test('StringEditorModel', function (done) {
-		let services = new ServiceCollection();
-		services.set(IModeService, createMockModeService());
-		services.set(IModelService, createMockModelService());
-		let inst = new InstantiationService(services);
-		let m = inst.createInstance(StringEditorModel, 'value', 'mime', null);
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mime', null);
 		m.load().then(function (model) {
 			assert(model === m);
 
@@ -42,11 +44,8 @@ suite('Workbench - StringEditorModel', () => {
 	});
 
 	test('StringEditorModel - setValue, clearValue, append, trim', function (done) {
-		let services = new ServiceCollection();
-		services.set(IModeService, createMockModeService());
-		services.set(IModelService, createMockModelService());
-		let inst = new InstantiationService(services);
-		let m = inst.createInstance(StringEditorModel, 'value', 'mime', null);
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mime', null);
 		m.load().then(function (model) {
 			assert(model === m);
 

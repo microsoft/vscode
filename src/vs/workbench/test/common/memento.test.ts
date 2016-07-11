@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {StorageScope} from 'vs/platform/storage/common/storage';
-import * as TestUtils from 'vs/workbench/test/common/servicesTestUtils';
+import * as TestUtils from 'vs/test/utils/servicesTestUtils';
 import {Memento, Scope} from 'vs/workbench/common/memento';
 import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
 

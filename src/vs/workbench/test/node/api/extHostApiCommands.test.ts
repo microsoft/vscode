@@ -7,14 +7,13 @@
 
 import * as assert from 'assert';
 import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {TestThreadService} from 'vs/workbench/test/node/api/testThreadService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
@@ -55,20 +54,19 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		let services = new ServiceCollection();
-		let instantiationService = new InstantiationService(services);
+		let instantiationService = new TestInstantiationService();
 		threadService = new TestThreadService();
 
-		services.set(ICommandService, {
+		instantiationService.stub(ICommandService, {
 			_serviceBrand: undefined,
 			executeCommand(id, args): any {
 				let {handler} = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
-		services.set(IMarkerService, new MarkerService());
-		services.set(IThreadService, threadService);
-		services.set(IModelService, <IModelService>{
+		instantiationService.stub(IMarkerService, new MarkerService());
+		instantiationService.stub(IThreadService, threadService);
+		instantiationService.stub(IModelService, <IModelService>{
 			_serviceBrand: IModelService,
 			getModel(): any { return model; },
 			createModel(): any { throw new Error(); },
