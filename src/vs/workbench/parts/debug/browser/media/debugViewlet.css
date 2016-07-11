@@ -31,18 +31,12 @@
 	border: 1px solid white;
 }
 
-.vs-dark .monaco-workbench .debug-action.configure {
-	background: url('configure-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .debug-action.toggle-repl {
-	background: url('repl-inverse.svg') center center no-repeat;
-}
-
+.vs-dark .monaco-workbench .debug-action.configure,
 .hc-black .monaco-workbench .debug-action.configure {
 	background: url('configure-inverse.svg') center center no-repeat;
 }
 
+.vs-dark .monaco-workbench .debug-action.toggle-repl,
 .hc-black .monaco-workbench .debug-action.toggle-repl {
 	background: url('repl-inverse.svg') center center no-repeat;
 }
@@ -264,7 +258,8 @@
 }
 
 .vs-dark .debug-viewlet .debug-action.add-watch-expression,
-.vs-dark .debug-viewlet .debug-action.add-function-breakpoint {
+.vs-dark .debug-viewlet .debug-action.add-function-breakpoint,
+.hc-black .debug-viewlet .debug-action.add-watch-expression {
 	background: url('add-inverse.svg') center center no-repeat;
 }
 
@@ -307,23 +302,23 @@
 	background: url('breakpoints-activate.svg') center center no-repeat;
 }
 
-.debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.remove {
-	background: url("remove-focus.svg") center center no-repeat;
-}
-
-.vs-dark .debug-viewlet .debug-action.remove {
-	background: url('remove-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .debug-viewlet .debug-action.remove-all {
-	background: url('remove-all-inverse.svg') center center no-repeat;
-}
-
+.debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.remove,
 .vs-dark .debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.remove {
 	background: url("remove-focus.svg") center center no-repeat;
 }
 
-.vs-dark .debug-viewlet .debug-action.breakpoints-activate {
+.vs-dark .debug-viewlet .debug-action.remove,
+.hc-black .debug-viewlet .debug-action.remove {
+	background: url('remove-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.remove-all,
+.hc-black .debug-viewlet .debug-action.remove-all {
+	background: url('remove-all-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.breakpoints-activate,
+.hc-black .debug-viewlet .debug-action.breakpoints-activate {
 	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
 }
 
@@ -343,20 +338,4 @@
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
 	color: rgb(204, 204, 204);
-}
-
-.hc-black .debug-viewlet .debug-action.remove {
-	content: url('remove-inverse.svg');
-}
-
-.hc-black .debug-viewlet .debug-action.add-watch-expression {
-	background: url('add-inverse.svg') center center no-repeat;
-}
-
-.hc-black .debug-viewlet .debug-action.breakpoints-activate {
-	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
-}
-
-.hc-black .debug-viewlet .debug-action.remove-all {
-	background: url('remove-all-inverse.svg') center center no-repeat;
 }

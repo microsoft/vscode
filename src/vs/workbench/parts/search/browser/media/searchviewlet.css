@@ -70,10 +70,7 @@
 	height: 13px;
 }
 
-.hc-black .monaco-workbench .search-viewlet .query-details .more {
-	background: url('ellipsis-inverse.svg') top center no-repeat;
-}
-
+.hc-black .monaco-workbench .search-viewlet .query-details .more,
 .vs-dark .monaco-workbench .search-viewlet .query-details .more {
 	background: url('ellipsis-inverse.svg') top center no-repeat;
 }
@@ -237,7 +234,8 @@
 	background-color: #333;
 }
 
-.search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
+.search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,
+.vs-dark .monaco-workbench .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
 	background: url("action-remove-focus.svg") center center no-repeat;
 }
 
@@ -245,7 +243,8 @@
 	background: url('Refresh.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-action.refresh {
+.vs-dark .monaco-workbench .search-action.refresh,
+.hc-black .monaco-workbench .search-action.refresh {
 	background: url('Refresh_inverse.svg') center center no-repeat;
 }
 
@@ -253,7 +252,8 @@
 	background: url('CollapseAll.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-action.collapse {
+.vs-dark .monaco-workbench .search-action.collapse,
+.hc-black .monaco-workbench .search-action.collapse {
 	background: url('CollapseAll_inverse.svg') center center no-repeat;
 }
 
@@ -261,28 +261,18 @@
 	background: url('clear-search-results.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-action.clear-search-results {
+.vs-dark .monaco-workbench .search-action.clear-search-results,
+.hc-black .monaco-workbench .search-action.clear-search-results {
 	background: url('clear-search-results-dark.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-viewlet .action-remove {
-	background: url("action-remove-dark.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
-	background: url("action-remove-focus.svg") center center no-repeat;
 }
 
 .vs .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern {
 	background: url('pattern.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern {
-	background: url('pattern-dark.svg') center center no-repeat;
-}
-
+.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern,
 .hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern:before {
-	content: url('pattern-dark.svg');
+	background: url('pattern-dark.svg') center center no-repeat;
 }
 
 .search-viewlet .findInFileMatch,
@@ -363,7 +353,8 @@
 	background: url("action-query-clear-dark.svg") center center no-repeat;
 }
 
-.vs-dark .search-viewlet .action-remove {
+.vs-dark .search-viewlet .action-remove,
+.hc-black .search-viewlet .action-remove {
 	background: url("action-remove-dark.svg") center center no-repeat;
 }
 
@@ -391,55 +382,12 @@
 	background-color: #000;
 }
 
-.hc-black .monaco-workbench .search-action {
-	background: none;
-}
-
-.hc-black .monaco-workbench .search-action:before {
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .search-action.refresh:before {
-	content: url('Refresh_inverse.svg');
-}
-
-.hc-black .monaco-workbench .search-action.collapse:before {
-	content: url('CollapseAll_inverse.svg');
-}
-
-.hc-black .monaco-workbench .search-action.clear-search-results:before {
-	content: url('clear-search-results-dark.svg');
-}
-
-.hc-black .monaco-workbench .search-viewlet .query-clear {
-	background: none;
-}
-
-.hc-black .monaco-workbench .search-viewlet .query-clear:before,
-.hc-black .monaco-workbench .search-viewlet .action-remove:before {
-	content: url('action-remove-dark.svg');
-	position: absolute;
-	top: 2px;
-	left: 5px;
-	height: 16px;
-	width: 16px;
-}
-
 .hc-black .monaco-workbench .input-box {
 	border: 1px solid #6FC3DF;
 }
 
 .hc-black .monaco-workbench .input-box .monaco-inputbox.idle {
 	border: none;
-}
-
-.hc-black .monaco-workbench .search-viewlet .action-remove,
-.hc-black .monaco-workbench .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar .action-remove {
-	background: none !important;
 }
 
 .hc-black .monaco-workbench .search-viewlet .filematch,

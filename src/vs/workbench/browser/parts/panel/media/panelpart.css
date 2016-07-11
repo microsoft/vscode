@@ -23,7 +23,8 @@
 	background: url('hide.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .hide-panel-action {
+.vs-dark .monaco-workbench .hide-panel-action,
+.hc-black .monaco-workbench .hide-panel-action {
 	background: url('hide-inverse.svg') center center no-repeat;
 }
 
@@ -31,17 +32,3 @@
 .hc-black .monaco-workbench > .part.panel > .title {
 	border-top-color: #6FC3DF;
 }
-
-.hc-black .monaco-workbench .hide-panel-action {
-	background: none;
-}
-
-.hc-black .monaco-workbench .hide-panel-action:before {
-	content: url('hide-inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-

@@ -69,10 +69,6 @@
 	padding: 0 20px 0 20px;
 }
 
-.explorer-viewlet .action-close-all-files {
-	background: url("closeall.svg") center center no-repeat;
-}
-
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
@@ -115,11 +111,6 @@
 
 .monaco-workbench.mac .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
 	font-weight: 300; /* makes the italic font appear the same as normal */
-}
-
-/* Theming */
-.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("closeall_inverse.svg") center center no-repeat;
 }
 
 /* High Contrast Theming */
