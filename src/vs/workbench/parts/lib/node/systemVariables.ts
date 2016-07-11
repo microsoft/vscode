@@ -48,7 +48,7 @@ export class SystemVariables extends AbstractSystemVariables {
 		return this.getFilePath();
 	}
 
-	public get relFile(): string {
+	public get relativeFile(): string {
 		return Paths.relative(this.workspaceRoot, this.file);
 	}
 
