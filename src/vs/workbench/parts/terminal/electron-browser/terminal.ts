@@ -20,6 +20,11 @@ export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.S
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
 
+/**
+ * A context key that is set when the integrated terminal has focus.
+ */
+export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = 'terminalFocus';
+
 export var ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export interface ITerminalConfiguration {
@@ -55,11 +60,13 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 
 	close(): TPromise<any>;
+	copySelection(): TPromise<any>;
 	createNew(): TPromise<any>;
 	focus(): TPromise<any>;
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
 	hide(): TPromise<any>;
+	paste(): TPromise<any>;
 	runSelectedText(): TPromise<any>;
 	setActiveTerminal(index: number): TPromise<any>;
 	toggle(): TPromise<any>;
