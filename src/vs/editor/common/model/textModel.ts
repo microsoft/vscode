@@ -509,7 +509,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 				return 1 + Math.floor(rng.indent / this._options.tabSize);
 			}
 			if (rng.endLineNumber + 1 === lineNumber) {
-				return  Math.ceil(rng.indent / this._options.tabSize);
+				if (i === 0 || indentRanges[i - 1].endLineNumber + 1 !== lineNumber) {
+					// For endLineNumber matches, we need to find the outermost indent range
+					return  Math.ceil(rng.indent / this._options.tabSize);
+				}
 			}
 		}
 
