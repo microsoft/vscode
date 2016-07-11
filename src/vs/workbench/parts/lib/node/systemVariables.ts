@@ -49,7 +49,7 @@ export class SystemVariables extends AbstractSystemVariables {
 	}
 
 	public get relFile(): string {
-		return Paths.relative(this.cwd, this.file);
+		return Paths.relative(this.workspaceRoot, this.file);
 	}
 
 	public get fileBasename(): string {
