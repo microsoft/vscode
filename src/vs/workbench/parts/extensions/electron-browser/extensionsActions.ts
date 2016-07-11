@@ -316,10 +316,10 @@ export class ShowPopularExtensionsAction extends Action {
 	}
 }
 
-export class ShowExtensionRecommendationsAction extends Action {
+export class ShowRecommendedExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showExtensionRecommendations';
-	static LABEL = localize('showExtensionRecommendations', "Show Extension Recommendations");
+	static ID = 'workbench.extensions.action.showRecommendedExtensions';
+	static LABEL = localize('showRecommendedExtensions', "Show Recommended Extension");
 
 	constructor(
 		id: string,
