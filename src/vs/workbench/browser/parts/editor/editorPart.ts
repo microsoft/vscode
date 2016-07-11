@@ -91,7 +91,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
 	private instantiatedEditors: BaseEditor[][];
-	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private pendingEditorInputsToClose: EditorIdentifier[];
@@ -120,7 +119,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
 
-		this.mapEditorToEditorContainers = arrays.fill(POSITIONS.length, () => Object.create(null));
 		this.mapEditorInstantiationPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
 
 		this.pendingEditorInputsToClose = [];
@@ -295,7 +293,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 
 			// Show in side by side control
-			this.sideBySideControl.show(editor, this.mapEditorToEditorContainers[position][descriptor.getId()], position, options && options.preserveFocus, widthRatios);
+			this.sideBySideControl.show(editor, position, options && options.preserveFocus, widthRatios);
 
 			// Indicate to editor that it is now visible
 			editor.setVisible(true, position);
@@ -311,25 +309,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doCreateEditor(group: EditorGroup, descriptor: IEditorDescriptor, monitor: ProgressMonitor): TPromise<BaseEditor> {
-		let position = this.stacks.positionOfGroup(group);
-
-		// We need the container for this editor now
-		let editorContainer = this.mapEditorToEditorContainers[position][descriptor.getId()];
-		let newlyCreatedEditorContainerBuilder: Builder;
-		if (!editorContainer) {
-
-			// Build Container off-DOM
-			editorContainer = $().div({
-				'class': 'editor-container',
-				'role': 'tabpanel',
-				id: descriptor.getId()
-			}, (div) => {
-				newlyCreatedEditorContainerBuilder = div;
-			});
-
-			// Remember editor container
-			this.mapEditorToEditorContainers[position][descriptor.getId()] = editorContainer;
-		}
 
 		// Instantiate editor
 		return this.doInstantiateEditor(group, descriptor).then(editor => {
@@ -346,8 +325,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.visibleEditors[position] = editor;
 
 			// Create editor as needed
-			if (newlyCreatedEditorContainerBuilder) {
-				editor.create(newlyCreatedEditorContainerBuilder);
+			if (!editor.getContainer()) {
+				editor.create($().div({
+					'class': 'editor-container',
+					'role': 'tabpanel',
+					id: descriptor.getId()
+				}));
 			}
 
 			return editor;
@@ -551,10 +534,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private doHideEditor(position: Position, layoutAndRochade: boolean): void {
 		let editor = this.visibleEditors[position];
-		let editorContainer = this.mapEditorToEditorContainers[position][editor.getId()];
 
 		// Hide in side by side control
-		let rochade = this.sideBySideControl.hide(editor, editorContainer, position, layoutAndRochade);
+		let rochade = this.sideBySideControl.hide(editor, position, layoutAndRochade);
 
 		// Clear any running Progress
 		this.sideBySideControl.updateProgress(position, ProgressState.STOP);
@@ -726,7 +708,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		arrays.move(this.editorOpenToken, fromPosition, toPosition);
 		arrays.move(this.mapEditorInstantiationPromiseToEditor, fromPosition, toPosition);
 		arrays.move(this.instantiatedEditors, fromPosition, toPosition);
-		arrays.move(this.mapEditorToEditorContainers, fromPosition, toPosition);
 
 		// Restore focus
 		this.focusGroup(fromGroup);
@@ -1109,7 +1090,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	public dispose(): void {
-		this.mapEditorToEditorContainers = null;
 
 		// Emitters
 		this._onEditorsChanged.dispose();
@@ -1273,7 +1253,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.doRochade(this.editorOpenToken, from, to, null);
 			this.doRochade(this.mapEditorInstantiationPromiseToEditor, from, to, Object.create(null));
 			this.doRochade(this.instantiatedEditors, from, to, []);
-			this.doRochade(this.mapEditorToEditorContainers, from, to, Object.create(null));
 		}
 	}
 
