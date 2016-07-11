@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -51,8 +51,8 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		});
 	}
 
-	private install(extensions: string[]): Promise {
-		return Promise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
+	private install(extensions: string[]): TPromise<void> {
+		return TPromise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
 			.then(() => {
 				this.messageService.show(
 					Severity.Info,
