@@ -12,6 +12,8 @@ import URI from 'vs/base/common/uri';
 import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
+import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 suite('SearchResult', () => {
 
@@ -20,10 +22,11 @@ suite('SearchResult', () => {
 	setup(() => {
 		instantiationService= new TestInstantiationService();
 		instantiationService.stub(ITelemetryService);
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	});
 
 	test('Line Match', function () {
-		let fileMatch = aFileMatch('folder\\file.txt');
+		let fileMatch = aFileMatch('folder\\file.txt', null);
 		let lineMatch = new Match(fileMatch, 'foo bar', 1, 0, 3);
 		assert.equal(lineMatch.text(), 'foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
@@ -33,7 +36,7 @@ suite('SearchResult', () => {
 	});
 
 	test('Line Match - Remove', function () {
-		let fileMatch = aFileMatch('folder\\file.txt', null, ...[{
+		let fileMatch = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
 					preview: 'foo bar',
 					lineNumber: 1,
 					offsetAndLengths: [[0, 3]]
@@ -194,7 +197,7 @@ suite('SearchResult', () => {
 			resource: URI.file('C:\\' + path),
 			lineMatches: lineMatches
 		};
-		return new FileMatch(null, searchResult, rawMatch, null, null);
+		return instantiationService.createInstance(FileMatch, null, searchResult, rawMatch);
 	}
 
 	function aSearchResult(): SearchResult {

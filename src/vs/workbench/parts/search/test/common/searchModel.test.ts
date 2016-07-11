@@ -16,6 +16,8 @@ import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ISearchService, ISearchComplete, ISearchProgressItem } from 'vs/platform/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
+import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 suite('SearchModel', () => {
 
@@ -26,6 +28,7 @@ suite('SearchModel', () => {
 		restoreStubs= [];
 		instantiationService= new TestInstantiationService();
 		instantiationService.stub(ITelemetryService);
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	});
 
 	teardown(() => {
