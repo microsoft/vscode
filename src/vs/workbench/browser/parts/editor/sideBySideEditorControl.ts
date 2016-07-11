@@ -54,8 +54,8 @@ export interface ISideBySideEditorControl {
 
 	onGroupFocusChanged: Event<void>;
 
-	show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void;
-	hide(editor: BaseEditor, container: Builder, position: Position, layoutAndRochade: boolean): Rochade;
+	show(editor: BaseEditor, position: Position, preserveActive: boolean, widthRatios?: number[]): void;
+	hide(editor: BaseEditor, position: Position, layoutAndRochade: boolean): Rochade;
 
 	setActive(editor: BaseEditor): void;
 
@@ -111,7 +111,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private startRightContainerWidth: number;
 
 	private visibleEditors: BaseEditor[];
-	private visibleEditorContainers: Builder[];
 
 	private lastActiveEditor: BaseEditor;
 	private lastActivePosition: Position;
@@ -151,7 +150,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.progressBar = [];
 
 		this.visibleEditors = [];
-		this.visibleEditorContainers = [];
 		this.visibleEditorFocusTrackers = [];
 
 		this._onGroupFocusChanged = new Emitter<void>();
@@ -226,12 +224,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return this._onGroupFocusChanged.event;
 	}
 
-	public show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
+	public show(editor: BaseEditor, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
 		let visibleEditorCount = this.getVisibleEditorCount();
 
 		// Store into editor bucket
 		this.visibleEditors[position] = editor;
-		this.visibleEditorContainers[position] = container;
 
 		// Store as active unless preserveActive is set
 		if (!preserveActive || !this.lastActiveEditor) {
@@ -243,7 +240,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Find target container and build into
 		let target = this.containers[position];
-		container.build(target);
+		editor.getContainer().build(target);
 
 		// Adjust layout according to provided ratios (used when restoring multiple editors at once)
 		if (widthRatios && (widthRatios.length === 2 || widthRatios.length === 3)) {
@@ -315,7 +312,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Show editor container
-		container.show();
+		editor.getContainer().show();
 
 		// Styles
 		this.updateParentStyle();
@@ -412,7 +409,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 	}
 
-	public hide(editor: BaseEditor, container: Builder, position: Position, layoutAndRochade: boolean): Rochade {
+	public hide(editor: BaseEditor, position: Position, layoutAndRochade: boolean): Rochade {
 		let result = Rochade.NONE;
 
 		let visibleEditorCount = this.getVisibleEditorCount();
@@ -429,8 +426,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.clearPosition(position);
 
 		// Take editor container offdom and hide
-		container.offDOM();
-		container.hide();
+		editor.getContainer().offDOM().hide();
 
 		// Adjust layout and rochade if instructed to do so
 		if (layoutAndRochade) {
@@ -545,25 +541,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Clear from active editors
 		this.visibleEditors[position] = null;
-		this.visibleEditorContainers[position] = null;
 	}
 
 	private rochade(from: Position, to: Position): void {
 
 		// Move editor to new position
-		let editorContainer = this.visibleEditorContainers[from];
 		let editor = this.visibleEditors[from];
-		editorContainer.offDOM();
-		editorContainer.build(this.containers[to]);
+		editor.getContainer().offDOM().build(this.containers[to]);
 		editor.changePosition(to);
 
 		// Change data structures
 		let listeners = this.visibleEditorFocusTrackers[from];
 		this.visibleEditorFocusTrackers[to] = listeners;
 		this.visibleEditorFocusTrackers[from] = null;
-
-		this.visibleEditorContainers[to] = editorContainer;
-		this.visibleEditorContainers[from] = null;
 
 		this.visibleEditors[to] = editor;
 		this.visibleEditors[from] = null;
@@ -575,25 +565,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public move(from: Position, to: Position): void {
-		let editorContainerPos1: Builder;
 		let editorPos1: BaseEditor;
-		let editorContainerPos2: Builder;
 		let editorPos2: BaseEditor;
 
 		// Distance 1: Swap Editors
 		if (Math.abs(from - to) === 1) {
 
 			// Move editors to new position
-			editorContainerPos1 = this.visibleEditorContainers[from];
 			editorPos1 = this.visibleEditors[from];
-			editorContainerPos1.offDOM();
-			editorContainerPos1.build(this.containers[to]);
+			editorPos1.getContainer().offDOM().build(this.containers[to]);
 			editorPos1.changePosition(to);
 
-			editorContainerPos2 = this.visibleEditorContainers[to];
 			editorPos2 = this.visibleEditors[to];
-			editorContainerPos2.offDOM();
-			editorContainerPos2.build(this.containers[from]);
+			editorPos2.getContainer().offDOM().build(this.containers[from]);
 			editorPos2.changePosition(from);
 
 			// Update last active position accordingly
@@ -623,22 +607,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Move editors to new position
-			editorContainerPos1 = this.visibleEditorContainers[Position.LEFT];
 			editorPos1 = this.visibleEditors[Position.LEFT];
-			editorContainerPos1.offDOM();
-			editorContainerPos1.build(this.containers[newLeftPosition]);
+			editorPos1.getContainer().offDOM().build(this.containers[newLeftPosition]);
 			editorPos1.changePosition(newLeftPosition);
 
-			editorContainerPos2 = this.visibleEditorContainers[Position.CENTER];
 			editorPos2 = this.visibleEditors[Position.CENTER];
-			editorContainerPos2.offDOM();
-			editorContainerPos2.build(this.containers[newCenterPosition]);
+			editorPos2.getContainer().offDOM().build(this.containers[newCenterPosition]);
 			editorPos2.changePosition(newCenterPosition);
 
-			let editorContainerPos3 = this.visibleEditorContainers[Position.RIGHT];
 			let editorPos3 = this.visibleEditors[Position.RIGHT];
-			editorContainerPos3.offDOM();
-			editorContainerPos3.build(this.containers[newRightPosition]);
+			editorPos3.getContainer().offDOM().build(this.containers[newRightPosition]);
 			editorPos3.changePosition(newRightPosition);
 
 			// Update last active position accordingly
@@ -652,7 +630,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Change data structures
-		arrays.move(this.visibleEditorContainers, from, to);
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorFocusTrackers, from, to);
 		arrays.move(this.containerWidth, from, to);
@@ -949,7 +926,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		function createOverlay(target: HTMLElement): void {
 			if (!overlay) {
-				const containers = $this.visibleEditorContainers.filter(c => !!c);
+				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
 						const useTabs = !!$this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
@@ -1657,7 +1634,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.lastActiveEditor = null;
 		this.lastActivePosition = null;
 		this.visibleEditors = null;
-		this.visibleEditorContainers = null;
 
 		this._onGroupFocusChanged.dispose();
 	}
