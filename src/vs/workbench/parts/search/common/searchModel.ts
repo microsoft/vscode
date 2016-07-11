@@ -108,7 +108,7 @@ export class FileMatch extends Disposable {
 	}
 
 	private createMatches(): void {
-		let model = this.modelService ? this.modelService.getModel(this._resource) : null;
+		let model = this.modelService.getModel(this._resource);
 		if (model) {
 			this.bindModel(model);
 			this.updateMatches();
@@ -123,13 +123,11 @@ export class FileMatch extends Disposable {
 	}
 
 	private registerListeners(): void {
-		if (this.modelService) {
-			this._register(this.modelService.onModelAdded((model: IModel) => {
-				if (model.uri.toString() === this._resource.toString()) {
-					this.bindModel(model);
-				}
-			}));
-		}
+		this._register(this.modelService.onModelAdded((model: IModel) => {
+			if (model.uri.toString() === this._resource.toString()) {
+				this.bindModel(model);
+			}
+		}));
 	}
 
 	private bindModel(model: IModel): void {
