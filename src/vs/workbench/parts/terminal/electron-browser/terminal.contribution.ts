@@ -13,6 +13,7 @@ import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workb
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import {KillTerminalAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import * as platform from 'vs/base/common/platform';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
@@ -73,6 +74,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to normal."),
 			'type': 'number',
 			'default': 0
+		},
+		'terminal.integrated.setLocaleVariables': {
+			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
+			'type': 'boolean',
+			'default': platform.isMacintosh
 		}
 	}
 });

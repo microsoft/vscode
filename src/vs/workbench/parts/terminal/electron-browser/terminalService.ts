@@ -222,7 +222,8 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private createTerminalProcess(): ITerminalProcess {
-		let env = TerminalService.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), platform.locale);
+		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+		let env = TerminalService.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), locale);
 		let terminalProcess = {
 			title: '',
 			process: cp.fork('./terminalProcess', [], {
@@ -243,7 +244,7 @@ export class TerminalService implements ITerminalService {
 		return terminalProcess;
 	}
 
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale: string): IStringDictionary<string> {
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
 		let env = this.cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
@@ -251,7 +252,7 @@ export class TerminalService implements ITerminalService {
 			env[`PTYSHELLARG${i}`] = arg;
 		});
 		env['PTYCWD'] = workspace ? workspace.resource.fsPath : os.homedir();
-		if (!env['LANG'] && locale) {
+		if (locale) {
 			env['LANG'] = this.getLangEnvVariable(locale);
 		}
 		return env;

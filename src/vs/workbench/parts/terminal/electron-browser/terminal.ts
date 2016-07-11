@@ -37,7 +37,8 @@ export interface ITerminalConfiguration {
 			fontFamily: string,
 			fontLigatures: boolean,
 			fontSize: number,
-			lineHeight: number
+			lineHeight: number,
+			setLocaleVariables: boolean
 		}
 	};
 }

@@ -38,7 +38,7 @@ suite('Workbench - TerminalService', () => {
 			args: []
 		};
 		const parentEnv2: IStringDictionary<string> = <any>{
-			LANG: 'en-US.UTF-8'
+			LANG: 'en_US.UTF-8'
 		};
 		const workspace2: IWorkspace = <any>{
 			resource: {
@@ -48,9 +48,12 @@ suite('Workbench - TerminalService', () => {
 		const env2 = TerminalService.createTerminalEnv(parentEnv2, shell2, workspace2, 'en-au');
 		assert.ok(!('PTYSHELLARG0' in env2), 'PTYSHELLARG0 is unset');
 		assert.equal(env2['PTYCWD'], '/my/dev/folder', 'PTYCWD is equal to the workspace folder');
-		assert.equal(env2['LANG'], 'en-US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
+		assert.equal(env2['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
 		const env3 = TerminalService.createTerminalEnv(parentEnv1, shell1, null, null);
 		assert.ok(!('LANG' in env3), 'LANG is unset');
+
+		const env4 = TerminalService.createTerminalEnv(parentEnv2, shell1, null, null);
+		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
 	});
 });
