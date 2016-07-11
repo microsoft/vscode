@@ -141,8 +141,8 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Editor Title
-		let name = editor.getName() || '';
-		let description = isActive ? (editor.getDescription() || '') : '';
+		const name = editor.getName() || '';
+		const description = isActive ? (editor.getDescription() || '') : '';
 		let verboseDescription = editor.getDescription(true) || '';
 		if (description === verboseDescription) {
 			verboseDescription = ''; // dont repeat what is already shown
