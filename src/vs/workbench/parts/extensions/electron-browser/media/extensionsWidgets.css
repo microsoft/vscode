@@ -25,15 +25,15 @@
 }
 
 .extension-ratings > .full {
-	background-image: url('./FullStarLight.svg');
+	background-image: url('FullStarLight.svg');
 }
 
 .extension-ratings > .half {
-	background-image: url('./HalfStarLight.svg');
+	background-image: url('HalfStarLight.svg');
 }
 
 .extension-ratings > .empty {
-	background-image: url('./EmptyStar.svg');
+	background-image: url('EmptyStar.svg');
 }
 
 .extension-ratings > .count {
