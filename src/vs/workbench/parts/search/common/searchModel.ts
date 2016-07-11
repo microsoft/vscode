@@ -116,7 +116,7 @@ export class FileMatch extends Disposable {
 			this.rawMatch.lineMatches.forEach((rawLineMatch) => {
 				rawLineMatch.offsetAndLengths.forEach(offsetAndLength => {
 					let match = new Match(this, rawLineMatch.preview, rawLineMatch.lineNumber, offsetAndLength[0], offsetAndLength[1]);
-					this._matches.set(match.id(), match);
+					this.add(match);
 				});
 			});
 		}
@@ -169,7 +169,7 @@ export class FileMatch extends Disposable {
 		matches.forEach(range => {
 			let match= new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
-				this._matches.set(match.id(), match);
+				this.add(match);
 			}
 		});
 
@@ -233,6 +233,13 @@ export class FileMatch extends Disposable {
 		this.unbindModel();
 		this._onDispose.fire();
 		super.dispose();
+	}
+
+	public add(match: Match, trigger?: boolean) {
+		this._matches.set(match.id(), match);
+		if (trigger) {
+			this._onChange.fire(true);
+		}
 	}
 }
 
@@ -457,12 +464,13 @@ export class SearchModel extends Disposable {
 	}
 
 	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
+		this.progressTimer.stop();
 		this.timerEvent.stop();
-		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
 		this.doneTimer.stop();
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}
+		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
 		return completed;
 	}
 
@@ -472,6 +480,7 @@ export class SearchModel extends Disposable {
 		} else {
 			this.progressTimer.stop();
 			this.doneTimer.stop();
+			this.timerEvent.stop();
 		}
 	}
 

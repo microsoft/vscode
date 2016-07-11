@@ -6,14 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {AbstractGettingStarted} from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {TPromise} from 'vs/base/common/winjs.base';
 
 class TestGettingStarted extends AbstractGettingStarted {
 	public lastUrl: string;
@@ -24,15 +21,15 @@ class TestGettingStarted extends AbstractGettingStarted {
 }
 
 suite('Workbench - GettingStarted', () => {
-	let instantiation: IInstantiationService = null;
+	let instantiation: TestInstantiationService = null;
 	let welcomePageEnvConfig: string = null;
 	let hideWelcomeSettingsValue: string = null;
 	let machineId: string = null;
 	let appName: string = null;
 
 	suiteSetup(() => {
-		let services = new ServiceCollection();
-		services.set(IWorkspaceContextService, <any>{
+		instantiation = new TestInstantiationService();
+		instantiation.stub(IWorkspaceContextService, <any>{
 			getConfiguration: () => {
 				return {
 					env: {
@@ -42,14 +39,10 @@ suite('Workbench - GettingStarted', () => {
 				};
 			}
 		});
-		services.set(ITelemetryService, <any>{
-			getTelemetryInfo: () => TPromise.as({ machineId: machineId })
-		});
-		services.set(IStorageService, <any>{
+		instantiation.stub(IStorageService, <any>{
 			get: () => hideWelcomeSettingsValue,
 			store: (value) => hideWelcomeSettingsValue = value
 		});
-		instantiation = new InstantiationService(services);
 	});
 
 	suiteTeardown(() => {
@@ -71,6 +64,7 @@ suite('Workbench - GettingStarted', () => {
 		welcomePageEnvConfig = 'base url';
 		appName = 'some app';
 		machineId = '123';
+		instantiation.stubPromise(ITelemetryService, 'getTelemetryInfo', { machineId: machineId });
 		let gettingStarted = instantiation.createInstance(TestGettingStarted);
 		assert(gettingStarted.lastUrl === `${welcomePageEnvConfig}&&from=${appName}&&id=${machineId}`, 'a page is opened when welcomePage is configured && first run');
 		assert(hideWelcomeSettingsValue !== null, 'a flag is set to hide welcome page');

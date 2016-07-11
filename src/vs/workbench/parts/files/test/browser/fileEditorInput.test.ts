@@ -6,6 +6,7 @@
 
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -19,14 +20,11 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestTextFileService, TestEditorGroupService, TestHistoryService, TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
-import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import {createMockModelService, TestTextFileService, TestEditorGroupService, TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/test/utils/servicesTestUtils';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
@@ -36,28 +34,32 @@ function toResource(path) {
 
 suite('Files - FileEditorInput', () => {
 
+	let instantiationService: TestInstantiationService;
+
+	setup(() => {
+		instantiationService= new TestInstantiationService();
+		instantiationService.stub(IHistoryService, 'getHistory', []);
+	});
+
 	test('FileEditorInput', function (done) {
 		let editorService = new TestEditorService(function () { });
 		let eventService = new TestEventService();
 		let telemetryService = NullTelemetryService;
 		let contextService = new TestContextService();
 
-		let services = new ServiceCollection();
-		let instantiationService = new InstantiationService(services);
-
-		services.set(IEventService, eventService);
-		services.set(IWorkspaceContextService, contextService);
-		services.set(IFileService, <any>TestFileService);
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkbenchEditorService, editorService);
-		services.set(IPartService, new TestPartService());
-		services.set(IModeService, createMockModeService());
-		services.set(IModelService, createMockModelService());
-		services.set(ITelemetryService, telemetryService);
-		services.set(IEditorGroupService, new TestEditorGroupService());
-		services.set(ILifecycleService, NullLifecycleService);
-		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
+		instantiationService.stub(IEventService, eventService);
+		instantiationService.stub(IWorkspaceContextService, contextService);
+		instantiationService.stub(IFileService, <any>TestFileService);
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IWorkbenchEditorService, editorService);
+		instantiationService.stub(IPartService, new TestPartService());
+		instantiationService.stub(IModeService);
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
+		instantiationService.stub(ILifecycleService, NullLifecycleService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 		let otherInput = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/otherfile.js'), 'text/javascript', void 0);
@@ -76,7 +78,7 @@ suite('Files - FileEditorInput', () => {
 
 		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), 'text/html', void 0);
 
-		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
+		let inputToResolve:any = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 
 		return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
@@ -122,12 +124,9 @@ suite('Files - FileEditorInput', () => {
 		let eventService = new TestEventService();
 		let contextService = new TestContextService();
 
-		let services = new ServiceCollection();
-		let instantiationService = new InstantiationService(services);
-
-		services.set(IEventService, eventService);
-		services.set(IWorkspaceContextService, contextService);
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
+		instantiationService.stub(IEventService, eventService);
+		instantiationService.stub(IWorkspaceContextService, contextService);
+		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let fileEditorInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
 		let contentEditorInput2 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
@@ -144,24 +143,20 @@ suite('Files - FileEditorInput', () => {
 
 		let eventService = new TestEventService();
 
-		let services = new ServiceCollection();
-		let instantiationService = new InstantiationService(services);
-
-		services.set(IEventService, eventService);
-		services.set(IWorkspaceContextService, contextService);
-		services.set(IFileService, <any>TestFileService);
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkbenchEditorService, editorService);
-		services.set(IHistoryService, new TestHistoryService());
-		services.set(IQuickOpenService, new TestQuickOpenService());
-		services.set(IPartService, new TestPartService());
-		services.set(IModeService, createMockModeService());
-		services.set(IEditorGroupService, new TestEditorGroupService());
-		services.set(IModelService, createMockModelService());
-		services.set(ITelemetryService, telemetryService);
-		services.set(ILifecycleService, NullLifecycleService);
-		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
+		instantiationService.stub(IEventService, eventService);
+		instantiationService.stub(IWorkspaceContextService, contextService);
+		instantiationService.stub(IFileService, <any>TestFileService);
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IWorkbenchEditorService, editorService);
+		instantiationService.stub(IQuickOpenService, new TestQuickOpenService());
+		instantiationService.stub(IPartService, new TestPartService());
+		instantiationService.stub(IModeService);
+		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(ILifecycleService, NullLifecycleService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let tracker = instantiationService.createInstance(FileTracker);
 
@@ -190,24 +185,20 @@ suite('Files - FileEditorInput', () => {
 
 		let eventService = new TestEventService();
 
-		let services = new ServiceCollection();
-		let instantiationService = new InstantiationService(services);
-
-		services.set(IEventService, eventService);
-		services.set(IWorkspaceContextService, contextService);
-		services.set(IFileService, <any>TestFileService);
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkbenchEditorService, editorService);
-		services.set(IPartService, new TestPartService());
-		services.set(IModeService, createMockModeService());
-		services.set(IEditorGroupService, new TestEditorGroupService());
-		services.set(IQuickOpenService, new TestQuickOpenService());
-		services.set(IModelService, createMockModelService());
-		services.set(ITelemetryService, telemetryService);
-		services.set(ILifecycleService, NullLifecycleService);
-		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(IHistoryService, new TestHistoryService());
-		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
+		instantiationService.stub(IEventService, eventService);
+		instantiationService.stub(IWorkspaceContextService, contextService);
+		instantiationService.stub(IFileService, <any>TestFileService);
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IWorkbenchEditorService, editorService);
+		instantiationService.stub(IPartService, new TestPartService());
+		instantiationService.stub(IModeService);
+		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
+		instantiationService.stub(IQuickOpenService, new TestQuickOpenService());
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(ILifecycleService, NullLifecycleService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
 
 		let tracker = instantiationService.createInstance(FileTracker);
 

@@ -6,33 +6,38 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
-import {TestEditorService} from 'vs/workbench/test/common/servicesTestUtils';
+import {createMockModelService, TestEditorService} from 'vs/test/utils/servicesTestUtils';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-
-import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 
 suite('Workbench - StringEditorInput', () => {
 
+	let instantiationService: TestInstantiationService;
+	let editorService: WorkbenchEditorService.IWorkbenchEditorService;
+	let modelService: IModelService;
+	let modeService: IModeService;
+
+	setup(() => {
+		instantiationService= new TestInstantiationService();
+		editorService= <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
+		modeService= instantiationService.stub(IModeService);
+		modelService= <IModelService> instantiationService.stub(IModelService, createMockModelService(instantiationService));
+	});
+
 	test('StringEditorInput', function (done) {
-		let editorService = new TestEditorService(function () { });
-		let services = new ServiceCollection();
-		services.set(IModeService, createMockModeService());
-		services.set(IModelService, createMockModelService());
-		let inst = new InstantiationService(services);
 
-		let input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
-		let otherInput = inst.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mime', false);
-		let otherInputSame = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mime', false);
+		let otherInputSame = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 
-		let inputSingleton = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', true);
-		let otherInputSingleton = inst.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mime', true);
+		let inputSingleton = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', true);
+		let otherInputSingleton = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mime', true);
 		assert(inputSingleton.matches(otherInputSingleton));
 		(<any>otherInputSingleton).singleton = false;
 		assert(!inputSingleton.matches(otherInputSingleton));
@@ -43,15 +48,15 @@ suite('Workbench - StringEditorInput', () => {
 		assert(!input.matches(null));
 		assert(input.getName());
 
-		input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 
-		input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 		editorService.resolveEditorModel(input, true).then(function (resolved) {
 			let resolvedModelA = resolved;
 			return editorService.resolveEditorModel(input, true).then(function (resolved) {
 				assert(resolvedModelA === resolved); // assert: Resolved Model cached per instance
 
-				let otherInput = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+				let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 				return editorService.resolveEditorModel(otherInput, true).then(function (resolved) {
 					assert(resolvedModelA !== resolved); // NOT assert: Different instance, different model
 
@@ -73,11 +78,7 @@ suite('Workbench - StringEditorInput', () => {
 	});
 
 	test('StringEditorInput - setValue, clearValue, append', function () {
-		let services = new ServiceCollection();
-		services.set(IModeService, createMockModeService());
-		services.set(IModelService, createMockModelService());
-		let inst = new InstantiationService(services);
-		let input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 
 		assert.strictEqual(input.getValue(), 'value');
 		input.setValue('foo');
@@ -91,7 +92,7 @@ suite('Workbench - StringEditorInput', () => {
 	});
 
 	test('Input.matches() - StringEditorInput', function () {
-		let inst = new InstantiationService();
+		let inst = new TestInstantiationService();
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 		let promiseEditorInput = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' }));
@@ -110,16 +111,9 @@ suite('Workbench - StringEditorInput', () => {
 	});
 
 	test('ResourceEditorInput', function (done) {
-		let modelService = createMockModelService();
-		let modeService = createMockModeService();
-		let services = new ServiceCollection();
-		services.set(IModeService, modeService);
-		services.set(IModelService, modelService);
-		let inst = new InstantiationService(services);
-
 		let resource = URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' });
 		modelService.createModel('function test() {}', modeService.getOrCreateMode('text'), resource);
-		let input: ResourceEditorInput = inst.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
+		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
 		input.resolve().then((model: ResourceEditorModel) => {
 			assert.ok(model);

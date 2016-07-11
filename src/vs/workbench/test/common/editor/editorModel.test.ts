@@ -6,6 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -13,14 +14,20 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel { }
 
 suite('Workbench - EditorModel', () => {
+
+	let instantiationService: TestInstantiationService;
+	let modeService: IModeService;
+
+	setup(() => {
+		instantiationService= new TestInstantiationService();
+		modeService= instantiationService.stub(IModeService);
+	});
 
 	test('EditorModel', function (done) {
 		let m = new MyEditorModel();
@@ -31,8 +38,7 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('BaseTextEditorModel', function (done) {
-		let modelService = createMockModelService();
-		let modeService = createMockModeService();
+		let modelService = createMockModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);
 		m.load().then(function (model: any) {
@@ -47,12 +53,9 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('TextDiffEditorModel', function (done) {
-		let services = new ServiceCollection();
-		services.set(IModeService, createMockModeService());
-		services.set(IModelService, createMockModelService());
-		let inst = new InstantiationService(services);
-		let input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'text/plain', false);
-		let otherInput = inst.createInstance(StringEditorInput, 'name2', 'description', 'value2', 'text/plain', false);
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'text/plain', false);
+		let otherInput = instantiationService.createInstance(StringEditorInput, 'name2', 'description', 'value2', 'text/plain', false);
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
 		diffInput.resolve(true).then(function (model: any) {
