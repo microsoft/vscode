@@ -73,6 +73,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to normal."),
 			'type': 'number',
 			'default': 0
+		},
+		'terminal.integrated.cursorBlinking': {
+			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
+			'type': 'boolean',
+			'default': true
 		}
 	}
 });

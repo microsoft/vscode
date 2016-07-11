@@ -34,6 +34,7 @@ export interface ITerminalConfiguration {
 				linux: string[],
 				osx: string[]
 			},
+			cursorBlinking: boolean,
 			fontFamily: string,
 			fontLigatures: boolean,
 			fontSize: number,

@@ -136,12 +136,13 @@ export class TerminalConfigHelper {
 	}
 
 	public getFontLigaturesEnabled(): boolean {
-		return this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated.fontLigatures;
+		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
+		return terminalConfig.fontLigatures;
 	}
 
 	public getCursorBlink(): boolean {
-		let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
-		return editorConfig.editor.cursorBlinking === 'blink';
+		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
+		return terminalConfig.cursorBlinking;
 	}
 
 	public getShell(): IShell {
