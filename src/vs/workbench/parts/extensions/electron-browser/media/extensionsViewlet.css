@@ -36,12 +36,6 @@
 	display: flex;
 }
 
-.extensions-viewlet > .extensions .extension.loading {
-	background-image: url('loading.svg');
-	background-position: center center;
-	background-repeat: no-repeat;
-}
-
 .extensions-viewlet > .extensions .extension > .icon {
 	width: 42px;
 	height: 42px;
