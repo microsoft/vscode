@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as fs from 'fs';
 import { join } from 'path';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
@@ -194,6 +195,49 @@ export class RawGitService implements IRawGitService {
 
 			return TPromise.wrapError<string>(e);
 		});
+	}
+
+	/**
+	 * Reads the commit.template git config setting. If exists, then tries to load the contents of the file specified by that setting and returns these contents.
+	 */
+	getCommitTemplate(): TPromise<string> {
+		return this.repo.run(['config', '--get', 'commit.template']).then(execResult => execResult, err => '').then(execResult => {
+			return execResult ? this.readCommitTemplateFile(execResult.stdout.trim()) : '';
+		});
+	}
+
+	/**
+	 * Reads the given file, if exists and is valid.
+	 * @returns commit template file contents if exists and valid, else ""
+	 */
+	private readCommitTemplateFile(file: string): string {
+		try {
+			// // This is resolving to [repo]\.build\electron\~\.gitmessage
+			// let fullPath = resolve(file)
+			// console.log(`file: ${file}, fullPath: ${fullPath}`)
+			// return fs.existsSync(fullPath) ? fs.readFileSync(file, 'utf8') : '';
+			// Check the file itself
+			if (fs.existsSync(file)) {
+				return fs.readFileSync(file, 'utf8');
+			} else {
+				// File doesn't exist. Try converting ~/path to absolute path
+
+				// Try checking in local repo git folder (This is wrong interpretation oy)
+				let repo_file = file.replace('~', `${this.repo.path}\\.git`).replace('/', '\\');
+				if (fs.existsSync(repo_file)) {
+					return fs.readFileSync(repo_file, 'utf8');
+				} else {
+					// Check global (e.g. Windows user folder, Linux: home git config)
+					// not implemented
+
+					console.warn(`file doesnt exist in repo local git config. global git config template not implemented. (commit template file: ${file})`);
+					return '';
+				}
+			}
+		} catch (error) {
+			console.error(`Error reading file. file: ${file}, error: ${error.message})`);
+			return '';
+		}
 	}
 }
 
