@@ -136,7 +136,7 @@ CommonEditorRegistry.registerEditorAction({
 		primary: KeyMod.Shift | KeyCode.F12
 	},
 	menuOpts: {
-		kbExpr: KbExpr.has('editorHasReferenceProvider'),
+		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasReferenceProvider),
 		group: 'navigation'
 	}
 });

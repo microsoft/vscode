@@ -18,7 +18,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
-import {KEYBINDING_CONTEXT_EDITOR_READONLY} from 'vs/editor/common/editorCommon';
+import {KEYBINDING_CONTEXT_EDITOR_READONLY, ModeContextKeys} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {rename} from '../common/rename';
@@ -144,7 +144,7 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'modification@100',
-		kbExpr: KbExpr.and(KbExpr.has('editorHasRenameProvider'), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
+		kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
 	}
 });
 

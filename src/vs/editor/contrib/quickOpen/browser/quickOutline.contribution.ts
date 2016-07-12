@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {KEYBINDING_CONTEXT_EDITOR_FOCUS} from 'vs/editor/common/editorCommon';
+import {ModeContextKeys} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
 import {QuickOutlineAction} from './quickOutline';
 
@@ -23,6 +23,6 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'navigation@13',
-		kbExpr: KbExpr.and(KbExpr.has('editorHasDocumentSymbolProvider'), KbExpr.has(KEYBINDING_CONTEXT_EDITOR_FOCUS))
+		kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasDocumentSymbolProvider))
 	}
 });

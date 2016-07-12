@@ -3056,6 +3056,56 @@ export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
  */
 export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
 
+/**
+ * @internal
+ */
+export namespace ModeContextKeys {
+	/**
+	 * @internal
+	 */
+	export const hasCompletionItemProvider = 'editorHasCompletionItemProvider';
+	/**
+	 * @internal
+	 */
+	export const hasCodeActionsProvider = 'editorHasCodeActionsProvider';
+	/**
+	 * @internal
+	 */
+	export const hasCodeLensProvider = 'editorHasCodeLensProvider';
+	/**
+	 * @internal
+	 */
+	export const hasDefinitionProvider = 'editorHasDefinitionProvider';
+	/**
+	 * @internal
+	 */
+	export const hasHoverProvider = 'editorHasHoverProvider';
+	/**
+	 * @internal
+	 */
+	export const hasDocumentHighlightProvider = 'editorHasDocumentHighlightProvider';
+	/**
+	 * @internal
+	 */
+	export const hasDocumentSymbolProvider = 'editorHasDocumentSymbolProvider';
+	/**
+	 * @internal
+	 */
+	export const hasReferenceProvider = 'editorHasReferenceProvider';
+	/**
+	 * @internal
+	 */
+	export const hasRenameProvider = 'editorHasRenameProvider';
+	/**
+	 * @internal
+	 */
+	export const hasFormattingProvider = 'editorHasFormattingProvider';
+	/**
+	 * @internal
+	 */
+	export const hasSignatureHelpProvider = 'editorHasSignatureHelpProvider';
+}
+
 export class BareFontInfo {
 	_bareFontInfoBrand: void;
 
