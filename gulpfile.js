@@ -24,7 +24,6 @@ var bom = require('gulp-bom');
 var sourcemaps = require('gulp-sourcemaps');
 var _ = require('underscore');
 var assign = require('object-assign');
-var quiet = !!process.env['VSCODE_BUILD_QUIET'];
 var monacodts = require('./build/monaco/api');
 var fs = require('fs');
 
@@ -33,7 +32,7 @@ var tsOptions = {
 	target: 'ES5',
 	declaration: true,
 	module: 'amd',
-	verbose: !quiet,
+	verbose: false,
 	preserveConstEnums: true,
 	experimentalDecorators: true,
 	sourceMap: true,
