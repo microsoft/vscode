@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IQuickOpenService, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {InputBoxOptions} from 'vscode';
-import {ExtHostContext, ExtHostQuickOpenShape, MyQuickPickItems} from './extHostProtocol';
+import {ExtHostContext, ExtHostQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
 
 export class MainThreadQuickOpen {
 

@@ -17,7 +17,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
-import {MainContext, MainThreadDocumentsShape, IModelAddedData} from './extHostProtocol';
+import {MainContext, MainThreadDocumentsShape, IModelAddedData} from './extHost.protocol';
 
 const _modeId2WordDefinition: {
 	[modeId: string]: RegExp;
