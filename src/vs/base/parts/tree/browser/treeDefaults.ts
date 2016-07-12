@@ -339,7 +339,12 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			var focus = tree.getFocus();
-			tree.expand(focus).done(null, errors.onUnexpectedError);
+			tree.expand(focus).then(didExpand => {
+				if (focus && !didExpand) {
+					tree.focusFirstChild(payload);
+					return tree.reveal(tree.getFocus());
+				}
+			}).done(null, errors.onUnexpectedError);
 		}
 		return true;
 	}

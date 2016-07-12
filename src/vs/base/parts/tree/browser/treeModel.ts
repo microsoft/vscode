@@ -1197,6 +1197,17 @@ export class TreeModel extends Events.EventEmitter {
 		}
 	}
 
+	public focusFirstChild(eventPayload?: any): void {
+		const item = this.getItem(this.getFocus() || this.input);
+		const nav = this.getNavigator(item, false);
+		const next = nav.next();
+		const parent = nav.parent();
+
+		if (parent === item) {
+			this.setFocus(next, eventPayload);
+		}
+	}
+
 	public focusFirst(eventPayload?: any): void {
 		this.focusNth(0, eventPayload);
 	}

@@ -273,6 +273,10 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.model.focusParent(eventPayload);
 	}
 
+	public focusFirstChild(eventPayload?:any): void {
+		this.model.focusFirstChild(eventPayload);
+	}
+
 	public focusFirst(eventPayload?:any): void {
 		this.model.focusFirst(eventPayload);
 	}

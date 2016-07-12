@@ -265,9 +265,14 @@ export interface ITree extends Events.IEventEmitter {
 	focusPrevious(count?: number, eventPayload?:any): void;
 
 	/**
-	 * Focuses the currently selected element's parent.
+	 * Focuses the currently focused element's parent.
 	 */
 	focusParent(eventPayload?: any): void;
+
+	/**
+	 * Focuses the first child of the currently focused element.
+	 */
+	focusFirstChild(eventPayload?: any): void;
 
 	/**
 	 * Focuses the second element, in visible order.
