@@ -9,7 +9,7 @@ import {IMarkerData} from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
-import {MainContext, MainThreadDiagnosticsShape} from './extHostProtocol';
+import {MainContext, MainThreadDiagnosticsShape} from './extHost.protocol';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 

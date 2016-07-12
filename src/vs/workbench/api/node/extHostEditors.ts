@@ -16,7 +16,7 @@ import {ISingleEditOperation, ISelection} from 'vs/editor/common/editorCommon';
 import {IResolvedTextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn} from 'vscode';
-import {MainContext, MainThreadEditorsShape, ITextEditorAddData, ITextEditorPositionData} from './extHostProtocol';
+import {MainContext, MainThreadEditorsShape, ITextEditorAddData, ITextEditorPositionData} from './extHost.protocol';
 
 export class ExtHostEditors {
 

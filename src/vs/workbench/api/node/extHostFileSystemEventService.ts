@@ -8,7 +8,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from './extHostTypes';
 import {match} from 'vs/base/common/glob';
 import {Uri, FileSystemWatcher as _FileSystemWatcher} from 'vscode';
-import {FileSystemEvents} from './extHostProtocol';
+import {FileSystemEvents} from './extHost.protocol';
 
 export class FileSystemWatcher implements _FileSystemWatcher {
 

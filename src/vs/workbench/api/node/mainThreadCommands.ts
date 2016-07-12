@@ -7,7 +7,7 @@
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService, CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostContext, ExtHostCommandsShape} from './extHostProtocol';
+import {ExtHostContext, ExtHostCommandsShape} from './extHost.protocol';
 
 export class MainThreadCommands {
 

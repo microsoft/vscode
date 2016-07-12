@@ -8,7 +8,7 @@ import {FileChangesEvent, FileChangeType} from 'vs/platform/files/common/files';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents} from './extHostProtocol';
+import {ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents} from './extHost.protocol';
 
 export class MainThreadFileSystemEventService {
 

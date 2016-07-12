@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
-import {MainContext, MainThreadQuickOpenShape, MyQuickPickItems} from './extHostProtocol';
+import {MainContext, MainThreadQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
 
 export type Item = string | QuickPickItem;
 

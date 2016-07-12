@@ -12,7 +12,7 @@ import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import {cloneAndChange} from 'vs/base/common/objects';
-import {MainContext, MainThreadCommandsShape} from './extHostProtocol';
+import {MainContext, MainThreadCommandsShape} from './extHost.protocol';
 
 interface CommandHandler {
 	callback: Function;

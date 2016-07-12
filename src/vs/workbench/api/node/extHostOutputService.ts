@@ -5,7 +5,7 @@
 'use strict';
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, MainThreadOutputServiceShape} from './extHostProtocol';
+import {MainContext, MainThreadOutputServiceShape} from './extHost.protocol';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 

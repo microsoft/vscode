@@ -20,7 +20,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
 import {equals as objectEquals} from 'vs/base/common/objects';
-import {ExtHostContext, ExtHostEditorsShape, ITextEditorPositionData} from './extHostProtocol';
+import {ExtHostContext, ExtHostEditorsShape, ITextEditorPositionData} from './extHost.protocol';
 
 export class MainThreadEditors {
 

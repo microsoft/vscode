@@ -15,7 +15,7 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {ExtHostStorage} from 'vs/workbench/api/node/extHostStorage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, MainProcessExtensionServiceShape} from './extHostProtocol';
+import {MainContext, MainProcessExtensionServiceShape} from './extHost.protocol';
 
 const hasOwnProperty = Object.hasOwnProperty;
 

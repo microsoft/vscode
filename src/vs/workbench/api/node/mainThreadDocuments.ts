@@ -19,7 +19,7 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {ExtHostContext, ExtHostDocumentsShape} from './extHostProtocol';
+import {ExtHostContext, ExtHostDocumentsShape} from './extHost.protocol';
 
 export class MainThreadDocuments {
 	private _modelService: IModelService;
