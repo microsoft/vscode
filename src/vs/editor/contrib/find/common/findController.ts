@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IKeybindingContextKey, IKeybindingService, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingService, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {EditorAction} from 'vs/editor/common/editorAction';
@@ -746,7 +746,7 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'modification@101',
-		kbExpr: null
+		kbExpr: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY)
 	}
 });
 
