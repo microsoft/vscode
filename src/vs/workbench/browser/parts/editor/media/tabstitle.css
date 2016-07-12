@@ -115,12 +115,12 @@
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
-	background-color: rgba(51,153,255, 0.18);
+	background-color: #DDECFF;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dropfeedback {
-	background-color: rgba(83, 89, 93, 0.5);
+	background-color: #383B3D;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container.dropfeedback,
