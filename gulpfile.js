@@ -58,9 +58,7 @@ function createCompile(build, emitError) {
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	var ts = tsb.create(opts, null, null, quiet ? null : function (err) {
-		reporter(err.toString());
-	});
+	var ts = tsb.create(opts, null, null, err => reporter(err.toString()));
 
 	return function (token) {
 		var utf8Filter = createFastFilter(function(data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
@@ -84,7 +82,7 @@ function createCompile(build, emitError) {
 				sourceRoot: tsOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(quiet ? es.through() : reporter.end(emitError));
+			.pipe(reporter.end(emitError));
 
 		return es.duplex(input, output);
 	};
@@ -180,7 +178,7 @@ function monacodtsTask(out, isWatch) {
 
 	} else {
 
-		resultStream = es.through(null, function(end) {
+		resultStream = es.through(null, () => {
 			runNow();
 			this.emit('end');
 		});
