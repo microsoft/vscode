@@ -286,6 +286,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -322,6 +323,7 @@ export interface IGitService extends IEventEmitter {
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export interface IAskpassService {
