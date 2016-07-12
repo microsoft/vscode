@@ -5,11 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import {Range} from 'vs/editor/common/core/range';
 import {IMode, IndentAction} from 'vs/editor/common/modes';
 import {TokenSelectionSupport} from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
-import {createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
+import {createMockModelService} from 'vs/test/utils/servicesTestUtils';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
@@ -59,9 +60,14 @@ class MockJSMode extends MockTokenizingMode {
 
 suite('TokenSelectionSupport', () => {
 
-	let modelService = createMockModelService();
-	let tokenSelectionSupport = new TokenSelectionSupport(modelService);
+	let modelService;
+	let tokenSelectionSupport;
 	let _mode: IMode = new MockJSMode();
+
+	setup(() => {
+		modelService= createMockModelService(new TestInstantiationService());
+		tokenSelectionSupport = new TokenSelectionSupport(modelService);
+	});
 
 	function assertGetRangesToPosition(text:string[], lineNumber:number, column:number, ranges:Range[]): void {
 		let uri = URI.file('test.js');

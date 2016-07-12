@@ -11,27 +11,12 @@
 	background: url('previous-diff.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .textdiff-editor-action.next {
+.vs-dark .monaco-workbench .textdiff-editor-action.next,
+.hc-black .monaco-workbench .textdiff-editor-action.next {
 	background: url('next-diff-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .textdiff-editor-action.previous {
+.vs-dark .monaco-workbench .textdiff-editor-action.previous,
+.hc-black .monaco-workbench .textdiff-editor-action.previous {
 	background: url('previous-diff-inverse.svg') center center no-repeat;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench .textdiff-editor-action:before {
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .textdiff-editor-action.next:before {
-	content: url('next-diff-inverse.svg');
-}
-
-.hc-black .monaco-workbench .textdiff-editor-action.previous:before {
-	content: url('previous-diff-inverse.svg');
 }

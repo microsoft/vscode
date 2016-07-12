@@ -49,7 +49,7 @@ function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string
 	newEnv['STDIN_PIPE_NAME'] = stdInPipeName;
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
 	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
-	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	newEnv['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = '1';
 
 	return newEnv;
 }

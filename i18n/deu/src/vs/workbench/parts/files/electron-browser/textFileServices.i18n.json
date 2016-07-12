@@ -7,9 +7,11 @@
 	"allFiles": "Alle Dateien",
 	"cancel": "Abbrechen",
 	"dontSave": "&&Nicht speichern",
+	"moreFile": "...1 weitere Datei wird nicht angezeigt",
+	"moreFiles": "...{0} weitere Dateien werden nicht angezeigt",
 	"save": "&&Speichern",
 	"saveAll": "&&Alle speichern",
 	"saveChangesDetail": "Ihre Änderungen gehen verloren, wenn Sie diese nicht speichern.",
 	"saveChangesMessage": "Möchten Sie die Änderungen speichern, die Sie an \"{0}\" vorgenommen haben?",
-	"saveChangesMessages": "Möchten Sie die an den folgenden Dateien vorgenommenen Änderungen speichern?"
+	"saveChangesMessages": "Möchten Sie die an den folgenden {0}-Dateien vorgenommenen Änderungen speichern?"
 }

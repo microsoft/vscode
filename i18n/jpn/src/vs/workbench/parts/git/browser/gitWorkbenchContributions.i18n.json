@@ -9,6 +9,8 @@
 	"gitCommands": "Git コマンド",
 	"gitConfigurationTitle": "Git 構成",
 	"gitEnabled": "は Git 対応です",
+	"gitLargeRepos": "Code による大規模なリポジトリの管理を常に許可します。",
+	"gitLongCommit": "長いコミット メッセージを警告するかどうか。",
 	"gitPath": "Git 実行可能ファイルのパス",
 	"gitPendingChangesBadge": "{0} 個の保留中の変更",
 	"gitProgressBadge": "実行中の Git の状態",

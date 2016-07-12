@@ -10,6 +10,7 @@
 	"app.launch.json.version": "이 파일 형식의 버전입니다.",
 	"debugNoType": "디버그 어댑터 '형식'은 생략할 수 없으며 '문자열' 형식이어야 합니다.",
 	"duplicateDebuggerType": "디버그 형식 '{0}'은(는) 이미 등록되어 있고 '{1}' 특성을 포함합니다. '{1}' 특성을 무시합니다.",
+	"interactiveVariableNotFound": "{0} 어댑터가 시작 구성에 지정된 {1} 변수에 영향을 주지 않습니다.",
 	"selectDebug": "환경 선택",
 	"vscode.extension.contributes.debuggers": "디버그 어댑터를 적용합니다.",
 	"vscode.extension.contributes.debuggers.args": "어댑터에 전달할 선택적 인수입니다.",
@@ -26,6 +27,7 @@
 	"vscode.extension.contributes.debuggers.runtime": "프로그램 특성이 실행 파일이 아니지만 런타임이 필요한 경우의 선택적 런타임입니다.",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "선택적 런타임 인수입니다.",
 	"vscode.extension.contributes.debuggers.type": "이 디버그 어댑터에 대한 고유한 식별자입니다.",
+	"vscode.extension.contributes.debuggers.variables": "`launch.json`의 대화형 변수(예: ${action.pickProcess})에서 명령으로의 매핑입니다.",
 	"vscode.extension.contributes.debuggers.windows": "Windows 특정 설정",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Windows에 사용되는 런타임입니다."
 }

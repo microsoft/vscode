@@ -9,6 +9,8 @@
 	"gitCommands": "Git 명령",
 	"gitConfigurationTitle": "Git 구성",
 	"gitEnabled": "git를 사용하도록 설정할까요?",
+	"gitLargeRepos": "항상 대규모 리포지토리가 코드로 관리되도록 허용합니다.",
+	"gitLongCommit": "긴 커밋 메시지에 대해 경고할지 여부입니다.",
 	"gitPath": "Git 실행 파일의 경로",
 	"gitPendingChangesBadge": "{0}이(가) 변경 내용을 보류 중입니다.",
 	"gitProgressBadge": "실행 중인 Git 상태",

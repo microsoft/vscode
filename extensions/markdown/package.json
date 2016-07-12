@@ -96,7 +96,8 @@
 			{
 				"command": "markdown.showPreview",
 				"key": "shift+ctrl+v",
-				"mac": "shift+cmd+v"
+				"mac": "shift+cmd+v",
+				"when": "!terminalFocus"
 			},
 			{
 				"command": "markdown.showPreviewToSide",

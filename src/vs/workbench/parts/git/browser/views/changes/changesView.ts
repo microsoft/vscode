@@ -236,12 +236,22 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		if (visible) {
 			this.tree.onVisible();
+			this.updateCommitInputTemplate();
 			return this.onEditorsChanged(this.editorService.getActiveEditorInput());
-
 		} else {
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
 		}
+	}
+
+	private updateCommitInputTemplate(): void {
+		if (this.commitInputBox.value) {
+			return;
+		}
+
+		this.gitService.getCommitTemplate()
+			.then(template => template && (this.commitInputBox.value = template))
+			.done(null, Errors.onUnexpectedError);
 	}
 
 	public getControl(): Tree.ITree {
@@ -395,12 +405,13 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	}
 
 	private onGitOperationEnd(e: { operation: git.IGitOperation; error: any; }): void {
-		if (e.operation.id === git.ServiceOperations.COMMIT) {
+		if (e.operation.id === git.ServiceOperations.COMMIT || e.operation.id === git.ServiceOperations.RESET) {
 			if (this.commitInputBox) {
 				this.commitInputBox.enable();
 
 				if (!e.error) {
 					this.commitInputBox.value = '';
+					this.updateCommitInputTemplate();
 				}
 			}
 		}

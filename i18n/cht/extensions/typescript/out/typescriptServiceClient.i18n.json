@@ -7,7 +7,7 @@
 	"channelName": "TypeScript",
 	"noServerFound": "路徑 {0} 未指向有效的 tsserver 安裝。將停用 TypeScript 語言功能。",
 	"serverCouldNotBeStarted": "無法啟動 TypeScript 語言伺服器。錯誤訊息為: {0}",
-	"serverDied": "Typescript 語言服務在過去 5 分鐘內意外中止 5 次。請考慮開啟問題報告。",
-	"serverDiedAfterStart": "Typescript 語言服務在啟動後立即中止 5 次。服務將不會重新啟動。請開啟問題報告。",
+	"serverDied": "TypeScript 語言服務在過去 5 分鐘內意外中止 5 次。請考慮開啟問題報告。",
+	"serverDiedAfterStart": "TypeScript 語言服務在啟動後立即中止 5 次。服務將不會重新啟動。請開啟問題報告。",
 	"versionNumber.custom": "自訂"
 }

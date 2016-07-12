@@ -14,17 +14,13 @@
 	"eol": "Carattere di fine riga predefinito.",
 	"exclude": "Consente di configurare i criteri di ricerca GLOB per escludere file e cartelle.",
 	"explore": "Esplora risorse",
-	"explorerConfigurationTitle": "Configurazione di Esplora file",
+	"explorerConfigurationTitle": "Esplora file",
 	"files.exclude.boolean": "Criterio GLOB da usare per trovare percorsi file. Impostare su True o False per abilitare o disabilitare il criterio.",
 	"files.exclude.when": "Controllo aggiuntivo sugli elementi di pari livello di un file corrispondente. Usare $(basename) come variabile del nome file corrispondente.",
-	"filesCategory": "File",
-	"filesConfigurationTitle": "Configurazione file",
-	"maxVisible": "Numero massimo di file di lavoro da visualizzare prima che appaiano le barre di scorrimento.",
-	"openWorkingFile": "Apri file di lavoro per nome",
+	"filesConfigurationTitle": "File",
 	"showExplorerViewlet": "Mostra Esplora risorse",
 	"textFileEditor": "Editor file di testo",
 	"trimTrailingWhitespace": "Se è abilitato, taglierà lo spazio vuoto quando si salva un file.",
 	"view": "Visualizza",
-	"watcherExclude": "Consente di configurare i criteri GLOB dei percorsi file da escludere dal controllo dei file. Se si modifica questa impostazione, è necessario riavviare. Quando si nota che Code consuma troppo tempo della CPU all'avvio, è possibile escludere le cartelle di grandi dimensioni per ridurre il carico iniziale.",
-	"workingFilesPicker": "Apri file di lavoro per nome"
+	"watcherExclude": "Consente di configurare i criteri GLOB dei percorsi file da escludere dal controllo dei file. Se si modifica questa impostazione, è necessario riavviare. Quando si nota che Code consuma troppo tempo della CPU all'avvio, è possibile escludere le cartelle di grandi dimensioni per ridurre il carico iniziale."
 }

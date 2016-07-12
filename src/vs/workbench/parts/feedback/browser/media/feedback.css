@@ -252,7 +252,8 @@
 	color: #D4D4D4;
 }
 
-.monaco-shell.vs-dark .feedback-form .cancel {
+.monaco-shell.vs-dark .feedback-form .cancel,
+.monaco-shell.hc-black .feedback-form .cancel {
 	background: url('close-dark.svg') center center no-repeat;
 }
 
@@ -322,21 +323,11 @@
 	float: right;
 }
 .monaco-shell.hc-black .feedback-form .cancel {
-	background: none;
 	opacity: 0.6;
 }
 
 .monaco-shell.hc-black .feedback-form .cancel:hover {
 	opacity: 1;
-}
-
-.monaco-shell.hc-black .feedback-form .cancel:before {
-	content: url('close-dark.svg');
-	position: relative;
-	top: 4px;
-	left: 6px;
-	height: 32px;
-	width: 32px;
 }
 
 .monaco-shell.hc-black .feedback-form .form-buttons .send,
@@ -352,29 +343,11 @@
 }
 
 .monaco-shell.hc-black .feedback-form .sentiment {
-	background: none;
 	border: 1px solid transparent;
 }
 
 .monaco-shell.hc-black .feedback-form .sentiment.checked {
 	border: 1px solid #f38518;
-}
-
-.monaco-shell.hc-black .feedback-form .sentiment:before {
-	height: 21px;
-	width: 21px;
-	display: inline-block;
-	position: relative;
-	top: 3px;
-	left: 3px;
-}
-
-.monaco-shell.hc-black .feedback-form .sentiment.smile:before {
-	content: url('happy.svg');
-}
-
-.monaco-shell.hc-black .feedback-form .sentiment.frown:before {
-	content: url('sad.svg');
 }
 
 .monaco-shell .feedback-form .infotip {

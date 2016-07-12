@@ -37,14 +37,4 @@ export class CommandService implements ICommandService {
 			}
 		});
 	}
-
-	isKnownCommand(commandId: string): boolean {
-		const command = CommandsRegistry.getCommand(commandId);
-
-		if (!command) {
-			return false;
-		}
-
-		return true;
-	}
 }

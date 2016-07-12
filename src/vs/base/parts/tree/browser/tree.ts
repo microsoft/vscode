@@ -10,7 +10,7 @@ import Events = require('vs/base/common/eventEmitter');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
-import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 
 export interface ITree extends Events.IEventEmitter {
 
@@ -126,7 +126,7 @@ export interface ITree extends Events.IEventEmitter {
 
 	/**
 	 * Returns the relative top position of any given element, if visible.
-	 * If not visible, returns -1.
+	 * If not visible, returns a negative number or a number > 1.
 	 * Useful when calling `reveal(element, relativeTop)`.
 	 */
 	getRelativeTop(element: any): number;
@@ -265,9 +265,14 @@ export interface ITree extends Events.IEventEmitter {
 	focusPrevious(count?: number, eventPayload?:any): void;
 
 	/**
-	 * Focuses the currently selected element's parent.
+	 * Focuses the currently focused element's parent.
 	 */
 	focusParent(eventPayload?: any): void;
+
+	/**
+	 * Focuses the first child of the currently focused element.
+	 */
+	focusFirstChild(eventPayload?: any): void;
 
 	/**
 	 * Focuses the second element, in visible order.

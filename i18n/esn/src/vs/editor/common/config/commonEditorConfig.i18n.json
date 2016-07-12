@@ -24,6 +24,7 @@
 	"lineNumbers": "Controla la visibilidad de los números de línea",
 	"mouseWheelScrollSensitivity": "Se utilizará un multiplicador en los eventos de desplazamiento de la rueda del mouse `deltaX` y `deltaY`",
 	"overviewRulerLanes": "Controla el número de decoraciones que pueden aparecer en la misma posición en la regla de visión general",
+	"parameterHints": "Habilita sugerencias de parámetro",
 	"quickSuggestions": "Controla si van a aparecer sugerencias rápidas mientras se escribe",
 	"quickSuggestionsDelay": "Controla el retardo en ms tras el cual aparecerán sugerencias rápidas",
 	"referenceInfos": "Controla si el editor muestra información de referencia para los modos compatibles",

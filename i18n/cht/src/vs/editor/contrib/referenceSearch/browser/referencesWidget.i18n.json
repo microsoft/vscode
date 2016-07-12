@@ -8,5 +8,6 @@
 	"peekView.alternateTitle": "參考",
 	"referenceCount": "{0} 個參考",
 	"referencesCount": "{0} 個參考",
+	"referencesFailre": "無法解析檔案。",
 	"treeAriaLabel": "參考"
 }

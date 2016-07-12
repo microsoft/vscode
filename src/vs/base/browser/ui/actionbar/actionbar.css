@@ -95,46 +95,6 @@
 	margin-left: 6px;
 }
 
-.monaco-action-bar .action-item .progress-item .label {
-	padding: 0.7em;
-	background-color: #1382CE;
-	display: inline-block;
-	vertical-align: top;
-	cursor: pointer;
-}
-
-.monaco-action-bar .action-item .progress-item .tag {
-	display: inline-block;
-	vertical-align: top;
-	padding: 0.7em 0;
-	color: white;
-	font-weight: bold;
-	text-align: center;
-	overflow: hidden;
-	width: 0;
-	transition: width 200ms;
-	-webkit-transition: width 200ms;
-	-o-transition: width 200ms;
-	-moz-transition: width 200ms;
-	-ms-transition: width 200ms;
-}
-
-.monaco-action-bar .action-item .progress-item .tag.active {
-	width: 1.5em;
-}
-
-.monaco-action-bar .action-item .progress-item .tag.progress {
-	background-color: gray;
-}
-
-.monaco-action-bar .action-item .progress-item .tag.done {
-	background-color: green;
-}
-
-.monaco-action-bar .progress-item .tag.error {
-	background-color: #C33;
-}
-
 /* Action Items */
 .monaco-action-bar .action-item.select-container {
 	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */

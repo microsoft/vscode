@@ -5,11 +5,5 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.search {
-	/* Inline icon to prevent slow loading on startup (original: search-dark.svg) */
-	background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiI+PHBhdGggZD0iTTE5LjIzIDQuMDk1Yy00Ljg0MiAwLTguNzY5IDMuOTI4LTguNzY5IDguNzcxIDAgMS43ODEuNTM5IDMuNDMgMS40NDkgNC44MTUgMCAwLTUuNDgyIDUuNDU1LTcuMTAyIDcuMTAyLTEuNjIxIDEuNjQ2IDEuMDAxIDQuMDcxIDIuNjAyIDIuNDA5IDEuNjAyLTEuNjU5IDcuMDA2LTcuMDA1IDcuMDA2LTcuMDA1IDEuMzg0LjkxMSAzLjAzNSAxLjQ1IDQuODE0IDEuNDUgNC44NDUgMCA4Ljc3Mi0zLjkzIDguNzcyLTguNzcxLjAwMS00Ljg0NC0zLjkyNy04Ljc3MS04Ljc3Mi04Ljc3MXptMCAxNS4wMzVjLTMuNDU5IDAtNi4yNjUtMi44MDQtNi4yNjUtNi4yNjQgMC0zLjQ2IDIuODA1LTYuMjY1IDYuMjY1LTYuMjY1IDMuNDYyIDAgNi4yNjYgMi44MDQgNi4yNjYgNi4yNjUgMCAzLjQ2LTIuODA0IDYuMjY0LTYuMjY2IDYuMjY0eiIgZmlsbD0iI2ZmZiIvPjwvc3ZnPg==');
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .activitybar .monaco-action-bar .action-label.search:before {
-	content: url('search-dark.svg');
+	background-image: url('search-dark.svg');
 }

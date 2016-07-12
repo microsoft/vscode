@@ -8,6 +8,8 @@
 	"globalConsoleActionWin": "開啟新的命令提示字元",
 	"scopedConsoleActionMacLinux": "在終端機中開啟",
 	"scopedConsoleActionWin": "在命令提示字元中開啟",
+	"terminal.external.linuxExec": "自訂要在 Linux 上執行的終端機。",
+	"terminal.external.osxExec": "自訂要在 OS X 上執行的終端機應用程式。",
 	"terminal.external.windowsExec": "自訂要在 Windows 上執行的終端機。",
 	"terminalConfigurationTitle": "外部終端機組態"
 }

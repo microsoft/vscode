@@ -11,6 +11,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {Platform} from 'vs/base/common/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 
 class MockConfigurationService implements IConfigurationService {
@@ -30,7 +31,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		fixture = new Builder(document.body, false);
 	});
 
-	test('TerminalConfigHelper - getFont', function () {
+	test('TerminalConfigHelper - getFont fontFamily', function () {
 		let configurationService: IConfigurationService;
 		let configHelper: TerminalConfigHelper;
 
@@ -59,6 +60,11 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
+	});
+
+	test('TerminalConfigHelper - getFont fontSize', function () {
+		let configurationService: IConfigurationService;
+		let configHelper: TerminalConfigHelper;
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -89,6 +95,41 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().fontSize, '1px', 'editor.fontSize should be the fallback when terminal.integrated.fontSize not set');
+
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo',
+				fontSize: 0
+			},
+			terminal: {
+				integrated: {
+					fontFamily: 0,
+					fontSize: 0
+				}
+			}
+		});
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
+		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is 0 and terminal.integrated.fontSize not set');
+
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo',
+				fontSize: 0
+			},
+			terminal: {
+				integrated: {
+					fontFamily: 0,
+					fontSize: -10
+				}
+			}
+		});
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
+		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
+	});
+
+	test('TerminalConfigHelper - getFont lineHeight', function () {
+		let configurationService: IConfigurationService;
+		let configHelper: TerminalConfigHelper;
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -173,7 +214,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		let configHelper: TerminalConfigHelper;
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme('hc-black foo'), [
+		assert.deepEqual(configHelper.getTheme('hc-black'), [
 			'#000000',
 			'#cd0000',
 			'#00cd00',
@@ -193,7 +234,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		], 'The high contrast terminal theme should be selected when the hc-black theme is active');
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme('vs foo'), [
+		assert.deepEqual(configHelper.getTheme('vs'), [
 			'#000000',
 			'#cd3131',
 			'#008000',
@@ -213,7 +254,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		], 'The light terminal theme should be selected when a vs theme is active');
 
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.deepEqual(configHelper.getTheme('vs-dark foo'), [
+		assert.deepEqual(configHelper.getTheme('vs-dark'), [
 			'#000000',
 			'#cd3131',
 			'#09885a',

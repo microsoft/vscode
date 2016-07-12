@@ -16,12 +16,10 @@ import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
-import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/markersStatisticsWidget';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
 interface IResourceTemplateData {
 	file: FileLabel;
-	statistics: MarkersStatisticsWidget;
 	count: CountBadge;
 }
 
@@ -167,14 +165,14 @@ export class Renderer implements IRenderer {
 	}
 }
 
-export class ProblemsTreeAccessibilityProvider implements IAccessibilityProvider {
+export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Resource) {
-			return Messages.PROBLEMS_TREE_ARIA_LABEL_RESOURCE(element.name, element.markers.length);
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.markers.length);
 		}
 		if (element instanceof Marker) {
-			return Messages.PROBLEMS_TREE_ARIA_LABEL_MARKER(element.marker);
+			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element.marker);
 		}
 		return null;
 	}

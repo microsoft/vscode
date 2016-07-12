@@ -186,37 +186,29 @@ export class EnvService implements IEnvironmentService {
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
-		this._mainIPCHandle = this.getMainIPCHandle();
-		this._sharedIPCHandle = this.getSharedIPCHandle();
+
+		const prefix = this.getIPCHandleBaseName();
+		const suffix = process.platform === 'win32' ? '-sock' : '.sock';
+
+		this._mainIPCHandle = `${ prefix }-${ pkg.version }${ suffix }`;
+		this._sharedIPCHandle = `${ prefix }-${ pkg.version }-shared${ suffix }`;
 	}
 
-	private getMainIPCHandle(): string {
-		return this.getIPCHandleName() + (process.platform === 'win32' ? '-sock' : '.sock');
-	}
-
-	private getSharedIPCHandle(): string {
-		return this.getIPCHandleName() + '-shared' + (process.platform === 'win32' ? '-sock' : '.sock');
-	}
-
-	private getIPCHandleName(): string {
-		let handleName = pkg.name;
-
-		if (!this.isBuilt) {
-			handleName += '-dev';
-		}
+	private getIPCHandleBaseName(): string {
+		let name = pkg.name;
 
 		// Support to run VS Code multiple times as different user
 		// by making the socket unique over the logged in user
 		let userId = EnvService.getUniqueUserId();
 		if (userId) {
-			handleName += ('-' + userId);
+			name += `-${ userId }`;
 		}
 
 		if (process.platform === 'win32') {
-			return '\\\\.\\pipe\\' + handleName;
+			return `\\\\.\\pipe\\${ name }`;
 		}
 
-		return path.join(os.tmpdir(), handleName);
+		return path.join(os.tmpdir(), name);
 	}
 
 	private static getUniqueUserId(): string {

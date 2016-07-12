@@ -12,7 +12,7 @@
 }
 
 .vs-dark .monaco-workbench .binarydiff-right {
-	border-left: 3px solid black;
+	border-left: 3px solid rgb(20, 20, 20);
 }
 
 .hc-black .monaco-workbench .binarydiff-right {

@@ -147,5 +147,39 @@ class TogglePanelAction extends Action {
 	}
 }
 
+class FocusPanelAction extends Action {
+
+	public static ID = 'workbench.action.focusPanel';
+	public static LABEL = nls.localize('focusPanel', "Focus into Panel");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPanelService private panelService: IPanelService,
+		@IPartService private partService: IPartService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+
+		// Show panel
+		if (this.partService.isPanelHidden()) {
+			this.partService.setPanelHidden(false);
+		}
+
+		// Focus into active panel
+		else {
+			let panel = this.panelService.getActivePanel();
+			if (panel) {
+				panel.focus();
+			}
+		}
+
+		return TPromise.as(true);
+	}
+}
+
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel Visibility', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
