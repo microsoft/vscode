@@ -47,7 +47,7 @@ import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewpo
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 import {lookupKeyCode} from 'vs/base/browser/keyboardEvent';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 
 
 class KeyboardMouseCrossoverStatus {
@@ -313,8 +313,10 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				if(crossover.altListeningMouse){
 					crossover.altMouseTriggered = true;
 				}
-				if(orig) orig.apply(this, arguments);
-			}
+				if(orig) {
+					return orig.apply(this, arguments);
+				}
+			};
 		}(this.domNode.onmousedown);
 		return {
 			viewDomNode: this.domNode,
@@ -418,26 +420,30 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// the release event up <alt> if the mouse is triggered.
 		this.textArea.onkeydown = function(orig){
 			return function(e){
-				if(lookupKeyCode(e) == KeyCode.Alt){
+				if(lookupKeyCode(e) === KeyCode.Alt){
 					if(!crossover.altListeningMouse){
 						crossover.altMouseTriggered = false;
 					}
 					crossover.altListeningMouse = true;
 				}
-				if(orig) orig.apply(this, arguments);
-			}
+				if(orig) {
+					return orig.apply(this, arguments);
+				}
+			};
 		}(this.textArea.onkeydown);
 		this.textArea.onkeyup = function(orig){
 			return function(e){
-				if(lookupKeyCode(e) == KeyCode.Alt){
+				if(lookupKeyCode(e) === KeyCode.Alt){
 					if(crossover.altMouseTriggered){
 						e.preventDefault();
 					}
 					crossover.altListeningMouse = false;
 					crossover.altMouseTriggered = false;
 				}
-				if(orig) orig.apply(this, arguments);
-			}
+				if(orig) {
+					return orig.apply(this, arguments);
+				}
+			};
 		}(this.textArea.onkeyup);
 		return {
 			viewDomNode: this.domNode,
