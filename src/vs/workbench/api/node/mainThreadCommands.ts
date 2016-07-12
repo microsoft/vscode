@@ -7,9 +7,9 @@
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService, CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostContext, ExtHostCommandsShape} from './extHost.protocol';
+import {ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape} from './extHost.protocol';
 
-export class MainThreadCommands {
+export class MainThreadCommands extends MainThreadCommandsShape {
 
 	private _proxy: ExtHostCommandsShape;
 
@@ -17,6 +17,7 @@ export class MainThreadCommands {
 		@IThreadService private _threadService: IThreadService,
 		@ICommandService private _commandService: ICommandService
 	) {
+		super();
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostCommands);
 	}
 

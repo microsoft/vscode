@@ -6,13 +6,15 @@
 
 import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {MainThreadStatusBarShape} from './extHost.protocol';
 
-export class MainThreadStatusBar {
+export class MainThreadStatusBar extends MainThreadStatusBarShape {
 	private mapIdToDisposable: { [id: number]: IDisposable };
 
 	constructor(
 		@IStatusbarService private statusbarService: IStatusbarService
 	) {
+		super();
 		this.mapIdToDisposable = Object.create(null);
 	}
 

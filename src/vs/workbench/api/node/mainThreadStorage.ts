@@ -6,12 +6,14 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {MainThreadStorageShape} from './extHost.protocol';
 
-export class MainThreadStorage {
+export class MainThreadStorage extends MainThreadStorageShape {
 
 	private _storageService: IStorageService;
 
 	constructor( @IStorageService storageService: IStorageService) {
+		super();
 		this._storageService = storageService;
 	}
 

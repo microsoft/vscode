@@ -181,10 +181,10 @@ export abstract class MainThreadWorkspaceShape {
 }
 
 export abstract class MainProcessExtensionServiceShape {
-	public $onExtensionHostReady(extensionDescriptions: IExtensionDescription[], messages: IMessage[]): TPromise<void> { throw ni(); }
-	public $localShowMessage(severity: Severity, msg: string): void { throw ni(); }
-	public $onExtensionActivated(extensionId: string): void { throw ni(); }
-	public $onExtensionActivationFailed(extensionId: string): void { throw ni(); }
+	$onExtensionHostReady(extensionDescriptions: IExtensionDescription[], messages: IMessage[]): TPromise<void> { throw ni(); }
+	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
+	$onExtensionActivated(extensionId: string): void { throw ni(); }
+	$onExtensionActivationFailed(extensionId: string): void { throw ni(); }
 }
 
 // -- extension host

@@ -20,9 +20,9 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
 import {equals as objectEquals} from 'vs/base/common/objects';
-import {ExtHostContext, ExtHostEditorsShape, ITextEditorPositionData} from './extHost.protocol';
+import {ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData} from './extHost.protocol';
 
-export class MainThreadEditors {
+export class MainThreadEditors extends MainThreadEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _workbenchEditorService: IWorkbenchEditorService;
@@ -44,6 +44,7 @@ export class MainThreadEditors {
 		@IEventService eventService: IEventService,
 		@IModelService modelService: IModelService
 	) {
+		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostEditors);
 		this._workbenchEditorService = workbenchEditorService;
 		this._telemetryService = telemetryService;
