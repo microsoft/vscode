@@ -1,7 +1,7 @@
 // Available variables which can be used inside of strings.
 // ${workspaceRoot}: the root folder of the team
 // ${file}: the current opened file
-// ${relFile}: the current opened file relative to cwd
+// ${relativeFile}: the current opened file relative to cwd
 // ${fileBasename}: the current opened file's basename
 // ${fileDirname}: the current opened file's dirname
 // ${fileExtname}: the current opened file's extension
