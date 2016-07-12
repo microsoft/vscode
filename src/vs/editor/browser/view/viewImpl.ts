@@ -46,6 +46,14 @@ import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
 import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
+import {lookupKeyCode} from 'vs/base/browser/keyboardEvent';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+
+
+class KeyboardMouseCrossoverStatus {
+	public altListeningMouse = false;
+	public altMouseTriggered = false;
+}
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -89,6 +97,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	private _keybindingService: IKeybindingService;
 	private _editorTextFocusContextKey: IKeybindingContextKey<boolean>;
+
+	private _crossoverStatus: KeyboardMouseCrossoverStatus;
 
 	constructor(
 		keybindingService: IKeybindingService,
@@ -136,11 +146,15 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.createTextArea(keybindingService);
 		this.createViewParts();
 
+		// Keyboard-Mouse Crossover Status
+		this._crossoverStatus = new KeyboardMouseCrossoverStatus;
+
 		// Keyboard handler
-		this.keyboardHandler = new KeyboardHandler(this._context, viewController, this.createKeyboardHandlerHelper());
+		this.keyboardHandler = new KeyboardHandler(this._context, viewController, this.createKeyboardHandlerHelper(this._crossoverStatus));
 
 		// Pointer handler
-		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper());
+		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper(this._crossoverStatus));
+
 
 		this.hasFocus = false;
 		this.codeEditorHelper = null;
@@ -292,7 +306,16 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this._renderNow();
 	}
 
-	private createPointerHandlerHelper(): IPointerHandlerHelper {
+	private createPointerHandlerHelper(crossover: KeyboardMouseCrossoverStatus): IPointerHandlerHelper {
+		// A global crossover handler to prevent menu bar from showing up
+		this.domNode.onmousedown = function(orig){
+			return function(e){
+				if(crossover.altListeningMouse){
+					crossover.altMouseTriggered = true;
+				}
+				if(orig) orig.apply(this, arguments);
+			}
+		}(this.domNode.onmousedown);
 		return {
 			viewDomNode: this.domNode,
 			linesContentDomNode: this.linesContent,
@@ -389,7 +412,33 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		};
 	}
 
-	private createKeyboardHandlerHelper(): IKeyboardHandlerHelper {
+	private createKeyboardHandlerHelper(crossover: KeyboardMouseCrossoverStatus): IKeyboardHandlerHelper {
+		// A global crossover handler to prevent menu bar from showing up
+		// When <alt> is hold, we will listen to mouse events and prevent
+		// the release event up <alt> if the mouse is triggered.
+		this.textArea.onkeydown = function(orig){
+			return function(e){
+				if(lookupKeyCode(e) == KeyCode.Alt){
+					if(!crossover.altListeningMouse){
+						crossover.altMouseTriggered = false;
+					}
+					crossover.altListeningMouse = true;
+				}
+				if(orig) orig.apply(this, arguments);
+			}
+		}(this.textArea.onkeydown);
+		this.textArea.onkeyup = function(orig){
+			return function(e){
+				if(lookupKeyCode(e) == KeyCode.Alt){
+					if(crossover.altMouseTriggered){
+						e.preventDefault();
+					}
+					crossover.altListeningMouse = false;
+					crossover.altMouseTriggered = false;
+				}
+				if(orig) orig.apply(this, arguments);
+			}
+		}(this.textArea.onkeyup);
 		return {
 			viewDomNode: this.domNode,
 			textArea: this.textArea,
