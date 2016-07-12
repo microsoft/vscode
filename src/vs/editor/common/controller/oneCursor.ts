@@ -530,9 +530,6 @@ export class OneCursor {
 	public getPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
 		return this.helper.getPositionDown(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
-	public getColumnAtBeginningOfLine(lineNumber:number, column:number): number {
-		return this.helper.getColumnAtBeginningOfLine(this.model, lineNumber, column);
-	}
 	public getColumnAtEndOfLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtEndOfLine(this.model, lineNumber, column);
 	}
@@ -549,6 +546,9 @@ export class OneCursor {
 	// -- view
 	public getViewLineCount(): number {
 		return this.viewModelHelper.viewModel.getLineCount();
+	}
+	public getViewLineMinColumn(lineNumber:number): number {
+		return this.viewModelHelper.viewModel.getLineMinColumn(lineNumber);
 	}
 	public getViewLineMaxColumn(lineNumber:number): number {
 		return this.viewModelHelper.viewModel.getLineMaxColumn(lineNumber);
@@ -901,11 +901,22 @@ export class OneCursorOp {
 	}
 
 	public static moveToBeginningOfLine(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
-		let validatedViewPosition = cursor.getValidViewPosition();
-		let viewLineNumber = validatedViewPosition.lineNumber;
-		let viewColumn = validatedViewPosition.column;
+		let viewPosition = cursor.getValidViewPosition();
+		let viewLineNumber = viewPosition.lineNumber;
+		let viewColumn = viewPosition.column;
 
 		viewColumn = cursor.getColumnAtBeginningOfViewLine(viewLineNumber, viewColumn);
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
+		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
+		return true;
+	}
+
+	public static moveToHardBeginningOfLine(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		let viewPosition = cursor.getValidViewPosition();
+		let viewLineNumber = viewPosition.lineNumber;
+		let viewColumn = viewPosition.column;
+
+		viewColumn = cursor.getViewLineMinColumn(viewLineNumber);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
 		return true;

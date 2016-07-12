@@ -4165,6 +4165,8 @@ export var Handler = {
 	CursorHome:					'cursorHome',
 	CursorHomeSelect:			'cursorHomeSelect',
 
+	CursorHardHome:				'_cursorHardHome',
+
 	CursorEnd:					'cursorEnd',
 	CursorEndSelect:			'cursorEndSelect',
 

@@ -205,6 +205,7 @@ registerCoreCommand(H.CursorHome, {
 	primary: KeyCode.Home,
 	mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow, KeyMod.WinCtrl | KeyCode.KEY_A] }
 });
+registerCoreCommand(H.CursorHardHome, { primary: null });
 registerCoreCommand(H.CursorHomeSelect, {
 	primary: KeyMod.Shift | KeyCode.Home,
 	mac: { primary: KeyMod.Shift | KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow] }

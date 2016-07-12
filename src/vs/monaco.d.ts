@@ -3227,6 +3227,7 @@ declare module monaco.editor {
         CursorPageDownSelect: string;
         CursorHome: string;
         CursorHomeSelect: string;
+        CursorHardHome: string;
         CursorEnd: string;
         CursorEndSelect: string;
         ExpandLineSelection: string;

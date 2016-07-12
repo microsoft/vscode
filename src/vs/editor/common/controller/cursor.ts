@@ -988,6 +988,8 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.CursorHome] =					(ctx) => this._moveToBeginningOfLine(false, ctx);
 		this._handlers[H.CursorHomeSelect] =			(ctx) => this._moveToBeginningOfLine(true, ctx);
 
+		this._handlers[H.CursorHardHome] =				(ctx) => this._moveToHardBeginningOfLine(false, ctx);
+
 		this._handlers[H.CursorEnd] =					(ctx) => this._moveToEndOfLine(false, ctx);
 		this._handlers[H.CursorEndSelect] =				(ctx) => this._moveToEndOfLine(true, ctx);
 
@@ -1298,6 +1300,10 @@ export class Cursor extends EventEmitter {
 
 	private _moveToBeginningOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToBeginningOfLine(oneCursor, inSelectionMode, oneCtx));
+	}
+
+	private _moveToHardBeginningOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToHardBeginningOfLine(oneCursor, inSelectionMode, oneCtx));
 	}
 
 	private _moveToEndOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
