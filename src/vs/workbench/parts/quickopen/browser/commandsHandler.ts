@@ -21,9 +21,7 @@ import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workb
 import {Registry} from 'vs/platform/platform';
 import {QuickOpenHandler, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {matchesWords, matchesPrefix, matchesContiguousSubString, or} from 'vs/base/common/filters';
-import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity, IMessageWithAction} from 'vs/platform/message/common/message';
@@ -383,35 +381,5 @@ export class EditorCommandsHandler extends CommandsHandler {
 
 	protected includeWorkbenchCommands(): boolean {
 		return false;
-	}
-}
-
-export class QuickCommandsEditorAction extends EditorAction {
-
-	public static ID = 'editor.action.quickCommand';
-
-	constructor(
-		descriptor: IEditorActionDescriptorData,
-		editor: ICommonCodeEditor,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
-
-		this.label = nls.localize('QuickCommandsAction.label', "Show Editor Commands");
-	}
-
-	public getGroupId(): string {
-		return '4_tools/1_commands';
-	}
-
-	public run(): TPromise<any> {
-
-		// Pass focus to editor first before running quick open action
-		this.editor.focus();
-
-		// Show with prefix
-		this.quickOpenService.show('$');
-
-		return super.run();
 	}
 }
