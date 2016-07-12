@@ -220,6 +220,10 @@ export class List<T> implements IDisposable {
 		return this.view.getScrollTop();
 	}
 
+	set scrollTop(scrollTop: number) {
+		this.view.setScrollTop(scrollTop);
+	}
+
 	layout(height?: number): void {
 		this.view.layout(height);
 	}

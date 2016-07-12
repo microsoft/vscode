@@ -94,6 +94,10 @@ export class PagedList<T> {
 		return this.list.scrollTop;
 	}
 
+	set scrollTop(scrollTop: number) {
+		this.list.scrollTop = scrollTop;
+	}
+
 	focusNext(n?: number, loop?: boolean): void {
 		this.list.focusNext(n, loop);
 	}

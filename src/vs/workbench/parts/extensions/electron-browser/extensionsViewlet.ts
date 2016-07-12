@@ -185,7 +185,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		return always(promise, () => progressRunner.done())
 			.then(result => new PagedModel<IExtension>(result))
-			.then(model => this.list.model = model);
+			.then(model => {
+				this.list.model = model;
+				this.list.scrollTop = 0;
+			});
 	}
 
 	private onExtensionSelected(extension: IExtension): void {
