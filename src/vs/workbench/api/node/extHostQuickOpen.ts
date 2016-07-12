@@ -7,17 +7,18 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
-import {MainContext, MainThreadQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
+import {MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
 
 export type Item = string | QuickPickItem;
 
-export class ExtHostQuickOpen {
+export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string;
 
 	constructor(threadService: IThreadService) {
+		super();
 		this._proxy = threadService.get(MainContext.MainThreadQuickOpen);
 	}
 

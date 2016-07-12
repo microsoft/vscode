@@ -9,7 +9,7 @@ import {IMarkerData} from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
-import {MainContext, MainThreadDiagnosticsShape} from './extHost.protocol';
+import {MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape} from './extHost.protocol';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -175,7 +175,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
-export class ExtHostDiagnostics {
+export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 
@@ -183,6 +183,7 @@ export class ExtHostDiagnostics {
 	private _collections: DiagnosticCollection[];
 
 	constructor(threadService: IThreadService) {
+		super();
 		this._proxy = threadService.get(MainContext.MainThreadDiagnostics);
 		this._collections = [];
 	}

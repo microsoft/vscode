@@ -14,8 +14,9 @@ import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Uri} from 'vscode';
+import {MainThreadWorkspaceShape} from './extHost.protocol';
 
-export class MainThreadWorkspace {
+export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 
 	private _activeSearches: { [id: number]: TPromise<Uri[]> } = Object.create(null);
 	private _searchService: ISearchService;
@@ -24,11 +25,14 @@ export class MainThreadWorkspace {
 	private _editorService:IWorkbenchEditorService;
 	private _eventService:IEventService;
 
-	constructor( @ISearchService searchService: ISearchService,
+	constructor(
+		@ISearchService searchService: ISearchService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextFileService textFileService,
 		@IWorkbenchEditorService editorService,
-		@IEventService eventService) {
+		@IEventService eventService
+	) {
+		super();
 
 		this._searchService = searchService;
 		this._workspace = contextService.getWorkspace();

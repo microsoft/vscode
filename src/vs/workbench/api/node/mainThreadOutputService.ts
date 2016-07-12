@@ -9,8 +9,9 @@ import {Registry} from 'vs/platform/platform';
 import {IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import {MainThreadOutputServiceShape} from './extHost.protocol';
 
-export class MainThreadOutputService {
+export class MainThreadOutputService extends MainThreadOutputServiceShape {
 
 	private _outputService: IOutputService;
 	private _partService: IPartService;
@@ -20,6 +21,7 @@ export class MainThreadOutputService {
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {
+		super();
 		this._outputService = outputService;
 		this._partService = partService;
 		this._panelService = panelService;

@@ -5,8 +5,9 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
+import {MainThreadErrorsShape} from './extHost.protocol';
 
-export class MainThreadErrors {
+export class MainThreadErrors extends MainThreadErrorsShape {
 
 	public onUnexpectedExtHostError(err: any): void {
 		errors.onUnexpectedError(err);

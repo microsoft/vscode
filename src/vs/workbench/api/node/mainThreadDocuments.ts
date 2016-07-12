@@ -19,9 +19,9 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {ExtHostContext, ExtHostDocumentsShape} from './extHost.protocol';
+import {ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape} from './extHost.protocol';
 
-export class MainThreadDocuments {
+export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _modelService: IModelService;
 	private _modeService: IModeService;
 	private _textFileService: ITextFileService;
@@ -45,6 +45,7 @@ export class MainThreadDocuments {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
+		super();
 		this._modelService = modelService;
 		this._modeService = modeService;
 		this._textFileService = textFileService;

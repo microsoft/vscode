@@ -12,7 +12,7 @@ import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import {cloneAndChange} from 'vs/base/common/objects';
-import {MainContext, MainThreadCommandsShape} from './extHost.protocol';
+import {MainContext, MainThreadCommandsShape, ExtHostCommandsShape} from './extHost.protocol';
 
 interface CommandHandler {
 	callback: Function;
@@ -20,7 +20,7 @@ interface CommandHandler {
 	description: ICommandHandlerDescription;
 }
 
-export class ExtHostCommands {
+export class ExtHostCommands extends ExtHostCommandsShape {
 
 	private _commands: { [n: string]: CommandHandler } = Object.create(null);
 	private _proxy: MainThreadCommandsShape;
@@ -30,6 +30,7 @@ export class ExtHostCommands {
 		threadService: IThreadService,
 		extHostEditors:ExtHostEditors
 	) {
+		super();
 		this._extHostEditors = extHostEditors;
 		this._proxy = threadService.get(MainContext.MainThreadCommands);
 	}

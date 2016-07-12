@@ -17,7 +17,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {getWordAtText, ensureValidWordDefinition} from 'vs/editor/common/model/wordHelper';
-import {MainContext, MainThreadDocumentsShape, IModelAddedData} from './extHost.protocol';
+import {MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IModelAddedData} from './extHost.protocol';
 
 const _modeId2WordDefinition: {
 	[modeId: string]: RegExp;
@@ -31,7 +31,7 @@ function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition[modeId];
 }
 
-export class ExtHostDocuments {
+export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 	private static _handlePool: number = 0;
 
@@ -54,6 +54,7 @@ export class ExtHostDocuments {
 	private _proxy: MainThreadDocumentsShape;
 
 	constructor(threadService: IThreadService) {
+		super();
 		this._proxy = threadService.get(MainContext.MainThreadDocuments);
 
 		this._onDidAddDocumentEventEmitter = new Emitter<vscode.TextDocument>();
