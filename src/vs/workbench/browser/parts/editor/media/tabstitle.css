@@ -7,12 +7,10 @@
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title.tabs {
 	background: #F3F3F3;
-	mix-blend-mode: luminosity;
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title.tabs {
 	background: #252526;
-	mix-blend-mode: luminosity;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title.tabs::before {
@@ -21,7 +19,6 @@
 	position: absolute;
 	top: 34px;
 	width: 100%;
-	mix-blend-mode: luminosity;
 	z-index: 1; /* on top of tabs */
 }
 
