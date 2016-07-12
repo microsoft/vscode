@@ -222,7 +222,7 @@ export var ServiceOperations = {
 	BACKGROUND_FETCH: 'backgroundfetch',
 	PULL: 'pull',
 	PUSH: 'push',
-	SYNC: 'sync'
+	SYNC: 'sync',
 };
 
 // Service config
@@ -264,6 +264,23 @@ export interface IPushOptions {
 	setUpstream?: boolean;
 }
 
+/**
+ * These are `git log` options.
+ * The use case driving this is getting the previous commit message, message only.
+ * @example prevCount: 1, format: '%B' executes `git log -1 --format=%B`
+ * */
+export interface ILogOptions {
+	/**
+	 * @example `git log -1 --format=%B` to get the last commit log, message only
+	 */
+	prevCount?: number;
+
+	/**
+	 * @example format: "%B" translates to `git log --format=%B` to get the message only
+	 */
+	format?: string;
+}
+
 export interface IRawGitService {
 	onOutput: Event<string>;
 	getVersion(): TPromise<string>;
@@ -286,6 +303,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -322,6 +340,7 @@ export interface IGitService extends IEventEmitter {
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export interface IAskpassService {

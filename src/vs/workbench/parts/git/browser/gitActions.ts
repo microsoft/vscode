@@ -29,6 +29,7 @@ import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBr
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -1113,13 +1114,16 @@ export class UndoLastCommitAction extends GitAction {
 
 	static ID = 'workbench.action.git.undoLastCommit';
 	static LABEL = nls.localize('undoLastCommit', "Undo Last Commit");
+	private storageService: IStorageService;
 
 	constructor(
 		id = UndoLastCommitAction.ID,
 		label = UndoLastCommitAction.LABEL,
-		@IGitService gitService: IGitService
+		@IGitService gitService: IGitService,
+		@IStorageService storageService: IStorageService
 	) {
 		super(UndoLastCommitAction.ID, UndoLastCommitAction.LABEL, 'git-action undo-last-commit', gitService);
+		this.storageService = storageService;
 	}
 
 	public run():Promise {

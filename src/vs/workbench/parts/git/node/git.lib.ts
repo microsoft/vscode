@@ -11,7 +11,7 @@ import { assign } from 'vs/base/common/objects';
 import { v4 as UUIDv4 } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { uniqueFilter } from 'vs/base/common/arrays';
-import { IRawFileStatus, RefType, IRef, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawFileStatus, RefType, IRef, IBranch, IRemote, GitErrorCodes, IPushOptions, ILogOptions } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { spawn, ChildProcess } from 'child_process';
@@ -555,6 +555,18 @@ export class Repository {
 
 	getRoot(): TPromise<string> {
 		return this.run(['rev-parse', '--show-toplevel'], { log: false }).then(result => result.stdout.trim());
+	}
+
+	/** Only implemented for use case `git log` and `git log -N`. */
+	getLog(options?: ILogOptions): TPromise<string> {
+		const args = ['log'];
+
+		if (options) {
+			if (options.prevCount) { args.push(`-${options.prevCount}`); }
+			if (options.format) { args.push(`--format=${options.format}`); }
+		}
+
+		return this.run(args, { log: false }).then(result => result.stdout.trim());
 	}
 
 	getStatus(): TPromise<IRawFileStatus[]> {
