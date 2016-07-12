@@ -565,18 +565,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public move(from: Position, to: Position): void {
-		let editorPos1: BaseEditor;
-		let editorPos2: BaseEditor;
 
 		// Distance 1: Swap Editors
 		if (Math.abs(from - to) === 1) {
 
 			// Move editors to new position
-			editorPos1 = this.visibleEditors[from];
+			let editorPos1 = this.visibleEditors[from];
 			editorPos1.getContainer().offDOM().build(this.containers[to]);
 			editorPos1.changePosition(to);
 
-			editorPos2 = this.visibleEditors[to];
+			let editorPos2 = this.visibleEditors[to];
 			editorPos2.getContainer().offDOM().build(this.containers[from]);
 			editorPos2.changePosition(from);
 
@@ -607,11 +605,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Move editors to new position
-			editorPos1 = this.visibleEditors[Position.LEFT];
+			let editorPos1 = this.visibleEditors[Position.LEFT];
 			editorPos1.getContainer().offDOM().build(this.containers[newLeftPosition]);
 			editorPos1.changePosition(newLeftPosition);
 
-			editorPos2 = this.visibleEditors[Position.CENTER];
+			let editorPos2 = this.visibleEditors[Position.CENTER];
 			editorPos2.getContainer().offDOM().build(this.containers[newCenterPosition]);
 			editorPos2.changePosition(newCenterPosition);
 
