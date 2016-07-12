@@ -10,7 +10,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions, ICommitInfo } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
@@ -194,23 +194,12 @@ export class RawGitService implements IRawGitService {
 	}
 
 	/**
-	 * Gets `ICommitInfo`, including the template and previous commit message.
-	 * @returns `IRawStatus` with `commitInfo` set.
+	 * Reads the commit.template git config setting. If exists, then tries to load the contents of the file specified by that setting and returns these contents.
 	 */
-	getCommitInfo(): TPromise<IRawStatus> {
-		return Promise.join([
-			// if either of these do not exist or throw an error, then we return ""
-			this.repo.run(['config', '--get', 'commit.template']).then(filename => filename, err => ""),
-			this.repo.getLog({ prevCount: 1, format: '%B' }).then(log => log, err => ""),
-			this.status()
-		]).then(r => {
-			let status = <IRawStatus>r[2];
-			status.commitInfo = {
-				template: r[0] ? this.readCommitTemplateFile(r[0].stdout.trim()) : "",
-				prevCommitMsg: r[1]
-			};
-			return status;
-		});;
+	getCommitTemplate(): TPromise<string> {
+		return this.repo.run(['config', '--get', 'commit.template']).then(execResult => execResult, err => '').then(execResult => {
+			return execResult ? this.readCommitTemplateFile(execResult.stdout.trim()) : '';
+		});
 	}
 
 	/**
@@ -219,26 +208,31 @@ export class RawGitService implements IRawGitService {
 	 */
 	private readCommitTemplateFile(file: string): string {
 		try {
+			// // This is resolving to [repo]\.build\electron\~\.gitmessage
+			// let fullPath = resolve(file)
+			// console.log(`file: ${file}, fullPath: ${fullPath}`)
+			// return fs.existsSync(fullPath) ? fs.readFileSync(file, 'utf8') : '';
 			// Check the file itself
 			if (fs.existsSync(file)) {
 				return fs.readFileSync(file, 'utf8');
 			} else {
 				// File doesn't exist. Try converting ~/path to absolute path
 
-				// Try checking in local repo git folder
+				// Try checking in local repo git folder (This is wrong interpretation oy)
 				let repo_file = file.replace('~', `${this.repo.path}\\.git`).replace('/', '\\');
 				if (fs.existsSync(repo_file)) {
 					return fs.readFileSync(repo_file, 'utf8');
 				} else {
 					// Check global (e.g. Windows user folder, Linux: home git config)
 					// not implemented
+
 					console.warn(`file doesnt exist in repo local git config. global git config template not implemented. (commit template file: ${file})`);
-					return "";
+					return '';
 				}
 			}
 		} catch (error) {
 			console.error(`Error reading file. file: ${file}, error: ${error.message})`);
-			return "";
+			return '';
 		}
 	}
 }

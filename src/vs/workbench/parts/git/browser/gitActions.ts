@@ -1190,11 +1190,7 @@ export class UndoLastCommitAction extends GitAction {
 	}
 
 	public run():Promise {
-		// Need to get the previous commit msg **before** executing the reset.
-		return this.gitService.getCommitInfo().then(model => {
-				this.storageService.store('prevCommitMsg', model.getCommitInfo().prevCommitMsg);
-				return this.gitService.reset('HEAD~');
-			});
+		return this.gitService.reset('HEAD~');
 	}
 }
 

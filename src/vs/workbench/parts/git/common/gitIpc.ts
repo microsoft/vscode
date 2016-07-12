@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import Event from 'vs/base/common/event';
 import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials,
-	ServiceState, IRawFileStatus, IBranch, RefType, IRef, IRemote, ICommitInfo } from './git';
+	ServiceState, IRawFileStatus, IBranch, RefType, IRef, IRemote } from './git';
 
 type ISerializer<A,B> = { to(a: A): B; from(b: B): A; };
 
@@ -87,7 +87,7 @@ export interface IGitChannel extends IChannel {
 	call(command: 'detectMimetypes', args: [string, string]): TPromise<string[]>;
 	call(command: 'show', args: [string, string]): TPromise<string>;
 	call(command: 'onOutput'): TPromise<void>;
-	call(command: 'getCommitInfo'): TPromise<ICommitInfo>;
+	call(command: 'getCommitTemplate'): TPromise<string>;
 	call(command: string, args: any): TPromise<any>;
 }
 
@@ -118,7 +118,7 @@ export class GitChannel implements IGitChannel {
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
-			case 'getCommitInfo': return this.service.then(s => s.getCommitInfo());
+			case 'getCommitTemplate': return this.service.then(s => s.getCommitTemplate());
 		}
 	}
 }
@@ -220,8 +220,8 @@ export class GitChannelClient implements IRawGitService {
 		return this.channel.call('show', [path, treeish]);
 	}
 
-	getCommitInfo(): TPromise<ICommitInfo> {
-		return this.channel.call('getCommitInfo');
+	getCommitTemplate(): TPromise<string> {
+		return this.channel.call('getCommitTemplate');
 	}
 }
 

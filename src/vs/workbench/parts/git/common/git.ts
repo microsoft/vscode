@@ -52,12 +52,6 @@ export interface IRawStatus {
 	HEAD: IBranch;
 	refs: IRef[];
 	remotes: IRemote[];
-	commitInfo?: ICommitInfo
-}
-
-export interface ICommitInfo {
-	template?: string;
-	prevCommitMsg?: string;
 }
 
 // Model enums
@@ -144,7 +138,6 @@ export interface IModel extends IEventEmitter {
 	getRemotes(): IRemote[];
 	update(status: IRawStatus): void;
 	getPS1(): string;
-	getCommitInfo(): ICommitInfo;
 }
 
 // Service operations
@@ -230,7 +223,6 @@ export var ServiceOperations = {
 	PULL: 'pull',
 	PUSH: 'push',
 	SYNC: 'sync',
-	GET_COMMIT_INFO: 'getCommitInfo'
 };
 
 // Service config
@@ -309,7 +301,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
-	getCommitInfo(): TPromise<IRawStatus>;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -346,7 +338,7 @@ export interface IGitService extends IEventEmitter {
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
-	getCommitInfo(): TPromise<IModel>;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export interface IAskpassService {

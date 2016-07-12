@@ -663,8 +663,8 @@ export class GitService extends ee.EventEmitter
 		return this.run(git.ServiceOperations.COMMIT, () => this.raw.commit(message, amend, stage));
 	}
 
-	public getCommitInfo(): winjs.Promise {
-		return this.run(git.ServiceOperations.GET_COMMIT_INFO, () => this.raw.getCommitInfo());
+	public getCommitTemplate(): winjs.Promise {
+		return this.raw.getCommitTemplate();
 	}
 
 	public detectMimetypes(path: string, treeish: string = '~'): winjs.Promise {

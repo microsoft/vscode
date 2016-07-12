@@ -240,8 +240,6 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			this.tree.onVisible();
 			return this.onCommitInputShown().then((_) =>
 				this.onEditorsChanged(this.editorService.getActiveEditorInput()));
-
-			// return this.onEditorsChanged(this.editorService.getActiveEditorInput());
 		} else {
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
@@ -249,17 +247,9 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	}
 
 	public onCommitInputShown(): WinJS.TPromise<void> {
-		if (this.storageService.get('prevCommitMsg')) {
-			this.commitInputBox.value = this.storageService.get('prevCommitMsg');
-			this.storageService.remove('prevCommitMsg');
-		} else if (!this.commitInputBox.value) {
-			return this.gitService.getCommitInfo().then((model) => {
-				if (!model || !model.getCommitInfo()) {
-					this.messageService.show(Severity.Warning, 'status contains no commit info');
-				} else {
-					let { template } = model.getCommitInfo();
-					this.commitInputBox.value = template ? template : "";
-				}
+		if (!this.commitInputBox.value) {
+			return this.gitService.getCommitTemplate().then((template) => {
+				if (template) { this.commitInputBox.value = template; }
 			});
 		} else {
 			return WinJS.TPromise.as(null);

@@ -9,7 +9,7 @@ import { format } from 'vs/base/common/strings';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IStatusModel, IStatusSummary, IRawFileStatus, ModelEvents,
 	IFileStatus, IStatusGroup, Status, StatusType,
-	IBranch, IRef, IRemote, IModel, IRawStatus, ICommitInfo
+	IBranch, IRef, IRemote, IModel, IRawStatus
 } from 'vs/workbench/parts/git/common/git';
 
 export class FileStatus implements IFileStatus {
@@ -316,7 +316,6 @@ export class Model extends EventEmitter implements IModel {
 	private refs: IRef[];
 	private remotes: IRemote[];
 	private toDispose: IDisposable[];
-	private commitInfo: ICommitInfo;
 
 	constructor() {
 		super();
@@ -330,7 +329,6 @@ export class Model extends EventEmitter implements IModel {
 		this.HEAD = null;
 		this.refs = [];
 		this.remotes = [];
-		this.commitInfo = null
 	}
 
 	getRepositoryRoot(): string {
@@ -366,8 +364,6 @@ export class Model extends EventEmitter implements IModel {
 
 		this.repositoryRoot = status.repositoryRoot;
 		this.status.update(status.status);
-
-		this.commitInfo = status.commitInfo;
 
 		this.HEAD = status.HEAD;
 		this.emit(ModelEvents.HEAD_UPDATED);
@@ -405,10 +401,6 @@ export class Model extends EventEmitter implements IModel {
 			statusSummary.hasIndexChanges ? '+' : '',
 			statusSummary.hasMergeChanges ? '!' : ''
 		);
-	}
-
-	getCommitInfo(): ICommitInfo {
-		return this.commitInfo;
 	}
 
 	dispose(): void {
