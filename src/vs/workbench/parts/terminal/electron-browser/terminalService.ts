@@ -20,9 +20,9 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStringDictionary} from 'vs/base/common/collections';
 import {ITerminalProcess, ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {TerminalConfigHelper, IShell} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TerminalPanel} from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 
 export class TerminalService implements ITerminalService {
@@ -244,14 +244,8 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private createTerminalProcess(): ITerminalProcess {
-		let env = this.cloneEnv();
-		let shell = this.configHelper.getShell();
-		env['PTYPID'] = process.pid.toString();
-		env['PTYSHELL'] = shell.executable;
-		shell.args.forEach((arg, i) => {
-			env[`PTYSHELLARG${i}`] = arg;
-		});
-		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
+		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+		let env = TerminalService.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), locale);
 		let terminalProcess = {
 			title: '',
 			process: cp.fork('./terminalProcess', [], {
@@ -272,11 +266,34 @@ export class TerminalService implements ITerminalService {
 		return terminalProcess;
 	}
 
-	private cloneEnv(): IStringDictionary<string> {
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
+		let env = this.cloneEnv(parentEnv);
+		env['PTYPID'] = process.pid.toString();
+		env['PTYSHELL'] = shell.executable;
+		shell.args.forEach((arg, i) => {
+			env[`PTYSHELLARG${i}`] = arg;
+		});
+		env['PTYCWD'] = workspace ? workspace.resource.fsPath : os.homedir();
+		if (locale) {
+			env['LANG'] = this.getLangEnvVariable(locale);
+		}
+		return env;
+	}
+
+	private static cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
 		let newEnv: IStringDictionary<string> = Object.create(null);
-		Object.keys(process.env).forEach((key) => {
-			newEnv[key] = process.env[key];
+		Object.keys(env).forEach((key) => {
+			newEnv[key] = env[key];
 		});
 		return newEnv;
+	}
+
+	private static getLangEnvVariable(locale: string) {
+		const parts = locale.split('-');
+		const n = parts.length;
+		if (n > 1) {
+			parts[n - 1] = parts[n - 1].toUpperCase();
+		}
+		return parts.join('_') + '.UTF-8';
 	}
 }
