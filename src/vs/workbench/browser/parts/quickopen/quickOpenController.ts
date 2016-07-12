@@ -134,7 +134,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
 
-			// open quick pick with just one choise. we will recurse whenever
+			// open quick pick with just one choice. we will recurse whenever
 			// the validation/success message changes
 			this.doPick(TPromise.as([{ label: currentPick }]), {
 				ignoreFocusLost: true,

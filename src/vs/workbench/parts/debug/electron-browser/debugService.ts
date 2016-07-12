@@ -491,7 +491,7 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		return this.session.setVarialbe({
+		return this.session.setVariable({
 			name: variable.name,
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
