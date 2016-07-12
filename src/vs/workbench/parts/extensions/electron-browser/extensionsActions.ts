@@ -319,7 +319,7 @@ export class ShowPopularExtensionsAction extends Action {
 export class ShowRecommendedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.showRecommendedExtensions';
-	static LABEL = localize('showRecommendedExtensions', "Show Recommended Extension");
+	static LABEL = localize('showRecommendedExtensions', "Show Recommended Extensions");
 
 	constructor(
 		id: string,
