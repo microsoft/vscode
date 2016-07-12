@@ -22,7 +22,7 @@ export class MainThreadFileSystemEventService {
 		};
 
 		const scheduler = new RunOnceScheduler(() => {
-			proxy._onFileEvent(events);
+			proxy.$onFileEvent(events);
 			events.created.length = 0;
 			events.changed.length = 0;
 			events.deleted.length = 0;

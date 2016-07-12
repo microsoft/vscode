@@ -101,7 +101,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 		let promise = this._documentLoader[uri.toString()];
 		if (!promise) {
-			promise = this._proxy._tryOpenDocument(uri).then(() => {
+			promise = this._proxy.$tryOpenDocument(uri).then(() => {
 				delete this._documentLoader[uri.toString()];
 				return this._documentData[uri.toString()];
 			}, err => {
@@ -153,7 +153,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token));
 	}
 
-	public _acceptModelAdd(initData: IModelAddedData): void {
+	public $acceptModelAdd(initData: IModelAddedData): void {
 		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.value.lines, initData.value.EOL, initData.modeId, initData.versionId, initData.isDirty);
 		let key = data.document.uri.toString();
 		if (this._documentData[key]) {
@@ -163,7 +163,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {
+	public $acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {
 		let data = this._documentData[strURL];
 
 		// Treat a mode change as a remove + add
@@ -173,23 +173,23 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelSaved(strURL: string): void {
+	public $acceptModelSaved(strURL: string): void {
 		let data = this._documentData[strURL];
 		data._acceptIsDirty(false);
 		this._onDidSaveDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelDirty(strURL: string): void {
+	public $acceptModelDirty(strURL: string): void {
 		let document = this._documentData[strURL];
 		document._acceptIsDirty(true);
 	}
 
-	public _acceptModelReverted(strURL: string): void {
+	public $acceptModelReverted(strURL: string): void {
 		let document = this._documentData[strURL];
 		document._acceptIsDirty(false);
 	}
 
-	public _acceptModelRemoved(strURL: string): void {
+	public $acceptModelRemoved(strURL: string): void {
 		if (!this._documentData[strURL]) {
 			throw new Error('Document `' + strURL + '` does not exist.');
 		}
@@ -199,7 +199,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		data.dispose();
 	}
 
-	public _acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
+	public $acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
 		let data = this._documentData[strURL];
 		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
@@ -253,7 +253,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 				get languageId() { return data._languageId; },
 				get version() { return data._versionId; },
 				get isDirty() { return data._isDirty; },
-				save() { return data._proxy._trySaveDocument(data._uri); },
+				save() { return data._proxy.$trySaveDocument(data._uri); },
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
 				get lineCount() { return data._lines.length; },
 				lineAt(lineOrPos) { return data.lineAt(lineOrPos); },

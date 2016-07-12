@@ -79,12 +79,12 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		let id = textEditor.getId();
 		let toDispose: IDisposable[] = [];
 		toDispose.push(textEditor.onConfigurationChanged((opts) => {
-			this._proxy._acceptOptionsChanged(id, opts);
+			this._proxy.$acceptOptionsChanged(id, opts);
 		}));
 		toDispose.push(textEditor.onSelectionChanged((selection) => {
-			this._proxy._acceptSelectionsChanged(id, selection);
+			this._proxy.$acceptSelectionsChanged(id, selection);
 		}));
-		this._proxy._acceptTextEditorAdd({
+		this._proxy.$acceptTextEditorAdd({
 			id: id,
 			document: textEditor.getModel().uri,
 			options: textEditor.getConfiguration(),
@@ -101,7 +101,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		dispose(this._textEditorsListenersMap[id]);
 		delete this._textEditorsListenersMap[id];
 		delete this._textEditorsMap[id];
-		this._proxy._acceptTextEditorRemove(id);
+		this._proxy.$acceptTextEditorRemove(id);
 	}
 
 	private _updateActiveAndVisibleTextEditors(): void {
@@ -112,14 +112,14 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		if (activeEditor !== this._activeTextEditor || !arrayEquals(this._visibleEditors, visibleEditors, (a, b) => a === b)) {
 			this._activeTextEditor = activeEditor;
 			this._visibleEditors = visibleEditors;
-			this._proxy._acceptActiveEditorAndVisibleEditors(this._activeTextEditor, this._visibleEditors);
+			this._proxy.$acceptActiveEditorAndVisibleEditors(this._activeTextEditor, this._visibleEditors);
 		}
 
 		// editor columns
 		let editorPositionData = this._getTextEditorPositionData();
 		if (!objectEquals(this._editorPositionData, editorPositionData)) {
 			this._editorPositionData = editorPositionData;
-			this._proxy._acceptEditorPositionData(this._editorPositionData);
+			this._proxy.$acceptEditorPositionData(this._editorPositionData);
 		}
 	}
 
@@ -178,7 +178,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	// --- from extension host process
 
-	_tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
+	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
 
 		const input = {
 			resource,
@@ -222,7 +222,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		});
 	}
 
-	_tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
+	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
 		// check how often this is used
 		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.show' });
 
@@ -236,7 +236,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		}
 	}
 
-	_tryHideEditor(id: string): TPromise<void> {
+	$tryHideEditor(id: string): TPromise<void> {
 		// check how often this is used
 		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.hide' });
 
@@ -251,7 +251,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		}
 	}
 
-	_trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
@@ -259,7 +259,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	_trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
+	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
@@ -267,14 +267,14 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	_tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
 		this._textEditorsMap[id].revealRange(range, revealType);
 	}
 
-	_trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
@@ -282,18 +282,18 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	_tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], setEndOfLine:EndOfLine): TPromise<boolean> {
+	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], setEndOfLine:EndOfLine): TPromise<boolean> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
 		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits, setEndOfLine));
 	}
 
-	_registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
+	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
 		this._editorTracker.registerTextEditorDecorationType(key, options);
 	}
 
-	_removeTextEditorDecorationType(key: string): void {
+	$removeTextEditorDecorationType(key: string): void {
 		this._editorTracker.removeTextEditorDecorationType(key);
 	}
 }

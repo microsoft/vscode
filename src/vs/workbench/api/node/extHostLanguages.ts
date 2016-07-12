@@ -19,7 +19,7 @@ export class ExtHostLanguages {
 	}
 
 	getLanguages(): TPromise<string[]> {
-		return this._proxy._getLanguages();
+		return this._proxy.$getLanguages();
 	}
 }
 

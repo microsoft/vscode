@@ -89,7 +89,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 
 	public hide(): void {
 		this._visible = false;
-		this._proxy.dispose(this.id);
+		this._proxy.$dispose(this.id);
 	}
 
 	private update(): void {
@@ -106,7 +106,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 			this._timeoutHandle = null;
 
 			// Set to status bar
-			this._proxy.setEntry(this.id, this.text, this.tooltip, this.command, this.color,
+			this._proxy.$setEntry(this.id, this.text, this.tooltip, this.command, this.color,
 				this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
 				this._priority);
 		}, 0);

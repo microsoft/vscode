@@ -71,7 +71,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	}
 
 	showTextDocument(document: TextDocument, column: ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
-		return this._proxy._tryShowTextDocument(<URI> document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
+		return this._proxy.$tryShowTextDocument(<URI> document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
 			let editor = this._editors[id];
 			if (editor) {
 				return editor;
@@ -87,13 +87,13 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 
 	// --- called from main thread
 
-	_acceptTextEditorAdd(data: ITextEditorAddData): void {
+	$acceptTextEditorAdd(data: ITextEditorAddData): void {
 		let document = this._extHostDocuments.getDocumentData(data.document);
 		let newEditor = new ExtHostTextEditor(this._proxy, data.id, document, data.selections.map(TypeConverters.toSelection), data.options, TypeConverters.toViewColumn(data.editorPosition));
 		this._editors[data.id] = newEditor;
 	}
 
-	_acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void {
+	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void {
 		let editor = this._editors[id];
 		editor._acceptOptions(opts);
 		this._onDidChangeTextEditorOptions.fire({
@@ -102,7 +102,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		});
 	}
 
-	_acceptSelectionsChanged(id: string, _selections: ISelection[]): void {
+	$acceptSelectionsChanged(id: string, _selections: ISelection[]): void {
 		let selections = _selections.map(TypeConverters.toSelection);
 		let editor = this._editors[id];
 		editor._acceptSelections(selections);
@@ -112,7 +112,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		});
 	}
 
-	_acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void {
+	$acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void {
 		this._visibleEditorIds = visibleIds;
 
 		if (this._activeEditorId === id) {
@@ -123,7 +123,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		this._onDidChangeActiveTextEditor.fire(this.getActiveTextEditor());
 	}
 
-	_acceptEditorPositionData(data: ITextEditorPositionData): void {
+	$acceptEditorPositionData(data: ITextEditorPositionData): void {
 		for (let id in data) {
 			let textEditor = this._editors[id];
 			let viewColumn = TypeConverters.toViewColumn(data[id]);
@@ -134,15 +134,15 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		}
 	}
 
-	_acceptTextEditorRemove(id: string): void {
+	$acceptTextEditorRemove(id: string): void {
 		// make sure the removed editor is not visible
 		let newVisibleEditors = this._visibleEditorIds.filter(visibleEditorId => visibleEditorId !== id);
 
 		if (this._activeEditorId === id) {
 			// removing the current active editor
-			this._acceptActiveEditorAndVisibleEditors(undefined, newVisibleEditors);
+			this.$acceptActiveEditorAndVisibleEditors(undefined, newVisibleEditors);
 		} else {
-			this._acceptActiveEditorAndVisibleEditors(this._activeEditorId, newVisibleEditors);
+			this.$acceptActiveEditorAndVisibleEditors(this._activeEditorId, newVisibleEditors);
 		}
 
 		let editor = this._editors[id];
@@ -161,11 +161,11 @@ class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 	constructor(proxy: MainThreadEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
-		this._proxy._registerTextEditorDecorationType(this.key, <any>options);
+		this._proxy.$registerTextEditorDecorationType(this.key, <any>options);
 	}
 
 	public dispose(): void {
-		this._proxy._removeTextEditorDecorationType(this.key);
+		this._proxy.$removeTextEditorDecorationType(this.key);
 	}
 }
 
@@ -293,11 +293,11 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	@deprecated('TextEditor.show') show(column: vscode.ViewColumn) {
-		this._proxy._tryShowEditor(this._id, TypeConverters.fromViewColumn(column));
+		this._proxy.$tryShowEditor(this._id, TypeConverters.fromViewColumn(column));
 	}
 
 	@deprecated('TextEditor.hide') hide() {
-		this._proxy._tryHideEditor(this._id);
+		this._proxy.$tryHideEditor(this._id);
 	}
 
 	// ---- the document
@@ -319,7 +319,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 	set options(value: TextEditorOptions) {
 		this._options = value;
 		this._runOnProxy(() => {
-			return this._proxy._trySetOptions(this._id, this._options);
+			return this._proxy.$trySetOptions(this._id, this._options);
 		}, true);
 	}
 
@@ -369,7 +369,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 		this._runOnProxy(
-			() => this._proxy._trySetDecorations(
+			() => this._proxy.$trySetDecorations(
 				this._id,
 				decorationType.key,
 				TypeConverters.fromRangeOrRangeWithMessage(ranges)
@@ -380,7 +380,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	revealRange(range: Range, revealType: vscode.TextEditorRevealType): void {
 		this._runOnProxy(
-			() => this._proxy._tryRevealRange(
+			() => this._proxy.$tryRevealRange(
 				this._id,
 				TypeConverters.fromRange(range),
 				revealType || TextEditorRevealType.Default
@@ -391,7 +391,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _trySetSelection(silent: boolean): TPromise<vscode.TextEditor> {
 		let selection = this._selections.map(TypeConverters.fromSelection);
-		return this._runOnProxy(() => this._proxy._trySetSelections(this._id, selection), silent);
+		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection), silent);
 	}
 
 	_acceptSelections(selections: Selection[]): void {
@@ -418,7 +418,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			};
 		});
 
-		return this._proxy._tryApplyEdits(this._id, editData.documentVersionId, edits, editData.setEndOfLine);
+		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, editData.setEndOfLine);
 	}
 
 	// ---- util

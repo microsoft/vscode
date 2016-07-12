@@ -90,24 +90,24 @@ export abstract class MainThreadDiagnosticsShape {
 }
 
 export abstract class MainThreadDocumentsShape {
-	_tryOpenDocument(uri: URI): TPromise<any> { throw ni(); }
+	$tryOpenDocument(uri: URI): TPromise<any> { throw ni(); }
 	$registerTextContentProvider(handle:number, scheme: string): void { throw ni(); }
 	$onVirtualDocumentChange(uri: URI, value: string): void { throw ni(); }
 	$unregisterTextContentProvider(handle: number): void { throw ni(); }
-	_trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
+	$trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
 }
 
 export abstract class MainThreadEditorsShape {
-	_tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> { throw ni(); }
-	_registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void { throw ni(); }
-	_removeTextEditorDecorationType(key: string): void { throw ni(); }
-	_tryShowEditor(id: string, position: EditorPosition): TPromise<void> { throw ni(); }
-	_tryHideEditor(id: string): TPromise<void> { throw ni(); }
-	_trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> { throw ni(); }
-	_trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any> { throw ni(); }
-	_tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
-	_trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
-	_tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], setEndOfLine:EndOfLine): TPromise<boolean> { throw ni(); }
+	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> { throw ni(); }
+	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void { throw ni(); }
+	$removeTextEditorDecorationType(key: string): void { throw ni(); }
+	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> { throw ni(); }
+	$tryHideEditor(id: string): TPromise<void> { throw ni(); }
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> { throw ni(); }
+	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any> { throw ni(); }
+	$tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
+	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
+	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], setEndOfLine:EndOfLine): TPromise<boolean> { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -134,7 +134,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 }
 
 export abstract class MainThreadLanguagesShape {
-	_getLanguages(): TPromise<string[]> { throw ni(); }
+	$getLanguages(): TPromise<string[]> { throw ni(); }
 }
 
 export abstract class MainThreadMessageServiceShape {
@@ -142,10 +142,10 @@ export abstract class MainThreadMessageServiceShape {
 }
 
 export abstract class MainThreadOutputServiceShape {
-	append(channelId: string, label: string, value: string): TPromise<void> { throw ni(); }
-	clear(channelId: string, label: string): TPromise<void> { throw ni(); }
-	reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> { throw ni(); }
-	close(channelId: string): TPromise<void> { throw ni(); }
+	$append(channelId: string, label: string, value: string): TPromise<void> { throw ni(); }
+	$clear(channelId: string, label: string): TPromise<void> { throw ni(); }
+	$reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> { throw ni(); }
+	$close(channelId: string): TPromise<void> { throw ni(); }
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
@@ -159,13 +159,13 @@ export abstract class MainThreadQuickOpenShape {
 }
 
 export abstract class MainThreadStatusBarShape {
-	setEntry(id: number, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
-	dispose(id: number) { throw ni(); }
+	$setEntry(id: number, text: string, tooltip: string, command: string, color: string, alignment: MainThreadStatusBarAlignment, priority: number): void { throw ni(); }
+	$dispose(id: number) { throw ni(); }
 }
 
 export abstract class MainThreadStorageShape {
-	getValue<T>(shared: boolean, key: string): TPromise<T> { throw ni(); }
-	setValue(shared: boolean, key: string, value: any): TPromise<any> { throw ni(); }
+	$getValue<T>(shared: boolean, key: string): TPromise<T> { throw ni(); }
+	$setValue(shared: boolean, key: string, value: any): TPromise<any> { throw ni(); }
 }
 
 export abstract class MainThreadTelemetryShape {
@@ -211,13 +211,13 @@ export interface IModelAddedData {
 }
 export abstract class ExtHostDocumentsShape {
 	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> { throw ni(); }
-	_acceptModelAdd(initData: IModelAddedData): void { throw ni(); }
-	_acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void { throw ni(); }
-	_acceptModelSaved(strURL: string): void { throw ni(); }
-	_acceptModelDirty(strURL: string): void { throw ni(); }
-	_acceptModelReverted(strURL: string): void { throw ni(); }
-	_acceptModelRemoved(strURL: string): void { throw ni(); }
-	_acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void { throw ni(); }
+	$acceptModelAdd(initData: IModelAddedData): void { throw ni(); }
+	$acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void { throw ni(); }
+	$acceptModelSaved(strURL: string): void { throw ni(); }
+	$acceptModelDirty(strURL: string): void { throw ni(); }
+	$acceptModelReverted(strURL: string): void { throw ni(); }
+	$acceptModelRemoved(strURL: string): void { throw ni(); }
+	$acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void { throw ni(); }
 }
 
 export interface ITextEditorAddData {
@@ -231,12 +231,12 @@ export interface ITextEditorPositionData {
 	[id: string]: EditorPosition;
 }
 export abstract class ExtHostEditorsShape {
-	_acceptTextEditorAdd(data: ITextEditorAddData): void { throw ni(); }
-	_acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void { throw ni(); }
-	_acceptSelectionsChanged(id: string, _selections: editorCommon.ISelection[]): void { throw ni(); }
-	_acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void { throw ni(); }
-	_acceptEditorPositionData(data: ITextEditorPositionData): void { throw ni(); }
-	_acceptTextEditorRemove(id: string): void { throw ni(); }
+	$acceptTextEditorAdd(data: ITextEditorAddData): void { throw ni(); }
+	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void { throw ni(); }
+	$acceptSelectionsChanged(id: string, _selections: editorCommon.ISelection[]): void { throw ni(); }
+	$acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void { throw ni(); }
+	$acceptEditorPositionData(data: ITextEditorPositionData): void { throw ni(); }
+	$acceptTextEditorRemove(id: string): void { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
@@ -250,7 +250,7 @@ export interface FileSystemEvents {
 	deleted: URI[];
 }
 export abstract class ExtHostFileSystemEventServiceShape {
-	_onFileEvent(events: FileSystemEvents) { throw ni(); }
+	$onFileEvent(events: FileSystemEvents) { throw ni(); }
 }
 
 export abstract class ExtHostLanguageFeaturesShape {
