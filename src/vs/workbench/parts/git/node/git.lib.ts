@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
+import * as path from 'path';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { del } from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { v4 as UUIDv4 } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { uniqueFilter } from 'vs/base/common/arrays';
-import { IRawFileStatus, RefType, IRef, IBranch, IRemote, GitErrorCodes, IPushOptions, ILogOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawFileStatus, RefType, IRef, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
 import { spawn, ChildProcess } from 'child_process';
@@ -557,18 +560,6 @@ export class Repository {
 		return this.run(['rev-parse', '--show-toplevel'], { log: false }).then(result => result.stdout.trim());
 	}
 
-	/** Only implemented for use case `git log` and `git log -N`. */
-	getLog(options?: ILogOptions): TPromise<string> {
-		const args = ['log'];
-
-		if (options) {
-			if (options.prevCount) { args.push(`-${options.prevCount}`); }
-			if (options.format) { args.push(`--format=${options.format}`); }
-		}
-
-		return this.run(args, { log: false }).then(result => result.stdout.trim());
-	}
-
 	getStatus(): TPromise<IRawFileStatus[]> {
 		return this.run(['status', '-z', '-u'], { log: false }).then((executionResult) => {
 			const status = executionResult.stdout;
@@ -707,6 +698,21 @@ export class Repository {
 				return { name: branch, commit: commit };
 			});
 		});
+	}
+
+	getCommitTemplate(): TPromise<string> {
+		return this.run(['config', '--get', 'commit.template']).then(result => {
+			if (!result.stdout) {
+				return '';
+			}
+
+			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
+			const homedir = os.homedir();
+			const templatePath = result.stdout.trim()
+				.replace(/^~([^\/]*)\//, (_, user) => `${ user ? path.join(path.dirname(homedir), user) : homedir }/`);
+
+			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
+		}, () => '');
 	}
 
 	onOutput(listener: (output: string) => void): () => void {

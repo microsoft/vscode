@@ -41,7 +41,6 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 
 import IGitService = git.IGitService;
 
@@ -90,8 +89,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		@IGitService gitService: IGitService,
 		@IOutputService outputService: IOutputService,
 		@IEventService eventService: IEventService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -238,22 +236,22 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		if (visible) {
 			this.tree.onVisible();
-			return this.onCommitInputShown().then((_) =>
-				this.onEditorsChanged(this.editorService.getActiveEditorInput()));
+			this.updateCommitInputTemplate();
+			return this.onEditorsChanged(this.editorService.getActiveEditorInput());
 		} else {
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
 		}
 	}
 
-	public onCommitInputShown(): WinJS.TPromise<void> {
-		if (!this.commitInputBox.value) {
-			return this.gitService.getCommitTemplate().then((template) => {
-				if (template) { this.commitInputBox.value = template; }
-			});
-		} else {
-			return WinJS.TPromise.as(null);
+	private updateCommitInputTemplate(): void {
+		if (this.commitInputBox.value) {
+			return;
 		}
+
+		this.gitService.getCommitTemplate()
+			.then(template => template && (this.commitInputBox.value = template))
+			.done(null, Errors.onUnexpectedError);
 	}
 
 	public getControl(): Tree.ITree {
@@ -413,7 +411,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 				if (!e.error) {
 					this.commitInputBox.value = '';
-					this.onCommitInputShown();
+					this.updateCommitInputTemplate();
 				}
 			}
 		}
