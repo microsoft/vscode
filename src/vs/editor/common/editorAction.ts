@@ -17,7 +17,6 @@ export class EditorAction extends Action implements IEditorContribution {
 
 	public editor:ICommonCodeEditor;
 
-	private _shouldShowInContextMenu:boolean;
 	private _supportsReadonly:boolean;
 	private _descriptor:IEditorActionDescriptorData;
 	private _enablementState:IEnablementState;
@@ -28,8 +27,6 @@ export class EditorAction extends Action implements IEditorContribution {
 		this._descriptor = descriptor;
 		this.label = descriptor.label || '';
 		this._enablementState = createActionEnablement(editor, condition, this);
-
-		this._shouldShowInContextMenu = !!(condition & Behaviour.ShowInContextMenu);
 
 		this._supportsReadonly = !(condition & Behaviour.Writeable);
 	}
@@ -48,10 +45,6 @@ export class EditorAction extends Action implements IEditorContribution {
 	 */
 	public getGroupId(): string {
 		return this.id;
-	}
-
-	public shouldShowInContextMenu(): boolean {
-		return this._shouldShowInContextMenu;
 	}
 
 	public getDescriptor(): IEditorActionDescriptorData {
