@@ -10,6 +10,7 @@
 	"app.launch.json.version": "Version de ce format de fichier.",
 	"debugNoType": "Le 'type' de l'adaptateur de débogage ne peut pas être omis. Il doit s'agir du type 'string'.",
 	"duplicateDebuggerType": "Le type de débogage '{0}' est déjà inscrit et a pour attribut '{1}'. Attribut '{1}' ignoré.",
+	"interactiveVariableNotFound": "L'adaptateur {0} ne contribue pas à la variable {1} spécifiée dans la configuration de lancement.",
 	"selectDebug": "Sélectionner l'environnement",
 	"vscode.extension.contributes.debuggers": "Ajoute des adaptateurs de débogage.",
 	"vscode.extension.contributes.debuggers.args": "Arguments facultatifs à passer à l'adaptateur.",
@@ -26,6 +27,7 @@
 	"vscode.extension.contributes.debuggers.runtime": "Runtime facultatif, si l'attribut de programme n'est pas un exécutable, mais qu'il nécessite un exécutable.",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "Arguments du runtime facultatif.",
 	"vscode.extension.contributes.debuggers.type": "Identificateur unique de cet adaptateur de débogage.",
+	"vscode.extension.contributes.debuggers.variables": "Mappage à partir de variables interactives (par exemple, ${action.pickProcess}) dans 'launch.json' vers une commande.",
 	"vscode.extension.contributes.debuggers.windows": "Paramètres spécifiques à Windows.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Runtime utilisé pour Windows."
 }

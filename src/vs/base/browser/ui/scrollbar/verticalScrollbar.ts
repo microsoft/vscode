@@ -7,8 +7,8 @@
 import {AbstractScrollbar, ScrollbarHost, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePagePosition} from 'vs/base/browser/dom';
-import {ScrollbarVisibility, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {Scrollable, ScrollEvent} from 'vs/base/common/scrollable';
+import {ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {Scrollable, ScrollEvent, ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ARROW_IMG_SIZE} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 

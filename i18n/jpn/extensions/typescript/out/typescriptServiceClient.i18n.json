@@ -7,7 +7,7 @@
 	"channelName": "TypeScript",
 	"noServerFound": "パス {0} は、有効な tsserver インストールを指していません。TypeScript 言語機能は使用できなくなります。",
 	"serverCouldNotBeStarted": "TypeScript 言語サーバーを起動できません。エラー メッセージ: {0}",
-	"serverDied": "Typescript 言語サービスは、直前の 5 分間に 5 回、予期せずに停止しました。障害報告を開くことをご検討ください。",
-	"serverDiedAfterStart": "Typesrript 言語サービスは、開始直後に 5 回停止しました。サービスは再開されません。障害報告を開いてください。",
+	"serverDied": "TypeScript 言語サービスは、直前の 5 分間に 5 回、予期せずに停止しました。バグ報告を開くことをご検討ください。",
+	"serverDiedAfterStart": "TypeScript 言語サービスは、開始直後に 5 回停止しました。サービスは再開されません。バグ報告を開いてください。",
 	"versionNumber.custom": "カスタム"
 }

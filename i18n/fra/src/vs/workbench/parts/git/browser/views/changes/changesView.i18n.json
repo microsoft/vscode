@@ -6,6 +6,7 @@
 {
 	"commitMessage": "Message (appuyez sur {0} pour valider)",
 	"commitMessageAriaLabel": "Git : tapez le message de validation, puis appuyez sur {0} pour valider",
+	"longCommit": "Il est recommandé de limiter la première ligne de la validation à 50 caractères. N'hésitez pas à utiliser d'autres lignes pour ajouter des informations.",
 	"needMessage": "Indiquez un message de validation. Vous pouvez toujours appuyer sur **{0}** pour valider les modifications. S'il existe des modifications en zone de transit, seules ces dernières sont validées ; sinon, toutes les modifications sont validées.",
 	"nothingToCommit": "Quand il existe des modifications à valider, tapez le message de validation et appuyez sur **{0}** pour valider les modifications. S'il existe des modifications en zone de transit, seules ces dernières sont validées ; sinon, toutes les modifications sont validées.",
 	"showOutput": "Afficher la sortie Git",

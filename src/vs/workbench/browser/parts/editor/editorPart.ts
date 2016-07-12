@@ -23,7 +23,7 @@ import {BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/ba
 import {IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
-import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -91,7 +91,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
 	private instantiatedEditors: BaseEditor[][];
-	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private pendingEditorInputsToClose: EditorIdentifier[];
@@ -120,7 +119,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
 
-		this.mapEditorToEditorContainers = arrays.fill(POSITIONS.length, () => Object.create(null));
 		this.mapEditorInstantiationPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
 
 		this.pendingEditorInputsToClose = [];
@@ -192,7 +190,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (!options) { options = null; }
 
 		// Determine position to open editor in (left, center, right)
-		const position = this.validatePosition(arg3, widthRatios);
+		const position = this.findPosition(input, options, arg3, widthRatios);
 
 		// Some conditions under which we prevent the request
 		if (
@@ -205,14 +203,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Emit early open event to allow for veto
-		let event = new EditorInputEvent(input);
+		const event = new EditorInputEvent(input);
 		this._onEditorOpening.fire(event);
 		if (event.isPrevented()) {
 			return TPromise.as<BaseEditor>(null);
 		}
 
 		// We need an editor descriptor for the input
-		let descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
+		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
 		if (!descriptor) {
 			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', input)));
 		}
@@ -249,7 +247,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.editorOpenToken[position]++;
 		const editorOpenToken = this.editorOpenToken[position];
 		const monitor = new ProgressMonitor(editorOpenToken, TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
-			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
+			const position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			if (editorOpenToken === this.editorOpenToken[position]) {
 				this.sideBySideControl.updateProgress(position, ProgressState.INFINITE);
@@ -268,7 +266,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doShowEditor(group: EditorGroup, descriptor: IEditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
-		let position = this.stacks.positionOfGroup(group);
+		const position = this.stacks.positionOfGroup(group);
 		const editorAtPosition = this.visibleEditors[position];
 
 		// Return early if the currently visible editor can handle the input
@@ -282,9 +280,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Create Editor
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Creating Editor: {0}', descriptor.getName()));
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Creating Editor: {0}', descriptor.getName()));
 		return this.doCreateEditor(group, descriptor, monitor).then(editor => {
-			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
+			const position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			// Make sure that the user meanwhile did not open another editor or something went wrong
 			if (!editor || !this.visibleEditors[position] || editor.getId() !== this.visibleEditors[position].getId()) {
@@ -295,7 +293,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 
 			// Show in side by side control
-			this.sideBySideControl.show(editor, this.mapEditorToEditorContainers[position][descriptor.getId()], position, options && options.preserveFocus, widthRatios);
+			this.sideBySideControl.show(editor, position, options && options.preserveFocus, widthRatios);
 
 			// Indicate to editor that it is now visible
 			editor.setVisible(true, position);
@@ -311,29 +309,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doCreateEditor(group: EditorGroup, descriptor: IEditorDescriptor, monitor: ProgressMonitor): TPromise<BaseEditor> {
-		let position = this.stacks.positionOfGroup(group);
-
-		// We need the container for this editor now
-		let editorContainer = this.mapEditorToEditorContainers[position][descriptor.getId()];
-		let newlyCreatedEditorContainerBuilder: Builder;
-		if (!editorContainer) {
-
-			// Build Container off-DOM
-			editorContainer = $().div({
-				'class': 'editor-container',
-				'role': 'tabpanel',
-				id: descriptor.getId()
-			}, (div) => {
-				newlyCreatedEditorContainerBuilder = div;
-			});
-
-			// Remember editor container
-			this.mapEditorToEditorContainers[position][descriptor.getId()] = editorContainer;
-		}
 
 		// Instantiate editor
 		return this.doInstantiateEditor(group, descriptor).then(editor => {
-			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
+			const position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			// Make sure that the user meanwhile did not open another editor
 			if (monitor.token !== this.editorOpenToken[position]) {
@@ -346,8 +325,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.visibleEditors[position] = editor;
 
 			// Create editor as needed
-			if (newlyCreatedEditorContainerBuilder) {
-				editor.create(newlyCreatedEditorContainerBuilder);
+			if (!editor.getContainer()) {
+				editor.create($().div({
+					'class': 'editor-container',
+					'role': 'tabpanel',
+					id: descriptor.getId()
+				}));
 			}
 
 			return editor;
@@ -355,27 +338,27 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doInstantiateEditor(group: EditorGroup, descriptor: IEditorDescriptor): TPromise<BaseEditor> {
-		let position = this.stacks.positionOfGroup(group);
+		const position = this.stacks.positionOfGroup(group);
 
 		// Return early if already instantiated
-		let instantiatedEditor = this.instantiatedEditors[position].filter(e => descriptor.describes(e))[0];
+		const instantiatedEditor = this.instantiatedEditors[position].filter(e => descriptor.describes(e))[0];
 		if (instantiatedEditor) {
 			return TPromise.as(instantiatedEditor);
 		}
 
 		// Return early if editor is being instantiated at the same time from a previous call
-		let pendingEditorInstantiate = this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
+		const pendingEditorInstantiate = this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
 		if (pendingEditorInstantiate) {
 			return pendingEditorInstantiate;
 		}
 
 		// Otherwise instantiate
-		let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
-		let editorInstantiationService = this.sideBySideControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
+		const progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
+		const editorInstantiationService = this.sideBySideControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
 		const onInstantiate = (arg: BaseEditor | Error): TPromise<BaseEditor | Error> => {
-			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
+			const position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			loaded = true;
 			delete this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
@@ -389,7 +372,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return TPromise.wrapError(arg);
 		};
 
-		let instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate, onInstantiate);
+		const instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate, onInstantiate);
 
 		if (!loaded) {
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
@@ -446,7 +429,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Report error only if this was not us restoring previous error state
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
-			let errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
+			const errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
 
 			let error: any;
 			if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
@@ -486,12 +469,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doCloseEditor(group: EditorGroup, input: EditorInput, focusNext?: boolean): void {
-
-		// Only focus next if the group is the active one
-		if (!(typeof focusNext === 'boolean')) {
-			focusNext = this.stacks.isActive(group);
-		}
+	private doCloseEditor(group: EditorGroup, input: EditorInput, focusNext = this.stacks.isActive(group)): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (group.activeEditor && group.activeEditor.matches(input)) {
@@ -512,7 +490,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Close group is this is the last editor in group
 		if (group.count === 0) {
-			this.doCloseGroup(group);
+			this.doCloseGroup(group, focusNext);
 		}
 
 		// Otherwise open next active
@@ -527,7 +505,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		group.closeEditor(input);
 	}
 
-	private doCloseGroup(group: EditorGroup): void {
+	private doCloseGroup(group: EditorGroup, focusNext = true): void {
 		const position = this.stacks.positionOfGroup(group);
 
 		// Update stacks model
@@ -542,7 +520,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Focus next group if we have an active one left
 		const currentActiveGroup = this.stacks.activeGroup;
 		if (currentActiveGroup) {
-			this.focusGroup(currentActiveGroup);
+			if (focusNext) {
+				this.focusGroup(currentActiveGroup);
+			} else {
+				this.activateGroup(currentActiveGroup);
+			}
 
 			// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
 			// the user is actively changing focus with the mouse from left to right.
@@ -551,11 +533,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doHideEditor(position: Position, layoutAndRochade: boolean): void {
-		let editor = this.visibleEditors[position];
-		let editorContainer = this.mapEditorToEditorContainers[position][editor.getId()];
+		const editor = this.visibleEditors[position];
 
 		// Hide in side by side control
-		let rochade = this.sideBySideControl.hide(editor, editorContainer, position, layoutAndRochade);
+		const rochade = this.sideBySideControl.hide(editor, position, layoutAndRochade);
 
 		// Clear any running Progress
 		this.sideBySideControl.updateProgress(position, ProgressState.STOP);
@@ -585,7 +566,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		let editorsToClose = arrays.flatten(groups.map(group => group.getEditors().map(editor => { return { group, editor }; })));
+		const editorsToClose = arrays.flatten(groups.map(group => group.getEditors().map(editor => { return { group, editor }; })));
 
 		return this.handleDirty(editorsToClose).then(veto => {
 			if (veto) {
@@ -686,7 +667,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	public getActiveEditorInput(): EditorInput {
-		let lastActiveEditor = this.getActiveEditor();
+		const lastActiveEditor = this.getActiveEditor();
 
 		return lastActiveEditor ? lastActiveEditor.input : null;
 	}
@@ -727,7 +708,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		arrays.move(this.editorOpenToken, fromPosition, toPosition);
 		arrays.move(this.mapEditorInstantiationPromiseToEditor, fromPosition, toPosition);
 		arrays.move(this.instantiatedEditors, fromPosition, toPosition);
-		arrays.move(this.mapEditorToEditorContainers, fromPosition, toPosition);
 
 		// Restore focus
 		this.focusGroup(fromGroup);
@@ -788,7 +768,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public createContentArea(parent: Builder): Builder {
 
 		// Content Container
-		let contentArea = $(parent)
+		const contentArea = $(parent)
 			.div()
 			.addClass('content');
 
@@ -806,13 +786,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private onGroupFocusChanged(): void {
 
 		// Update stacks model
-		let activePosition = this.sideBySideControl.getActivePosition();
+		const activePosition = this.sideBySideControl.getActivePosition();
 		if (typeof activePosition === 'number') {
 			this.stacks.setActive(this.stacks.groupAt(activePosition));
 		}
 
 		// Emit as change event so that clients get aware of new active editor
-		let activeEditor = this.sideBySideControl.getActiveEditor();
+		const activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
 			this._onEditorsChanged.fire();
 		}
@@ -908,7 +888,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
 		}
 
-		let editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		const editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 
 		return this.doOpenEditors(editors, activePosition, editorState && editorState.widthRatio);
 	}
@@ -922,7 +902,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const centerGroup = this.stacks.groupAt(Position.CENTER);
 		const rightGroup = this.stacks.groupAt(Position.RIGHT);
 
-		// Compute the imaginary count if we let all editors open as the way requested
+		// Compute the imaginary count if we const all editors open as the way requested
 		const leftCount = leftEditors.length + (leftGroup ? leftGroup.count : 0);
 		const centerCount = centerEditors.length + (centerGroup ? centerGroup.count : 0);
 		const rightCount = rightEditors.length + (rightGroup ? rightGroup.count : 0);
@@ -952,7 +932,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Open each input respecting the options. Since there can only be one active editor in each
 		// position, we have to pick the first input from each position and add the others as inactive
-		let promises: TPromise<BaseEditor>[] = [];
+		const promises: TPromise<BaseEditor>[] = [];
 		[leftEditors.shift(), centerEditors.shift(), rightEditors.shift()].forEach((editor, position) => {
 			if (!editor) {
 				return; // unused position
@@ -1083,7 +1063,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public layout(dimension: Dimension): Dimension[] {
 
 		// Pass to super
-		let sizes = super.layout(dimension);
+		const sizes = super.layout(dimension);
 
 		// Pass to Side by Side Control
 		this.dimension = sizes[1];
@@ -1095,7 +1075,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public shutdown(): void {
 
 		// Persist UI State
-		let editorState: IEditorPartUIState = { widthRatio: this.sideBySideControl.getWidthRatios() };
+		const editorState: IEditorPartUIState = { widthRatio: this.sideBySideControl.getWidthRatios() };
 		this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
 
 		// Unload all Instantiated Editors
@@ -1110,7 +1090,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	public dispose(): void {
-		this.mapEditorToEditorContainers = null;
 
 		// Emitters
 		this._onEditorsChanged.dispose();
@@ -1151,9 +1130,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		super.dispose();
 	}
 
-	private validatePosition(sideBySide?: boolean, widthRatios?: number[]): Position;
-	private validatePosition(desiredPosition?: Position, widthRatios?: number[]): Position;
-	private validatePosition(arg1?: any, widthRatios?: number[]): Position {
+	private findPosition(input: EditorInput, options?: EditorOptions, sideBySide?: boolean, widthRatios?: number[]): Position;
+	private findPosition(input: EditorInput, options?: EditorOptions, desiredPosition?: Position, widthRatios?: number[]): Position;
+	private findPosition(input: EditorInput, options?: EditorOptions, arg1?: any, widthRatios?: number[]): Position {
 
 		// With defined width ratios, always trust the provided position
 		if (widthRatios && types.isNumber(arg1)) {
@@ -1161,15 +1140,33 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// No editor open
-		let visibleEditors = this.getVisibleEditors();
-		let activeEditor = this.getActiveEditor();
+		const visibleEditors = this.getVisibleEditors();
+		const activeEditor = this.getActiveEditor();
 		if (visibleEditors.length === 0 || !activeEditor) {
 			return Position.LEFT; // can only be LEFT
 		}
 
+		// Respect option to reveal an editor if it is already opened
+		if (options && options.revealIfOpened) {
+			if (typeof arg1 === 'number') {
+				const desiredGroup = this.stacks.groupAt(arg1);
+				if (desiredGroup && desiredGroup.contains(input)) {
+					return arg1;
+				}
+			}
+
+			const groups = this.stacks.groups;
+			for (let i = 0; i < groups.length; i++) {
+				const group = groups[i];
+				if (group.contains(input)) {
+					return this.stacks.positionOfGroup(group);
+				}
+			}
+		}
+
 		// Position is unknown: pick last active or LEFT
 		if (types.isUndefinedOrNull(arg1) || arg1 === false) {
-			let lastActivePosition = this.sideBySideControl.getActivePosition();
+			const lastActivePosition = this.sideBySideControl.getActivePosition();
 
 			return lastActivePosition || Position.LEFT;
 		}
@@ -1218,12 +1215,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				});
 
 				// Close all hidden first
-				hiddenEditors.forEach(hidden => this.doCloseEditor(<EditorGroup>hidden.group, hidden.editor));
+				hiddenEditors.forEach(hidden => this.doCloseEditor(<EditorGroup>hidden.group, hidden.editor, false));
 
 				// Close visible ones second
 				visibleEditors
 					.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right first
-					.forEach(visible => this.doCloseEditor(<EditorGroup>visible.group, visible.editor));
+					.forEach(visible => this.doCloseEditor(<EditorGroup>visible.group, visible.editor, false));
 
 				// Reset
 				this.pendingEditorInputCloseTimeout = null;
@@ -1236,7 +1233,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private rochade(from: Position, to: Position): void;
 	private rochade(arg1: any, arg2?: any): void {
 		if (types.isUndefinedOrNull(arg2)) {
-			let rochade = <Rochade>arg1;
+			const rochade = <Rochade>arg1;
 			switch (rochade) {
 				case Rochade.CENTER_TO_LEFT:
 					this.rochade(Position.CENTER, Position.LEFT);
@@ -1249,14 +1246,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					this.rochade(Position.RIGHT, Position.CENTER);
 			}
 		} else {
-			let from = <Position>arg1;
-			let to = <Position>arg2;
+			const from = <Position>arg1;
+			const to = <Position>arg2;
 
 			this.doRochade(this.visibleEditors, from, to, null);
 			this.doRochade(this.editorOpenToken, from, to, null);
 			this.doRochade(this.mapEditorInstantiationPromiseToEditor, from, to, Object.create(null));
 			this.doRochade(this.instantiatedEditors, from, to, []);
-			this.doRochade(this.mapEditorToEditorContainers, from, to, Object.create(null));
 		}
 	}
 

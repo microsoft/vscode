@@ -9,7 +9,7 @@
 	"autoSave": "더티 파일 자동 저장을 제어합니다. 허용되는 값은 \"{0}\", \"{1}\", \"{2}\"입니다. \"{3}\"(으)로 설정한 경우 \"files.autoSaveDelay\"에서 지연을 구성할 수 있습니다.",
 	"autoSaveDelay": "더티 파일을 자동으로 저장할 때까지의 지연(밀리초)을 제어합니다. \"files.autoSave\"를 \"{0}\"(으)로 설정한 경우에만 적용됩니다.",
 	"binaryFileEditor": "이진 파일 편집기",
-	"dynamicHeight": "작업 파일 섹션의 높이가 요소 수에 따라 동적으로 조정되는지 여부를 제어합니다.",
+	"dynamicHeight": "열려 있는 편집기 섹션의 높이가 요소 수에 따라 동적으로 조정되는지 여부를 제어합니다.",
 	"encoding": "파일을 읽고 쓸 때 사용할 기본 문자 집합 인코딩입니다.",
 	"eol": "줄 바꿈 문자의 기본 끝입니다.",
 	"exclude": "파일과 폴더를 제외하기 위한 GLOB 패턴을 구성합니다.",
@@ -17,14 +17,11 @@
 	"explorerConfigurationTitle": "파일 탐색기 구성",
 	"files.exclude.boolean": "파일 경로를 일치시킬 GLOB 패턴입니다. 패턴을 사용하거나 사용하지 않도록 설정하려면 true 또는 false로 설정하세요.",
 	"files.exclude.when": "일치하는 파일의 형제에 대한 추가 검사입니다. $(basename)을 일치하는 파일 이름에 대한 변수로 사용하세요.",
-	"filesCategory": "파일",
 	"filesConfigurationTitle": "파일 구성",
-	"maxVisible": "스크롤 막대가 나타나기 전에 표시할 작업 파일의 최대 수입니다.",
-	"openWorkingFile": "이름으로 작업 파일 열기",
+	"openEditorsVisible": "열려 있는 편집기 창에 표시되는 편집기 수입니다. 창을 숨기려면 0으로 설정합니다.",
 	"showExplorerViewlet": "탐색기 표시",
 	"textFileEditor": "텍스트 파일 편집기",
 	"trimTrailingWhitespace": "사용하도록 설정되면 파일을 저장할 때 후행 공백이 잘립니다.",
 	"view": "보기",
-	"watcherExclude": "파일 감시에서 제외할 파일 경로의 GLOB 패턴을 구성하세요. 이 설정을 변경하려면 다시 시작해야 합니다. 시작 시 Code에서 CPU 시간을 많이 차지하면 대용량 폴더를 제외하여 초기 로드를 줄일 수 있습니다.",
-	"workingFilesPicker": "이름으로 작업 파일 열기"
+	"watcherExclude": "파일 감시에서 제외할 파일 경로의 GLOB 패턴을 구성하세요. 이 설정을 변경하려면 다시 시작해야 합니다. 시작 시 Code에서 CPU 시간을 많이 차지하면 대용량 폴더를 제외하여 초기 로드를 줄일 수 있습니다."
 }

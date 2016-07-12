@@ -6,10 +6,12 @@
 {
 	"DebugTaskNotFound": "Der preLaunchTask \"{0}\" wurde nicht gefunden.",
 	"NewLaunchConfig": "Bitte richten Sie die Startkonfigurationsdatei für Ihre Anwendung ein.",
+	"breakpointAdded": "Der Haltepunkt wurde hinzugefügt. Zeile {0}, Datei \"{1}\".",
+	"breakpointRemoved": "Der Haltepunkt wurde entfernt. Zeile {0}, Datei \"{1}\".",
 	"debugAdapterCrash": "Der Debugadapterprozess wurde unerwartet beendet.",
 	"debugAnyway": "Trotzdem debuggen",
 	"debugSourceNotAvailable": "Die Quelle {0} ist nicht verfügbar.",
-	"debugTypeMissing": "Fehlende Eigenschaft \"type\" für die ausgewählte Konfiguration in \"launch.json\".",
+	"debugTypeMissing": "Fehlende Eigenschaft \"type\" für die ausgewählte Startkonfiguration.",
 	"debugTypeNotSupported": "Der konfigurierte Debugtyp \"{0}\" wird nicht unterstützt.",
 	"debuggingContinued": "Das Debuggen wurde fortgesetzt.",
 	"debuggingPaused": "Das Debuggen wurde angehalten. Ursache {0}, {1}{2}",

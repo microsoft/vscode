@@ -27,7 +27,7 @@ import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {KeyCode, KeyMod, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -620,8 +620,13 @@ export class QuickOpenWidget implements IModelProvider {
 				// Indicate entries to tree
 				this.tree.layout();
 
+				let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
+				if (doAutoFocus && !autoFocus.autoFocusPrefixMatch) {
+					doAutoFocus = !this.tree.getFocus(); // if auto focus is not for prefix matches, we do not want to change what the user has focussed already
+				}
+
 				// Handle auto focus
-				if (input && input.entries.some(e => this.isElementVisible(input, e))) {
+				if (doAutoFocus) {
 					this.autoFocus(input, autoFocus);
 				}
 			}, errors.onUnexpectedError);

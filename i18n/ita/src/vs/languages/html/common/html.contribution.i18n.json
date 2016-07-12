@@ -12,5 +12,5 @@
 	"format.preserveNewLines": "Indica se è necessario mantenere interruzioni di riga esistenti prima degli elementi. Funziona solo prima degli elementi e non all'interno di tag o per il testo.",
 	"format.unformatted": "Elenco di tag, separati da virgole, che non devono essere riformattati. Con 'null' viene usata l'impostazione predefinita che prevede l'uso di tutti tag inline.",
 	"format.wrapLineLength": "Numero massimo di caratteri per riga (0 = disabilita).",
-	"htmlConfigurationTitle": "Configurazione HTML"
+	"htmlConfigurationTitle": "HTML"
 }

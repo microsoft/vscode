@@ -278,7 +278,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const session = this.debugService.getActiveSession();
 
 		let result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
-			debugActive && modelData && modelData.dirty ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :
+			debugActive && modelData && modelData.dirty && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :
 			debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
 			!breakpoint.condition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 

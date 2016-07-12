@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import DOM = require('vs/base/browser/dom');
+import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/base/common/platform');
 import {Action, IAction} from 'vs/base/common/actions';
@@ -11,6 +12,7 @@ import {Builder, Dimension} from 'vs/base/browser/builder';
 import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -30,6 +32,7 @@ export class TerminalPanel extends Panel {
 	private actions: IAction[];
 	private parentDomElement: HTMLElement;
 	private terminalContainer: HTMLElement;
+	private currentBaseThemeId: string;
 	private themeStyleElement: HTMLElement;
 	private configurationHelper: TerminalConfigHelper;
 
@@ -96,8 +99,8 @@ export class TerminalPanel extends Panel {
 		return this.terminalService.createNew();
 	}
 
-	public createNewTerminalInstance(terminalProcess: ITerminalProcess): TPromise<void> {
-		return this.createTerminal(terminalProcess).then(() => {
+	public createNewTerminalInstance(terminalProcess: ITerminalProcess, terminalFocusContextKey: IKeybindingContextKey<boolean>): TPromise<void> {
+		return this.createTerminal(terminalProcess, terminalFocusContextKey).then(() => {
 			this.updateConfig();
 			this.focus();
 		});
@@ -128,9 +131,9 @@ export class TerminalPanel extends Panel {
 		return super.setVisible(visible);
 	}
 
-	private createTerminal(terminalProcess: ITerminalProcess): TPromise<TerminalInstance> {
+	private createTerminal(terminalProcess: ITerminalProcess, terminalFocusContextKey: IKeybindingContextKey<boolean>): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
-			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextService, this.terminalService, this.messageService, this.onTerminalInstanceExit.bind(this));
+			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextService, this.terminalService, this.messageService, terminalFocusContextKey, this.onTerminalInstanceExit.bind(this));
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
@@ -167,7 +170,14 @@ export class TerminalPanel extends Panel {
 		if (!themeId) {
 			themeId = this.themeService.getTheme();
 		}
-		let theme = this.configurationHelper.getTheme(themeId);
+
+		let baseThemeId = getBaseThemeId(themeId);
+		if (baseThemeId === this.currentBaseThemeId) {
+			return;
+		}
+		this.currentBaseThemeId = baseThemeId;
+
+		let theme = this.configurationHelper.getTheme(baseThemeId);
 
 		let css = '';
 		theme.forEach((color: string, index: number) => {

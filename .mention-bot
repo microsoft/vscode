@@ -1,4 +1,7 @@
 {
   "maxReviewers": 2,
-  "userBlacklistForPR": ["alexandrudima", "aeschli", "weinand", "bpasero", "isidorn", "joaomoreno", "jrieken", "dbaeumer", "egamma"]
+  "requiredOrgs": ["Microsoft"],
+  "skipAlreadyAssignedPR": true,
+  "skipAlreadyMentionedPR": true,
+  "skipCollaboratorPR": true
 }

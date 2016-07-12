@@ -18,14 +18,14 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, emmet as $, addStandardDisposableListener, EventType, addClass, removeClass } from 'vs/base/browser/dom';
+import { append, emmet as $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IPager, PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
-import { ShowExtensionRecommendationsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ListOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ListOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -119,8 +119,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.searchBox.focus();
 	}
 
-	layout({ height }: Dimension):void {
+	layout({ height, width }: Dimension):void {
 		this.list.layout(height - 38);
+		toggleClass(this.root, 'narrow', width <= 300);
+	}
+
+	getOptimalWidth(): number {
+		return 400;
 	}
 
 	getActions(): IAction[] {
@@ -137,7 +142,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return [
 			this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 			this.instantiationService.createInstance(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, ShowExtensionRecommendationsAction.LABEL),
+			this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
 		];
 	}

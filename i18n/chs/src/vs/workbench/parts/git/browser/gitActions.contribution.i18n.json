@@ -9,5 +9,8 @@
 	"openFile": "打开文件",
 	"openInEditor": "切换到编辑器视图",
 	"stageSelectedLines": "暂存选定行",
-	"switchToChangesView": "切换到更改视图"
+	"switchToChangesView": "切换到更改视图",
+	"unstageSelectedLines": "取消暂存选定的行",
+	"workbenchStage": "暂存",
+	"workbenchUnstage": "取消暂存"
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {Platform} from 'vs/base/common/platform';
 import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITerminalConfiguration} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {Builder} from 'vs/base/browser/builder';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 const DEFAULT_ANSI_COLORS = {
 	'hc-black': [
@@ -93,8 +93,7 @@ export class TerminalConfigHelper {
 		private panelContainer: Builder) {
 	}
 
-	public getTheme(themeId: string): string[] {
-		let baseThemeId = getBaseThemeId(themeId);
+	public getTheme(baseThemeId: string): string[] {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
@@ -132,18 +131,22 @@ export class TerminalConfigHelper {
 
 		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
 		let fontSize = this.toInteger(terminalConfig.fontSize, 0) || editorConfig.editor.fontSize;
+		if (fontSize <= 0) {
+			fontSize = DefaultConfig.editor.fontSize;
+		}
 		let lineHeight = this.toInteger(terminalConfig.lineHeight, 0);
 
 		return this.measureFont(fontFamily, fontSize + 'px', lineHeight === 0 ? 'normal' : lineHeight + 'px');
 	}
 
 	public getFontLigaturesEnabled(): boolean {
-		return this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated.fontLigatures;
+		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
+		return terminalConfig.fontLigatures;
 	}
 
 	public getCursorBlink(): boolean {
-		let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
-		return editorConfig.editor.cursorBlinking === 'blink';
+		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
+		return terminalConfig.cursorBlinking;
 	}
 
 	public getShell(): IShell {

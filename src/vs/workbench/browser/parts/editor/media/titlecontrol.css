@@ -12,11 +12,6 @@
 	font-style: italic;
 }
 
-.monaco-workbench.mac > .part.editor > .content > .one-editor-container > .title .title-label,
-.monaco-workbench.mac > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab .tab-label {
-	font-weight: 300; /* makes the italic font appear the same as normal */
-}
-
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label,
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.pinned .tab-label {
 	font-style: normal;
@@ -94,7 +89,8 @@
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .close-editor-action {
+.vs-dark .monaco-workbench .close-editor-action,
+.hc-black .monaco-workbench .close-editor-action {
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
@@ -102,7 +98,8 @@
 	background: url('split-editor.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .split-editor-action {
+.vs-dark .monaco-workbench .split-editor-action,
+.hc-black .monaco-workbench .split-editor-action {
 	background: url('split-editor-inverse.svg') center center no-repeat;
 }
 
@@ -110,41 +107,7 @@
 	background: url('stackview.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .show-group-editors-action {
+.vs-dark .monaco-workbench .show-group-editors-action,
+.hc-black .monaco-workbench .show-group-editors-action {
 	background: url('stackview-inverse.svg') center center no-repeat;
-}
-
-/* High Contrast Icons */
-
-.hc-black .monaco-workbench .close-editor-action,
-.hc-black .monaco-workbench .show-group-editors-action,
-.hc-black .monaco-workbench .split-editor-action {
-	background: none;
-}
-
-.hc-black .monaco-workbench .show-group-editors-action:before {
-	content: url('stackview-inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .close-editor-action:before {
-	content: url('close-inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .split-editor-action:before {
-	content: url('split-editor-inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
 }

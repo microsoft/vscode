@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
@@ -52,9 +52,7 @@ class Context {
 	wordBefore: string;
 	wordAfter: string;
 
-	constructor(editor: ICommonCodeEditor, private auto: boolean) {
-		const model = editor.getModel();
-		const position = editor.getPosition();
+	constructor(model: IModel, position: IPosition, private auto: boolean) {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const wordUnderCursor = model.getWordAtPosition(position);
 
@@ -262,7 +260,13 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const ctx = new Context(this.editor, false);
+		const model = this.editor.getModel();
+
+		if (!model) {
+			return;
+		}
+
+		const ctx = new Context(model, this.editor.getPosition(), false);
 
 		if (isInactive) {
 			// trigger was not called or it was canceled
@@ -298,6 +302,11 @@ export class SuggestModel implements IDisposable {
 
 	trigger(auto: boolean, triggerCharacter?: string, retrigger: boolean = false, groups?: ISuggestSupport[][]): void {
 		const model = this.editor.getModel();
+
+		if (!model) {
+			return;
+		}
+
 		const characterTriggered = !!triggerCharacter;
 		groups = groups || SuggestRegistry.orderedGroups(model);
 
@@ -305,7 +314,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const ctx = new Context(this.editor, auto);
+		const ctx = new Context(model, this.editor.getPosition(), auto);
 
 		if (!ctx.isInEditableRange) {
 			return;
@@ -331,7 +340,13 @@ export class SuggestModel implements IDisposable {
 			this.raw = all;
 			this.incomplete = all.some(result => result.incomplete);
 
-			this.onNewContext(new Context(this.editor, auto));
+			const model = this.editor.getModel();
+
+			if (!model) {
+				return;
+			}
+
+			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
 		}).then(null, onUnexpectedError);
 	}
 

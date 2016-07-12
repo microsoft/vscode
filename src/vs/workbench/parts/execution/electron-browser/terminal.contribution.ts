@@ -22,6 +22,8 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KEYBINDING_CONTEXT_TERMINAL_FOCUS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX} from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
@@ -132,7 +134,8 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionCon
 		OpenConsoleAction,
 		OpenConsoleAction.ID,
 		OpenConsoleAction.Label,
-		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
+		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
+		KbExpr.and(KbExpr.not(KEYBINDING_CONTEXT_TERMINAL_FOCUS))
 	),
 	'Open New Command Prompt'
 );

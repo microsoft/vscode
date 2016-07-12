@@ -545,7 +545,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
 			className: 'toggle left',
 			onTrigger: () => {
-				this._state.change({ isReplaceRevealed: !this._isReplaceVisible }, true);
+				this._state.change({ isReplaceRevealed: !this._isReplaceVisible }, false);
 			},
 			onKeyDown: (e) => {}
 		}));

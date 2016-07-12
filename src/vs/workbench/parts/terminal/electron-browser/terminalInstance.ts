@@ -6,15 +6,20 @@
 import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
+import os = require('os');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
+import {IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class TerminalInstance {
+
+	private static eolRegex = /\r?\n/g;
+
 	private isExiting: boolean = false;
 
 	private toDispose: lifecycle.IDisposable[];
@@ -29,6 +34,7 @@ export class TerminalInstance {
 		private contextService: IWorkspaceContextService,
 		private terminalService: ITerminalService,
 		private messageService: IMessageService,
+		private terminalFocusContextKey: IKeybindingContextKey<boolean>,
 		private onExitCallback: (TerminalInstance) => void
 	) {
 		this.toDispose = [];
@@ -45,7 +51,7 @@ export class TerminalInstance {
 		this.xterm.on('data', (data) => {
 			this.terminalProcess.process.send({
 				event: 'input',
-				data: data
+				data: this.sanitizeInput(data)
 			});
 			return false;
 		});
@@ -80,8 +86,21 @@ export class TerminalInstance {
 		}));
 
 		this.xterm.open(this.terminalDomElement);
+
+		let self = this;
+		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'focus', (event: KeyboardEvent) => {
+			self.terminalFocusContextKey.set(true);
+		}));
+		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'blur', (event: KeyboardEvent) => {
+			self.terminalFocusContextKey.reset();
+		}));
+
 		this.wrapperElement.appendChild(this.terminalDomElement);
 		this.parentDomElement.appendChild(this.wrapperElement);
+	}
+
+	private sanitizeInput(data: any) {
+		return typeof data === 'string' ? data.replace(TerminalInstance.eolRegex, os.EOL) : data;
 	}
 
 	public layout(dimension: Dimension): void {

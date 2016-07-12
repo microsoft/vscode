@@ -5,7 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import { guessMimeTypes } from 'vs/base/common/mime';
+import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import Event, { Emitter } from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -74,6 +74,7 @@ export class DebugService implements debug.IDebugService {
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
+	private breakpointsToSendOnResourceSaved: { [uri: string]: boolean };
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -100,6 +101,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = [];
 		this.session = null;
+		this.breakpointsToSendOnResourceSaved = {};
 		this._state = debug.State.Inactive;
 		this._onDidChangeState = new Emitter<debug.State>();
 
@@ -493,7 +495,15 @@ export class DebugService implements debug.IDebugService {
 			name: variable.name,
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
-		}).then(response => variable.value = response.body.value, err => (<model.Variable>variable).errorMessage = err.message);
+		}).then(response => {
+			variable.value = response.body.value;
+			// Evaluate all watch expressions again since changing variable value might have changed some #8118.
+			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
+		}, err => {
+			(<model.Variable>variable).errorMessage = err.message;
+			// On error still show bad value so the user can fix it #8055
+			(<model.Variable>variable).value = value;
+		});
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -587,7 +597,7 @@ export class DebugService implements debug.IDebugService {
 						timeout: 1000 * 60 * 5,
 						args: [`${ publisher }.${ type }`, JSON.stringify(data), aiKey],
 						env: {
-							ELECTRON_RUN_AS_NODE: 1,
+							ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
 							PIPE_LOGGING: 'true',
 							AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
 						}
@@ -608,7 +618,8 @@ export class DebugService implements debug.IDebugService {
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
-				columnsStartAt1: true
+				columnsStartAt1: true,
+				supportsVariableType: true // #8858
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				if (!this.session) {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
@@ -819,16 +830,12 @@ export class DebugService implements debug.IDebugService {
 			if (source.reference !== 0 && this.session) {
 				return this.session.source({ sourceReference: source.reference }).then(response => {
 					const mime = response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
-					const editorInput = this.getDebugStringEditorInput(source, response.body.content, mime);
-					return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({
-						selection: {
-							startLineNumber: lineNumber,
-							startColumn: 1,
-							endLineNumber: lineNumber,
-							endColumn: 1
-						},
-						preserveFocus: preserveFocus
-					}), sideBySide);
+					return this.getDebugStringEditorInput(source, response.body.content, mime);
+				}, (err: DebugProtocol.ErrorResponse) => {
+					// Display the error from debug adapter using a temporary editor #8836
+					return this.getDebugStringEditorInput(source, err.message, MIME_TEXT);
+				}).then(editorInput => {
+					return this.editorService.openEditor(editorInput, { preserveFocus, selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 } }, sideBySide);
 				});
 			}
 
@@ -966,8 +973,13 @@ export class DebugService implements debug.IDebugService {
 			.then(() => this.sendExceptionBreakpoints());
 	}
 
-	private sendBreakpoints(modelUri: uri): TPromise<void> {
+	private sendBreakpoints(modelUri: uri, sourceModified = false): TPromise<void> {
 		if (!this.session || !this.session.readyForBreakpoints) {
+			return TPromise.as(null);
+		}
+		if (this.textFileService.isDirty(modelUri)) {
+			// Only send breakpoints for a file once it is not dirty #8077
+			this.breakpointsToSendOnResourceSaved[modelUri.toString()] = true;
 			return TPromise.as(null);
 		}
 
@@ -980,9 +992,9 @@ export class DebugService implements debug.IDebugService {
 		return this.session.setBreakpoints({
 			source: rawSource,
 			lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber,
-			condition: bp.condition
-		}))}).then(response => {
+			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })),
+			sourceModified
+		}).then(response => {
 			const data: { [id: string]: { line?: number, verified: boolean } } = {};
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
@@ -1020,6 +1032,14 @@ export class DebugService implements debug.IDebugService {
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
 		this.model.removeBreakpoints(this.model.getBreakpoints().filter(bp =>
 			fileChangesEvent.contains(bp.source.uri, FileChangeType.DELETED)));
+
+		fileChangesEvent.getUpdated().forEach(event => {
+			if (this.breakpointsToSendOnResourceSaved[event.resource.toString()]) {
+				this.breakpointsToSendOnResourceSaved[event.resource.toString()] = false;
+				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
+			}
+		});
+
 	}
 
 	private store(): void {

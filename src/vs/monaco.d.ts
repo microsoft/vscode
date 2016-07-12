@@ -926,6 +926,7 @@ declare module monaco.editor {
         theme?: string;
         mimeType?: string;
     }
+
     export enum ScrollbarVisibility {
         Auto = 1,
         Hidden = 2,

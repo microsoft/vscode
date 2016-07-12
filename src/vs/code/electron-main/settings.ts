@@ -7,7 +7,7 @@
 
 import { app } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { UserSettings, ISettings } from 'vs/workbench/node/userSettings';
+import { UserSettings, ISettings } from 'vs/base/node/userSettings';
 import { IEnvironmentService } from 'vs/code/electron-main/env';
 import Event from 'vs/base/common/event';
 

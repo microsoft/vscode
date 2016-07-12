@@ -11,6 +11,8 @@
 	"foldLevel3Action.label": "수준 3 접기",
 	"foldLevel4Action.label": "수준 4 접기",
 	"foldLevel5Action.label": "수준 5 접기",
+	"foldRecursivelyAction.label": "재귀적으로 접기",
+	"unFoldRecursivelyAction.label": "재귀적으로 펼치기",
 	"unfoldAction.label": "펼치기",
 	"unfoldAllAction.label": "모두 펼치기"
 }

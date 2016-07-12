@@ -6,10 +6,12 @@
 {
 	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。",
 	"NewLaunchConfig": "アプリケーションの起動構成ファイルをセットアップしてください。",
+	"breakpointAdded": "ブレークポイントを追加しました。行 {0}、ファイル {1}",
+	"breakpointRemoved": "ブレークポイントを削除しました。行 {0}、ファイル {1}",
 	"debugAdapterCrash": "デバッグ アダプター プロセスが予期せず終了しました",
 	"debugAnyway": "このままデバッグを続ける",
 	"debugSourceNotAvailable": "ソース {0} を利用できません。",
-	"debugTypeMissing": "選択された構成のプロパティ 'type' が launch.json にありません。",
+	"debugTypeMissing": "選択された起動構成のプロパティ 'type' がありません。",
 	"debugTypeNotSupported": "構成されているデバッグの種類 '{0}' はサポートされていません。",
 	"debuggingContinued": "デバッグは続行されました。",
 	"debuggingPaused": "デバッグは一時停止されました、理由 {0}、{1} {2}",

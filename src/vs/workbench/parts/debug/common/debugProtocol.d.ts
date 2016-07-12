@@ -177,6 +177,9 @@ declare module DebugProtocol {
 		columnsStartAt1?: boolean;
 		/** Determines in what format paths are specified. Possible values are 'path' or 'uri'. The default is 'path', which is the native format. */
 		pathFormat?: string;
+
+		/** Client supports the optional type attribute for variables. */
+		supportsVariableType?: boolean;
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
@@ -253,6 +256,8 @@ declare module DebugProtocol {
 		breakpoints?: SourceBreakpoint[];
 		/** Deprecated: The code locations of the breakpoints. */
 		lines?: number[];
+		/** A value of true indicates that the underlying source has been modified which results in new breakpoint locations. */
+		sourceModified?: boolean;
 	}
 	/** Response to "setBreakpoints" request.
 		Returned is information about each breakpoint created by this request.

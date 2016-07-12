@@ -61,7 +61,7 @@ export interface ICommandHandler {
 #include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices
 #include(vs/platform/markers/common/markers): IMarkerData
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
-#include(vs/base/browser/ui/scrollbar/scrollableElementOptions): ScrollbarVisibility
+#include(vs/base/common/scrollable): ScrollbarVisibility
 #include(vs/base/common/actions): IAction
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):

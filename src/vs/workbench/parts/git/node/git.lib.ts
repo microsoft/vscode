@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
+import * as path from 'path';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { del } from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
@@ -695,6 +698,21 @@ export class Repository {
 				return { name: branch, commit: commit };
 			});
 		});
+	}
+
+	getCommitTemplate(): TPromise<string> {
+		return this.run(['config', '--get', 'commit.template']).then(result => {
+			if (!result.stdout) {
+				return '';
+			}
+
+			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
+			const homedir = os.homedir();
+			const templatePath = result.stdout.trim()
+				.replace(/^~([^\/]*)\//, (_, user) => `${ user ? path.join(path.dirname(homedir), user) : homedir }/`);
+
+			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
+		}, () => '');
 	}
 
 	onOutput(listener: (output: string) => void): () => void {

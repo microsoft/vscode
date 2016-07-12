@@ -93,7 +93,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 }
 
-export class FocusSideBarAction extends Action {
+class FocusSideBarAction extends Action {
 
 	public static ID = 'workbench.action.focusSideBar';
 	public static LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
