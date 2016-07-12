@@ -17,12 +17,24 @@ var util = require('./lib/util');
 var i18n = require('./lib/i18n');
 var gulpUtil = require('gulp-util');
 
+var quiet = !!process.env['VSCODE_BUILD_QUIET'];
+
 function log(prefix, message) {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
 
 var root = path.dirname(__dirname);
 var commit = util.getVersion(root);
+
+var tsOptions = {
+	target: 'ES5',
+	module: 'amd',
+	verbose: !quiet,
+	preserveConstEnums: true,
+	experimentalDecorators: true,
+	sourceMap: true,
+	rootDir: path.join(path.dirname(__dirname), 'src')
+};
 
 exports.loaderConfig = function (emptyPaths) {
 	var result = {
@@ -63,7 +75,7 @@ function loader(bundledFileHeader) {
 		.pipe(util.loadSourcemaps())
 		.pipe(concat('vs/loader.js'))
 		.pipe(es.mapSync(function (f) {
-			f.sourceMap.sourceRoot = util.toFileUri(path.join(path.dirname(__dirname), 'src'));
+			f.sourceMap.sourceRoot = util.toFileUri(tsOptions.rootDir);
 			return f;
 		}));
 }
