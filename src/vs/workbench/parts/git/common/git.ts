@@ -222,7 +222,7 @@ export var ServiceOperations = {
 	BACKGROUND_FETCH: 'backgroundfetch',
 	PULL: 'pull',
 	PUSH: 'push',
-	SYNC: 'sync',
+	SYNC: 'sync'
 };
 
 // Service config
@@ -262,23 +262,6 @@ export interface IGitServiceError extends Error {
 
 export interface IPushOptions {
 	setUpstream?: boolean;
-}
-
-/**
- * These are `git log` options.
- * The use case driving this is getting the previous commit message, message only.
- * @example prevCount: 1, format: '%B' executes `git log -1 --format=%B`
- * */
-export interface ILogOptions {
-	/**
-	 * @example `git log -1 --format=%B` to get the last commit log, message only
-	 */
-	prevCount?: number;
-
-	/**
-	 * @example format: "%B" translates to `git log --format=%B` to get the message only
-	 */
-	format?: string;
 }
 
 export interface IRawGitService {

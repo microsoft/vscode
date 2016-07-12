@@ -102,10 +102,6 @@ export class NoOpGitService implements IRawGitService {
 		return TPromise.as(null);
 	}
 
-	getLog(): TPromise<string> {
-		return TPromise.as(null);
-	}
-
 	getCommitTemplate(): TPromise<string> {
 		return TPromise.as(null);
 	}
