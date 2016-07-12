@@ -130,13 +130,11 @@ function registerClipboardAction(desc: IClipboardCommand, alias: string, weight:
 		kbExpr: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)
 	}, alias));
 
-	MenuRegistry.addCommand({
-		id: desc.id,
-		title: desc.label
-	});
-
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-		command: MenuRegistry.getCommand(desc.id),
+		command: {
+			id: desc.id,
+			title: desc.label
+		},
 		group: `cutcopypaste@${weight}`,
 		when: desc.kbExpr
 	});
