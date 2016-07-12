@@ -6,11 +6,10 @@
 
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
-
-import json = require('vs/base/common/json');
-import objects = require('vs/base/common/objects');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as json from 'vs/base/common/json';
+import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -24,7 +23,7 @@ export class UserSettings {
 
 	private static CHANGE_BUFFER_DELAY = 300;
 
-	public globalSettings: ISettings;
+	globalSettings: ISettings;
 
 	private timeoutHandle: number;
 	private watcher: fs.FSWatcher;
@@ -41,7 +40,7 @@ export class UserSettings {
 		this.registerWatchers();
 	}
 
-	public static getValue(userDataPath: string, key: string, fallback?: any): TPromise<any> {
+	static getValue(userDataPath: string, key: string, fallback?: any): TPromise<any> {
 		// TODO@joao cleanup!
 		const appSettingsPath = path.join(userDataPath, 'User', 'settings.json');
 
@@ -66,11 +65,11 @@ export class UserSettings {
 		});
 	}
 
-	public get onChange(): Event<ISettings> {
+	get onChange(): Event<ISettings> {
 		return this._onChange.event;
 	}
 
-	public getValue(key: string, fallback?: any): any {
+	getValue(key: string, fallback?: any): any {
 		return UserSettings.doGetValue(this.globalSettings.settings, key, fallback);
 	}
 
@@ -116,7 +115,7 @@ export class UserSettings {
 		}, UserSettings.CHANGE_BUFFER_DELAY);
 	}
 
-	public loadSync(): boolean {
+	loadSync(): boolean {
 		let loadedSettings = this.doLoadSync();
 		if (!objects.equals(loadedSettings, this.globalSettings)) {
 
@@ -199,7 +198,7 @@ export class UserSettings {
 		return [];
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.watcher) {
 			this.watcher.close();
 			this.watcher = null;
