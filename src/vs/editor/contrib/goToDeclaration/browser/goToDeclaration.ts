@@ -493,7 +493,7 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'navigation@11',
-		kbExpr: KbExpr.has('editorHasDefinitionProvider')
+		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
 	}
 });
 
@@ -512,7 +512,7 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'navigation@10',
-		kbExpr: KbExpr.has('editorHasDefinitionProvider')
+		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
 	}
 });
 

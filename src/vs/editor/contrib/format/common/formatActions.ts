@@ -223,7 +223,7 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'modification@200',
-		kbExpr: KbExpr.has('editorHasFormattingProvider')
+		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasFormattingProvider)
 	}
 });
 CommonEditorRegistry.registerEditorContribution(FormatOnType);
