@@ -928,6 +928,14 @@ export class DebugService implements debug.IDebugService {
 		return this.session.pause({ threadId });
 	}
 
+	public restartFrame(frameId: number): TPromise<any> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.restartFrame({ frameId });
+	}
+
 	private lazyTransitionToRunningState(threadId?: number): void {
 		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
 		const toDispose = this.session.onDidStop(e => {

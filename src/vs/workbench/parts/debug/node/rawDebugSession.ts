@@ -254,6 +254,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('setVariable', args);
 	}
 
+	public restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse> {
+		return this.send('restartFrame', args);
+	}
+
 	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
 		if (this.stopServerPending && force) {
 			return this.stopServer();
