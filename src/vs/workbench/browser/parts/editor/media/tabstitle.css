@@ -190,10 +190,6 @@
 	margin-right: 0.5em;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab > .tab-close .action-label {
-	opacity: 1 !important;
-}
-
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .tabs-container > .tab.dirty .close-editor-action {
 	background: url('close-dirty.svg') center center no-repeat;
 }
