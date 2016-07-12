@@ -17,10 +17,10 @@ export class ExtHostStorage {
 	}
 
 	getValue<T>(shared: boolean, key: string, defaultValue?: T): TPromise<T> {
-		return this._proxy.getValue(shared, key).then(value => value || defaultValue);
+		return this._proxy.$getValue(shared, key).then(value => value || defaultValue);
 	}
 
 	setValue(shared: boolean, key: string, value: any): TPromise<void> {
-		return this._proxy.setValue(shared, key, value);
+		return this._proxy.$setValue(shared, key, value);
 	}
 }

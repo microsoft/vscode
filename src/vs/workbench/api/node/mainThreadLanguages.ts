@@ -19,7 +19,7 @@ export class MainThreadLanguages extends MainThreadLanguagesShape {
 		this._modeService = modeService;
 	}
 
-	_getLanguages(): TPromise<string[]> {
+	$getLanguages(): TPromise<string[]> {
 		return TPromise.as(this._modeService.getRegisteredModes());
 	}
 }

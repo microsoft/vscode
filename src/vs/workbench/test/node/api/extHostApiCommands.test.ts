@@ -80,7 +80,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		const extHostDocuments = new ExtHostDocuments(threadService);
 		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
-		extHostDocuments._acceptModelAdd({
+		extHostDocuments.$acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),

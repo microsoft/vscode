@@ -62,17 +62,17 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy._acceptModelSaved(e.resource.toString());
+				this._proxy.$acceptModelSaved(e.resource.toString());
 			}
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy._acceptModelReverted(e.resource.toString());
+				this._proxy.$acceptModelReverted(e.resource.toString());
 			}
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy._acceptModelDirty(e.resource.toString());
+				this._proxy.$acceptModelDirty(e.resource.toString());
 			}
 		}));
 
@@ -106,7 +106,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
-		this._proxy._acceptModelAdd({
+		this._proxy.$acceptModelAdd({
 			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
@@ -121,7 +121,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy._acceptModelModeChanged(model.uri.toString(), oldModeId, model.getMode().getId());
+		this._proxy.$acceptModelModeChanged(model.uri.toString(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: editorCommon.IModel): void {
@@ -132,7 +132,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		delete this._modelIsSynced[modelUrl.toString()];
 		this._modelToDisposeMap[modelUrl.toString()].dispose();
 		delete this._modelToDisposeMap[modelUrl.toString()];
-		this._proxy._acceptModelRemoved(modelUrl.toString());
+		this._proxy.$acceptModelRemoved(modelUrl.toString());
 	}
 
 	private _onModelEvents(modelUrl: URI, events: EmitterEvent[]): void {
@@ -146,17 +146,17 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			}
 		}
 		if (changedEvents.length > 0) {
-			this._proxy._acceptModelChanged(modelUrl.toString(), changedEvents);
+			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents);
 		}
 	}
 
 	// --- from extension host process
 
-	_trySaveDocument(uri: URI): TPromise<boolean> {
+	$trySaveDocument(uri: URI): TPromise<boolean> {
 		return this._textFileService.save(uri);
 	}
 
-	_tryOpenDocument(uri: URI): TPromise<any> {
+	$tryOpenDocument(uri: URI): TPromise<any> {
 
 		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
 			return TPromise.wrapError(`Invalid uri. Scheme and authority or path must be set.`);
@@ -202,7 +202,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 				if (!this._modelIsSynced[uri.toString()]) {
 					throw new Error(`expected URI ${uri.toString()} to have come to LIFE`);
 				}
-				return this._proxy._acceptModelDirty(uri.toString()); // mark as dirty
+				return this._proxy.$acceptModelDirty(uri.toString()); // mark as dirty
 			}).then(() => {
 				return true;
 			});

@@ -27,17 +27,17 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 		this._panelService = panelService;
 	}
 
-	public append(channelId: string, label: string, value: string): TPromise<void> {
+	public $append(channelId: string, label: string, value: string): TPromise<void> {
 		this._getChannel(channelId, label).append(value);
 		return undefined;
 	}
 
-	public clear(channelId: string, label: string): TPromise<void> {
+	public $clear(channelId: string, label: string): TPromise<void> {
 		this._getChannel(channelId, label).clear();
 		return undefined;
 	}
 
-	public reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
+	public $reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
 		this._getChannel(channelId, label).show(preserveFocus);
 		return undefined;
 	}
@@ -50,7 +50,7 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 		return this._outputService.getChannel(channelId);
 	}
 
-	public close(channelId: string): TPromise<void> {
+	public $close(channelId: string): TPromise<void> {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id ) {
 			this._partService.setPanelHidden(true);
