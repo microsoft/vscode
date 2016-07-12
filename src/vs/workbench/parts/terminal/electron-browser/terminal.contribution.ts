@@ -6,6 +6,7 @@
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
 import * as panel from 'vs/workbench/browser/panel';
+import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
@@ -79,6 +80,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			'type': 'boolean',
 			'default': true
+		},
+		'terminal.integrated.setLocaleVariables': {
+			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
+			'type': 'boolean',
+			'default': platform.isMacintosh
 		}
 	}
 });
