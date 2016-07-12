@@ -160,7 +160,7 @@ function monacodtsTask(out, isWatch) {
 
 	} else {
 
-		resultStream = es.through(null, () => {
+		resultStream = es.through(null, function() {
 			runNow();
 			this.emit('end');
 		});
