@@ -66,10 +66,6 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
 	}
 
-	public getGroupId(): string {
-		return '3_edit/1_cut';
-	}
-
 	public getEnablementState(): boolean {
 		return super.getEnablementState() && editorCursorIsInEditableRange(this.editor);
 	}
@@ -87,10 +83,6 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
 
-	public getGroupId(): string {
-		return '3_edit/2_copy';
-	}
-
 	public run(): TPromise<boolean> {
 		this.editor.focus();
 		document.execCommand('copy');
@@ -102,10 +94,6 @@ class ExecCommandPasteAction extends EditorAction {
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
-	}
-
-	public getGroupId(): string {
-		return '3_edit/3_paste';
 	}
 
 	public getEnablementState(): boolean {

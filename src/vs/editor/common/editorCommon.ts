@@ -3368,17 +3368,7 @@ export interface IActionDescriptor {
 	 * A set of enablement conditions.
 	 */
 	enablement?: IActionEnablement;
-	/**
-	 * Control if the action should show up in the context menu and where.
-	 * Built-in groups:
-	 *   1_goto/* => e.g. 1_goto/1_peekDefinition
-	 *   2_change/* => e.g. 2_change/2_format
-	 *   3_edit/* => e.g. 3_edit/1_copy
-	 *   4_tools/* => e.g. 4_tools/1_commands
-	 * You can also create your own group.
-	 * Defaults to null (don't show in context menu).
-	 */
-	contextMenuGroupId?: string;
+
 	/**
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convinience

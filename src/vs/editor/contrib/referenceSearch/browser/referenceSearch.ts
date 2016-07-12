@@ -57,10 +57,6 @@ export class ReferenceAction extends EditorAction {
 		}
 	}
 
-	public getGroupId(): string {
-		return '1_goto/4_references';
-	}
-
 	public isSupported():boolean {
 		return ReferenceProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
