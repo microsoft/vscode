@@ -281,7 +281,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements renderer.IActionProvider {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -310,7 +310,10 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
 		} else if (element instanceof model.StackFrame) {
-			actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
+			const caps = this.debugService.getActiveSession().configuration.capabilities;
+			if (typeof caps.supportsRestartFrame === 'boolean' && caps.supportsRestartFrame) {
+				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
+			}
 		}
 
 		return TPromise.as(actions);
