@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 const es = require('event-stream');
 const _ = require('underscore');
 const util = require('gulp-util');
