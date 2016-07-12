@@ -202,7 +202,7 @@ function format(text) {
             InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
             InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
             PlaceOpenBraceOnNewLineForFunctions: false,
-            PlaceOpenBraceOnNewLineForControlBlocks: false,
+            PlaceOpenBraceOnNewLineForControlBlocks: false
         };
     }
 }

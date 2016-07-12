@@ -3,53 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
-const gulp = require('gulp');
-const json = require('gulp-json-editor');
-const buffer = require('gulp-buffer');
-const tsb = require('gulp-tsb');
-const filter = require('gulp-filter');
-const mocha = require('gulp-mocha');
-const es = require('event-stream');
-const watch = require('./build/lib/watch');
-const nls = require('./build/lib/nls');
-const util = require('./build/lib/util');
-const reporter = require('./build/lib/reporter')();
-const remote = require('gulp-remote-src');
-const zip = require('gulp-vinyl-zip');
-const path = require('path');
-const bom = require('gulp-bom');
-const sourcemaps = require('gulp-sourcemaps');
-const _ = require('underscore');
-const assign = require('object-assign');
-const monacodts = require('./build/monaco/api');
-const fs = require('fs');
+var gulp = require('gulp');
+var json = require('gulp-json-editor');
+var buffer = require('gulp-buffer');
+var tsb = require('gulp-tsb');
+var filter = require('gulp-filter');
+var mocha = require('gulp-mocha');
+var es = require('event-stream');
+var watch = require('./build/lib/watch');
+var nls = require('./build/lib/nls');
+var util = require('./build/lib/util');
+var reporter = require('./build/lib/reporter')();
+var remote = require('gulp-remote-src');
+var zip = require('gulp-vinyl-zip');
+var path = require('path');
+var bom = require('gulp-bom');
+var sourcemaps = require('gulp-sourcemaps');
+var _ = require('underscore');
+var assign = require('object-assign');
+var quiet = !!process.env['VSCODE_BUILD_QUIET'];
+var monacodts = require('./build/monaco/api');
+var fs = require('fs');
 
-const rootDir = path.join(__dirname, 'src');
-const options = require('./src/tsconfig.json').compilerOptions;
-options.verbose = false;
-options.sourceMap = true;
-options.rootDir = rootDir;
-options.sourceRoot = util.toFileUri(rootDir);
+var rootDir = path.join(__dirname, 'src');
+var tsOptions = {
+	target: 'ES5',
+	declaration: true,
+	module: 'amd',
+	verbose: !quiet,
+	preserveConstEnums: true,
+	experimentalDecorators: true,
+	sourceMap: true,
+	rootDir: rootDir,
+	sourceRoot: util.toFileUri(rootDir)
+};
+
+function createFastFilter(filterFn) {
+	var result = es.through(function(data) {
+		if (filterFn(data)) {
+			this.emit('data', data);
+		} else {
+			result.restore.push(data);
+		}
+	});
+	result.restore = es.through();
+	return result;
+}
 
 function createCompile(build, emitError) {
-	const opts = _.clone(options);
+	var opts = _.clone(tsOptions);
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
+	var ts = tsb.create(opts, null, null, quiet ? null : function (err) {
+		reporter(err.toString());
+	});
 
 	return function (token) {
-		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
-		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
-		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
+		var utf8Filter = createFastFilter(function(data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
+		var tsFilter = createFastFilter(function(data) { return /\.ts$/.test(data.path); });
+		var noDeclarationsFilter = createFastFilter(function(data) { return !(/\.d\.ts$/.test(data.path)); });
 
-		const input = es.through();
-		const output = input
+		var input = es.through();
+		var output = input
 			.pipe(utf8Filter)
 			.pipe(bom())
 			.pipe(utf8Filter.restore)
@@ -62,20 +81,20 @@ function createCompile(build, emitError) {
 			.pipe(sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
-				sourceRoot: options.sourceRoot
+				sourceRoot: tsOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(reporter.end(emitError));
+			.pipe(quiet ? es.through() : reporter.end(emitError));
 
 		return es.duplex(input, output);
 	};
 }
 
 function compileTask(out, build) {
-	const compile = createCompile(build, true);
+	var compile = createCompile(build, true);
 
 	return function () {
-		const src = es.merge(
+		var src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
 			gulp.src('node_modules/typescript/lib/lib.d.ts')
 		);
@@ -88,14 +107,14 @@ function compileTask(out, build) {
 }
 
 function watchTask(out, build) {
-	const compile = createCompile(build);
+	var compile = createCompile(build);
 
 	return function () {
-		const src = es.merge(
+		var src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
 			gulp.src('node_modules/typescript/lib/lib.d.ts')
 		);
-		const watchSrc = watch('src/**', { base: 'src' });
+		var watchSrc = watch('src/**', { base: 'src' });
 
 		return watchSrc
 			.pipe(util.incremental(compile, src, true))
@@ -105,9 +124,10 @@ function watchTask(out, build) {
 }
 
 function monacodtsTask(out, isWatch) {
-	let timer = -1;
 
-	const runSoon = function(howSoon) {
+	var timer = -1;
+
+	var runSoon = function(howSoon) {
 		if (timer !== -1) {
 			clearTimeout(timer);
 			timer = -1;
@@ -118,7 +138,7 @@ function monacodtsTask(out, isWatch) {
 		}, howSoon);
 	};
 
-	const runNow = function() {
+	var runNow = function() {
 		if (timer !== -1) {
 			clearTimeout(timer);
 			timer = -1;
@@ -127,7 +147,7 @@ function monacodtsTask(out, isWatch) {
 		// 	monacodts.complainErrors();
 		// 	return;
 		// }
-		const result = monacodts.run(out);
+		var result = monacodts.run(out);
 		if (!result.isTheSame) {
 			if (isWatch) {
 				fs.writeFileSync(result.filePath, result.content);
@@ -137,11 +157,11 @@ function monacodtsTask(out, isWatch) {
 		}
 	};
 
-	let resultStream;
+	var resultStream;
 
 	if (isWatch) {
 
-		const filesToWatchMap = {};
+		var filesToWatchMap = {};
 		monacodts.getFilesToWatch(out).forEach(function(filePath) {
 			filesToWatchMap[path.normalize(filePath)] = true;
 		});
@@ -151,7 +171,7 @@ function monacodtsTask(out, isWatch) {
 		}));
 
 		resultStream = es.through(function(data) {
-			const filePath = path.normalize(data.path);
+			var filePath = path.normalize(data.path);
 			if (filesToWatchMap[filePath]) {
 				runSoon(5000);
 			}
@@ -160,7 +180,7 @@ function monacodtsTask(out, isWatch) {
 
 	} else {
 
-		resultStream = es.through(null, function() {
+		resultStream = es.through(null, function(end) {
 			runNow();
 			this.emit('end');
 		});
@@ -200,24 +220,24 @@ gulp.task('test', function () {
 });
 
 gulp.task('mixin', function () {
-	const repo = process.env['VSCODE_MIXIN_REPO'];
+	var repo = process.env['VSCODE_MIXIN_REPO'];
 
 	if (!repo) {
 		console.log('Missing VSCODE_MIXIN_REPO, skipping mixin');
 		return;
 	}
 
-	const quality = process.env['VSCODE_QUALITY'];
+	var quality = process.env['VSCODE_QUALITY'];
 
 	if (!quality) {
 		console.log('Missing VSCODE_QUALITY, skipping mixin');
 		return;
 	}
 
-	const url = 'https://github.com/' + repo + '/archive/master.zip';
-	const opts = { base: '' };
-	const username = process.env['VSCODE_MIXIN_USERNAME'];
-	const password = process.env['VSCODE_MIXIN_PASSWORD'];
+	var url = 'https://github.com/' + repo + '/archive/master.zip';
+	var opts = { base: '' };
+	var username = process.env['VSCODE_MIXIN_USERNAME'];
+	var password = process.env['VSCODE_MIXIN_PASSWORD'];
 
 	if (username || password) {
 		opts.auth = { user: username || '', pass: password || '' };
@@ -225,22 +245,22 @@ gulp.task('mixin', function () {
 
 	console.log('Mixing in sources from \'' + url + '\':');
 
-	let all = remote(url, opts)
+	var all = remote(url, opts)
 		.pipe(zip.src())
 		.pipe(filter(function (f) { return !f.isDirectory(); }))
 		.pipe(util.rebase(1));
 
 	if (quality) {
-		const build = all.pipe(filter('build/**'));
-		const productJsonFilter = filter('product.json', { restore: true });
+		var build = all.pipe(filter('build/**'));
+		var productJsonFilter = filter('product.json', { restore: true });
 
-		const mixin = all
+		var mixin = all
 			.pipe(filter('quality/' + quality + '/**'))
 			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
 			.pipe(json(function (patch) {
-				const original = require('./product.json');
+				var original = require('./product.json');
 				return assign(original, patch);
 			}))
 			.pipe(productJsonFilter.restore);

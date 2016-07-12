@@ -275,16 +275,3 @@ exports.rebase = function (count) {
 		f.dirname = parts.slice(count).join(path.sep);
 	});
 };
-
-exports.filter = fn => {
-	const result = es.through(function(data) {
-		if (fn(data)) {
-			this.emit('data', data);
-		} else {
-			result.restore.push(data);
-		}
-	});
-
-	result.restore = es.through();
-	return result;
-};
