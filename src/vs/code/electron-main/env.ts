@@ -245,7 +245,7 @@ function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean)
 
 		let parsedPath: IParsedPath;
 		if (gotoLineMode) {
-			parsedPath = parseLineAndColumnAware(arg);
+			parsedPath = parseLineAndColumnAware(pathCandidate);
 			pathCandidate = parsedPath.path;
 		}
 
