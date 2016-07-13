@@ -80,6 +80,7 @@ export class ElectronWindow {
 
 		function cleanUp(): void {
 			draggedExternalResources = void 0;
+
 			if (dropOverlay) {
 				dropOverlay.destroy();
 				dropOverlay = void 0;

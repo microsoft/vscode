@@ -16,26 +16,26 @@ export interface IReplaceService {
 	_serviceBrand: any;
 
 	/**
-	 * Replace the match with the given text.
+	 * Replaces the given match in the file that match belongs to
 	 */
-	replace(match: Match, text: string): TPromise<any>;
+	replace(match: Match): TPromise<any>;
 
 	/**
-	 *	Replace all the matches in the given file matches with provided text.
+	 *	Replace all the matches from the given file matches in the files
 	 *  You can also pass the progress runner to update the progress of replacing.
 	 */
-	replace(files: FileMatch[], text: string, progress?: IProgressRunner): TPromise<any>;
+	replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
 
 	/**
-	 * Gets the input for the file match with given text
+	 * Gets the input for the file match
 	 */
-	getInput(element: FileMatch, text: string): TPromise<EditorInput>;
+	getInput(element: FileMatch): TPromise<EditorInput>;
 
 	/**
-	 * Refresh the input for the fiel match with given text. If reload, content of repalced editor is reloaded completely
+	 * Refresh the input for the file match. If reload, content of repalced editor is reloaded completely
 	 * Otherwise undo the last changes and refreshes with new text.
 	 */
-	refreshInput(element: FileMatch, text: string, reload?: boolean): void;
+	refreshInput(element: FileMatch, reload?: boolean): void;
 
 	/**
 	 * Disposes all Inputs

@@ -22,12 +22,12 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 class RAZORState extends htmlMode.State {
 
-	constructor(mode:modes.IMode, kind:htmlMode.States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValue:string) {
-		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValue);
+	constructor(mode:modes.IMode, kind:htmlMode.States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValueLength:number) {
+		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValueLength);
 	}
 
 	public makeClone():RAZORState {
-		return new RAZORState(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValue);
+		return new RAZORState(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
 	}
 
 	public equals(other:modes.IState):boolean {
@@ -138,13 +138,13 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	}
 
 	public getInitialState(): modes.IState {
-		return new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
+		return new RAZORState(this, htmlMode.States.Content, '', '', '', '', 0);
 	}
 
 	public getLeavingNestedModeData(line:string, state:modes.IState): ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
-			leavingNestedModeData.stateAfterNestedMode = new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
+			leavingNestedModeData.stateAfterNestedMode = new RAZORState(this, htmlMode.States.Content, '', '', '', '', 0);
 		}
 		return leavingNestedModeData;
 	}

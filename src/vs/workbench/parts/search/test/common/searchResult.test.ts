@@ -180,7 +180,7 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1'))]);
 
-		testObject.replace(testObject.matches()[0], '');
+		testObject.replace(testObject.matches()[0]);
 
 		assert.ok(testObject.isEmpty());
 	});
@@ -193,7 +193,7 @@ suite('SearchResult', () => {
 		testObject.onChange(target);
 		let objectRoRemove= testObject.matches()[0];
 
-		testObject.replace(objectRoRemove, '');
+		testObject.replace(objectRoRemove);
 
 		assert.ok(target.calledOnce);
 		assert.deepEqual([{elements: [objectRoRemove], removed: true}], target.args[0]);
@@ -204,7 +204,7 @@ suite('SearchResult', () => {
 		let testObject = aSearchResult();
 		testObject.add([aRawMatch('file://c:/1', aLineMatch('preview 1')), aRawMatch('file://c:/2', aLineMatch('preview 2'))]);
 
-		testObject.replaceAll('', null);
+		testObject.replaceAll(null);
 
 		assert.ok(testObject.isEmpty());
 	});
