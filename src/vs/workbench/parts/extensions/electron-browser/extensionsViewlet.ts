@@ -39,7 +39,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private extensionsBox: HTMLElement;
 	private list: PagedList<IExtension>;
 	private disposables: IDisposable[] = [];
-	private focusInvokedByTab: boolean;
 	private clearAction: ClearExtensionsInputAction;
 
 	constructor(
@@ -80,7 +79,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
 		const onPageUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp);
 		const onPageDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown);
-		const onTab = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Tab);
 
 		onEnter(this.onEnter, this, this.disposables);
 		onEscape(this.onEscape, this, this.disposables);
@@ -88,18 +86,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		onDownArrow(this.onDownArrow, this, this.disposables);
 		onPageUpArrow(this.onPageUpArrow, this, this.disposables);
 		onPageDownArrow(this.onPageDownArrow, this, this.disposables);
-		onTab(this.onTab, this, this.disposables);
 
 		const onInput = domEvent(this.searchBox, 'input');
 		onInput(() => this.triggerSearch(), null, this.disposables);
-
-		this.list.onDOMFocus(focusEvent => {
-			// Allow tab to move focus out of search box #7966
-			if (!this.focusInvokedByTab) {
-				this.searchBox.focus();
-			}
-			this.focusInvokedByTab = false;
-		}, null, this.disposables);
 
 		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
 		onSelectedExtension(this.onExtensionSelected, this, this.disposables);
@@ -227,10 +216,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private onPageDownArrow(): void {
 		this.list.focusNextPage();
 		this.list.reveal(this.list.getFocus()[0]);
-	}
-
-	private onTab(): void {
-		this.focusInvokedByTab = true;
 	}
 
 	dispose(): void {
