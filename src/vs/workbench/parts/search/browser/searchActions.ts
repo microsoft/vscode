@@ -185,7 +185,7 @@ export class ReplaceAllAction extends Action {
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replaceAll.action.selected');
-		return this.fileMatch.parent().replace(this.fileMatch, this.fileMatch.parent().searchModel.replaceText).then(() => {
+		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 			this.viewlet.open(this.fileMatch);
 		});
 	}
@@ -206,7 +206,7 @@ export class ReplaceAction extends Action {
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replace.action.selected');
-		return this.element.parent().replace(this.element, this.element.parent().parent().searchModel.replaceText).then(() => {
+		return this.element.parent().replace(this.element).then(() => {
 			this.viewlet.open(this.element);
 		});
 	}
