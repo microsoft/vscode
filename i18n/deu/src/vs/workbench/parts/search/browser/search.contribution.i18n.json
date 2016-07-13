@@ -9,10 +9,9 @@
 	"exclude.when": "Zusätzliche Überprüfung der gleichgeordneten Elemente einer übereinstimmenden Datei. Verwenden Sie \"$(basename)\" als Variable für den übereinstimmenden Dateinamen.",
 	"findInFolder": "In Ordner suchen",
 	"name": "Suchen",
-	"openAnythingHandlerDescription": "Öffnet Dateien und Symbole nach Name.",
-	"openSymbolDescriptionNormal": "Öffnet das Symbol nach Name.",
-	"searchConfigurationTitle": "Suchkonfiguration",
-	"showSearchViewlet": "Suche anzeigen",
+	"openAnythingHandlerDescription": "Öffnet Dateien und globale Symbole anhand des Namens.",
+	"openSymbolDescriptionNormal": "Öffnet ein beliebiges Symbol anhand des Namens.",
+	"searchConfigurationTitle": "Suchen",
 	"showTriggerActions": "Alle Symbole anzeigen",
 	"view": "Anzeigen"
 }

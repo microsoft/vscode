@@ -9,16 +9,9 @@ import mm = require('vs/editor/common/model/mirrorModel');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
-import MarkerService = require('vs/platform/markers/common/markerService');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
-import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {HTMLMode} from 'vs/languages/html/common/html';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 
 suite('HTML - worker', () => {
@@ -26,22 +19,13 @@ suite('HTML - worker', () => {
 	var mode: Modes.IMode;
 
 	(function() {
-
-		let threadService = NULL_THREAD_SERVICE;
-		let modeService = new MockModeService();
-		let services = new ServiceCollection();
-		services.set(IThreadService, threadService);
-		services.set(IModeService, modeService);
-		let inst = new InstantiationService(services);
-		threadService.setInstantiationService(inst);
-
 		mode = new HTMLMode<htmlWorker.HTMLWorker>(
 			{ id: 'html' },
-			inst,
-			modeService,
-			threadService
+			null,
+			new MockModeService(),
+			null,
+			null
 		);
-
 	})();
 
 	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {
@@ -50,14 +34,7 @@ suite('HTML - worker', () => {
 		var model = mm.createTestMirrorModelFromString(content, mode, url);
 		resourceService.insert(url, model);
 
-		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
-
-		let services = servicesUtil2.createMockEditorWorkerServices({
-			resourceService: resourceService,
-			markerService: markerService
-		});
-
-		var worker = new htmlWorker.HTMLWorker(mode.getId(), services.resourceService, services.markerService, services.contextService);
+		var worker = new htmlWorker.HTMLWorker(mode.getId(), resourceService);
 
 		return { worker: worker, model: model };
 	};

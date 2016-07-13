@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
+import types = require('vs/base/common/types');
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
@@ -22,7 +23,7 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -129,7 +130,7 @@ export var schemaId = 'vscode://schemas/launch';
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
-	title: nls.localize('app.launch.json.title', "Launch configuration"),
+	title: nls.localize('app.launch.json.title', "Launch"),
 	required: ['version', 'configurations'],
 	properties: {
 		version: {
@@ -166,7 +167,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@ICommandService private commandService: ICommandService
 	) {
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
@@ -248,21 +249,26 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return TPromise.as(null);
 		}
 
-		// We need a map from interactive variables to keys because we only want to trigger an action once per action -
+		// We need a map from interactive variables to keys because we only want to trigger an command once per key -
 		// even though it might occure multiple times in configuration #7026.
 		const interactiveVariablesToKeys: { [key: string]: string[] } = {};
-		Object.keys(this.configuration).forEach(key => {
-			if (typeof this.configuration[key] === 'string') {
-				const matches = /\${action.(.+)}/.exec(this.configuration[key]);
-				if (matches && matches.length === 2) {
-					const interactiveVariable = matches[1];
-					if (!interactiveVariablesToKeys[interactiveVariable]) {
-						interactiveVariablesToKeys[interactiveVariable] = [];
+		const findInteractiveVariables = (object: any) => {
+			Object.keys(object).forEach(key => {
+				if (object[key] && typeof object[key] === 'object') {
+					findInteractiveVariables(object[key]);
+				} else if (typeof object[key] === 'string') {
+					const matches = /\${command.(.+)}/.exec(object[key]);
+					if (matches && matches.length === 2) {
+						const interactiveVariable = matches[1];
+						if (!interactiveVariablesToKeys[interactiveVariable]) {
+							interactiveVariablesToKeys[interactiveVariable] = [];
+						}
+						interactiveVariablesToKeys[interactiveVariable].push(key);
 					}
-					interactiveVariablesToKeys[interactiveVariable].push(key);
 				}
-			}
-		});
+			});
+		};
+		findInteractiveVariables(this.configuration);
 
 		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToKeys).map(interactiveVariable => {
 			return () => {
@@ -270,11 +276,11 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				if (!commandId) {
 					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, interactiveVariable));
 				} else {
-					return this.keybindingService.executeCommand<string>(commandId, this.configuration).then(result => {
+					return this.commandService.executeCommand<string>(commandId, this.configuration).then(result => {
 						if (!result) {
 							this.configuration.silentlyAbort = true;
 						}
-						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = result);
+						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = this.configuration[key].replace(`\${command.${ interactiveVariable }}`, result));
 					});
 				}
 			};
@@ -285,12 +291,13 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
-			if (typeof nameOrConfig === 'string' && (!config || !config.configurations)) {
-				this.configuration = null;
-				return;
-			}
-
-			if (typeof nameOrConfig === 'string') {
+			if (types.isObject(nameOrConfig)) {
+				this.configuration = objects.deepClone(nameOrConfig) as debug.IConfig;
+			} else {
+				if (!config || !config.configurations) {
+					this.configuration = null;
+					return;
+				}
 				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
 				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
 
@@ -298,8 +305,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				if (config && this.configuration) {
 					this.configuration.debugServer = config.debugServer;
 				}
-			} else {
-				this.configuration = objects.deepClone(nameOrConfig);
 			}
 
 			if (this.configuration) {
@@ -332,6 +337,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
 		const resource = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/launch.json'));
+		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
 			this.getInitialConfigFileContent().then(content => {
@@ -339,10 +345,11 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					return false;
 				}
 
+				configFileCreated = true;
 				return this.fileService.updateContent(resource, content).then(() => true);
 			}
-		)).then(configFileCreated => {
-			if (!configFileCreated) {
+		)).then(errorFree => {
+			if (!errorFree) {
 				return false;
 			}
 			this.telemetryService.publicLog('debugConfigure');
@@ -350,8 +357,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return this.editorService.openEditor({
 				resource: resource,
 				options: {
-					forceOpen: true
-				}
+					forceOpen: true,
+					pinned: configFileCreated // pin only if config file is created #8727
+				},
 			}, sideBySide).then(() => true);
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));

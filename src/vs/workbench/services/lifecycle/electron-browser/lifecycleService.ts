@@ -15,7 +15,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 
 export class LifecycleService implements ILifecycleService {
 
-	public serviceId = ILifecycleService;
+	public _serviceBrand: any;
 
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<void>();

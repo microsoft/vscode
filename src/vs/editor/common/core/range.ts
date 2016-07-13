@@ -9,13 +9,25 @@ import {Position} from 'vs/editor/common/core/position';
 import {IPosition, IRange} from 'vs/editor/common/editorCommon';
 
 /**
- * A range in the editor.
+ * A range in the editor. (startLineNumber,startColumn) is <= (endLineNumber,endColumn)
  */
 export class Range {
 
+	/**
+	 * Line number on which the range starts (starts at 1).
+	 */
 	public startLineNumber:number;
+	/**
+	 * Column on which the range starts in line `startLineNumber` (starts at 1).
+	 */
 	public startColumn:number;
+	/**
+	 * Line number on which the range ends.
+	 */
 	public endLineNumber:number;
+	/**
+	 * Column on which the range ends in line `endLineNumber`.
+	 */
 	public endColumn:number;
 
 	constructor(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number) {
@@ -40,10 +52,33 @@ export class Range {
 	}
 
 	/**
+	 * Test if `range` is empty.
+	 */
+	public static isEmpty(range:IRange): boolean {
+		return (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn);
+	}
+
+	/**
 	 * Test if position is in this range. If the position is at the edges, will return true.
 	 */
 	public containsPosition(position:IPosition): boolean {
 		return Range.containsPosition(this, position);
+	}
+
+	/**
+	 * Test if `position` is in `range`. If the position is at the edges, will return true.
+	 */
+	public static containsPosition(range:IRange, position:IPosition): boolean {
+		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
+			return false;
+		}
+		if (position.lineNumber === range.startLineNumber && position.column < range.startColumn) {
+			return false;
+		}
+		if (position.lineNumber === range.endLineNumber && position.column > range.endColumn) {
+			return false;
+		}
+		return true;
 	}
 
 	/**
@@ -54,10 +89,61 @@ export class Range {
 	}
 
 	/**
-	 * A reunion of the two ranges. The smallest position will be used as the start point, and the largest one as the end point.
+	 * Test if `otherRange` is in `range`. If the ranges are equal, will return true.
+	 */
+	public static containsRange(range:IRange, otherRange:IRange): boolean {
+		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {
+			return false;
+		}
+		if (otherRange.startLineNumber > range.endLineNumber || otherRange.endLineNumber > range.endLineNumber) {
+			return false;
+		}
+		if (otherRange.startLineNumber === range.startLineNumber && otherRange.startColumn < range.startColumn) {
+			return false;
+		}
+		if (otherRange.endLineNumber === range.endLineNumber && otherRange.endColumn > range.endColumn) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * A reunion of the two ranges.
+	 * The smallest position will be used as the start point, and the largest one as the end point.
 	 */
 	public plusRange(range:IRange): Range {
 		return Range.plusRange(this, range);
+	}
+
+	/**
+	 * A reunion of the two ranges.
+	 * The smallest position will be used as the start point, and the largest one as the end point.
+	 */
+	public static plusRange(a:IRange, b:IRange): Range {
+		var startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number;
+		if (b.startLineNumber < a.startLineNumber) {
+			startLineNumber = b.startLineNumber;
+			startColumn = b.startColumn;
+		} else if (b.startLineNumber === a.startLineNumber) {
+			startLineNumber = b.startLineNumber;
+			startColumn = Math.min(b.startColumn, a.startColumn);
+		} else {
+			startLineNumber = a.startLineNumber;
+			startColumn = a.startColumn;
+		}
+
+		if (b.endLineNumber > a.endLineNumber) {
+			endLineNumber = b.endLineNumber;
+			endColumn = b.endColumn;
+		} else if (b.endLineNumber === a.endLineNumber) {
+			endLineNumber = b.endLineNumber;
+			endColumn = Math.max(b.endColumn, a.endColumn);
+		} else {
+			endLineNumber = a.endLineNumber;
+			endColumn = a.endColumn;
+		}
+
+		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
 	/**
@@ -68,10 +154,61 @@ export class Range {
 	}
 
 	/**
+	 * A intersection of the two ranges.
+	 */
+	public static intersectRanges(a:IRange, b:IRange): Range {
+		var resultStartLineNumber = a.startLineNumber,
+			resultStartColumn = a.startColumn,
+			resultEndLineNumber = a.endLineNumber,
+			resultEndColumn = a.endColumn,
+			otherStartLineNumber = b.startLineNumber,
+			otherStartColumn = b.startColumn,
+			otherEndLineNumber = b.endLineNumber,
+			otherEndColumn = b.endColumn;
+
+		if (resultStartLineNumber < otherStartLineNumber) {
+			resultStartLineNumber = otherStartLineNumber;
+			resultStartColumn = otherStartColumn;
+		} else if (resultStartLineNumber === otherStartLineNumber) {
+			resultStartColumn = Math.max(resultStartColumn, otherStartColumn);
+		}
+
+		if (resultEndLineNumber > otherEndLineNumber) {
+			resultEndLineNumber = otherEndLineNumber;
+			resultEndColumn = otherEndColumn;
+		} else if (resultEndLineNumber === otherEndLineNumber) {
+			resultEndColumn = Math.min(resultEndColumn, otherEndColumn);
+		}
+
+		// Check if selection is now empty
+		if (resultStartLineNumber > resultEndLineNumber) {
+			return null;
+		}
+		if (resultStartLineNumber === resultEndLineNumber && resultStartColumn > resultEndColumn) {
+			return null;
+		}
+		return new Range(resultStartLineNumber, resultStartColumn, resultEndLineNumber, resultEndColumn);
+	}
+
+	/**
 	 * Test if this range equals other.
 	 */
 	public equalsRange(other:IRange): boolean {
 		return Range.equalsRange(this, other);
+	}
+
+	/**
+	 * Test if range `a` equals `b`.
+	 */
+	public static equalsRange(a:IRange, b:IRange): boolean {
+		return (
+			!!a &&
+			!!b &&
+			a.startLineNumber === b.startLineNumber &&
+			a.startColumn === b.startColumn &&
+			a.endLineNumber === b.endLineNumber &&
+			a.endColumn === b.endColumn
+		);
 	}
 
 	/**
@@ -116,12 +253,25 @@ export class Range {
 		return new Range(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
 	}
 
-	public collapseToStart():Range  {
-		return new Range(this.startLineNumber, this.startColumn, this.startLineNumber, this.startColumn);
+	/**
+	 * Create a new empty range using this range's start position.
+	 */
+	public collapseToStart(): Range {
+		return Range.collapseToStart(this);
+	}
+
+	/**
+	 * Create a new empty range using this range's start position.
+	 */
+	public static collapseToStart(range:IRange): Range {
+		return new Range(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn);
 	}
 
 	// ---
 
+	/**
+	 * Create a `Range` from an `IRange`.
+	 */
 	public static lift(range:IRange): Range {
 		if (!range) {
 			return null;
@@ -129,6 +279,9 @@ export class Range {
 		return new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
+	/**
+	 * Test if `obj` is an `IRange`.
+	 */
 	public static isIRange(obj: any): obj is IRange {
 		return (
 			obj
@@ -139,39 +292,9 @@ export class Range {
 		);
 	}
 
-	public static isEmpty(range:IRange): boolean {
-		return (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn);
-	}
-
-	public static containsPosition(range:IRange, position:IPosition): boolean {
-		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
-			return false;
-		}
-		if (position.lineNumber === range.startLineNumber && position.column < range.startColumn) {
-			return false;
-		}
-		if (position.lineNumber === range.endLineNumber && position.column > range.endColumn) {
-			return false;
-		}
-		return true;
-	}
-
-	public static containsRange(range:IRange, otherRange:IRange): boolean {
-		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {
-			return false;
-		}
-		if (otherRange.startLineNumber > range.endLineNumber || otherRange.endLineNumber > range.endLineNumber) {
-			return false;
-		}
-		if (otherRange.startLineNumber === range.startLineNumber && otherRange.startColumn < range.startColumn) {
-			return false;
-		}
-		if (otherRange.endLineNumber === range.endLineNumber && otherRange.endColumn > range.endColumn) {
-			return false;
-		}
-		return true;
-	}
-
+	/**
+	 * Test if the two ranges are touching in any way.
+	 */
 	public static areIntersectingOrTouching(a:IRange, b:IRange): boolean {
 		// Check if `a` is before `b`
 		if (a.endLineNumber < b.startLineNumber || (a.endLineNumber === b.startLineNumber && a.endColumn < b.startColumn)) {
@@ -185,78 +308,6 @@ export class Range {
 
 		// These ranges must intersect
 		return true;
-	}
-
-	public static intersectRanges(a:IRange, b:IRange): Range {
-		var resultStartLineNumber = a.startLineNumber,
-			resultStartColumn = a.startColumn,
-			resultEndLineNumber = a.endLineNumber,
-			resultEndColumn = a.endColumn,
-			otherStartLineNumber = b.startLineNumber,
-			otherStartColumn = b.startColumn,
-			otherEndLineNumber = b.endLineNumber,
-			otherEndColumn = b.endColumn;
-
-		if (resultStartLineNumber < otherStartLineNumber) {
-			resultStartLineNumber = otherStartLineNumber;
-			resultStartColumn = otherStartColumn;
-		} else if (resultStartLineNumber === otherStartLineNumber) {
-			resultStartColumn = Math.max(resultStartColumn, otherStartColumn);
-		}
-
-		if (resultEndLineNumber > otherEndLineNumber) {
-			resultEndLineNumber = otherEndLineNumber;
-			resultEndColumn = otherEndColumn;
-		} else if (resultEndLineNumber === otherEndLineNumber) {
-			resultEndColumn = Math.min(resultEndColumn, otherEndColumn);
-		}
-
-		// Check if selection is now empty
-		if (resultStartLineNumber > resultEndLineNumber) {
-			return null;
-		}
-		if (resultStartLineNumber === resultEndLineNumber && resultStartColumn > resultEndColumn) {
-			return null;
-		}
-		return new Range(resultStartLineNumber, resultStartColumn, resultEndLineNumber, resultEndColumn);
-	}
-
-	public static plusRange(a:IRange, b:IRange): Range {
-		var startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number;
-		if (b.startLineNumber < a.startLineNumber) {
-			startLineNumber = b.startLineNumber;
-			startColumn = b.startColumn;
-		} else if (b.startLineNumber === a.startLineNumber) {
-			startLineNumber = b.startLineNumber;
-			startColumn = Math.min(b.startColumn, a.startColumn);
-		} else {
-			startLineNumber = a.startLineNumber;
-			startColumn = a.startColumn;
-		}
-
-		if (b.endLineNumber > a.endLineNumber) {
-			endLineNumber = b.endLineNumber;
-			endColumn = b.endColumn;
-		} else if (b.endLineNumber === a.endLineNumber) {
-			endLineNumber = b.endLineNumber;
-			endColumn = Math.max(b.endColumn, a.endColumn);
-		} else {
-			endLineNumber = a.endLineNumber;
-			endColumn = a.endColumn;
-		}
-
-		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
-	}
-
-	public static equalsRange(a:IRange, b:IRange): boolean {
-		return (
-			!!a &&
-			!!b &&
-			a.startLineNumber === b.startLineNumber &&
-			a.startColumn === b.startColumn &&
-			a.endLineNumber === b.endLineNumber &&
-			a.endColumn === b.endColumn
-		);
 	}
 
 	/**
@@ -302,18 +353,11 @@ export class Range {
 		return a.endLineNumber - b.endLineNumber;
 	}
 
+	/**
+	 * Test if the range spans multiple lines.
+	 */
 	public static spansMultipleLines(range:IRange):boolean {
 		return range.endLineNumber > range.startLineNumber;
 	}
-
-	public static collapseToStart(range:IRange):IRange  {
-		return {
-			startLineNumber: range.startLineNumber,
-			startColumn: range.startColumn,
-			endLineNumber: range.startLineNumber,
-			endColumn: range.startColumn
-		};
-	}
-
 }
 

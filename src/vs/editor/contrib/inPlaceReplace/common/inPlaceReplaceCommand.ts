@@ -30,7 +30,7 @@ export class InPlaceReplaceCommand implements editorCommon.ICommand {
 
 		if (!this._originalSelection.isEmpty()) {
 			// Preserve selection and extends to typed text
-			return Selection.createSelection(
+			return new Selection(
 				srcRange.endLineNumber,
 				srcRange.endColumn - this._text.length,
 				srcRange.endLineNumber,
@@ -38,7 +38,7 @@ export class InPlaceReplaceCommand implements editorCommon.ICommand {
 			);
 		}
 
-		return Selection.createSelection(
+		return new Selection(
 			srcRange.endLineNumber,
 			Math.min(this._originalSelection.positionColumn, srcRange.endColumn),
 			srcRange.endLineNumber,

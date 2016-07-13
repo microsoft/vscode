@@ -11,14 +11,14 @@
 	box-sizing: border-box;
 }
 
-.monaco-editor.vs.focused .current-line {
+.monaco-editor.vs .current-line {
 	border: 2px solid #eee;
 }
 
-.monaco-editor.vs-dark.focused .current-line {
+.monaco-editor.vs-dark .current-line {
 	border: 2px solid #282828;
 }
 
-.monaco-editor.hc-black.focused .current-line {
+.monaco-editor.hc-black .current-line {
 	border: 2px solid #f38518;
 }

@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import {Registry} from 'vs/platform/platform';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IPanel} from 'vs/workbench/common/panel';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
+import { Action } from 'vs/base/common/actions';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -54,6 +60,48 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 */
 	public getDefaultPanelId(): string {
 		return this.defaultPanelId;
+	}
+}
+
+/**
+ * A reusable action to toggle a panel with a specific id.
+ */
+export abstract class TogglePanelAction extends Action {
+
+	private panelId: string;
+
+	constructor(
+		id: string,
+		label: string,
+		panelId: string,
+		protected panelService: IPanelService,
+		private partService: IPartService,
+		private editorService: IWorkbenchEditorService
+	) {
+		super(id, name);
+		this.panelId = panelId;
+	}
+
+	public run(): TPromise<any> {
+
+		if (this.isPanelShowing()) {
+			this.partService.setPanelHidden(true);
+			return TPromise.as(true);
+		}
+
+		return this.panelService.openPanel(this.panelId, true);
+	}
+
+	private isPanelShowing(): boolean {
+		let panel= this.panelService.getActivePanel();
+		return panel && panel.getId() === this.panelId;
+	}
+
+	protected isPanelFocussed(): boolean {
+		let activePanel = this.panelService.getActivePanel();
+		let activeElement = document.activeElement;
+
+		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer().getHTMLElement());
 	}
 }
 

@@ -69,10 +69,6 @@
 	padding: 0 20px 0 20px;
 }
 
-.explorer-viewlet .action-close-all-files {
-	background: url("closeall.svg") center center no-repeat;
-}
-
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
@@ -111,16 +107,6 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
 	font-style: italic;
-	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor.preview {
-	margin-left: 0px; /* accomodate for 1px padding */
-}
-
-/* Theming */
-.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("closeall_inverse.svg") center center no-repeat;
 }
 
 /* High Contrast Theming */

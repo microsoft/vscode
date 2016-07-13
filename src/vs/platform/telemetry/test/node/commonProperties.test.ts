@@ -6,16 +6,18 @@
 
 import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
-import {TestStorageService, TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
+import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import {TestStorageService, TestContextService} from 'vs/test/utils/servicesTestUtils';
 
 suite('Telemetry - common properties', function () {
 
+	const contextService = new TestContextService();
+	const commit = contextService.getConfiguration().env.commitHash;
+	const version = contextService.getConfiguration().env.version;
+
 	test('default', function () {
 
-		return resolveCommonProperties(new TestStorageService(), new TestContextService()).then(props => {
-
-			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 17 : 15);
+		return resolveWorkbenchCommonProperties(new TestStorageService(), commit, version).then(props => {
 
 			assert.ok('commitHash' in props);
 			assert.ok('sessionID' in props);
@@ -40,6 +42,8 @@ suite('Telemetry - common properties', function () {
 				assert.ok('common.sqm.userid' in props, 'userid');
 				assert.ok('common.sqm.machineid' in props, 'machineid');
 			}
+
+			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 17 : 15);
 		});
 	});
 
@@ -48,7 +52,7 @@ suite('Telemetry - common properties', function () {
 		let service = new TestStorageService();
 		service.store('telemetry.lastSessionDate', new Date().toUTCString());
 
-		return resolveCommonProperties(service, new TestContextService()).then(props => {
+		return resolveWorkbenchCommonProperties(service, commit, version).then(props => {
 
 			assert.ok('common.lastSessionDate' in props); // conditional, see below
 			assert.ok('common.isNewSession' in props);
@@ -57,7 +61,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	test('values chance on ask', function () {
-		return resolveCommonProperties(new TestStorageService(), new TestContextService()).then(props => {
+		return resolveWorkbenchCommonProperties(new TestStorageService(), commit, version).then(props => {
 			let value1 = props['common.sequence'];
 			let value2 = props['common.sequence'];
 			assert.ok(value1 !== value2, 'seq');

@@ -2,7 +2,20 @@
 	"name": "css",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": {
+		"vscode": "0.10.x"
+	},
+	"activationEvents": [
+		"onLanguage:css",
+		"onLanguage:less",
+		"onLanguage:scss",
+		"onCommand:_css.applyCodeAction"
+	],
+	"main": "./client/out/cssMain",
+	"scripts": {
+		"compile": "gulp compile-extension:css-client && gulp compile-extension:css-server",
+		"postinstall": "cd server && npm install"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "css",
@@ -18,6 +31,531 @@
 		"snippets": [{
 			"language": "css",
 			"path": "./snippets/css.json"
-		}]
+		}],
+		"configuration": {
+			"order": 20,
+			"allOf": [{
+				"id": "css",
+				"title": "CSS",
+				"allOf": [
+					{
+						"title": "Controls CSS validation and problem severities.",
+						"properties": {
+							"css.validate": {
+								"type": "boolean",
+								"default": true,
+								"description": "Enables or disables all validations"
+							},
+							"css.lint.compatibleVendorPrefixes": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties"
+							},
+							"css.lint.vendorPrefix": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "warning",
+								"description": "When using a vendor-specific prefix also include the standard property"
+							},
+							"css.lint.duplicateProperties": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "Do not use duplicate style definitions"
+							},
+							"css.lint.emptyRules": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "warning",
+								"description": "Do not use empty rulesets"
+							},
+							"css.lint.importStatement": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "Import statements do not load in parallel"
+							},
+							"css.lint.boxModel": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "Do not use width or height when using padding or border"
+							},
+							"css.lint.universalSelector": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "The universal selector (*) is known to be slow"
+							},
+							"css.lint.zeroUnits": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "No unit for zero needed"
+							},
+							"css.lint.fontFaceProperties": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "warning",
+								"description": "@font-face rule must define 'src' and 'font-family' properties"
+							},
+							"css.lint.hexColorLength": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "error",
+								"description": "Hex colors must consist of three or six hex numbers"
+							},
+							"css.lint.argumentsInColorFunction": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "error",
+								"description": "Invalid number of parameters"
+							},
+							"css.lint.unknownProperties": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "warning",
+								"description": "Unknown property."
+							},
+							"css.lint.ieHack": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "IE hacks are only necessary when supporting IE7 and older"
+							},
+							"css.lint.unknownVendorSpecificProperties": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "Unknown vendor specific property."
+							},
+							"css.lint.propertyIgnoredDueToDisplay": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "warning",
+								"description": "Property is ignored due to the display. E.g. with 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect"
+							},
+							"css.lint.important": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "Avoid using !important. It is an indication that the specificity of the entire CSS has gotten out of control and needs to be refactored."
+							},
+							"css.lint.float": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "Avoid using 'float'. Floats lead to fragile CSS that is easy to break if one aspect of the layout changes."
+							},
+							"css.lint.idSelector": {
+								"type": "string",
+								"enum": [ "ignore", "warning", "error"],
+								"default": "ignore",
+								"description": "Selectors should not contain IDs because these rules are too tightly coupled with the HTML."
+							}
+						}
+					}
+				]
+			},
+			{
+				"id": "scss",
+				"order": 24,
+				"title": "SCSS (Sass)",
+				"allOf": [
+					{
+						"title": "Controls SCSS validation and problem severities.",
+						"properties": {
+							"scss.validate": {
+								"type": "boolean",
+								"default": true,
+								"description": "Enables or disables all validations"
+							},
+							"scss.lint.compatibleVendorPrefixes": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties"
+							},
+							"scss.lint.vendorPrefix": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "When using a vendor-specific prefix also include the standard property"
+							},
+							"scss.lint.duplicateProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Do not use duplicate style definitions"
+							},
+							"scss.lint.emptyRules": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "Do not use empty rulesets"
+							},
+							"scss.lint.importStatement": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Import statements do not load in parallel"
+							},
+							"scss.lint.boxModel": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Do not use width or height when using padding or border"
+							},
+							"scss.lint.universalSelector": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "The universal selector (*) is known to be slow"
+							},
+							"scss.lint.zeroUnits": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "No unit for zero needed"
+							},
+							"scss.lint.fontFaceProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "@font-face rule must define 'src' and 'font-family' properties"
+							},
+							"scss.lint.hexColorLength": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "error",
+								"description": "Hex colors must consist of three or six hex numbers"
+							},
+							"scss.lint.argumentsInColorFunction": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "error",
+								"description": "Invalid number of parameters"
+							},
+							"scss.lint.unknownProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "Unknown property."
+							},
+							"scss.lint.ieHack": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "IE hacks are only necessary when supporting IE7 and older"
+							},
+							"scss.lint.unknownVendorSpecificProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Unknown vendor specific property."
+							},
+							"scss.lint.propertyIgnoredDueToDisplay": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "Property is ignored due to the display. E.g. with 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect"
+							},
+							"scss.lint.important": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Avoid using !important. It is an indication that the specificity of the entire CSS has gotten out of control and needs to be refactored."
+							},
+							"scss.lint.float": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Avoid using 'float'. Floats lead to fragile CSS that is easy to break if one aspect of the layout changes."
+							},
+							"scss.lint.idSelector": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Selectors should not contain IDs because these rules are too tightly coupled with the HTML."
+							}
+						}
+					}
+				]
+			},
+			{
+				"id": "less",
+				"order": 22,
+				"type": "object",
+				"title": "LESS",
+				"allOf": [
+					{
+						"title": "Controls LESS validation and problem severities.",
+						"properties": {
+							"less.validate": {
+								"type": "boolean",
+								"default": true,
+								"description": "Enables or disables all validations"
+							},
+							"less.lint.compatibleVendorPrefixes": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties"
+							},
+							"less.lint.vendorPrefix": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "When using a vendor-specific prefix also include the standard property"
+							},
+							"less.lint.duplicateProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Do not use duplicate style definitions"
+							},
+							"less.lint.emptyRules": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "Do not use empty rulesets"
+							},
+							"less.lint.importStatement": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Import statements do not load in parallel"
+							},
+							"less.lint.boxModel": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Do not use width or height when using padding or border"
+							},
+							"less.lint.universalSelector": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "The universal selector (*) is known to be slow"
+							},
+							"less.lint.zeroUnits": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "No unit for zero needed"
+							},
+							"less.lint.fontFaceProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "@font-face rule must define 'src' and 'font-family' properties"
+							},
+							"less.lint.hexColorLength": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "error",
+								"description": "Hex colors must consist of three or six hex numbers"
+							},
+							"less.lint.argumentsInColorFunction": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "error",
+								"description": "Invalid number of parameters"
+							},
+							"less.lint.unknownProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "Unknown property."
+							},
+							"less.lint.ieHack": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "IE hacks are only necessary when supporting IE7 and older"
+							},
+							"less.lint.unknownVendorSpecificProperties": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Unknown vendor specific property."
+							},
+							"less.lint.propertyIgnoredDueToDisplay": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "warning",
+								"description": "Property is ignored due to the display. E.g. with 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect"
+							},
+							"less.lint.important": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Avoid using !important. It is an indication that the specificity of the entire CSS has gotten out of control and needs to be refactored."
+							},
+							"less.lint.float": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Avoid using 'float'. Floats lead to fragile CSS that is easy to break if one aspect of the layout changes."
+							},
+							"less.lint.idSelector": {
+								"type": "string",
+								"enum": [
+									"ignore",
+									"warning",
+									"error"
+								],
+								"default": "ignore",
+								"description": "Selectors should not contain IDs because these rules are too tightly coupled with the HTML."
+							}
+						}
+					}
+				]
+			}]
+		}
+	},
+	"dependencies": {
+		"vscode-languageclient": "^2.2.1"
 	}
 }

@@ -13,8 +13,7 @@ import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ScrollbarArrow, ScrollbarArrowOptions} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import {ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
-import {Scrollable} from 'vs/base/common/scrollable';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {Scrollable, ScrollbarVisibility} from 'vs/base/common/scrollable';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -195,7 +194,7 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	private _onMouseDown(e: IMouseEvent): void {
-		let domNodePosition = DomUtils.getDomNodePosition(this.domNode.domNode);
+		let domNodePosition = DomUtils.getDomNodePagePosition(this.domNode.domNode);
 		let desiredSliderPosition = this._mouseDownRelativePosition(e, domNodePosition) - this._scrollbarState.getArrowSize() - this._scrollbarState.getSliderSize() / 2;
 		this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
 		this._sliderMouseDown(e);
@@ -255,7 +254,7 @@ export abstract class AbstractScrollbar extends Widget {
 
 	protected abstract _renderDomNode(largeSize: number, smallSize: number): void;
 	protected abstract _updateSlider(sliderSize: number, sliderPosition: number): void;
-	protected abstract _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: DomUtils.IDomNodePosition): number;
+	protected abstract _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: DomUtils.IDomNodePagePosition): number;
 	protected abstract _sliderMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _getScrollPosition(): number;

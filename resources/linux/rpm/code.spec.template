@@ -12,7 +12,7 @@ Requires: glibc >= 2.15
 AutoReq:  0
 
 %description
-Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle.
+Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.
 
 %install
 mkdir -p %{buildroot}/usr/share/@@NAME@@
@@ -43,7 +43,9 @@ sudo ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 #fi
 
 %postun
-sudo rm -f /usr/bin/@@NAME@@
+if [ $1 = 0 ]; then
+  rm -f /usr/bin/@@NAME@@
+fi
 
 %files
 %defattr(-,root,root)

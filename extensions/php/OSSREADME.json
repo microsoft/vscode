@@ -26,12 +26,4 @@
 		"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
 		"\"tidy\" is accompanied by \"tidy-license.txt\"."
 	]
-},
-{
-	"name": "Microsoft/vscode-nls",
-	"version": "0.0.0",
-	"license": "MIT",
-	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/vscode-nls"
-}
-]
+}]

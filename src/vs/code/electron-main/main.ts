@@ -6,10 +6,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
-import { mkdirp } from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
 import { IProcessEnvironment, IEnvironmentService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
@@ -31,6 +30,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 import * as cp from 'child_process';
+import { generateUuid } from 'vs/base/common/uuid';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -108,7 +108,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	process.env['VSCODE_SHARED_IPC_HOOK'] = envService.sharedIPCHandle;
 
 	// Spawn shared process
-	const sharedProcess = instantiationService.invokeFunction(spawnSharedProcess);
+	const sharedProcess = spawnSharedProcess(!envService.isBuilt || envService.cliArgs.verboseLogging);
 
 	// Make sure we associate the program with the app user model id
 	// This will help Windows to associate the running program with
@@ -254,17 +254,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-// TODO@Joao: what about in the cli process?
-function createPaths(accessor: ServicesAccessor): TPromise<void> {
-	const environmentService = accessor.get(IEnvironmentService);
-
-	return TPromise.join([
-		mkdirp(environmentService.appSettingsHome),
-		mkdirp(environmentService.userHome),
-		mkdirp(environmentService.userExtensionsHome)
-	]) as any as TPromise<void>;
-}
-
 // TODO: isolate
 const services = new ServiceCollection();
 
@@ -286,13 +275,15 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 	const promise = new TPromise((c, e) => {
 		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
+		const regex = new RegExp(mark + '(.*)' + mark);
 
 		const env = assign({}, process.env, {
 			ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1',
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
 		});
 
-		const command = `'${process.execPath}' -p 'JSON.stringify(process.env)'`;
+		const command = `'${process.execPath}' -p '"${ mark }" + JSON.stringify(process.env) + "${ mark }"'`;
 		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
@@ -309,9 +300,11 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 			}
 
 			const raw = Buffer.concat(buffers).toString('utf8');
+			const match = regex.exec(raw);
+			const rawStripped = match ? match[1] : '{}';
 
 			try {
-				const env = JSON.parse(raw);
+				const env = JSON.parse(rawStripped);
 
 				if (runAsNode) {
 					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;
@@ -352,7 +345,7 @@ getUserEnvironment()
 		// See also https://github.com/Microsoft/vscode/issues/4558
 		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
 
-		return instantiationService.invokeFunction(createPaths)
+		return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
 			.then(() => instantiationService.invokeFunction(setupIPC))
 			.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, userEnv));
 	})

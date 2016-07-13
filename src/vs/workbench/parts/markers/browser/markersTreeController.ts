@@ -12,17 +12,19 @@ import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMarker } from 'vs/platform/markers/common/markers';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class Controller extends treedefaults.DefaultController {
 
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+				@ITelemetryService private telemetryService: ITelemetryService) {
 		super();
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		let currentFoucssed= tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
-			if (this.openFileAtElement(element)) {
+			if (this.openFileAtElement(element, event.detail !== 2, event.ctrlKey, event.detail === 2)) {
 				return true;
 			}
 			if (element instanceof MarkersModel) {
@@ -39,13 +41,14 @@ export class Controller extends treedefaults.DefaultController {
 
 	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
 		if (super.onEnter(tree, event)) {
-			return this.openFileAtElement(tree.getFocus());
+			return this.openFileAtElement(tree.getFocus(), false, false, false);
 		}
 		return false;
 	}
 
-	private openFileAtElement(element: any) {
+	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
+			this.telemetryService.publicLog('problems.marker.opened', {source: element.source});
 			let marker = <IMarker>element.marker;
 			this.editorService.openEditor({
 				resource: marker.resource,
@@ -56,9 +59,10 @@ export class Controller extends treedefaults.DefaultController {
 						endLineNumber: marker.endLineNumber,
 						endColumn: marker.endColumn
 					},
-					preserveFocus: false,
+					preserveFocus,
+					pinned
 				},
-			}).done(null, errors.onUnexpectedError);
+			}, sideByside).done(null, errors.onUnexpectedError);
 			return true;
 		}
 		return false;

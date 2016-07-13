@@ -54,8 +54,8 @@
 			"scope": [
 				"support.property-value",
 				"constant.rgb-value",
-				"support.property-value.sass",
-				"constant.rgb-value.sass"
+				"support.property-value.scss",
+				"constant.rgb-value.scss"
 			],
 			"settings": {
 				"foreground": "#CE9178"

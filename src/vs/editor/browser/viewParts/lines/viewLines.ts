@@ -10,7 +10,7 @@ import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
-import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
+import {ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {ViewLine, createLine} from 'vs/editor/browser/viewParts/lines/viewLine';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
@@ -45,7 +45,7 @@ class LastRenderedData {
 	}
 }
 
-export class ViewLines extends ViewLayer {
+export class ViewLines extends ViewLayer<ViewLine> {
 	/**
 	 * Width to extends a line to render the line feed at the end of the line
 	 */
@@ -57,7 +57,6 @@ export class ViewLines extends ViewLayer {
 
 
 	private _layoutProvider:ILayoutProvider;
-	_lines:ViewLine[];
 	private _textRangeRestingSpot:HTMLElement;
 
 	// --- config
@@ -146,9 +145,11 @@ export class ViewLines extends ViewLayer {
 	}
 
 	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
-		var shouldRender = super.onModelDecorationsChanged(e);
-		for (var i = 0; i < this._lines.length; i++) {
-			this._lines[i].onModelDecorationsChanged();
+		let shouldRender = super.onModelDecorationsChanged(e);
+		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
+		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			this._linesCollection.getLine(lineNumber).onModelDecorationsChanged();
 		}
 		return shouldRender || true;
 	}
@@ -186,7 +187,7 @@ export class ViewLines extends ViewLayer {
 	// ----------- HELPERS FOR OTHERS
 
 	public getPositionFromDOMInfo(spanNode:HTMLElement, offset:number): editorCommon.IPosition {
-		var lineNumber = this._getLineNumberFromDOMInfo(spanNode);
+		let lineNumber = this._getLineNumberFromDOMInfo(spanNode);
 
 		if (lineNumber === -1) {
 			// Couldn't find span node
@@ -206,14 +207,15 @@ export class ViewLines extends ViewLayer {
 			};
 		}
 
-		var lineIndex = lineNumber - this._rendLineNumberStart;
-		if (lineIndex < 0 || lineIndex >= this._lines.length) {
+		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
+		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
+		if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
 			// Couldn't find line
 			return null;
 		}
 
-		var column = this._lines[lineIndex].getColumnOfNodeOffset(lineNumber, spanNode, offset);
-		var minColumn = this._context.model.getLineMinColumn(lineNumber);
+		let column = this._linesCollection.getLine(lineNumber).getColumnOfNodeOffset(lineNumber, spanNode, offset);
+		let minColumn = this._context.model.getLineMinColumn(lineNumber);
 		if (column < minColumn) {
 			column = minColumn;
 		}
@@ -234,12 +236,14 @@ export class ViewLines extends ViewLayer {
 	}
 
 	public getLineWidth(lineNumber: number): number {
-		var lineIndex = lineNumber - this._rendLineNumberStart;
-		if (lineIndex < 0 || lineIndex >= this._lines.length) {
+		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
+		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
+		if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
+			// Couldn't find line
 			return -1;
 		}
 
-		return this._lines[lineIndex].getWidth();
+		return this._linesCollection.getLine(lineNumber).getWidth();
 	}
 
 	public linesVisibleRangesForRange(range:editorCommon.IRange, includeNewLines:boolean): LineVisibleRanges[] {
@@ -263,16 +267,17 @@ export class ViewLines extends ViewLayer {
 			nextLineModelLineNumber = this._context.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;
 		}
 
+		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
+		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
 		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - this._rendLineNumberStart;
 
-			if (lineIndex < 0 || lineIndex >= this._lines.length) {
+			if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
 				continue;
 			}
 
 			let startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			let endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			let visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, this._textRangeRestingSpot);
+			let visibleRangesForLine = this._linesCollection.getLine(lineNumber).getVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, this._textRangeRestingSpot);
 
 			if (!visibleRangesForLine || visibleRangesForLine.length === 0) {
 				continue;
@@ -314,16 +319,17 @@ export class ViewLines extends ViewLayer {
 		let clientRectDeltaLeft = this.domNode.domNode.getBoundingClientRect().left;
 		let bigNumbersDelta = this._lastRenderedData.getBigNumbersDelta();
 
+		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
+		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
 		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - this._rendLineNumberStart;
 
-			if (lineIndex < 0 || lineIndex >= this._lines.length) {
+			if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
 				continue;
 			}
 
 			let startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			let endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			let visibleRangesForLine = this._lines[lineIndex].getVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, this._textRangeRestingSpot);
+			let visibleRangesForLine = this._linesCollection.getLine(lineNumber).getVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, this._textRangeRestingSpot);
 
 			if (!visibleRangesForLine || visibleRangesForLine.length === 0) {
 				continue;
@@ -344,18 +350,17 @@ export class ViewLines extends ViewLayer {
 
 	// --- implementation
 
-	_createLine(): IVisibleLineData {
+	_createLine(): ViewLine {
 		return createLine(this._context);
 	}
 
 	private _updateLineWidths(): void {
-		var i:number,
-			localMaxLineWidth = 1,
-			widthInPx:number;
+		let rendStartLineNumber = this._linesCollection.getStartLineNumber();
+		let rendEndLineNumber = this._linesCollection.getEndLineNumber();
 
-		// Read line widths
-		for (i = 0; i < this._lines.length; i++) {
-			widthInPx = this._lines[i].getWidth();
+		let localMaxLineWidth = 1;
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			let widthInPx = this._linesCollection.getLine(lineNumber).getWidth();
 			localMaxLineWidth = Math.max(localMaxLineWidth, widthInPx);
 		}
 

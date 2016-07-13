@@ -7,7 +7,11 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ArraySet } from 'vs/base/common/set';
+import { isArray } from 'vs/base/common/types';
 
+/**
+ * A Pager is a stateless abstraction over a paged collection.
+ */
 export interface IPager<T> {
 	firstPage: T[];
 	total: number;
@@ -22,16 +26,38 @@ interface IPage<T> {
 	elements: T[];
 }
 
-export class PagedModel<T> {
+/**
+ * A PagedModel is a stateful model over an abstracted paged collection.
+ */
+export interface IPagedModel<T> {
+	length: number;
+	isResolved(index: number): boolean;
+	get(index: number): T;
+	resolve(index: number): TPromise<T>;
+}
 
+export function singlePagePager<T>(elements: T[]): IPager<T> {
+	return {
+		firstPage: elements,
+		total: elements.length,
+		pageSize: elements.length,
+		getPage: null
+	};
+}
+
+export class PagedModel<T> implements IPagedModel<T> {
+
+	private pager: IPager<T>;
 	private pages: IPage<T>[] = [];
 
 	get length(): number { return this.pager.total; }
 
-	constructor(private pager: IPager<T>, private pageTimeout: number = 500) {
-		this.pages = [{ isResolved: true, promise: null, promiseIndexes: new ArraySet<number>(), elements: pager.firstPage.slice() }];
+	constructor(private arg: IPager<T> | T[], private pageTimeout: number = 500) {
+		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
 
-		const totalPages = Math.ceil(pager.total / pager.pageSize);
+		this.pages = [{ isResolved: true, promise: null, promiseIndexes: new ArraySet<number>(), elements: this.pager.firstPage.slice() }];
+
+		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
 		for (let i = 0, len = totalPages - 1; i < len; i++) {
 			this.pages.push({ isResolved: false, promise: null, promiseIndexes: new ArraySet<number>(), elements: [] });
@@ -92,6 +118,10 @@ export class PagedModel<T> {
 	}
 }
 
+/**
+ * Similar to array.map, `mapPager` lets you map the elements of an
+ * abstract paged collection to another type.
+ */
 export function mapPager<T,R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
 	return {
 		firstPage: pager.firstPage.map(fn),

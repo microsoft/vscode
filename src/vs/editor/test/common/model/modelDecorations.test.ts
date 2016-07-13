@@ -87,7 +87,7 @@ suite('Editor Model - Model Decorations', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
+		thisModel = Model.createFromString(text);
 	});
 
 	teardown(() => {
@@ -445,7 +445,7 @@ suite('deltaDecorations', () => {
 
 	function testDeltaDecorations(text:string[], decorations:ILightWeightDecoration[], newDecorations:ILightWeightDecoration[]): void {
 
-		var model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		var model = Model.createFromString(text.join('\n'));
 
 		// Add initial decorations & assert they are added
 		var initialIds = model.deltaDecorations([], decorations.map(toModelDeltaDecoration));
@@ -478,10 +478,10 @@ suite('deltaDecorations', () => {
 	}
 
 	test('result respects input', () => {
-		var model = new Model([
+		var model = Model.createFromString([
 			'Hello world,',
 			'How are you?'
-		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		].join('\n'));
 
 		var ids = model.deltaDecorations([], [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
@@ -566,7 +566,7 @@ suite('deltaDecorations', () => {
 
 	test('issue #4317: editor.setDecorations doesn\'t update the hover message', () => {
 
-		let model = new Model('Hello world!', Model.DEFAULT_CREATION_OPTIONS, null);
+		let model = Model.createFromString('Hello world!');
 
 		let ids = model.deltaDecorations([], [{
 			range: {
@@ -576,9 +576,7 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				htmlMessage: [{
-					markdown: 'hello1'
-				}]
+				hoverMessage: ['hello1']
 			}
 		}]);
 
@@ -590,24 +588,22 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
-				htmlMessage: [{
-					markdown: 'hello2'
-				}]
+				hoverMessage: ['hello2']
 			}
 		}]);
 
 		let actualDecoration = model.getDecorationOptions(ids[0]);
 
-		assert.equal(actualDecoration.htmlMessage[0].markdown, 'hello2');
+		assert.equal(actualDecoration.hoverMessage[0], 'hello2');
 
 		model.dispose();
 	});
 
 	test('model doesn\'t get confused with individual tracked ranges', () => {
-		var model = new Model([
+		var model = Model.createFromString([
 			'Hello world,',
 			'How are you?'
-		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		].join('\n'));
 
 		var trackedRangeId = model.addTrackedRange({
 			startLineNumber: 1,

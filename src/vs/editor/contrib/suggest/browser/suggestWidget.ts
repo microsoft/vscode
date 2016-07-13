@@ -8,7 +8,6 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import * as timer from 'vs/base/common/timer';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -18,8 +17,7 @@ import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from '
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
@@ -37,6 +35,8 @@ interface ISuggestionTemplateData {
 	documentation: HTMLElement;
 	disposables: IDisposable[];
 }
+
+const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 
 class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
@@ -99,12 +99,15 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
 		}
 
-		if (suggestion.type === 'customcolor') {
-			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = suggestion.label;
-		} else {
-			data.icon.className = 'icon ' + suggestion.type;
-			data.colorspan.style.backgroundColor = '';
+		data.icon.className = 'icon ' + suggestion.type;
+		data.colorspan.style.backgroundColor = '';
+
+		if (suggestion.type === 'color') {
+			let color = suggestion.label.match(colorRegExp) && suggestion.label || suggestion.documentationLabel.match(colorRegExp) && suggestion.documentationLabel;
+			if (color) {
+				data.icon.className = 'icon customcolor';
+				data.colorspan.style.backgroundColor = color;
+			}
 		}
 
 		data.highlightedLabel.set(suggestion.label, (<CompletionItem>element).highlights);
@@ -143,7 +146,7 @@ class Delegate implements IDelegate<CompletionItem> {
 	constructor(private listProvider: () => List<CompletionItem>) { }
 
 	getHeight(element: CompletionItem): number {
-		const focus = this.listProvider().getFocus()[0];
+		const focus = this.listProvider().getFocusedElements()[0];
 
 		if (element.suggestion.documentationLabel && element === focus) {
 			return FocusHeight;
@@ -172,15 +175,6 @@ function computeScore(suggestion: string, currentWord: string, currentWordLowerC
 	}
 
 	return score;
-}
-
-interface ITelemetryData {
-	suggestionCount?: number;
-	suggestedIndex?: number;
-	selectedIndex?: number;
-	hintLength?: number;
-	wasCancelled?: boolean;
-	wasAutomaticallyTriggered?: boolean;
 }
 
 enum State {
@@ -316,10 +310,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private focusedItem: CompletionItem;
 	private completionModel: CompletionModel;
 
-	private telemetryData: ITelemetryData;
-	private telemetryService: ITelemetryService;
-	private telemetryTimer: timer.ITimerEvent;
-
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
@@ -339,14 +329,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		private editor: ICodeEditor,
 		private model: SuggestModel,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
-
-		this.telemetryData = null;
-		this.telemetryService = telemetryService;
 
 		this.element = $('.editor-widget.suggest-widget.monaco-editor-background');
 		this.element.style.width = SuggestWidget.WIDTH + 'px';
@@ -364,7 +350,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
 		this.delegate = new Delegate(() => this.list);
-		this.list = new List(this.listElement, this.delegate, [renderer]);
+		this.list = new List(this.listElement, this.delegate, [renderer], {
+			useShadows: false
+		});
 
 		this.toDispose = [
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
@@ -418,11 +406,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		if (!e.elements.length) {
 			return;
 		}
-
-		this.telemetryData.selectedIndex = 0;
-		this.telemetryData.wasCancelled = false;
-		this.telemetryData.selectedIndex = e.indexes[0];
-		this.submitTelemetryData();
 
 		const item = e.elements[0];
 		const container = item.container;
@@ -509,6 +492,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private setState(state: State): void {
+		if (!this.element) {
+			return;
+		}
+
 		const stateChanged = this.state !== state;
 		this.state = state;
 
@@ -563,7 +550,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		this.telemetryTimer = this.telemetryService.timedPublicLog('suggestWidgetLoadingTime');
 		this.isAuto = !!e.auto;
 
 		if (!this.isAuto) {
@@ -571,12 +557,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				this.loadingTimeout = null;
 				this.setState(State.Loading);
 			}, 50);
-		}
-
-		if (!e.retrigger) {
-			this.telemetryData = {
-				wasAutomaticallyTriggered: e.characterTriggered
-			};
 		}
 	}
 
@@ -622,22 +602,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				}
 			});
 
-			this.telemetryData = this.telemetryData || {};
-			this.telemetryData.suggestionCount = this.completionModel.items.length;
-			this.telemetryData.suggestedIndex = bestSuggestionIndex;
-			this.telemetryData.hintLength = currentWord.length;
-
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
 			this.list.setFocus(bestSuggestionIndex);
 			this.list.reveal(bestSuggestionIndex, 0);
 
 			this.setState(State.Open);
-		}
-
-		if (this.telemetryTimer) {
-			this.telemetryTimer.data = { reason: isEmpty ? 'empty' : 'results' };
-			this.telemetryTimer.stop();
-			this.telemetryTimer = null;
 		}
 	}
 
@@ -649,18 +618,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		if (!e.retrigger) {
 			this.setState(State.Hidden);
-
-			if (this.telemetryData) {
-				this.telemetryData.selectedIndex = -1;
-				this.telemetryData.wasCancelled = true;
-				this.submitTelemetryData();
-			}
-		}
-
-		if (this.telemetryTimer) {
-			this.telemetryTimer.data = { reason: 'cancel' };
-			this.telemetryTimer.stop();
-			this.telemetryTimer = null;
 		}
 	}
 
@@ -733,7 +690,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			case State.Loading:
 				return !this.isAuto;
 			default:
-				const focus = this.list.getFocus()[0];
+				const focus = this.list.getFocusedElements()[0];
 				if (focus) {
 					this.list.setSelection(this.completionModel.items.indexOf(focus));
 				} else {
@@ -754,7 +711,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		const item = this.list.getFocus()[0];
+		const item = this.list.getFocusedElements()[0];
 
 		if (!item || !item.suggestion.documentationLabel) {
 			return;
@@ -805,11 +762,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		return SuggestWidget.ID;
 	}
 
-	private submitTelemetryData(): void {
-		this.telemetryService.publicLog('suggestWidget', this.telemetryData);
-		this.telemetryData = null;
-	}
-
 	private updateWidgetHeight(): number {
 		let height = 0;
 
@@ -818,7 +770,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		} else if (this.state === State.Details) {
 			height = 12 * UnfocusedHeight;
 		} else {
-			const focus = this.list.getFocus()[0];
+			const focus = this.list.getFocusedElements()[0];
 			const focusHeight = focus ? this.delegate.getHeight(focus) : UnfocusedHeight;
 			height = focusHeight;
 
@@ -837,7 +789,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		if (this.state !== State.Details) {
 			this.details.render(null);
 		} else {
-			this.details.render(this.list.getFocus()[0]);
+			this.details.render(this.list.getFocusedElements()[0]);
 		}
 	}
 
@@ -846,9 +798,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
 		this.focusedItem = null;
-		this.telemetryData = null;
-		this.telemetryService = null;
-		this.telemetryTimer = null;
 		this.element = null;
 		this.messageElement = null;
 		this.listElement = null;

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 import { ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
+import { IPager } from 'vs/base/common/paging';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,19 +18,25 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { IExtensionManagementService, IExtensionGalleryService, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { NodeRequestService } from 'vs/platform/request/node/nodeRequestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
-const useId = localize('useId', "Make sure you use the full extension ID, eg: {0}", 'ms-vscode.csharp');
+const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, eg: {0}", 'ms-vscode.csharp');
+
+function getId(manifest: IExtensionManifest): string {
+	return `${ manifest.publisher }.${ manifest.name }`;
+}
 
 class Main {
 
@@ -54,22 +63,22 @@ class Main {
 
 	private listExtensions(): TPromise<any> {
 		return this.extensionManagementService.getInstalled().then(extensions => {
-			extensions.forEach(e => console.log(getExtensionId(e)));
+			extensions.forEach(e => console.log(getId(e.manifest)));
 		});
 	}
 
 	private installExtension(ids: string[]): TPromise<any> {
 		return sequence(ids.map(id => () => {
 			return this.extensionManagementService.getInstalled().then(installed => {
-				const isInstalled = installed.some(e => getExtensionId(e) === id);
+				const isInstalled = installed.some(e => getId(e.manifest) === id);
 
 				if (isInstalled) {
 					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
 					return TPromise.as(null);
 				}
 
-				return this.extensionGalleryService.query({ ids: [id] })
-					.then<IQueryResult>(null, err => {
+				return this.extensionGalleryService.query({ names: [id] })
+					.then<IPager<IGalleryExtension>>(null, err => {
 						if (err.responseText) {
 							try {
 								const response = JSON.parse(err.responseText);
@@ -89,8 +98,8 @@ class Main {
 						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
 						console.log(localize('installing', "Installing..."));
 
-						return this.extensionManagementService.install(extension).then(extension => {
-							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+						return this.extensionManagementService.install(extension).then(() => {
+							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.versions[0].version));
 						});
 					});
 			});
@@ -100,7 +109,7 @@ class Main {
 	private uninstallExtension(ids: string[]): TPromise<any> {
 		return sequence(ids.map(id => () => {
 			return this.extensionManagementService.getInstalled().then(installed => {
-				const [extension] = installed.filter(e => getExtensionId(e) === id);
+				const [extension] = installed.filter(e => getId(e.manifest) === id);
 
 				if (!extension) {
 					return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);
@@ -116,18 +125,57 @@ class Main {
 	}
 }
 
+const eventPrefix = 'monacoworkbench';
+
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-
-	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
-	services.set(ITelemetryService, NullTelemetryService);
-	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
-	services.set(IRequestService, new SyncDescriptor(NodeRequestService));
-	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
-	const main = instantiationService.createInstance(Main);
-	return main.run(argv);
+
+	return instantiationService.invokeFunction(accessor => {
+		const envService = accessor.get(IEnvironmentService);
+
+		return envService.createPaths().then(() => {
+			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
+
+			const services = new ServiceCollection();
+			services.set(IEventService, new SyncDescriptor(EventService));
+			services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+			services.set(IRequestService, new SyncDescriptor(NodeRequestService));
+			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+
+			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+				const appenders: AppInsightsAppender[] = [];
+
+				if (product.aiConfig && product.aiConfig.key) {
+					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
+				}
+
+				if (product.aiConfig && product.aiConfig.asimovKey) {
+					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+				}
+
+				// It is important to dispose the AI adapter properly because
+				// only then they flush remaining data.
+				process.once('exit', () => appenders.forEach(a => a.dispose()));
+
+				const config: ITelemetryServiceConfig = {
+					appender: combinedAppender(...appenders),
+					commonProperties: resolveCommonProperties(product.commit, pkg.version),
+					piiPaths: [appRoot, extensionsPath]
+				};
+
+				services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			} else {
+				services.set(ITelemetryService, NullTelemetryService);
+			}
+
+			const instantiationService2 = instantiationService.createChild(services);
+			const main = instantiationService2.createInstance(Main);
+
+			return main.run(argv);
+		});
+	});
 }

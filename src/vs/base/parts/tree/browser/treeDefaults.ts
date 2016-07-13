@@ -45,7 +45,7 @@ export class LegacyRenderer implements _.IRenderer {
 			templateData.previousCleanupFn(tree, templateData.element);
 		}
 
-		while (templateData.root.firstChild) {
+		while (templateData.root && templateData.root.firstChild) {
 			templateData.root.removeChild(templateData.root.firstChild);
 		}
 
@@ -339,7 +339,12 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			var focus = tree.getFocus();
-			tree.expand(focus).done(null, errors.onUnexpectedError);
+			tree.expand(focus).then(didExpand => {
+				if (focus && !didExpand) {
+					tree.focusFirstChild(payload);
+					return tree.reveal(tree.getFocus());
+				}
+			}).done(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -432,19 +437,21 @@ export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 
 export class CollapseAllAction extends Action {
 
-	constructor(viewer: _.ITree, enabled: boolean) {
-		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), 'monaco-tree-action collapse-all', enabled, (context: any) => {
-			if (viewer.getHighlight()) {
-				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
-			}
+	constructor(private viewer: _.ITree, enabled: boolean) {
+		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
+	}
 
-			viewer.collapseAll();
-			viewer.clearSelection();
-			viewer.clearFocus();
-			viewer.DOMFocus();
-			viewer.focusFirst();
+	public run(context?: any): TPromise<any> {
+		if (this.viewer.getHighlight()) {
+			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+		}
 
-			return TPromise.as(null);
-		});
+		this.viewer.collapseAll();
+		this.viewer.clearSelection();
+		this.viewer.clearFocus();
+		this.viewer.DOMFocus();
+		this.viewer.focusFirst();
+
+		return TPromise.as(null);
 	}
 }

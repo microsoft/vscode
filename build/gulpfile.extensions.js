@@ -19,12 +19,11 @@ var glob = require('glob');
 var sourcemaps = require('gulp-sourcemaps');
 var nlsDev = require('vscode-nls-dev');
 
-var quiet = !!process.env['VSCODE_BUILD_QUIET'];
 var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 var compilations = glob.sync('**/tsconfig.json', {
 	cwd: extensionsPath,
-	ignore: '**/out/**'
+	ignore: ['**/out/**', '**/node_modules/**']
 });
 
 var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
@@ -34,9 +33,8 @@ var tasks = compilations.map(function(tsconfigFile) {
 	var relativeDirname = path.dirname(tsconfigFile);
 
 	var tsOptions = require(absolutePath).compilerOptions;
-	tsOptions.verbose = !quiet;
+	tsOptions.verbose = false;
 	tsOptions.sourceMap = true;
-	tsOptions.sourceRoot = '../src';
 
 	var name = relativeDirname.replace(/\//g, '-');
 
@@ -57,15 +55,15 @@ var tasks = compilations.map(function(tsconfigFile) {
 	var i18n = path.join(__dirname, '..', 'i18n');
 
 	function createPipeline(build) {
-		var reporter = quiet ? null : createReporter();
+		var reporter = createReporter();
 
 		tsOptions.inlineSources = !!build;
-		var compilation = tsb.create(tsOptions, null, null, quiet ? null : function (err) { reporter(err.toString()); });
+		var compilation = tsb.create(tsOptions, null, null, err => reporter(err.toString()));
 
 		return function () {
-			var input = es.through();
-			var tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts', '!**/node_modules/**'], { restore: true });
-			var output = input
+			const input = es.through();
+			const tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts', '!**/node_modules/**'], { restore: true });
+			const output = input
 				.pipe(tsFilter)
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
@@ -73,25 +71,28 @@ var tasks = compilations.map(function(tsconfigFile) {
 				.pipe(sourcemaps.write('.', {
 					addComment: false,
 					includeContent: !!build,
-					sourceRoot: tsOptions.sourceRoot
+					sourceRoot: function(file) {
+						const levels = file.relative.split(path.sep).length;
+						return '../'.repeat(levels) + 'src';
+					}
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18n, out) : es.through())
-				.pipe(quiet ? es.through() : reporter.end());
+				.pipe(reporter.end());
 
 			return es.duplex(input, output);
 		};
-	};
+	}
 
-	var srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
+	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
 
 	gulp.task(clean, function (cb) {
 		rimraf(out, cb);
 	});
 
 	gulp.task(compile, [clean], function () {
-		var pipeline = createPipeline(false);
-		var input = gulp.src(src, srcOpts);
+		const pipeline = createPipeline(false);
+		const input = gulp.src(src, srcOpts);
 
 		return input
 			.pipe(pipeline())
@@ -99,9 +100,9 @@ var tasks = compilations.map(function(tsconfigFile) {
 	});
 
 	gulp.task(watch, [clean], function () {
-		var pipeline = createPipeline(false);
-		var input = gulp.src(src, srcOpts);
-		var watchInput = watcher(src, srcOpts);
+		const pipeline = createPipeline(false);
+		const input = gulp.src(src, srcOpts);
+		const watchInput = watcher(src, srcOpts);
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
@@ -113,8 +114,8 @@ var tasks = compilations.map(function(tsconfigFile) {
 	});
 
 	gulp.task(compileBuild, [clean], function () {
-		var pipeline = createPipeline(true);
-		var input = gulp.src(src, srcOpts);
+		const pipeline = createPipeline(true);
+		const input = gulp.src(src, srcOpts);
 
 		return input
 			.pipe(pipeline())
@@ -122,8 +123,9 @@ var tasks = compilations.map(function(tsconfigFile) {
 	});
 
 	gulp.task(watchBuild, [clean], function () {
-		var input = gulp.src(src, srcOpts);
-		var watchInput = watcher(src, srcOpts);
+		const pipeline = createPipeline(true);
+		const input = gulp.src(src, srcOpts);
+		const watchInput = watcher(src, srcOpts);
 
 		return watchInput
 			.pipe(util.incremental(function () { return pipeline(true); }, input))

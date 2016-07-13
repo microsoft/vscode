@@ -8,7 +8,7 @@ import {PPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'searchService';
 
@@ -17,7 +17,7 @@ export const ISearchService = createDecorator<ISearchService>(ID);
  * A service that enables to search for files or with in files.
  */
 export interface ISearchService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 }
 

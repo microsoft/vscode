@@ -19,6 +19,9 @@ nls.config({locale: env.language});
 import * as path from 'path';
 
 import * as Proto from './protocol';
+
+import * as Is from './utils/is';
+
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
 
@@ -36,6 +39,7 @@ import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as ProjectStatus from './utils/projectStatus';
+import * as BuildStatus from './utils/buildStatus';
 
 interface LanguageDescription {
 	id: string;
@@ -63,7 +67,7 @@ export function activate(context: ExtensionContext): void {
 			modeIds: [MODE_ID_JS, MODE_ID_JSX],
 			extensions: ['.js', '.jsx']
 		}
-	]);
+	], context.storagePath);
 
 	let client = clientHost.serviceClient;
 
@@ -83,6 +87,7 @@ export function activate(context: ExtensionContext): void {
 	}, () => {
 		// Nothing to do here. The client did show a message;
 	});
+	BuildStatus.update({ queueLength: 0 });
 }
 
 const validateSetting = 'validate.enable';
@@ -205,14 +210,16 @@ class LanguageProvider {
 					docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
 				},
 
-				autoClosingPairs: [
-					{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-					{ open: '`', close: '`', notIn: ['string', 'comment'] }
-				]
+				__characterPairSupport: {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '"', close: '"', notIn: ['string'] },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string', 'comment'] }
+					]
+				}
 			});
 		});
 	}
@@ -268,6 +275,7 @@ class LanguageProvider {
 
 	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
 		this.syntaxDiagnostics[file] = diagnostics;
+		this.currentDiagnostics.set(Uri.file(file), diagnostics);
 	}
 
 	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
@@ -285,7 +293,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[];
 	private languagePerId: Map<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[]) {
+	constructor(descriptions: LanguageDescription[], storagePath: string) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -300,7 +308,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		watcher.onDidDelete(handleProjectCreateOrDelete);
 		watcher.onDidChange(handleProjectChange);
 
-		this.client = new TypeScriptServiceClient(this);
+		this.client = new TypeScriptServiceClient(this, storagePath);
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		descriptions.forEach(description => {
@@ -361,6 +369,9 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			if (language) {
 				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 			}
+		}
+		if (Is.defined(body.queueLength)) {
+			BuildStatus.update( { queueLength: body.queueLength });
 		}
 	}
 

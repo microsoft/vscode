@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { TPromise, xhr } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { xhr } from 'vs/base/common/network';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -29,7 +30,7 @@ interface IHTTPConfiguration {
  */
 export class NodeRequestService implements IRequestService {
 
-	serviceId = IRequestService;
+	_serviceBrand: any;
 
 	private disposables: IDisposable[];
 	private proxyUrl: string = null;

@@ -27,7 +27,6 @@ export interface IInputOptions {
 	validationOptions?: IInputValidationOptions;
 	flexibleHeight?: boolean;
 	actions?: IAction[];
-	iconClass?: string;
 }
 
 export interface IInputValidator {
@@ -97,9 +96,6 @@ export class InputBox extends Widget {
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
 		let wrapper = dom.append(this.element, $('.wrapper'));
-		if (this.options.iconClass) {
-			dom.append(wrapper, $('span.icon.' + this.options.iconClass));
-		}
 		this.input = <HTMLInputElement>dom.append(wrapper, $(tagName + '.input'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
@@ -140,7 +136,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		setTimeout(() => this.layout(), 0);
+		setTimeout(() => this.updateMirror(), 0);
 
 		// Support actions
 		if (this.options.actions) {
@@ -361,13 +357,23 @@ export class InputBox extends Widget {
 		this._onDidChange.fire(this.value);
 
 		this.validate();
+		this.updateMirror();
 
-		if (this.mirror) {
-			let lastCharCode = this.value.charCodeAt(this.value.length - 1);
-			let suffix = lastCharCode === 10 ? ' ' : '';
-			this.mirror.textContent = this.value + suffix;
-			this.layout();
+		if (this.state === 'open') {
+			this.contextViewProvider.layout();
 		}
+	}
+
+	private updateMirror(): void {
+		if (!this.mirror) {
+			return;
+		}
+
+		const value = this.value || this.placeholder;
+		let lastCharCode = value.charCodeAt(value.length - 1);
+		let suffix = lastCharCode === 10 ? ' ' : '';
+		this.mirror.textContent = value + suffix;
+		this.layout();
 	}
 
 	public layout(): void {

@@ -65,11 +65,23 @@
 		"configuration": {
 			"type": "object",
 			"title": "%configuration.typescript%",
+			"order": 20,
 			"properties": {
 				"typescript.tsdk": {
 					"type": ["string", "null"],
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
+				},
+				"typescript.tsserver.trace": {
+					"type": "string",
+					"enum": ["off", "messages", "verbose"],
+					"default": "off",
+					"description": "%typescript.tsserver.trace%"
+				},
+				"typescript.tsserver.experimentalAutoBuild": {
+					"type": "boolean",
+					"default": false,
+					"description": "%typescript.tsserver.experimentalAutoBuild%"
 				},
 				"typescript.useCodeSnippetsOnMethodSuggest": {
 					"type": "boolean",
@@ -80,12 +92,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.validate.enable%"
-				},
-				"typescript.tsserver.trace": {
-					"type": "string",
-					"enum": ["off", "messages", "verbose"],
-					"default": "off",
-					"description": "%typescript.tsserver.trace%"
 				},
 				"typescript.format.insertSpaceAfterCommaDelimiter": {
 					"type": "boolean",

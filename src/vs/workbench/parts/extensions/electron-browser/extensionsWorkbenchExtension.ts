@@ -3,27 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
-import platform = require('vs/platform/platform');
-import { Promise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { localize } from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IExtensionsWorkbenchService, ExtensionState, VIEWLET_ID } from './extensions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import wbaregistry = require('vs/workbench/common/actionRegistry');
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction, ListSuggestedExtensionsAction } from './extensionsActions';
-import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import {ipcRenderer as ipc} from 'electron';
+import { ipcRenderer as ipc } from 'electron';
 
 interface IInstallExtensionsRequest {
 	extensionsToInstall: string[];
 }
 
+// TODO@Joao retire this beast
 export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	constructor(
@@ -37,79 +36,30 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		this.registerListeners();
 
 		const options = contextService.getOptions();
-		// Extensions to install
+
 		if (options.extensionsToInstall && options.extensionsToInstall.length) {
-			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
+			this.install(options.extensionsToInstall).done(null, onUnexpectedError);
 		}
-
-		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
-		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), 'Extensions: Show Installed Extensions', ExtensionsLabel);
-
-		(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-			new QuickOpenHandlerDescriptor(
-				'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-				'LocalExtensionsHandler',
-				'ext ',
-				nls.localize('localExtensionsCommands', "Show Local Extensions")
-			)
-		);
-
-		if (galleryService.isEnabled()) {
-
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), 'Extensions: Install Extension', ExtensionsLabel);
-
-			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-				new QuickOpenHandlerDescriptor(
-					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-					'GalleryExtensionsHandler',
-					'ext install ',
-					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions"),
-					true
-				)
-			);
-
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), 'Extensions: Show Outdated Extensions', ExtensionsLabel);
-
-			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-				new QuickOpenHandlerDescriptor(
-					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-					'OutdatedExtensionsHandler',
-					'ext update ',
-					nls.localize('outdatedExtensionsCommands', "Update Outdated Extensions")
-				)
-			);
-
-			// add extension tips services
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), 'Extensions: Show Extension Recommendations', ExtensionsLabel);
-
-			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
-				new QuickOpenHandlerDescriptor(
-					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
-					'SuggestedExtensionHandler',
-					'ext recommend ',
-					nls.localize('suggestedExtensionsCommands', "Show Extension Recommendations")
-				)
-			);
-		}
+		//actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), 'Extensions: Install Extension', ExtensionsLabel);
 	}
 
 	private registerListeners(): void {
 		ipc.on('vscode:installExtensions', (event, request: IInstallExtensionsRequest) => {
 			if (request.extensionsToInstall) {
-				this.install(request.extensionsToInstall).done(null, errors.onUnexpectedError);
+				this.install(request.extensionsToInstall).done(null, onUnexpectedError);
 			}
 		});
 	}
 
-	private install(extensions: string[]): Promise {
-		return Promise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
-			.then(extensions => {
+	private install(extensions: string[]): TPromise<void> {
+		return TPromise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
+			.then(() => {
 				this.messageService.show(
 					Severity.Info,
 					{
-						message: extensions.length > 1 ? nls.localize('success', "Extensions were successfully installed. Restart to enable them.")
-							: nls.localize('successSingle', "{0} was successfully installed. Restart to enable it.", extensions[0].displayName),
-						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('reloadNow', "Restart Now"))]
+						message: extensions.length > 1 ? localize('success', "Extensions were successfully installed. Restart to enable them.")
+							: localize('successSingle', "Extension was successfully installed. Restart to enable it."),
+						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Restart Now"))]
 					}
 				);
 			});
@@ -117,5 +67,41 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	public getId(): string {
 		return 'vs.extensions.workbenchextension';
+	}
+}
+
+export class StatusUpdater implements IWorkbenchContribution {
+
+	private disposables: IDisposable[];
+
+	constructor(
+		@IActivityService private activityService: IActivityService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
+	}
+
+	getId(): string {
+		return 'vs.extensions.statusupdater';
+	}
+
+	private onServiceChange(): void {
+		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
+			this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			return;
+		}
+
+		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
+
+		if (outdated > 0) {
+			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+		} else {
+			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+		}
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

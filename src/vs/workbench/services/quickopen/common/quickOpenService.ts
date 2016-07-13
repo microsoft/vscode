@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IPickOpenEntry {
 	id?: string;
@@ -15,6 +15,7 @@ export interface IPickOpenEntry {
 	description?: string;
 	detail?: string;
 	separator?: ISeparator;
+	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;
 }
 
@@ -81,8 +82,8 @@ export interface IShowOptions {
 export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');
 
 export interface IQuickOpenService {
-	
-	serviceId: ServiceIdentifier<any>;
+
+	_serviceBrand: any;
 
 	/**
 	 * Asks the container to show the quick open control with the optional prefix set. If the optional parameter

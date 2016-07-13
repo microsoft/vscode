@@ -33,7 +33,7 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 		.then(null, (err: NodeJS.ErrnoException) => {
 			if (err.code === 'EEXIST') {
 				return nfcall(fs.stat, path)
-					.then((stat: fs.Stats) => stat.isDirectory
+					.then((stat:fs.Stats) => stat.isDirectory
 						? null
 						: Promise.wrapError(new Error(`'${ path }' exists and is not a directory.`)));
 			}

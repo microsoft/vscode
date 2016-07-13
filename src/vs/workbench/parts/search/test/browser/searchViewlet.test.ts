@@ -7,34 +7,24 @@
 import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchViewlet';
-import {TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchResultsView';
+import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
+import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 suite('Search - Viewlet', () => {
-	let instantiation: IInstantiationService;
+	let instantiation: TestInstantiationService;
 
 	setup(() => {
-		let services = new ServiceCollection();
-		services.set(IWorkspaceContextService, new TestContextService());
-		services.set(IRequestService, <any>{
-			getRequestUrl: () => 'file:///folder/file.txt'
-		});
-		services.set(IModelService, <any>{
-			getModel: () => null
-		});
-		instantiation = new InstantiationService(services);
+		instantiation = new TestInstantiationService();
+		instantiation.stub(IModelService, createMockModelService(instantiation));
 	});
 
 	test('Data Source', function () {
 		let ds = new SearchDataSource();
 		let result = instantiation.createInstance(SearchResult, null);
-		result.append([{
+		result.add([{
 			resource: uri.parse('file:///c:/foo'),
 			lineMatches: [{ lineNumber: 1, preview: 'bar', offsetAndLengths: [[0, 1]] }]
 		}]);
@@ -53,9 +43,9 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Sorter', function () {
-		let fileMatch1 = new FileMatch(null, uri.file('C:\\foo'));
-		let fileMatch2 = new FileMatch(null, uri.file('C:\\with\\path'));
-		let fileMatch3 = new FileMatch(null, uri.file('C:\\with\\path\\foo'));
+		let fileMatch1 = aFileMatch('C:\\foo');
+		let fileMatch2 = aFileMatch('C:\\with\\path');
+		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
 		let lineMatch1 = new Match(fileMatch1, 'bar', 1, 1, 1);
 		let lineMatch2 = new Match(fileMatch1, 'bar', 2, 1, 1);
 		let lineMatch3 = new Match(fileMatch1, 'bar', 2, 1, 1);
@@ -71,4 +61,12 @@ suite('Search - Viewlet', () => {
 		assert(s.compare(null, lineMatch2, lineMatch1) > 0);
 		assert(s.compare(null, lineMatch2, lineMatch3) === 0);
 	});
+
+	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ILineMatch[]): FileMatch {
+		let rawMatch: IFileMatch= {
+			resource: uri.file('C:\\' + path),
+			lineMatches: lineMatches
+		};
+		return instantiation.createInstance(FileMatch, null, searchResult, rawMatch);
+	}
 });

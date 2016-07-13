@@ -5,7 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise, xhr, IXHROptions} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {xhr, IXHROptions} from 'vs/base/common/network';
 import strings = require('vs/base/common/strings');
 import Timer = require('vs/base/common/timer');
 import Async = require('vs/base/common/async');
@@ -20,7 +21,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
  * between different layers of the platform.
  */
 export class BaseRequestService implements IRequestService {
-	public serviceId = IRequestService;
+	public _serviceBrand: any;
 	private _serviceMap: { [service: string]: string; };
 	private _origin: string;
 

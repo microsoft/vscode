@@ -10,16 +10,16 @@ import nls = require('vs/nls');
 import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
+import arrays = require('vs/base/common/arrays');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {EditorInput, EditorOptions, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {Position} from 'vs/platform/editor/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -41,6 +41,9 @@ export class FileTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
+	private pendingDirtyResources: URI[];
+	private pendingDirtyHandle: number;
+
 	constructor(
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -53,6 +56,7 @@ export class FileTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
+		this.pendingDirtyResources = [];
 
 		this.registerListeners();
 	}
@@ -85,6 +89,37 @@ export class FileTracker implements IWorkbenchContribution {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
+
+		// If a file becomes dirty but is not opened, we open it in the background
+		// Since it might be the intent of whoever created the model to show it shortly
+		// after, we delay this a little bit and check again if the editor has not been
+		// opened meanwhile
+		this.pendingDirtyResources.push(e.resource);
+		if (!this.pendingDirtyHandle) {
+			this.pendingDirtyHandle = setTimeout(() => this.doOpenDirtyResources(), 250);
+		}
+	}
+
+	private doOpenDirtyResources(): void {
+		const dirtyNotOpenedResources = arrays.distinct(this.pendingDirtyResources.filter(r => !this.stacks.isOpen(r) && this.textFileService.isDirty(r)), r => r.toString());
+
+		// Reset
+		this.pendingDirtyHandle = void 0;
+		this.pendingDirtyResources = [];
+
+		const activeEditor = this.editorService.getActiveEditor();
+		const activePosition = activeEditor ? activeEditor.position : Position.LEFT;
+
+		// Open
+		this.editorService.openEditors(dirtyNotOpenedResources.map(resource => {
+			return {
+				input: {
+					resource,
+					options: { inactive: true, pinned: true, preserveFocus: true }
+				},
+				position: activePosition
+			};
+		})).done(null, errors.onUnexpectedError);
 	}
 
 	private onTextFileSaveError(e: TextFileChangeEvent): void {
@@ -215,20 +250,8 @@ export class FileTracker implements IWorkbenchContribution {
 
 					// Binary file: always update
 					else if (editor.getId() === BINARY_FILE_EDITOR_ID) {
-						let editorOptions = new EditorOptions();
-						editorOptions.forceOpen = true;
-						editorOptions.preserveFocus = true;
-
-						this.editorService.openEditor(editor.input, editorOptions, editor.position).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
 					}
-				}
-			}
-
-			// IFrame Editor Input
-			else if (input instanceof IFrameEditorInput) {
-				let iFrameInput = <IFrameEditorInput>input;
-				if (e.contains(iFrameInput.getResource(), FileChangeType.UPDATED)) {
-					(<IFrameEditor>editor).reload();
 				}
 			}
 		});
@@ -268,8 +291,6 @@ export class FileTracker implements IWorkbenchContribution {
 			let inputResource: URI;
 			if (input instanceof FileEditorInput) {
 				inputResource = (<FileEditorInput>input).getResource();
-			} else if (input instanceof IFrameEditorInput) {
-				inputResource = (<IFrameEditorInput>input).getResource();
 			}
 
 			// Editor Input with associated Resource
@@ -291,27 +312,10 @@ export class FileTracker implements IWorkbenchContribution {
 						reopenFileResource = URI.file(paths.join(newResource.fsPath, inputResource.fsPath.substr(index + oldResource.fsPath.length + 1))); // update the path by changing the old path value to the new one
 					}
 
-					let editorInput: EditorInput;
-
-					let editorOptions = new EditorOptions();
-					editorOptions.preserveFocus = true;
-					editorOptions.pinned = group.isPinned(input);
-					editorOptions.index = group.indexOf(input);
-
 					// Reopen File Input
 					if (input instanceof FileEditorInput) {
-						editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-					}
-
-					// Reopen IFrame Input
-					else if (input instanceof IFrameEditorInput) {
-						let iFrameInput = <IFrameEditorInput>input;
-
-						editorInput = iFrameInput.createNew(reopenFileResource);
-					}
-
-					if (editorInput) {
-						this.editorService.openEditor(editorInput, editorOptions, editor.position).done(null, errors.onUnexpectedError);
+						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
+						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input) }, editor.position).done(null, errors.onUnexpectedError);
 					}
 				}
 			}
@@ -355,7 +359,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 	private handleDelete(resource: URI): void {
 		if (this.textFileService.isDirty(resource)) {
-			return; // never dispose dirty resources
+			return; // never dispose dirty resources from a delete
 		}
 
 		// Add existing clients matching resource
@@ -376,14 +380,12 @@ export class FileTracker implements IWorkbenchContribution {
 			else if (input instanceof FileEditorInput && this.containsResource(<FileEditorInput>input, resource)) {
 				inputsContainingPath.push(<FileEditorInput>input);
 			}
-
-			// IFrame Input
-			else if (input instanceof IFrameEditorInput && this.containsResource(<IFrameEditorInput>input, resource)) {
-				inputsContainingPath.push(<IFrameEditorInput>input);
-			}
 		});
 
 		inputsContainingPath.forEach((input) => {
+			if (input.isDirty()) {
+				return; // never dispose dirty resources from a delete
+			}
 
 			// Editor History
 			this.historyService.remove(input);
@@ -399,13 +401,10 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private containsResource(input: FileEditorInput, resource: URI): boolean;
-	private containsResource(input: IFrameEditorInput, resource: URI): boolean;
 	private containsResource(input: EditorInput, resource: URI): boolean {
 		let fileResource: URI;
 		if (input instanceof FileEditorInput) {
 			fileResource = (<FileEditorInput>input).getResource();
-		} else {
-			fileResource = (<IFrameEditorInput>input).getResource();
 		}
 
 		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {
@@ -445,18 +444,6 @@ export class FileTracker implements IWorkbenchContribution {
 
 		if (textModel.getState() !== ModelState.SAVED) {
 			return false; // never dispose unsaved models
-		}
-
-		if (this.editorService.getVisibleEditors().some(e => {
-			if (e.input instanceof IFrameEditorInput) {
-				let iFrameInputResource = (<IFrameEditorInput>e.input).getResource();
-
-				return iFrameInputResource && iFrameInputResource.toString() === textModel.getResource().toString();
-			}
-
-			return false;
-		})) {
-			return false; // never dispose models that are used in iframe inputs
 		}
 
 		return true;

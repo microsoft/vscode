@@ -5,8 +5,10 @@
 /* marker zone */
 
 .monaco-editor .marker-widget {
+	padding-left: 20px;
 	background-color: white;
-	font-size: 0.9em;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-editor.vs-dark .marker-widget {
@@ -18,34 +20,46 @@
 	background-color: #0C141F;
 }
 
-.monaco-editor .marker-widget .quickfixhead {
+.monaco-editor .marker-widget div.block {
+	display: inline-block;
+	vertical-align: top;
+}
+
+.monaco-editor .marker-widget .title {
+	display: inline-block;
+	padding-right: 5px;
+}
+
+.monaco-editor .marker-widget .descriptioncontainer {
+	white-space: pre-wrap;
+}
+
+.monaco-editor .marker-widget .fixes {
+	position: absolute;
+	bottom: 0;
+}
+
+.monaco-editor .marker-widget .fixes .quickfixhead {
 	background-image: url('lightbulp.svg');
 	background-repeat: no-repeat;
 	padding-left: 20px;
 }
 
-.monaco-editor.vs-dark .marker-widget .quickfixhead,  .monaco-editor.hc-black .marker-widget .quickfixhead {
+.monaco-editor.vs-dark .marker-widget .fixes .quickfixhead,
+.monaco-editor.hc-black .marker-widget .fixes .quickfixhead {
 	background-image: url('lightbulp-dark.svg');
 }
 
-.monaco-editor .marker-widget .descriptioncontainer {
-	height: 3.2em;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.monaco-editor .marker-widget .quickfixentry {
+.monaco-editor .marker-widget .fixes .quickfixentry {
 	text-decoration: underline;
 }
 
-.monaco-editor .marker-widget .quickfixentry:hover {
+.monaco-editor .marker-widget .fixes .quickfixentry:hover {
 	cursor: pointer;
 	color: blue;
 }
 
-.monaco-editor.vs-dark .marker-widget .quickfixentry:hover, .monaco-editor.hc-black .marker-widget .quickfixentry:hover {
+.monaco-editor.vs-dark .marker-widget .fixes .quickfixentry:hover,
+.monaco-editor.hc-black .marker-widget .fixes .quickfixentry:hover {
 	color: lightblue;
 }
-
-
-

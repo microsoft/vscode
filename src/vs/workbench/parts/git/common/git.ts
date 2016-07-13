@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 // Model raw interfaces
@@ -154,6 +154,7 @@ export enum ServiceState {
 	NotARepo,
 	NotAtRepoRoot,
 	OK,
+	Huge,
 	NoGit,
 	Disabled,
 	NotAWorkspace
@@ -227,8 +228,13 @@ export var ServiceOperations = {
 // Service config
 
 export interface IGitConfiguration {
+	enabled: boolean;
 	path: string;
+	autorefresh: boolean;
 	autofetch: boolean;
+	enableLongCommitWarning: boolean;
+	allowLargeRepositories: boolean;
+	confirmSync: boolean;
 }
 
 // Service interfaces
@@ -262,6 +268,7 @@ export interface IRawGitService {
 	onOutput: Event<string>;
 	getVersion(): TPromise<string>;
 	serviceState(): TPromise<RawServiceState>;
+	statusCount(): TPromise<number>;
 	status(): TPromise<IRawStatus>;
 	init(): TPromise<IRawStatus>;
 	add(filesPaths?: string[]): TPromise<IRawStatus>;
@@ -279,6 +286,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -286,7 +294,8 @@ export var GIT_SERVICE_ID = 'gitService';
 export var IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
 
 export interface IGitService extends IEventEmitter {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
+	allowHugeRepositories: boolean;
 	onOutput: Event<string>;
 	status(): TPromise<IModel>;
 	init(): TPromise<IModel>;
@@ -314,6 +323,7 @@ export interface IGitService extends IEventEmitter {
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
+	getCommitTemplate(): TPromise<string>;
 }
 
 export interface IAskpassService {

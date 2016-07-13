@@ -32,20 +32,21 @@ class FileViewerActionContributor extends ActionBarContributor {
 		let element = context.element;
 
 		// Contribute only on Files (File Explorer and Open Files Viewer)
-		return !!asFileResource(element);
+		return !!asFileResource(element) || (element && element.getResource());
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
 		let actions: IAction[] = [];
 
 		if (this.hasSecondaryActions(context)) {
-			let fileResource = asFileResource(context.element);
+			const fileResource = asFileResource(context.element);
+			let resource = fileResource ? fileResource.resource : context.element.getResource();
 
 			// Reveal file in OS native explorer
-			actions.push(this.instantiationService.createInstance(RevealInOSAction, fileResource.resource));
+			actions.push(this.instantiationService.createInstance(RevealInOSAction, resource));
 
 			// Copy Path
-			actions.push(this.instantiationService.createInstance(CopyPathAction, fileResource.resource));
+			actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
 		}
 
 		return actions;

@@ -6,7 +6,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {LineParts, createLineParts, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
@@ -14,12 +14,13 @@ import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import {RangeUtil} from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {HorizontalRange} from 'vs/editor/common/view/renderingContext';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
 export class ViewLine implements IVisibleLineData {
 
 	protected _context:ViewContext;
 	private _renderWhitespace: boolean;
-	private _indentGuides: boolean;
+	private _renderControlCharacters: boolean;
 	private _spaceWidth: number;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
@@ -38,7 +39,7 @@ export class ViewLine implements IVisibleLineData {
 	constructor(context:ViewContext) {
 		this._context = context;
 		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
-		this._indentGuides = this._context.configuration.editor.viewInfo.indentGuides;
+		this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
@@ -85,8 +86,8 @@ export class ViewLine implements IVisibleLineData {
 		if (e.viewInfo.renderWhitespace) {
 			this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		}
-		if (e.viewInfo.indentGuides) {
-			this._indentGuides = this._context.configuration.editor.viewInfo.indentGuides;
+		if (e.viewInfo.renderControlCharacters) {
+			this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
 		}
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
@@ -100,7 +101,7 @@ export class ViewLine implements IVisibleLineData {
 		this._isInvalid = true;
 	}
 
-	public shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
+	public shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean {
 		let newLineParts:LineParts = null;
 
 		if (this._isMaybeInvalid || this._isInvalid) {
@@ -112,8 +113,7 @@ export class ViewLine implements IVisibleLineData {
 				this._context.model.getTabSize(),
 				this._context.model.getLineTokens(lineNumber),
 				inlineDecorations,
-				this._renderWhitespace,
-				this._indentGuides
+				this._renderWhitespace
 			);
 		}
 
@@ -171,6 +171,7 @@ export class ViewLine implements IVisibleLineData {
 			this._spaceWidth,
 			this._stopRenderingLineAfter,
 			this._renderWhitespace,
+			this._renderControlCharacters,
 			lineParts.getParts()
 		));
 

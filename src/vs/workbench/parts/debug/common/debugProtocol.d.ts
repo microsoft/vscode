@@ -139,6 +139,18 @@ declare module DebugProtocol {
 		}
 	}
 
+	/** Event message for "module" event type.
+		The event indicates that some information about a module has changed.
+	 */
+	export interface ModuleEvent extends Event {
+		body: {
+			/** The reason for the event. */
+			reason: 'new' | 'changed' | 'removed';
+			/** The new, changed, or removed module. In case of 'removed' only the module id is used. */
+			module: Module;
+		}
+	}
+
 	//---- Requests
 
 	/** On error that is whenever 'success' is false, the body can provide more details.
@@ -165,6 +177,9 @@ declare module DebugProtocol {
 		columnsStartAt1?: boolean;
 		/** Determines in what format paths are specified. Possible values are 'path' or 'uri'. The default is 'path', which is the native format. */
 		pathFormat?: string;
+
+		/** Client supports the optional type attribute for variables. */
+		supportsVariableType?: boolean;
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
@@ -241,6 +256,8 @@ declare module DebugProtocol {
 		breakpoints?: SourceBreakpoint[];
 		/** Deprecated: The code locations of the breakpoints. */
 		lines?: number[];
+		/** A value of true indicates that the underlying source has been modified which results in new breakpoint locations. */
+		sourceModified?: boolean;
 	}
 	/** Response to "setBreakpoints" request.
 		Returned is information about each breakpoint created by this request.
@@ -314,7 +331,7 @@ declare module DebugProtocol {
 
 	/** Next request; value of command field is "next".
 		The request starts the debuggee to run again for one step.
-		penDebug will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter first sends the NextResponse and then a StoppedEvent (event type 'step') after the step has completed.
 	*/
 	export interface NextRequest extends Request {
 		arguments: NextArguments;
@@ -330,7 +347,7 @@ declare module DebugProtocol {
 
 	/** StepIn request; value of command field is "stepIn".
 		The request starts the debuggee to run again for one step.
-		The debug adapter will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter first sends the StepInResponse and then a StoppedEvent (event type 'step') after the step has completed.
 	*/
 	export interface StepInRequest extends Request {
 		arguments: StepInArguments;
@@ -344,9 +361,9 @@ declare module DebugProtocol {
 	export interface StepInResponse extends Response {
 	}
 
-	/** StepOutIn request; value of command field is "stepOut".
+	/** StepOut request; value of command field is "stepOut".
 		The request starts the debuggee to run again for one step.
-		penDebug will respond with a StoppedEvent (event type 'step') after running the step.
+		The debug adapter first sends the StepOutResponse and then a StoppedEvent (event type 'step') after the step has completed.
 	*/
 	export interface StepOutRequest extends Request {
 		arguments: StepOutArguments;
@@ -360,9 +377,41 @@ declare module DebugProtocol {
 	export interface StepOutResponse extends Response {
 	}
 
+	/** StepBack request; value of command field is "stepBack".
+		The request starts the debuggee to run one step backwards.
+		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed.
+	*/
+	export interface StepBackRequest extends Request {
+		arguments: StepBackArguments;
+	}
+	/** Arguments for "stepBack" request. */
+	export interface StepBackArguments {
+		/** Continue execution for this thread. */
+		threadId: number;
+	}
+	/** Response to "stepBack" request. This is just an acknowledgement, so no body field is required. */
+	export interface StepBackResponse extends Response {
+	}
+
+	/** RestartFrame request; value of command field is "restartFrame".
+		The request restarts execution of the specified stackframe.
+		The debug adapter first sends the RestartFrameResponse and then a StoppedEvent (event type 'restart') after the restart has completed.
+	*/
+	export interface RestartFrameRequest extends Request {
+		arguments: RestartFrameArguments;
+	}
+	/** Arguments for "restartFrame" request. */
+	export interface RestartFrameArguments {
+		/** Restart this stackframe. */
+		frameId: number;
+	}
+	/** Response to "restartFrame" request. This is just an acknowledgement, so no body field is required. */
+	export interface RestartFrameResponse extends Response {
+	}
+
 	/** Pause request; value of command field is "pause".
 		The request suspenses the debuggee.
-		penDebug will respond with a StoppedEvent (event type 'pause') after a successful 'pause' command.
+		The debug adapter first sends the PauseResponse and then a StoppedEvent (event type 'pause') after the thread has been paused successfully.
 	*/
 	export interface PauseRequest extends Request {
 		arguments: PauseArguments;
@@ -440,6 +489,29 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** setVariable request; value of command field is "setVariable".
+		Set the variable with the given name in the variable container to a new value.
+	*/
+	export interface SetVariableRequest extends Request {
+		arguments: SetVariableArguments;
+	}
+	/** Arguments for "setVariable" request. */
+	export interface SetVariableArguments {
+		/** The reference of the variable container. */
+		variablesReference: number;
+		/** The name of the variable. */
+		name: string;
+		/** The value of the variable. */
+		value: string;
+	}
+	/** Response to "setVariable" request. */
+	export interface SetVariableResponse extends Response {
+		body: {
+			/** the new value of the variable. */
+			value: string;
+		};
+	}
+
 	/** Source request; value of command field is "source".
 		The request retrieves the source code for a given source reference.
 	*/
@@ -456,6 +528,8 @@ declare module DebugProtocol {
 		body: {
 			/** Content of the source reference */
 			content: string;
+			/** Optional content type (mime type) of the source. */
+			mimeType?: string;
 		};
 	}
 
@@ -469,6 +543,29 @@ declare module DebugProtocol {
 		body: {
 			/** All threads. */
 			threads: Thread[];
+		};
+	}
+
+	/**
+	 * Modules can be retrieved from the debug adapter with the ModulesRequest which can either return all modules or a range of modules to support paging.
+	 */
+	export interface ModulesRequest extends Request {
+		arguments: ModulesArguments;
+	}
+	/** Arguments for "modules" request. */
+	export interface ModulesArguments {
+		/** The index of the first module to return; if omitted modules start at 0. */
+		startModule?: number;
+		/** The number of modules to return. If moduleCount is not specified or 0, all modules are returned. */
+		moduleCount?: number;
+	}
+	/** Response to "modules" request. */
+	export interface ModulesResponse extends Response {
+		body: {
+			/** All modules or range of modules. */
+			modules: Module[];
+			/** The total number of modules available. */
+			totalModules?: number;
 		};
 	}
 
@@ -491,8 +588,10 @@ declare module DebugProtocol {
 	/** Response to "evaluate" request. */
 	export interface EvaluateResponse extends Response {
 		body: {
-			/** The result of the evaluate. */
+			/** The result of the evaluate request. */
 			result: string;
+			/** The optional type of the evaluate result. */
+			type?: string;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest */
 			variablesReference: number;
 		};
@@ -512,6 +611,12 @@ declare module DebugProtocol {
 		supportsEvaluateForHovers?: boolean;
 		/** Available filters for the setExceptionBreakpoints request. */
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
+		/** The debug adapter supports stepping back. */
+		supportsStepBack?: boolean;
+		/** The debug adapter supports setting a variable to a value. */
+		supportsSetVariable?: boolean;
+		/** The debug adapter supports restarting a frame. */
+		supportsRestartFrame?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -543,6 +648,66 @@ declare module DebugProtocol {
 		urlLabel?: string;
 	}
 
+	/**
+	 * A Module object represents a row in the modules view.
+	 * Two attributes are mandatory: an id identifies a module in the modules view and is used in a ModuleEvent for identifying a module for adding, updating or deleting.
+	 * The name is used to minimally render the module in the UI.
+	 *
+	 * Additional attributes can be added to the module. They will show up in the module View if they have a corresponding ColumnDescriptor.
+	 *
+	 * To avoid an unnecessary proliferation of additional attributes with similar semantics but different names
+	 * we recommend to re-use attributes from the 'recommended' list below first, and only introduce new attributes if nothing appropriate could be found.
+	 */
+	export interface Module {
+		/** Unique identifier for the module. */
+		id: number | string;
+		/** A name of the module. */
+		name: string;
+
+		// optional but recommended attributes.
+		// always try to use these first before introducing additional attributes.
+
+		/** Logical full path to the module. The exact definition is implementation defined, but usually this would be a full path to the on-disk file for the module. */
+		path?: string
+		/** True if the module is optimized. */
+		isOptimized?: boolean
+		/** True if the module is considered 'user code' by a debugger that supports 'Just My Code'. */
+		isUserCode?: boolean
+		/** Version of Module. */
+		version? : string
+		/** User understandable description of if symbols were found for the module (ex: 'Symbols Loaded', 'Symbols not found', etc */
+		symbolStatus?: string
+		/** Logical full path to the symbol file. The exact definition is implementation defined. */
+		symbolFilePath?: string
+		/** Module created or modified. */
+		dateTimeStamp?: string
+		/** Address range covered by this module. */
+		addressRange?: string
+	}
+
+	/**
+	 * A ColumnDescriptor specifies what module attribute to show in a column of the ModulesView, how to format it, and what the column's label should be.
+	 * It is only used if the underlying UI actually supports this level of customization.
+	 */
+	export interface ColumnDescriptor {
+		/** Name of the attribute rendered in this column. */
+		attributeName: string;
+		/** Header UI label of column. */
+		label: string;
+		/** Format to use for the rendered values in this column. TBD how the format strings looks like. */
+		format: string;
+		/** Width of this column in characters (hint only). */
+		width: number;
+	}
+
+	/**
+	 * The ModulesViewDescriptor is the container for all declarative configuration options of a ModuleView.
+	 * For now it only specifies the columns to be shown in the modules view.
+	 */
+	export interface ModulesViewDescriptor {
+		columns: ColumnDescriptor[];
+	}
+
 	/** A Thread */
 	export interface Thread {
 		/** Unique identifier for the thread. */
@@ -567,7 +732,7 @@ declare module DebugProtocol {
 
 	/** A Stackframe contains the source location. */
 	export interface StackFrame {
-		/** An identifier for the stack frame. This id can be used to retrieve the scopes of the frame with the 'scopesRequest'. */
+		/** An identifier for the stack frame. This id can be used to retrieve the scopes of the frame with the 'scopesRequest' or to restart the execution of a stackframe. */
 		id: number;
 		/** The name of the stack frame, typically a method name */
 		name: string;
@@ -577,6 +742,10 @@ declare module DebugProtocol {
 		line: number;
 		/** The column within the line. If source is null or doesn't exist, column is 0 and must be ignored. */
 		column: number;
+		/** An optional end line of the range covered by the stack frame. */
+		endLine?: number;
+		/** An optional end column of the range covered by the stack frame. */
+		endColumn?: number;
 	}
 
 	/** A Scope is a named container for variables. */
@@ -590,15 +759,21 @@ declare module DebugProtocol {
 	}
 
 	/** A Variable is a name/value pair.
+		Optionally a variable can have a 'type' that is shown if space permits or when hovering over the variable's name.
+		An optional 'kind' is used to render additional properties of the variable, e.g. different icons can be used to indicate that a variable is public or private.
 		If the value is structured (has children), a handle is provided to retrieve the children with the VariablesRequest.
 	*/
 	export interface Variable {
-		/** The variable's name */
+		/** The variable's name. */
 		name: string;
+		/** The variable's type. */
+		type?: string;
 		/** The variable's value. For structured objects this can be a multi line text, e.g. for a function the body of a function. */
 		value: string;
 		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 		variablesReference: number;
+		/** Properties of a variable that can be used to determine how to render the variable in the UI. Format of the string value: TBD. */
+		kind?: string;
 	}
 
 	/** Properties of a breakpoint passed to the setBreakpoints request.
@@ -632,9 +807,13 @@ declare module DebugProtocol {
 		message?: string;
 		/** The source where the breakpoint is located. */
 		source?: Source;
-		/** The actual line of the breakpoint. */
+		/** The start line of the actual range covered by the breakpoint. */
 		line?: number;
-		/** The actual column of the breakpoint. */
+		/** An optional start column of the actual range covered by the breakpoint. */
 		column?: number;
+		/** An optional end line of the actual range covered by the breakpoint. */
+		endLine?: number;
+		/**  An optional end column of the actual range covered by the breakpoint. If no end line is given, then the end column is assumed to be in the start line. */
+		endColumn?: number;
 	}
 }

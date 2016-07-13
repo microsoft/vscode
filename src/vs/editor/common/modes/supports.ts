@@ -164,6 +164,7 @@ export class SnippetsRegistry {
 		let currentFullWord = SnippetsRegistry.getNonWhitespacePrefix(model, position).toLowerCase();
 		let result : modes.ISuggestResult = {
 			currentWord: currentWord,
+			incomplete: currentWord.length === 0,
 			suggestions: []
 		};
 

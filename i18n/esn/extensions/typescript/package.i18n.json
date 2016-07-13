@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "Habilitar o deshabilitar la validación de JavaScript",
 	"typescript.reloadProjects.title": "Recargar proyecto de TypeScript",
 	"typescript.tsdk.desc": "Especifica la ruta de acceso de carpeta que contiene los archivos lib*.d.ts y tsserver que se van a usar.",
+	"typescript.tsserver.experimentalAutoBuild": "Permite la generación automática experimental. Requiere la versión de desarrollo 1.9 o tsserver 2.x y un reinicio de VS Code después de modificarlo.",
 	"typescript.tsserver.trace": "Habilita el seguimiento de los mensajes enviados al servidor de TS.",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete las funciones con la signatura de parámetro.",
 	"typescript.validate.enable": "Habilitar o deshabilitar la validación de TypeScript"

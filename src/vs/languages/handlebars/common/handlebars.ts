@@ -10,11 +10,12 @@ import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebars
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export enum States {
 	HTML,
@@ -25,19 +26,19 @@ export enum States {
 export class HandlebarsState extends htmlMode.State {
 
 	constructor(mode:modes.IMode,
-		public kind:htmlMode.States,
+		kind:htmlMode.States,
 		public handlebarsKind:States,
-		public lastTagName:string,
-		public lastAttributeName:string,
-		public embeddedContentType:string,
-		public attributeValueQuote:string,
-		public attributeValue:string) {
+		lastTagName:string,
+		lastAttributeName:string,
+		embeddedContentType:string,
+		attributeValueQuote:string,
+		attributeValueLength:number) {
 
-		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValue);
+		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValueLength);
 	}
 
 	public makeClone(): HandlebarsState {
-		return new HandlebarsState(this.getMode(), this.kind, this.handlebarsKind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValue);
+		return new HandlebarsState(this.getMode(), this.kind, this.handlebarsKind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
 	}
 
 	public equals(other:modes.IState):boolean {
@@ -107,7 +108,7 @@ export class HandlebarsState extends htmlMode.State {
 
 export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
-	public static LANG_CONFIG:IRichLanguageConfiguration = {
+	public static LANG_CONFIG:LanguageConfiguration = {
 		wordPattern: createWordRegExp('#-?%'),
 
 		comments: {
@@ -154,24 +155,13 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
-		@IThreadService threadService: IThreadService
+		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
-		super(descriptor, instantiationService, modeService, threadService);
+		super(descriptor, instantiationService, modeService, compatWorkerService, workspaceContextService);
 	}
 
 	protected _registerSupports(): void {
-		modes.HoverProviderRegistry.register(this.getId(), {
-			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.uri, position));
-			}
-		}, true);
-
-		modes.ReferenceProviderRegistry.register(this.getId(), {
-			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
-				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
-			}
-		}, true);
-
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
@@ -188,7 +178,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
-				return wireCancellationToken(token, this._provideLinks(model.uri));
+				return wireCancellationToken(token, this.provideLinks(model.uri));
 			}
 		}, true);
 
@@ -196,13 +186,13 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	}
 
 	public getInitialState() : modes.IState {
-		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');
+		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', 0);
 	}
 
 	public getLeavingNestedModeData(line:string, state:modes.IState):ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
-			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');
+			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', 0);
 		}
 		return leavingNestedModeData;
 	}

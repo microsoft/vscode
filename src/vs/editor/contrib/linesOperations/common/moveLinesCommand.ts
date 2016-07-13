@@ -57,7 +57,7 @@ export class MoveLinesCommand implements ICommand {
 				builder.addEditOperation(new Range(otherLineNumber, 1, otherLineNumber, model.getLineMaxColumn(otherLineNumber)), null);
 			}
 			// Track selection at the other line number
-			s = Selection.createSelection(otherLineNumber, 1, otherLineNumber, 1);
+			s = new Selection(otherLineNumber, 1, otherLineNumber, 1);
 
 		} else {
 

@@ -6,17 +6,19 @@
 'use strict';
 
 import * as crypto from 'crypto';
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { app } from 'electron';
+import { mkdirp } from 'vs/base/node/pfs';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/platform/product';
 import { parseArgs } from 'vs/code/node/argv';
 import pkg from 'vs/platform/package';
@@ -49,7 +51,7 @@ export interface ICommandLineArguments {
 export const IEnvironmentService = createDecorator<IEnvironmentService>('mainEnvironmentService');
 
 export interface IEnvironmentService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
 	userExtensionsHome: string;
 	isTestingFromCli: boolean;
@@ -66,6 +68,8 @@ export interface IEnvironmentService {
 	appKeybindingsPath: string;
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
+
+	createPaths(): TPromise<void>;
 }
 
 function getNumericValue(value: string, defaultValue: number, fallback: number = void 0) {
@@ -84,7 +88,7 @@ function getNumericValue(value: string, defaultValue: number, fallback: number =
 
 export class EnvService implements IEnvironmentService {
 
-	serviceId = IEnvironmentService;
+	_serviceBrand: any;
 
 	private _cliArgs: ICommandLineArguments;
 	get cliArgs(): ICommandLineArguments { return this._cliArgs; }
@@ -186,37 +190,29 @@ export class EnvService implements IEnvironmentService {
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
-		this._mainIPCHandle = this.getMainIPCHandle();
-		this._sharedIPCHandle = this.getSharedIPCHandle();
+
+		const prefix = this.getIPCHandleBaseName();
+		const suffix = process.platform === 'win32' ? '-sock' : '.sock';
+
+		this._mainIPCHandle = `${ prefix }-${ pkg.version }${ suffix }`;
+		this._sharedIPCHandle = `${ prefix }-${ pkg.version }-shared${ suffix }`;
 	}
 
-	private getMainIPCHandle(): string {
-		return this.getIPCHandleName() + (process.platform === 'win32' ? '-sock' : '.sock');
-	}
-
-	private getSharedIPCHandle(): string {
-		return this.getIPCHandleName() + '-shared' + (process.platform === 'win32' ? '-sock' : '.sock');
-	}
-
-	private getIPCHandleName(): string {
-		let handleName = pkg.name;
-
-		if (!this.isBuilt) {
-			handleName += '-dev';
-		}
+	private getIPCHandleBaseName(): string {
+		let name = pkg.name;
 
 		// Support to run VS Code multiple times as different user
 		// by making the socket unique over the logged in user
 		let userId = EnvService.getUniqueUserId();
 		if (userId) {
-			handleName += ('-' + userId);
+			name += `-${ userId }`;
 		}
 
 		if (process.platform === 'win32') {
-			return '\\\\.\\pipe\\' + handleName;
+			return `\\\\.\\pipe\\${ name }`;
 		}
 
-		return path.join(os.tmpdir(), handleName);
+		return path.join(os.tmpdir(), name);
 	}
 
 	private static getUniqueUserId(): string {
@@ -234,15 +230,22 @@ export class EnvService implements IEnvironmentService {
 		// use sha256 to ensure the userid value can be used in filenames and are unique
 		return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 	}
+
+	createPaths(): TPromise<void> {
+		const promises = [this.appSettingsHome, this.userHome, this.userExtensionsHome]
+			.map(p => mkdirp(p));
+
+		return TPromise.join(promises) as TPromise<any>;
+	}
 }
 
 function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean): string[] {
 	const result = args.map(arg => {
-		let pathCandidate = arg;
+		let pathCandidate = String(arg);
 
 		let parsedPath: IParsedPath;
 		if (gotoLineMode) {
-			parsedPath = parseLineAndColumnAware(arg);
+			parsedPath = parseLineAndColumnAware(pathCandidate);
 			pathCandidate = parsedPath.path;
 		}
 
@@ -259,7 +262,8 @@ function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean)
 			realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
 		}
 
-		if (!paths.isValidBasename(path.basename(realPath))) {
+		const basename = path.basename(realPath);
+		if (basename /* can be empty if code is opened on root */ && !paths.isValidBasename(basename)) {
 			return null; // do not allow invalid file names
 		}
 

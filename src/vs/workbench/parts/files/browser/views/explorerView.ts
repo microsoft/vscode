@@ -10,19 +10,19 @@ import {Builder, $} from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
+import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {EditorOptions} from 'vs/workbench/common/editor';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
-import {IEditor} from 'vs/platform/editor/common/editor';
+import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
@@ -33,12 +33,13 @@ import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -57,6 +58,8 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
 	private explorerImportDelayer: ThrottledDelayer<void>;
+
+	private resourceContext: ResourceContextKey;
 
 	private shouldRefresh: boolean;
 
@@ -94,11 +97,13 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
 		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
+
+		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 	}
 
 	public renderHeader(container: HTMLElement): void {
 		let titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.workspace.name).appendTo(titleDiv);
+		$('span').text(this.workspace.name).title(labels.getPathLabel(this.workspace.resource.fsPath)).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}
@@ -171,8 +176,8 @@ export class ExplorerView extends CollapsibleViewletView {
 			}
 		}
 
-		// Handle closed (convince explorer to not reopen any file when getting visible)
-		if (!activeInput) {
+		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
+		if (activeInput instanceof UntitledEditorInput || !activeInput) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
 		}
@@ -261,7 +266,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				if (lastActiveFileResource && root && root.find(lastActiveFileResource)) {
 					let editorInput = this.instantiationService.createInstance(FileEditorInput, lastActiveFileResource, void 0, void 0);
-					this.activateOrOpenEditor(editorInput).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(editorInput, { revealIfOpened: true }).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
 				}
@@ -274,34 +279,13 @@ export class ExplorerView extends CollapsibleViewletView {
 		});
 	}
 
-	private openFocusedElement(keepFocus?: boolean): void {
+	private openFocusedElement(preserveFocus?: boolean): void {
 		let stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
 
-			this.activateOrOpenEditor(editorInput, keepFocus).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(editorInput, { preserveFocus, revealIfOpened: true }).done(null, errors.onUnexpectedError);
 		}
-	}
-
-	private activateOrOpenEditor(input: FileEditorInput, keepFocus?: boolean): TPromise<IEditor> {
-
-		// First try to find if input already visible
-		let editors = this.editorService.getVisibleEditors();
-		if (editors) {
-			for (let i = 0; i < editors.length; i++) {
-				let editor = editors[i];
-				if (input.matches(editor.input)) {
-					if (!keepFocus) {
-						this.editorGroupService.focusGroup(editor.position);
-					}
-
-					return TPromise.as(editor);
-				}
-			}
-		}
-
-		// Otherwise open in active slot
-		return this.editorService.openEditor(input, keepFocus ? EditorOptions.create({ preserveFocus: true }) : void 0);
 	}
 
 	private getActiveEditorInputResource(): URI {
@@ -337,15 +321,18 @@ export class ExplorerView extends CollapsibleViewletView {
 			dnd: dnd,
 			accessibilityProvider: accessibility
 		}, {
-			autoExpandSingleChildren: true,
-			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
-		});
+				autoExpandSingleChildren: true,
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+			});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 
 		// Update Viewer based on File Change Events
 		this.toDispose.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+
+		// Update resource context based on focused element
+		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => this.resourceContext.set(e.focus && e.focus.resource)));
 
 		return this.explorerViewer;
 	}

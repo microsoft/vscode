@@ -492,16 +492,21 @@ export class CommonKeybindings {
 	public static CTRLCMD_BACKSPACE: number = KeyMod.CtrlCmd | KeyCode.Backspace;
 
 	public static UP_ARROW: number = KeyCode.UpArrow;
+	public static WINCTRL_P: number = KeyMod.WinCtrl | KeyCode.KEY_P;
 	public static SHIFT_UP_ARROW: number = KeyMod.Shift | KeyCode.UpArrow;
 	public static CTRLCMD_UP_ARROW: number = KeyMod.CtrlCmd | KeyCode.UpArrow;
 
 	public static DOWN_ARROW: number = KeyCode.DownArrow;
+	public static WINCTRL_N: number = KeyMod.WinCtrl | KeyCode.KEY_N;
 	public static SHIFT_DOWN_ARROW: number = KeyMod.Shift | KeyCode.DownArrow;
 	public static CTRLCMD_DOWN_ARROW: number = KeyMod.CtrlCmd | KeyCode.DownArrow;
 
 	public static LEFT_ARROW: number = KeyCode.LeftArrow;
 
 	public static RIGHT_ARROW: number = KeyCode.RightArrow;
+
+	public static HOME: number = KeyCode.Home;
+	public static END: number = KeyCode.End;
 
 	public static PAGE_UP: number = KeyCode.PageUp;
 	public static SHIFT_PAGE_UP: number = KeyMod.Shift | KeyCode.PageUp;

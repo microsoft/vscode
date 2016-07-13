@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toObject, assign } from 'vs/base/common/objects';
+import { toObject, assign, getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
@@ -38,6 +38,14 @@ const MouseEventTypes = [
 	'contextmenu'
 ];
 
+export interface IListViewOptions {
+	useShadows?: boolean;
+}
+
+const DefaultOptions: IListViewOptions = {
+	useShadows: true
+};
+
 export class ListView<T> implements IDisposable {
 
 	private items: IItem<T>[];
@@ -56,7 +64,8 @@ export class ListView<T> implements IDisposable {
 	constructor(
 		container: HTMLElement,
 		private delegate: IDelegate<T>,
-		renderers: IRenderer<T, any>[]
+		renderers: IRenderer<T, any>[],
+		options: IListViewOptions = DefaultOptions
 	) {
 		this.items = [];
 		this.itemId = 0;
@@ -69,7 +78,6 @@ export class ListView<T> implements IDisposable {
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-list';
-		this._domNode.tabIndex = 0;
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
@@ -79,7 +87,7 @@ export class ListView<T> implements IDisposable {
 			canUseTranslate3d: false,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
-			useShadows: false,
+			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
 			saveLastScrollTimeOnClassName: 'monaco-list-row'
 		});
 

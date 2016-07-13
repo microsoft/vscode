@@ -11,12 +11,12 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IReadOnlyModel, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, IFormattingOptions} from 'vs/editor/common/modes';
+import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
 
-export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
 	if (!support) {
@@ -28,7 +28,7 @@ export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Ra
 	});
 }
 
-export function getDocumentFormattingEdits(model: IReadOnlyModel, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function getDocumentFormattingEdits(model: IReadOnlyModel, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = DocumentFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
 		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options);
@@ -39,7 +39,7 @@ export function getDocumentFormattingEdits(model: IReadOnlyModel, options: IForm
 	});
 }
 
-export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Position, ch: string, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
 		return TPromise.as(undefined);

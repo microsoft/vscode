@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -30,7 +30,7 @@ export interface ShutdownEvent {
  */
 export interface ILifecycleService {
 
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
@@ -46,7 +46,7 @@ export interface ILifecycleService {
 }
 
 export const NullLifecycleService: ILifecycleService = {
-	serviceId: null,
+	_serviceBrand: null,
 	onWillShutdown: () => ({ dispose() { } }),
 	onShutdown: () => ({ dispose() { } })
 };

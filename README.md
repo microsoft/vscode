@@ -7,7 +7,7 @@ a code editor with what developers need for their core edit-build-debug cycle. C
 provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
 <p align="center">
-  <img width="550" alt="vscodereadme" src="https://cloud.githubusercontent.com/assets/1487073/11243985/98562110-8e0b-11e5-9922-29a0b4884eab.png">
+  <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
 </p>
 
 The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in the project, for example:
@@ -24,6 +24,8 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#development-workflow)
 * [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 ## Feedback
 

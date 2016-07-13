@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/editor/standalone-languages/all';
 import './standaloneSchemas';
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {ShallowCancelThenPromise} from 'vs/base/common/async';
-import {StandaloneEditor, StandaloneDiffEditor, startup, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
-import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, startup, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IEditorOverrideServices, ensureDynamicPlatformServices, ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -21,15 +20,12 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
 import {SimpleEditorService} from 'vs/editor/browser/standalone/simpleServices';
 import * as modes from 'vs/editor/common/modes';
-import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
-import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
-import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
-import {StandaloneWorker} from 'vs/editor/browser/standalone/standaloneWorker';
+import {EditorWorkerClient} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
+import {DiffNavigator} from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 
 function shallowClone<T>(obj:T): T {
 	let r:T = <any>{};
@@ -50,7 +46,12 @@ export function setupServices(services: IEditorOverrideServices): IEditorOverrid
 	return startup.setupServices(services);
 }
 
-export function create(domElement:HTMLElement, options:IEditorConstructionOptions, services:IEditorOverrideServices):ICodeEditor {
+/**
+ * Create a new editor under `domElement`.
+ * `domElement` should be empty (not contain other dom nodes).
+ * The editor will read the size of `domElement`.
+ */
+export function create(domElement:HTMLElement, options?:IEditorConstructionOptions, services?:IEditorOverrideServices):IStandaloneCodeEditor {
 	startup.initStaticServicesIfNecessary();
 
 	services = shallowClone(services);
@@ -70,7 +71,12 @@ export function create(domElement:HTMLElement, options:IEditorConstructionOption
 	return result;
 }
 
-export function createDiffEditor(domElement:HTMLElement, options:IDiffEditorConstructionOptions, services: IEditorOverrideServices):IDiffEditor {
+/**
+ * Create a new diff editor under `domElement`.
+ * `domElement` should be empty (not contain other dom nodes).
+ * The editor will read the size of `domElement`.
+ */
+export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorConstructionOptions, services?: IEditorOverrideServices):IStandaloneDiffEditor {
 	startup.initStaticServicesIfNecessary();
 
 	services = shallowClone(services);
@@ -88,6 +94,23 @@ export function createDiffEditor(domElement:HTMLElement, options:IDiffEditorCons
 	}
 
 	return result;
+}
+
+export interface IDiffNavigator {
+	canNavigate():boolean;
+	next():void;
+	previous():void;
+	dispose():void;
+}
+
+export interface IDiffNavigatorOptions {
+	followsCaret?:boolean;
+	ignoreCharChanges?:boolean;
+	alwaysRevealFirst?:boolean;
+}
+
+export function createDiffNavigator(diffEditor:IStandaloneDiffEditor, opts?:IDiffNavigatorOptions): IDiffNavigator {
+	return new DiffNavigator(diffEditor, opts);
 }
 
 function prepareServices(domElement: HTMLElement, services: IEditorOverrideServices): { ctx: IEditorOverrideServices; toDispose: IDisposable[]; } {
@@ -116,6 +139,10 @@ function doCreateModel(value:string, mode:TPromise<modes.IMode>, uri?:URI): IMod
 	return modelService.createModel(value, mode, uri);
 }
 
+/**
+ * Create a new editor model.
+ * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
+ */
 export function createModel(value:string, language?:string, uri?:URI): IModel {
 	startup.initStaticServicesIfNecessary();
 
@@ -137,6 +164,9 @@ export function createModel(value:string, language?:string, uri?:URI): IModel {
 	return doCreateModel(value, modeService.getOrCreateMode(language), uri);
 }
 
+/**
+ * Change the language for a model.
+ */
 export function setModelLanguage(model:IModel, language:string): void {
 	startup.initStaticServicesIfNecessary();
 	let modeService = ensureStaticPlatformServices(null).modeService;
@@ -144,36 +174,54 @@ export function setModelLanguage(model:IModel, language:string): void {
 	model.setMode(modeService.getOrCreateMode(language));
 }
 
+/**
+ * Set the markers for a model.
+ */
 export function setModelMarkers(model:IModel, owner:string, markers: IMarkerData[]): void {
 	startup.initStaticServicesIfNecessary();
 	var markerService = ensureStaticPlatformServices(null).markerService;
 	markerService.changeOne(owner, model.uri, markers);
 }
 
+/**
+ * Get the model that has `uri` if it exists.
+ */
 export function getModel(uri: URI): IModel {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.getModel(uri);
 }
 
+/**
+ * Get all the created models.
+ */
 export function getModels(): IModel[] {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.getModels();
 }
 
+/**
+ * Emitted when a model is created.
+ */
 export function onDidCreateModel(listener:(model:IModel)=>void): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.onModelAdded(listener);
 }
 
+/**
+ * Emitted right before a model is disposed.
+ */
 export function onWillDisposeModel(listener:(model:IModel)=>void): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.onModelRemoved(listener);
 }
 
+/**
+ * Emitted when a different language is set to a model.
+ */
 export function onDidChangeModelLanguage(listener:(e:{ model: IModel; oldLanguage: string; })=>void): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
@@ -206,91 +254,128 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
-interface IMonacoWebWorkerState<T> {
-	myProxy:StandaloneWorker;
-	foreignProxy:T;
-	modelMananger: EditorModelManager;
+/**
+ * A web worker that can provide a proxy to an arbitrary file.
+ */
+export interface MonacoWebWorker<T> {
+	/**
+	 * Terminate the web worker, thus invalidating the returned proxy.
+	 */
+	dispose(): void;
+	/**
+	 * Get a proxy to the arbitrary loaded code.
+	 */
+	getProxy(): TPromise<T>;
+	/**
+	 * Synchronize (send) the models at `resources` to the web worker,
+	 * making them available in the monaco.worker.getMirrorModels().
+	 */
+	withSyncedResources(resources: URI[]): TPromise<T>;
 }
 
-export class MonacoWebWorker<T> {
+/**
+ * @internal
+ */
+export class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
 
-	private _loaded: TPromise<IMonacoWebWorkerState<T>>;
-	private _client: SimpleWorkerClient<StandaloneWorker>;
+	private _foreignModuleId: string;
+	private _foreignModuleCreateData: any;
+	private _foreignProxy: TPromise<T>;
 
 	/**
 	 * @internal
 	 */
 	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
-		this._client = new SimpleWorkerClient<StandaloneWorker>(new DefaultWorkerFactory(), 'vs/editor/browser/standalone/standaloneWorker', null);
-
-		this._loaded = this._client.getProxyObject().then((proxy) => {
-
-			let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
-				return proxy.fmr(method, args);
-			};
-
-			let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
-				return function () {
-					let args = Array.prototype.slice.call(arguments, 0);
-					return proxyMethodRequest(method, args);
-				};
-			};
-
-			const manager = new EditorModelManager(proxy, modelService, true);
-
-			return proxy.loadModule(opts.moduleId).then((foreignMethods): IMonacoWebWorkerState<T> => {
-
-				let foreignProxy = <T><any>{};
-				for (let i = 0; i < foreignMethods.length; i++) {
-					foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
-				}
-
-				return {
-					myProxy: proxy,
-					foreignProxy: foreignProxy,
-					modelMananger: manager
-				};
-			});
-		});
+		super(modelService);
+		this._foreignModuleId = opts.moduleId;
+		this._foreignModuleCreateData = opts.createData || null;
+		this._foreignProxy = null;
 	}
 
-	public dispose(): void {
-		console.log('TODO: I should dispose now');
+	private _getForeignProxy(): TPromise<T> {
+		if (!this._foreignProxy) {
+			this._foreignProxy = new ShallowCancelThenPromise(this._getProxy().then((proxy) => {
+				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData).then((foreignMethods) => {
+					this._foreignModuleId = null;
+					this._foreignModuleCreateData = null;
+
+					let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
+						return proxy.fmr(method, args);
+					};
+
+					let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
+						return function () {
+							let args = Array.prototype.slice.call(arguments, 0);
+							return proxyMethodRequest(method, args);
+						};
+					};
+
+					let foreignProxy = <T><any>{};
+					for (let i = 0; i < foreignMethods.length; i++) {
+						foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
+					}
+
+					return foreignProxy;
+				});
+			}));
+		}
+		return this._foreignProxy;
 	}
 
 	public getProxy(): TPromise<T> {
-		return new ShallowCancelThenPromise(this._loaded.then(data => data.foreignProxy));
+		return this._getForeignProxy();
 	}
 
-	public withSyncedResources(resources: URI[]): TPromise<void> {
-		return new ShallowCancelThenPromise(this._loaded.then(data => data.modelMananger.withSyncedResources(resources)));
+	public withSyncedResources(resources: URI[]): TPromise<T> {
+		return this._withSyncedResources(resources).then(_ => this.getProxy());
 	}
 }
 
 export interface IWebWorkerOptions {
+	/**
+	 * The AMD moduleId to load.
+	 * It should export a function `create` that should return the exported proxy.
+	 */
 	moduleId: string;
+	/**
+	 * The data to send over when calling create on the module.
+	 */
+	createData?: any;
 }
 
+/**
+ * Create a new web worker that has model syncing capabilities built in.
+ * Specify an AMD module to load that will `create` an object that will be proxied.
+ */
 export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
 	let modelService = staticPlatformServices.modelService;
 
-	return new MonacoWebWorker(modelService, opts);
+	return new MonacoWebWorkerImpl<T>(modelService, opts);
 }
 
+/**
+ * Colorize the contents of `domNode` using attribute `data-lang`.
+ */
 export function colorizeElement(domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
 	startup.initStaticServicesIfNecessary();
 	var modeService = ensureStaticPlatformServices(null).modeService;
 	return Colorizer.colorizeElement(modeService, domNode, options);
 }
 
-export function colorize(text:string, modeId:string, options:IColorizerOptions): TPromise<string> {
+/**
+ * Colorize `text` using language `languageId`.
+ */
+export function colorize(text:string, languageId:string, options:IColorizerOptions): TPromise<string> {
 	startup.initStaticServicesIfNecessary();
 	var modeService = ensureStaticPlatformServices(null).modeService;
-	return Colorizer.colorize(modeService, text, modeId, options);
+	return Colorizer.colorize(modeService, text, languageId, options);
 }
 
+/**
+ * Colorize a line in a model.
+ */
 export function colorizeModelLine(model:IModel, lineNumber:number, tabSize:number = 4): string {
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
@@ -303,6 +388,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		// methods
 		create: create,
 		createDiffEditor: createDiffEditor,
+		createDiffNavigator: createDiffNavigator,
 
 		createModel: createModel,
 		setModelLanguage: setModelLanguage,
@@ -330,11 +416,11 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		CursorChangeReason: editorCommon.CursorChangeReason,
 		MouseTargetType: editorCommon.MouseTargetType,
 		TextEditorCursorStyle: editorCommon.TextEditorCursorStyle,
+		TextEditorCursorBlinkingStyle: editorCommon.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 
 		// classes
-		MonacoWebWorker: <any>MonacoWebWorker,
 		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
 		EditorWrappingInfo: <any>editorCommon.EditorWrappingInfo,
 		InternalEditorViewOptions: <any>editorCommon.InternalEditorViewOptions,
@@ -352,6 +438,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		// consts
 		KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS,
 		KEYBINDING_CONTEXT_EDITOR_FOCUS: editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS,
+		KEYBINDING_CONTEXT_EDITOR_READONLY: editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY,
 		KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS,
 		KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION,
 		KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID,

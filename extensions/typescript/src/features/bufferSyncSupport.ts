@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as fs from 'fs';
-import * as path from 'path';
-
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -83,7 +80,8 @@ export default class BufferSyncSupport {
 	private diagnostics: Diagnostics;
 	private disposables: Disposable[] = [];
 	private syncedBuffers: Map<SyncedBuffer>;
-	private closedFiles: Map<boolean>;
+
+	private projectValidationRequested: boolean;
 
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
@@ -96,11 +94,12 @@ export default class BufferSyncSupport {
 		this.extensions = extensions;
 		this._validate = validate;
 
+		this.projectValidationRequested = false;
+
 		this.pendingDiagnostics = Object.create(null);
 		this.diagnosticDelayer = new Delayer<any>(100);
 
 		this.syncedBuffers = Object.create(null);
-		this.closedFiles = Object.create(null);
 	}
 
 	public listen(): void {
@@ -108,19 +107,6 @@ export default class BufferSyncSupport {
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
-		workspace.createFileSystemWatcher('**/*', true, true, false).onDidDelete((resource) => {
-			let filepath = this.client.asAbsolutePath(resource);
-			if (!filepath) {
-				return;
-			}
-			if (!this.syncedBuffers[filepath]) {
-				// The file is not synced (open in an editor) and got
-				// removed from disk. Make sure it is not in the closedFiles
-				// list since we shouldn't revalidate it.
-				delete this.closedFiles[filepath];
-				this.diagnostics.delete(filepath);
-			}
-		});
 	}
 
 	public get validate(): boolean {
@@ -161,7 +147,6 @@ export default class BufferSyncSupport {
 		}
 		let syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
 		this.syncedBuffers[filepath] = syncedBuffer;
-		delete this.closedFiles[filepath];
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
 	}
@@ -175,14 +160,7 @@ export default class BufferSyncSupport {
 		if (!syncedBuffer) {
 			return;
 		}
-		// If the file still exists on disk keep on validating the file.
-		if (fs.existsSync(filepath) && this.extensions[path.extname(filepath)]) {
-			this.closedFiles[filepath] = true;
-		} else {
-			// Ensure we don't have the file in the map and clear all errors.
-			delete this.closedFiles[filepath];
-			this.diagnostics.delete(filepath);
-		}
+		this.diagnostics.delete(filepath);
 		delete this.syncedBuffers[filepath];
 		syncedBuffer.close();
 	}
@@ -210,9 +188,10 @@ export default class BufferSyncSupport {
 	}
 
 	public requestDiagnostic(file: string): void {
-		if (!this._validate) {
+		if (!this._validate || this.client.experimentalAutoBuild) {
 			return;
 		}
+
 		this.pendingDiagnostics[file] = Date.now();
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
@@ -239,13 +218,6 @@ export default class BufferSyncSupport {
 			if (!this.pendingDiagnostics[file]) {
 				files.push(file);
 			}
-		});
-
-		// Now add all files that we have requested diagnostics for but are now
-		// closed. Otherwise it might be confusing that interfile dependent markers
-		// don't get fixed.
-		Object.keys(this.closedFiles).forEach((file) => {
-			files.push(file);
 		});
 
 		let args: Proto.GeterrRequestArgs = {

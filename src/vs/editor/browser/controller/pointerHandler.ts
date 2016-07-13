@@ -6,12 +6,12 @@
 
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {EventType, Gesture, GestureEvent} from 'vs/base/browser/touch';
 import {IScrollEvent} from 'vs/editor/common/editorCommon';
 import {MouseHandler, IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 import {IViewController} from 'vs/editor/browser/editorBrowser';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {EditorMouseEvent} from 'vs/editor/browser/editorDom';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -74,15 +74,15 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 		this._lastPointerType = 'mouse';
 	}
 
-	public _onMouseDown(e:MouseEvent): void {
+	public _onMouseDown(e:EditorMouseEvent): void {
 		if (this._lastPointerType === 'mouse') {
 			super._onMouseDown(e);
 		}
 	}
 
 	private _onCaptureGestureTap(rawEvent: MSGestureEvent): void {
-		var e = new StandardMouseEvent(<MouseEvent><any>rawEvent);
-		var t = this._createMouseTarget(e, false);
+		let e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
+		let t = this._createMouseTarget(e, false);
 		if (t.position) {
 			this.viewController.moveTo('mouse', t.position);
 		}
@@ -155,15 +155,15 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 		this._lastPointerType = 'mouse';
 	}
 
-	public _onMouseDown(e:MouseEvent): void {
+	public _onMouseDown(e:EditorMouseEvent): void {
 		if (this._lastPointerType === 'mouse') {
 			super._onMouseDown(e);
 		}
 	}
 
 	private _onCaptureGestureTap(rawEvent: MSGestureEvent): void {
-		var e = new StandardMouseEvent(<MouseEvent><any>rawEvent);
-		var t = this._createMouseTarget(e, false);
+		let e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
+		let t = this._createMouseTarget(e, false);
 		if (t.position) {
 			this.viewController.moveTo('mouse', t.position);
 		}
@@ -203,7 +203,7 @@ class TouchHandler extends MouseHandler {
 
 		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
 		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
-		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(e, false)));
+		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
 
 	}
 
@@ -217,8 +217,7 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		var mouseEvent = new StandardMouseEvent(event);
-		var target = this._createMouseTarget(mouseEvent, false);
+		let target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
 			this.viewController.moveTo('mouse', target.position);

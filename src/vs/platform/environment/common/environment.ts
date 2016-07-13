@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
 export interface IEnvironmentService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
+	appRoot: string;
+	userHome: string;
 	userDataPath: string;
 	extensionsPath: string;
+	extensionDevelopmentPath: string;
+	isBuilt: boolean;
+
+	createPaths(): TPromise<void>;
 }

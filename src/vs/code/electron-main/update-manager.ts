@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as fs from 'fs';
+import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
 import * as platform from 'vs/base/common/platform';
@@ -15,7 +15,7 @@ import { ISettingsService } from 'vs/code/electron-main/settings';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export enum State {
 	Uninitialized,
@@ -45,7 +45,7 @@ interface IAutoUpdater extends NodeJS.EventEmitter {
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
 export interface IUpdateService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	feedUrl: string;
 	channel: string;
 	initialize(): void;
@@ -58,7 +58,7 @@ export interface IUpdateService {
 
 export class UpdateManager extends EventEmitter implements IUpdateService {
 
-	serviceId = IUpdateService;
+	_serviceBrand: any;
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -199,9 +199,9 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		// Clear timer when checking for update
 		this.on('checking-for-update', () => clearTimeout(timer));
 
-		// If update not found, try again in 10 minutes
+		// If update not found, try again in 1 hour
 		this.on('update-not-available', () => {
-			timer = setTimeout(() => this.checkForUpdates(), 10 * 60 * 1000);
+			timer = setTimeout(() => this.checkForUpdates(), 60 * 60 * 1000);
 		});
 	}
 

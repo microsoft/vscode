@@ -509,8 +509,8 @@ export function registerContributions(): void {
 	var configurationRegistry = <confregistry.IConfigurationRegistry>platform.Registry.as(confregistry.Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		id: 'git',
-		order: 10,
-		title: nls.localize('gitConfigurationTitle', "Git configuration"),
+		order: 15,
+		title: nls.localize('gitConfigurationTitle', "Git"),
 		type: 'object',
 		properties: {
 			'git.enabled': {
@@ -523,10 +523,30 @@ export function registerContributions(): void {
 				description: nls.localize('gitPath', "Path to the git executable"),
 				default: null
 			},
+			'git.autorefresh': {
+				type: 'boolean',
+				description: nls.localize('gitAutoRefresh', "Whether auto refreshing is enabled"),
+				default: true
+			},
 			'git.autofetch': {
 				type: 'boolean',
 				description: nls.localize('gitAutoFetch', "Whether auto fetching is enabled."),
 				default: true
+			},
+			'git.enableLongCommitWarning': {
+				type: 'boolean',
+				description: nls.localize('gitLongCommit', "Whether long commit messages should be warned about."),
+				default: true
+			},
+			'git.allowLargeRepositories': {
+				type: 'boolean',
+				description: nls.localize('gitLargeRepos', "Always allow large repositories to be managed by Code."),
+				default: false
+			},
+			'git.confirmSync': {
+				type: 'boolean',
+				description: nls.localize('confirmSync', "Confirm before synchronizing git repositories."),
+				default: false
 			}
 		}
 	});

@@ -10,14 +10,15 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandHandler, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler} from 'vs/platform/commands/common/commands';
+import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
 import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
 import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {provideReferences} from '../common/referenceSearch';
@@ -46,7 +47,7 @@ export class ReferenceAction extends EditorAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@optional(IPeekViewService) peekViewService: IPeekViewService
 	) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
+		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
 
 		this.label = nls.localize('references.action.label', "Find All References");
 
@@ -54,10 +55,6 @@ export class ReferenceAction extends EditorAction {
 		if (this.peekViewService) {
 			keybindingService.createKey(this.peekViewService.contextKey, true);
 		}
-	}
-
-	public getGroupId(): string {
-		return '1_goto/4_references';
 	}
 
 	public isSupported():boolean {
@@ -119,7 +116,7 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 		let controller = ReferencesController.getController(control);
 
 		return TPromise.as(controller.toggleWidget(
-			Range.lift(Position.asEmptyRange(position)),
+			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			TPromise.as(new ReferencesModel(references)),
 			defaultReferenceSearchOptions)).then(() => true);
 	});
@@ -129,10 +126,21 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 
 // register action
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ReferenceAction, ReferenceAction.ID, nls.localize('references.action.name', "Find All References"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyCode.F12
-}, 'Find All References'));
+CommonEditorRegistry.registerEditorAction({
+	ctor: ReferenceAction,
+	id: ReferenceAction.ID,
+	label: nls.localize('references.action.name', "Find All References"),
+	alias: 'Find All References',
+	kbOpts: {
+		context: ContextKey.EditorTextFocus,
+		primary: KeyMod.Shift | KeyCode.F12
+	},
+	menuOpts: {
+		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasReferenceProvider),
+		group: 'navigation'
+	}
+});
+
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.findReferences',
 	handler: findReferencesCommand,
@@ -140,6 +148,7 @@ KeybindingsRegistry.registerCommandDesc({
 	when: null,
 	primary: undefined
 });
+
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.showReferences',
 	handler: showReferencesCommand,

@@ -153,6 +153,10 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 		});
 	}
 
+	public supportsSplitEditor(): boolean {
+		return false;
+	}
+
 	public matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;

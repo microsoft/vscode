@@ -10,7 +10,7 @@ import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/code/electron-main/env';
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
 
@@ -21,7 +21,7 @@ const EventTypes = {
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
 export interface ILifecycleService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Will be true if an update was applied. Will only be true for each update once.
@@ -37,7 +37,7 @@ export interface ILifecycleService {
 
 export class LifecycleService implements ILifecycleService {
 
-	serviceId = ILifecycleService;
+	_serviceBrand: any;
 
 	private static QUIT_FROM_UPDATE_MARKER = 'quit.from.update'; // use a marker to find out if an update was applied in the previous session
 

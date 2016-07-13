@@ -28,8 +28,8 @@ import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, EditorOptions, UntitledEditorInput, ConfirmResult, IEditorIdentifier} from 'vs/workbench/common/editor';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, ConfirmResult, IEditorIdentifier} from 'vs/workbench/common/editor';
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
@@ -37,6 +37,7 @@ import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {CollapseAction} from 'vs/workbench/browser/viewlet';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -63,7 +64,6 @@ export interface IFileViewletState {
 
 export class BaseFileAction extends Action {
 	private _element: FileStat;
-	private listenerToUnbind: IDisposable;
 
 	constructor(
 		id: string,
@@ -78,9 +78,6 @@ export class BaseFileAction extends Action {
 		super(id, label);
 
 		this.enabled = false;
-
-		// update enablement when options change
-		this.listenerToUnbind = this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, () => this._updateEnablement());
 	}
 
 	public get contextService() {
@@ -120,7 +117,7 @@ export class BaseFileAction extends Action {
 	}
 
 	_updateEnablement(): void {
-		this.enabled = !!(this._contextService && this._fileService && this._editorService && !this._contextService.getOptions().readOnly && this._isEnabled());
+		this.enabled = !!(this._contextService && this._fileService && this._editorService && this._isEnabled());
 	}
 
 	protected onError(error: any): void {
@@ -164,12 +161,6 @@ export class BaseFileAction extends Action {
 		}
 
 		return TPromise.as(false);
-	}
-
-	public dispose(): void {
-		this.listenerToUnbind.dispose();
-
-		super.dispose();
 	}
 }
 
@@ -575,7 +566,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	public run(): TPromise<any> {
 		let input = this.untitledEditorService.createOrGet();
 
-		return this.editorService.openEditor(input, EditorOptions.create({ pinned: true })); // untitled are always pinned
+		return this.editorService.openEditor(input, { pinned: true }); // untitled are always pinned
 	}
 }
 
@@ -1425,8 +1416,8 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				let selectionOfSource: Selection;
 				const activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
-					const activeResource = getUntitledOrFileResource(activeEditor.input);
-					if (activeResource.toString() === source.toString()) {
+					const activeResource = getUntitledOrFileResource(activeEditor.input, true);
+					if (activeResource && activeResource.toString() === source.toString()) {
 						selectionOfSource = <Selection>activeEditor.getSelection();
 					}
 				}
@@ -1550,13 +1541,18 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		const stacks = this.editorGroupService.getStacksModel();
 
 		// Store some properties per untitled file to restore later after save is completed
-		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; } } = Object.create(null);
+		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
 		this.textFileService.getDirty()
 			.filter(r => r.scheme === 'untitled')			// All untitled resources
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
-			.filter(i => !!i)								// If possible :)
-			.forEach(i => {
-				mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding(), indexInGroups: stacks.groups.map(g => g.indexOf(i)) };
+			.filter(input => !!input)								// If possible :)
+			.forEach(input => {
+				mapUntitledToProperties[input.getResource().toString()] = {
+					mime: input.getMime(),
+					encoding: input.getEncoding(),
+					indexInGroups: stacks.groups.map(g => g.indexOf(input)),
+					activeInGroups: stacks.groups.map(g => g.isActive(input))
+				};
 			});
 
 		// Save all
@@ -1591,7 +1587,8 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 								options: {
 									pinned: true,
 									index: indexInGroup,
-									preserveFocus: true
+									preserveFocus: true,
+									inactive: !untitledProps.activeInGroups[index]
 								}
 							},
 							position: index
@@ -1803,6 +1800,57 @@ export class ShowActiveFileInExplorer extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class CollapseExplorerView extends Action {
+
+	public static ID = 'workbench.files.action.collapseFilesExplorerFolders';
+	public static LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			const explorerView = viewlet.getExplorerView();
+			if (explorerView) {
+				const viewer = explorerView.getViewer();
+				if (viewer) {
+					const action = new CollapseAction(viewer, true, null);
+					action.run().done();
+					action.dispose();
+				}
+			}
+		});
+	}
+}
+
+export class RefreshExplorerView extends Action {
+
+	public static ID = 'workbench.files.action.refreshFilesExplorer';
+	public static LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			const explorerView = viewlet.getExplorerView();
+			if (explorerView) {
+				explorerView.refresh();
+			}
+		});
 	}
 }
 

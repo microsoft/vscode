@@ -28,10 +28,12 @@
 					".jshintrc",
 					".jscsrc",
 					".eslintrc",
-					".babelrc"
+					".babelrc",
+					".webmanifest"
 				],
 				"mimetypes": [
-					"application/json"
+					"application/json",
+					"application/manifest+json"
 				],
 				"configuration": "./json.configuration.json"
 			}
@@ -93,7 +95,7 @@
 			"id": "json",
 			"order": 20,
 			"type": "object",
-			"title": "JSON configuration",
+			"title": "JSON",
 			"properties" : {
 				"json.schemas" : {
 					"type": "array",

@@ -15,7 +15,7 @@ import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/qu
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {EditorInput, getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
+import {EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -37,6 +37,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		resource: URI,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(editorService);
@@ -73,12 +74,13 @@ export class FileEntry extends EditorQuickOpenEntry {
 	public getInput(): IResourceInput | EditorInput {
 		let input: IResourceInput = {
 			resource: this.resource,
+			options: {
+				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+			}
 		};
 
 		if (this.range) {
-			input.options = {
-				selection: this.range
-			};
+			input.options.selection = this.range;
 		}
 
 		return input;

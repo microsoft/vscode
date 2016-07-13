@@ -11,11 +11,11 @@ import lifecycle = require('vs/base/common/lifecycle');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
-import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
+import {IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner} from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import {EventType as CommonEventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
-import {IEventEmitter, EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
+import {IEventEmitter, EventEmitter} from 'vs/base/common/eventEmitter';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
@@ -48,40 +48,33 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this._action = action;
 
 		if (action instanceof Action) {
-			let l = (<Action>action).addBulkListener2((events: EmitterEvent[]) => {
-
+			this._callOnDispose.push(action.onDidChange(event => {
 				if (!this.builder) {
 					// we have not been rendered yet, so there
 					// is no point in updating the UI
 					return;
 				}
+				this._handleActionChangeEvent(event);
+			}));
+		}
+	}
 
-				events.forEach((event: EmitterEvent) => {
-
-					switch (event.getType()) {
-						case Action.ENABLED:
-							this._updateEnabled();
-							break;
-						case Action.LABEL:
-							this._updateLabel();
-							this._updateTooltip();
-							break;
-						case Action.TOOLTIP:
-							this._updateTooltip();
-							break;
-						case Action.CLASS:
-							this._updateClass();
-							break;
-						case Action.CHECKED:
-							this._updateChecked();
-							break;
-						default:
-							this._updateUnknown(event);
-							break;
-					}
-				});
-			});
-			this._callOnDispose.push(l);
+	protected _handleActionChangeEvent(event: IActionChangeEvent): void {
+		if (event.enabled !== void 0) {
+			this._updateEnabled();
+		}
+		if (event.checked !== void 0) {
+			this._updateChecked();
+		}
+		if (event.class !== void 0) {
+			this._updateClass();
+		}
+		if (event.label !== void 0) {
+			this._updateLabel();
+			this._updateTooltip();
+		}
+		if (event.tooltip !== void 0) {
+			this._updateTooltip();
 		}
 	}
 
@@ -113,20 +106,24 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this.builder = $(container);
 		this.gesture = new Gesture(container);
 
-		this.builder.on(DOM.EventType.CLICK, (event: Event) => { this.onClick(event); });
-		this.builder.on(EventType.Tap, e => { this.onClick(e); });
+		this.builder.on(DOM.EventType.CLICK, (event: Event) => this.onClick(event));
+		this.builder.on(EventType.Tap, e => this.onClick(e));
 
 		if (platform.isMacintosh) {
-			this.builder.on(DOM.EventType.CONTEXT_MENU, (event: Event) => { this.onClick(event); }); // https://github.com/Microsoft/vscode/issues/1011
+			this.builder.on(DOM.EventType.CONTEXT_MENU, (event: Event) => this.onClick(event)); // https://github.com/Microsoft/vscode/issues/1011
 		}
 
-		this.builder.on('mousedown', (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e);
+
 			if (e.button === 0 && this._action.enabled) {
 				this.builder.addClass('active');
 			}
 		});
 
-		this.builder.on(['mouseup', 'mouseout'], (e: MouseEvent) => {
+		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
+			DOM.EventHelper.stop(e);
+
 			if (e.button === 0 && this._action.enabled) {
 				this.builder.removeClass('active');
 			}
@@ -135,6 +132,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public onClick(event: Event): void {
 		DOM.EventHelper.stop(event, true);
+
 		let context: any;
 		if (types.isUndefinedOrNull(this._context)) {
 			context = event;
@@ -158,28 +156,24 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		}
 	}
 
-	public _updateEnabled(): void {
+	protected _updateEnabled(): void {
 		// implement in subclass
 	}
 
-	public _updateLabel(): void {
+	protected _updateLabel(): void {
 		// implement in subclass
 	}
 
-	public _updateTooltip(): void {
+	protected _updateTooltip(): void {
 		// implement in subclass
 	}
 
-	public _updateClass(): void {
+	protected _updateClass(): void {
 		// implement in subclass
 	}
 
-	public _updateChecked(): void {
+	protected _updateChecked(): void {
 		// implement in subclass
-	}
-
-	public _updateUnknown(event: EmitterEvent): void {
-		// can implement in subclass
 	}
 
 	public dispose(): void {
@@ -219,9 +213,9 @@ export interface IActionItemOptions {
 
 export class ActionItem extends BaseActionItem {
 
-	$e: Builder;
+	protected $e: Builder;
+	protected options: IActionItemOptions;
 	private cssClass: string;
-	private options: IActionItemOptions;
 
 	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
 		super(context, action);
@@ -270,7 +264,7 @@ export class ActionItem extends BaseActionItem {
 			title = this.getAction().label;
 
 			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding']}, "{0} ({1})", title, this.options.keybinding);
+				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
 			}
 		}
 
@@ -316,60 +310,6 @@ export class ActionItem extends BaseActionItem {
 	}
 }
 
-export class ProgressItem extends BaseActionItem {
-
-	public render(parent: HTMLElement): void {
-
-		let container = document.createElement('div');
-		$(container).addClass('progress-item');
-
-		let label = document.createElement('div');
-		$(label).addClass('label');
-		label.textContent = this.getAction().label;
-		label.title = this.getAction().label;
-		super.render(label);
-
-		let progress = document.createElement('div');
-		progress.textContent = '\u2026';
-		$(progress).addClass('tag', 'progress');
-
-		let done = document.createElement('div');
-		done.textContent = '\u2713';
-		$(done).addClass('tag', 'done');
-
-		let error = document.createElement('div');
-		error.textContent = '!';
-		$(error).addClass('tag', 'error');
-
-		this.callOnDispose.push(this.addListener2(CommonEventType.BEFORE_RUN, () => {
-			$(progress).addClass('active');
-			$(done).removeClass('active');
-			$(error).removeClass('active');
-		}));
-
-		this.callOnDispose.push(this.addListener2(CommonEventType.RUN, (result) => {
-			$(progress).removeClass('active');
-			if (result.error) {
-				$(done).removeClass('active');
-				$(error).addClass('active');
-			} else {
-				$(error).removeClass('active');
-				$(done).addClass('active');
-			}
-		}));
-
-		container.appendChild(label);
-		container.appendChild(progress);
-		container.appendChild(done);
-		container.appendChild(error);
-		parent.appendChild(container);
-	}
-
-	public dispose(): void {
-		super.dispose();
-	}
-}
-
 export enum ActionsOrientation {
 	HORIZONTAL = 1,
 	VERTICAL = 2
@@ -385,6 +325,7 @@ export interface IActionBarOptions {
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
+	animated?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -436,6 +377,10 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
+
+		if (options.animated !== false) {
+			DOM.addClass(this.domNode, 'animated');
+		}
 
 		let isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
 		if (isVertical) {
@@ -512,7 +457,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	public setAriaLabel(label: string): void {
 		if (label) {
 			this.actionsList.setAttribute('aria-label', label);
-		} else{
+		} else {
 			this.actionsList.removeAttribute('aria-label');
 		}
 	}
@@ -738,7 +683,7 @@ export class SelectActionItem extends BaseActionItem {
 		super(ctx, action);
 
 		this.select = document.createElement('select');
-		this.select.className = `action-bar-select ${platform.isWindows ? 'windows' : ''}`;
+		this.select.className = 'action-bar-select';
 
 		this.options = options;
 		this.selected = selected;

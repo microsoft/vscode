@@ -114,10 +114,12 @@
 	color: #C07A7A;
 }
 
+.monaco-editor.hc-black .parameter-hints-widget .button.previous,
 .monaco-editor.vs-dark .parameter-hints-widget .button.previous {
 	background-image: url('arrow-up-dark.svg');
 }
 
+.monaco-editor.hc-black .parameter-hints-widget .button.next,
 .monaco-editor.vs-dark .parameter-hints-widget .button.next {
 	background-image: url('arrow-down-dark.svg');
 }
@@ -130,12 +132,4 @@
 
 .monaco-editor.hc-black .parameter-hints-widget .documentation {
 	color: #C07A7A;
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button.previous:before {
-	content: url('arrow-up-dark.svg');
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button.next:before {
-	content: url('arrow-down-dark.svg');
 }

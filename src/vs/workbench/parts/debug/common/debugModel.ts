@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import Event, { Emitter } from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
+import objects = require('vs/base/common/objects');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
@@ -26,9 +27,9 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 
 	return session.variables({ variablesReference: parent.reference }).then(response => {
 		return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-			v => new Variable(parent, v.variablesReference, v.name, v.value)
+			v => new Variable(parent, v.variablesReference, v.name, v.value, v.type)
 		);
-	}, (e: Error) => [new Variable(parent, 0, null, e.message, false)]);
+	}, (e: Error) => [new Variable(parent, 0, null, e.message, null, false)]);
 }
 
 function massageValue(value: string): string {
@@ -226,11 +227,12 @@ export class KeyValueOutputElement extends OutputElement {
 	}
 }
 
-export class ExpressionContainer implements debug.IExpressionContainer {
+export abstract class ExpressionContainer implements debug.IExpressionContainer {
 
 	private children: TPromise<debug.IExpression[]>;
 	public valueChanged: boolean;
 	public static allValues: { [id: string]: string } = {};
+	private _value: string;
 
 	constructor(public reference: number, private id: string, private cacheChildren: boolean) {
 		this.children = null;
@@ -251,20 +253,6 @@ export class ExpressionContainer implements debug.IExpressionContainer {
 		return this.id;
 	}
 
-}
-
-export class Expression extends ExpressionContainer implements debug.IExpression {
-	static DEFAULT_VALUE = 'not available';
-
-	public available: boolean;
-	private _value: string;
-
-	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
-		super(0, id, cacheChildren);
-		this.value = Expression.DEFAULT_VALUE;
-		this.available = false;
-	}
-
 	public get value(): string {
 		return this._value;
 	}
@@ -277,15 +265,26 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	}
 }
 
+export class Expression extends ExpressionContainer implements debug.IExpression {
+	static DEFAULT_VALUE = 'not available';
+
+	public available: boolean;
+
+	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
+		super(0, id, cacheChildren);
+		this.value = Expression.DEFAULT_VALUE;
+		this.available = false;
+	}
+}
+
 export class Variable extends ExpressionContainer implements debug.IExpression {
 
-	public value: string;
+	// Used to show the error message coming from the adapter when setting the value #7807
+	public errorMessage: string;
 
-	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public available = true) {
+	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public type: string = null, public available = true) {
 		super(reference, `variable:${ parent.getId() }:${ name }`, true);
 		this.value = massageValue(value);
-		this.valueChanged = ExpressionContainer.allValues[this.getId()] && ExpressionContainer.allValues[this.getId()] !== value;
-		ExpressionContainer.allValues[this.getId()] = value;
 	}
 }
 
@@ -722,7 +721,7 @@ export class Model implements debug.IModel {
 					// Only update the details if all the threads are stopped
 					// because we don't want to overwrite the details of other
 					// threads that have stopped for a different reason
-					this.threads[ref].stoppedDetails = data.stoppedDetails;
+					this.threads[ref].stoppedDetails = objects.clone(data.stoppedDetails);
 					this.threads[ref].stopped = true;
 					this.threads[ref].clearCallStack();
 				});

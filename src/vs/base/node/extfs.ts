@@ -17,7 +17,6 @@ import paths = require('path');
 const loop = flow.loop;
 
 export function readdir(path: string, callback: (error: Error, files: string[]) => void): void {
-
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
 	if (platform.isMacintosh) {
@@ -83,7 +82,7 @@ export function mkdirp(path: string, mode: number, callback: (error: Error) => v
 }
 
 function isDirectory(path: string, callback: (error: Error, isDirectory?: boolean) => void): void {
-	fs.stat(path, (error: Error, stat: fs.Stats) => {
+	fs.stat(path, (error, stat) => {
 		if (error) { return callback(error); }
 
 		callback(null, stat.isDirectory());
@@ -262,7 +261,7 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 			return callback(err);
 		}
 
-		fs.stat(target, (error: Error, stat: fs.Stats) => {
+		fs.stat(target, (error, stat) => {
 			if (error) {
 				return callback(error);
 			}

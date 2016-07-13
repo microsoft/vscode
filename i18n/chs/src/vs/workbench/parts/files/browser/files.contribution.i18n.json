@@ -9,7 +9,7 @@
 	"autoSave": "控制已更新文件的自动保存。接受的值:“{0}”、“{1}”、“{2}”。如果设置为“{3}”，则可在 \"files.autoSaveDelay\" 中配置延迟。",
 	"autoSaveDelay": "控制延迟(以秒为单位)，在该延迟后将自动保存更新后的文件。仅在 \"files.autoSave\" 设置为“{0}”时适用。",
 	"binaryFileEditor": "二进制文件编辑器",
-	"dynamicHeight": "控制工作文件部分的高度是否应动态适应元素数量。",
+	"dynamicHeight": "控制打开的编辑器部分的高度是否应动态适应元素数量。",
 	"encoding": "读取和编写文件时将使用的默认字符集编码。",
 	"eol": "默认行尾字符。",
 	"exclude": "配置 glob 模式以排除文件和文件夹。",
@@ -17,14 +17,11 @@
 	"explorerConfigurationTitle": "文件资源管理器配置",
 	"files.exclude.boolean": "匹配文件路径所依据的 glob 模式。设置为 true 或 false 可启用或禁用该模式。",
 	"files.exclude.when": "对匹配文件的同级文件的其他检查。使用 $(basename) 作为匹配文件名的变量。",
-	"filesCategory": "文件",
 	"filesConfigurationTitle": "文件配置",
-	"maxVisible": "在滚动条出现之前将显示的最大工作文件数目。",
-	"openWorkingFile": "按名称打开工作文档",
+	"openEditorsVisible": "在“打开的编辑器”窗格中显示的编辑器数量。将其设置为 0 可隐藏窗格。",
 	"showExplorerViewlet": "显示资源管理器",
 	"textFileEditor": "文本文件编辑器",
 	"trimTrailingWhitespace": "启用后，将在保存文件时剪裁尾随空格。",
 	"view": "查看",
-	"watcherExclude": "配置文件路径的 glob 模式以从文件监视排除。更改此设置要求重启。如果在启动时遇到 Code 消耗大量 CPU 时间，则可以排除大型文件夹以减少初始加载。",
-	"workingFilesPicker": "按名称打开工作文档"
+	"watcherExclude": "配置文件路径的 glob 模式以从文件监视排除。更改此设置要求重启。如果在启动时遇到 Code 消耗大量 CPU 时间，则可以排除大型文件夹以减少初始加载。"
 }

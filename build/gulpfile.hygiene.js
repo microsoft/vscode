@@ -71,10 +71,11 @@ var copyrightFilter = [
 	'!**/*.bat',
 	'!**/*.cmd',
 	'!resources/win32/bin/code.js',
+	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
-	'!src/vs/editor/standalone-languages/swift.ts',
+	'!extensions/markdown/media/tomorrow.css'
 ];
 
 var tslintFilter = [

@@ -29,8 +29,12 @@ class Protocol implements IMessagePassingProtocol {
 	}
 
 	public send(message: any): void {
-		this.socket.write(JSON.stringify(message));
-		this.socket.write(Protocol.Boundary);
+		try {
+			this.socket.write(JSON.stringify(message));
+			this.socket.write(Protocol.Boundary);
+		} catch (e) {
+			// noop
+		}
 	}
 
 	public onMessage(callback: (message: any) => void): void {

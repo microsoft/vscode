@@ -5,7 +5,7 @@
 'use strict';
 
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IHTMLContentElement, htmlContentElementArrEquals} from 'vs/base/common/htmlContent';
+import {MarkedString, markedStringsEquals} from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/base/common/idGenerator';
@@ -646,25 +646,29 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 
 	stickiness:editorCommon.TrackedRangeStickiness;
 	className:string;
-	hoverMessage:string;
-	htmlMessage:IHTMLContentElement[];
+	glyphMarginHoverMessage:string;
+	hoverMessage:MarkedString | MarkedString[];
 	isWholeLine:boolean;
 	showInOverviewRuler:string;
 	overviewRuler:editorCommon.IModelDecorationOverviewRulerOptions;
 	glyphMarginClassName:string;
 	linesDecorationsClassName:string;
 	inlineClassName:string;
+	beforeContentClassName:string;
+	afterContentClassName:string;
 
 	constructor(options:editorCommon.IModelDecorationOptions) {
 		this.stickiness = options.stickiness||editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = cleanClassName(options.className||strings.empty);
-		this.hoverMessage = options.hoverMessage||strings.empty;
-		this.htmlMessage = options.htmlMessage||[];
+		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage||strings.empty;
+		this.hoverMessage = options.hoverMessage||[];
 		this.isWholeLine = options.isWholeLine||false;
 		this.overviewRuler = _normalizeOverviewRulerOptions(options.overviewRuler, options.showInOverviewRuler);
 		this.glyphMarginClassName = cleanClassName(options.glyphMarginClassName||strings.empty);
 		this.linesDecorationsClassName = cleanClassName(options.linesDecorationsClassName||strings.empty);
 		this.inlineClassName = cleanClassName(options.inlineClassName||strings.empty);
+		this.beforeContentClassName = cleanClassName(options.beforeContentClassName||strings.empty);
+		this.afterContentClassName = cleanClassName(options.afterContentClassName||strings.empty);
 	}
 
 	private static _overviewRulerEquals(a:editorCommon.IModelDecorationOverviewRulerOptions, b:editorCommon.IModelDecorationOverviewRulerOptions): boolean {
@@ -679,13 +683,15 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 		return (
 			this.stickiness === other.stickiness
 			&& this.className === other.className
-			&& this.hoverMessage === other.hoverMessage
+			&& this.glyphMarginHoverMessage === other.glyphMarginHoverMessage
 			&& this.isWholeLine === other.isWholeLine
 			&& this.showInOverviewRuler === other.showInOverviewRuler
 			&& this.glyphMarginClassName === other.glyphMarginClassName
 			&& this.linesDecorationsClassName === other.linesDecorationsClassName
 			&& this.inlineClassName === other.inlineClassName
-			&& htmlContentElementArrEquals(this.htmlMessage, other.htmlMessage)
+			&& this.beforeContentClassName === other.beforeContentClassName
+			&& this.afterContentClassName === other.afterContentClassName
+			&& markedStringsEquals(this.hoverMessage, other.hoverMessage)
 			&& ModelDecorationOptions._overviewRulerEquals(this.overviewRuler, other.overviewRuler)
 		);
 	}

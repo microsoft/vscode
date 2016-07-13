@@ -5,38 +5,29 @@
 
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import * as panel from 'vs/workbench/browser/panel';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-
-class ToggleMarkersPanelAction extends Action {
-
-	public static ID = 'workbench.action.markers.panel.toggle';
-
-	constructor(id: string, label: string,
-		@IPartService private partService: IPartService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		const panel= this.panelService.getActivePanel();
-		if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
-			this.partService.setPanelHidden(true);
-			return TPromise.as(null);
-		}
-		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-	}
-}
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
 export function registerContributions(): void {
+
+	(<IConfigurationRegistry>platform.Registry.as(Extensions.Configuration)).registerConfiguration({
+		'id': 'problems',
+		'order': 101,
+		'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
+		'type': 'object',
+		'properties': {
+			'problems.autoReveal': {
+				'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
+				'type': 'boolean',
+				'default': true
+			}
+		}
+	});
 
 	// register markers panel
 	(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
@@ -47,11 +38,15 @@ export function registerContributions(): void {
 		'markersPanel'
 	));
 
-	let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
-	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
+	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
+
+	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
 		primary: null,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M }
 	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
+
+	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
+	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleErrorsAndWarningsAction, markersPanelActions.ToggleErrorsAndWarningsAction.ID, ''), Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL);
 }

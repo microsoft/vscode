@@ -75,7 +75,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string> (?:([-_a-zA-Z0-9]+)((:)))?([a-zA-Z-]+)</string>
+					<string> (?:([-_\p{L}\d]+)((:)))?([\p{L}-]+)</string>
 				</dict>
 				<dict>
 					<key>include</key>

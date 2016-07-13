@@ -5,36 +5,21 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IModeService} from 'vs/editor/common/services/modeService';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import {MainContext, MainThreadLanguagesShape} from './extHost.protocol';
 
 export class ExtHostLanguages {
 
-	private _proxy: MainThreadLanguages;
+	private _proxy: MainThreadLanguagesShape;
 
 	constructor(
-		@IThreadService threadService: IThreadService
+		threadService: IThreadService
 	) {
-		this._proxy = threadService.getRemotable(MainThreadLanguages);
+		this._proxy = threadService.get(MainContext.MainThreadLanguages);
 	}
 
 	getLanguages(): TPromise<string[]> {
-		return this._proxy._getLanguages();
+		return this._proxy.$getLanguages();
 	}
 }
 
-@Remotable.MainContext('MainThreadLanguages')
-export class MainThreadLanguages {
-
-	private _modeService: IModeService;
-
-	constructor(
-		@IModeService modeService: IModeService
-	) {
-		this._modeService = modeService;
-	}
-
-	_getLanguages(): TPromise<string[]> {
-		return TPromise.as(this._modeService.getRegisteredModes());
-	}
-}

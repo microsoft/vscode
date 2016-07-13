@@ -40,6 +40,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import IGitService = git.IGitService;
 
@@ -52,6 +53,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	private static COMMIT_KEYBINDING = Platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
 	private static NEED_MESSAGE = nls.localize('needMessage', "Please provide a commit message. You can always press **{0}** to commit changes. If there are any staged changes, only those will be committed; otherwise, all changes will.", ChangesView.COMMIT_KEYBINDING);
 	private static NOTHING_TO_COMMIT = nls.localize('nothingToCommit', "Once there are some changes to commit, type in the commit message and either press **{0}** to commit changes. If there are any staged changes, only those will be committed; otherwise, all changes will.", ChangesView.COMMIT_KEYBINDING);
+	private static LONG_COMMIT = nls.localize('longCommit', "It is recommended to keep the commit's first line under 50 characters. Feel free to use more lines for extra information.");
 
 	private instantiationService: IInstantiationService;
 	private editorService: IWorkbenchEditorService;
@@ -86,7 +88,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IGitService gitService: IGitService,
 		@IOutputService outputService: IOutputService,
-		@IEventService eventService: IEventService
+		@IEventService eventService: IEventService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -132,7 +135,22 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			placeholder: nls.localize('commitMessage', "Message (press {0} to commit)", ChangesView.COMMIT_KEYBINDING),
 			validationOptions: {
 				showMessage: true,
-				validation: (): InputBox.IMessage => null
+				validation: (value): InputBox.IMessage => {
+					const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+
+					if (!config.enableLongCommitWarning) {
+						return null;
+					}
+
+					if (/^[^\n]{51}/.test(value)) {
+						return {
+							content: ChangesView.LONG_COMMIT,
+							type: InputBox.MessageType.WARNING
+						};
+					}
+
+					return null;
+				}
 			},
 			ariaLabel: nls.localize('commitMessageAriaLabel', "Git: Type commit message and press {0} to commit", ChangesView.COMMIT_KEYBINDING),
 			flexibleHeight: true
@@ -218,12 +236,22 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		if (visible) {
 			this.tree.onVisible();
+			this.updateCommitInputTemplate();
 			return this.onEditorsChanged(this.editorService.getActiveEditorInput());
-
 		} else {
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
 		}
+	}
+
+	private updateCommitInputTemplate(): void {
+		if (this.commitInputBox.value) {
+			return;
+		}
+
+		this.gitService.getCommitTemplate()
+			.then(template => template && (this.commitInputBox.value = template))
+			.done(null, Errors.onUnexpectedError);
 	}
 
 	public getControl(): Tree.ITree {
@@ -377,12 +405,13 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	}
 
 	private onGitOperationEnd(e: { operation: git.IGitOperation; error: any; }): void {
-		if (e.operation.id === git.ServiceOperations.COMMIT) {
+		if (e.operation.id === git.ServiceOperations.COMMIT || e.operation.id === git.ServiceOperations.RESET) {
 			if (this.commitInputBox) {
 				this.commitInputBox.enable();
 
 				if (!e.error) {
 					this.commitInputBox.value = '';
+					this.updateCommitInputTemplate();
 				}
 			}
 		}

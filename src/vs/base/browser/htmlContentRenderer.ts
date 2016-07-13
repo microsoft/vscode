@@ -6,10 +6,10 @@
 'use strict';
 
 import DOM = require('vs/base/browser/dom');
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-// import {TPromise} from 'vs/base/common/winjs.base';
-// import {WorkerClient} from 'vs/base/common/worker/workerClient';
-// import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
+import {defaultGenerator} from 'vs/base/common/idGenerator';
+import {escape} from 'vs/base/common/strings';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IHTMLContentElement, MarkedString} from 'vs/base/common/htmlContent';
 import {marked} from 'vs/base/common/marked/marked';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 
@@ -17,7 +17,18 @@ export type RenderableContent = string | IHTMLContentElement | IHTMLContentEleme
 
 export interface RenderOptions {
 	actionCallback?: (content: string, event?: IMouseEvent) => void;
-	codeBlockRenderer?: (modeId: string, value: string) => string;
+	codeBlockRenderer?: (modeId: string, value: string) => string | TPromise<string>;
+}
+
+export function renderMarkedString(markedStrings: MarkedString[], options: RenderOptions = {}): Node {
+	let htmlContentElements = markedStrings.map(value => {
+		if (typeof value === 'string') {
+			return { markdown: value };
+		} else if (typeof value === 'object') {
+			return { code: value };
+		};
+	});
+	return renderHtml(htmlContentElements, options);
 }
 
 /**
@@ -61,10 +72,6 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 			element.style[key] = content.customStyle[key];
 		});
 	}
-	if (content.code && codeBlockRenderer) {
-		let html = codeBlockRenderer(content.code.language, content.code.value);
-		element.innerHTML = html;
-	}
 	if (content.children) {
 		content.children.forEach((child) => {
 			element.appendChild(renderHtml(child, options));
@@ -73,7 +80,21 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 	if (content.formattedText) {
 		renderFormattedText(element, parseFormattedText(content.formattedText), actionCallback);
 	}
+
+	if (content.code && codeBlockRenderer) {
+		// this is sort of legacy given that we have full
+		// support for markdown. Turn this into markdown
+		// and continue
+		let {language, value} = content.code;
+		content.markdown = '```' + language + '\n' + value + '\n```';
+	}
 	if (content.markdown) {
+
+		// signal to code-block render that the
+		// element has been created
+		let signalInnerHTML: Function;
+		const withInnerHTML = new TPromise(c => signalInnerHTML = c);
+
 		const renderer = new marked.Renderer();
 		renderer.link = (href, title, text): string => {
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
@@ -84,7 +105,28 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 
 		if (options.codeBlockRenderer) {
 			renderer.code = (code, lang) => {
-				return options.codeBlockRenderer(lang, code);
+				let value = options.codeBlockRenderer(lang, code);
+				if (typeof value === 'string') {
+					return value;
+				}
+
+				if (TPromise.is(value)) {
+					// when code-block rendering is async we return sync
+					// but update the node with the real result later.
+					const id = defaultGenerator.nextId();
+					TPromise.join([value, withInnerHTML]).done(values => {
+						let [value] = values;
+						let span = element.querySelector(`span[data-code="${id}"]`);
+						if (span) {
+							span.innerHTML = value;
+						}
+					}, err => {
+						// ignore
+					});
+					return `<span data-code="${id}">${escape(code)}</span>`;
+				}
+
+				return code;
 			};
 		}
 
@@ -103,6 +145,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 			sanitize: true,
 			renderer
 		});
+		signalInnerHTML();
 	}
 
 	return element;
@@ -146,40 +189,6 @@ function getSafeTagName(tagName: string): string {
 	}
 	return null;
 }
-
-// // --- markdown worker renderer
-
-// namespace marked {
-
-// 	const workerFactory = new DefaultWorkerFactory();
-// 	let worker: WorkerClient;
-// 	let workerDisposeHandle: number;
-
-// 	export function html(source: string): TPromise<string> {
-
-// 		const t1 = Date.now();
-// 		if (!worker) {
-// 			worker = new WorkerClient(workerFactory, 'vs/base/common/marked/simpleMarkedWorker', (msg) => msg.type, client => { shutdown(); });
-// 		}
-
-// 		function shutdown() {
-// 			if (worker) {
-// 				worker.dispose();
-// 				worker = undefined;
-// 			}
-// 		}
-
-// 		// re-schedule termination
-// 		clearTimeout(workerDisposeHandle);
-// 		workerDisposeHandle = setTimeout(shutdown, 1000 * 5);
-
-// 		return worker.request('markdownToHtml', { source, hightlight: false }).then(html => {
-// 			console.log(`t1: ${Date.now() - t1}ms`);
-// 			return html;
-// 		});
-// 	}
-
-// }
 
 // --- formatted string parsing
 

@@ -14,7 +14,8 @@ import { SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import memento = require('vs/workbench/common/memento');
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
+import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import dbgactionitems = require('vs/workbench/parts/debug/browser/debugActionItems');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
@@ -65,7 +66,7 @@ export class DebugViewlet extends Viewlet {
 
 		if (this.contextService.getWorkspace()) {
 			const actionRunner = this.getActionRunner();
-			this.views = debug.DebugViewRegistry.getDebugViews().map(viewConstructor => this.instantiationService.createInstance(
+			this.views = DebugViewRegistry.getDebugViews().map(viewConstructor => this.instantiationService.createInstance(
 				viewConstructor,
 				actionRunner,
 				this.viewletSettings)

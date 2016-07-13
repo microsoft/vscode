@@ -128,6 +128,7 @@ export class Lock {
 
 export class ItemRegistry extends Events.EventEmitter {
 
+	private _isDisposed = false;
 	private items: IMap<{ item: Item; disposable: IDisposable; }>;
 
 	constructor() {
@@ -158,6 +159,11 @@ export class ItemRegistry extends Events.EventEmitter {
 	public dispose(): void {
 		super.dispose();
 		this.items = null;
+		this._isDisposed = true;
+	}
+
+	public isDisposed(): boolean {
+		return this._isDisposed;
 	}
 }
 
@@ -391,7 +397,7 @@ export class Item extends Events.EventEmitter {
 			}
 
 			const result = childrenPromise.then((elements: any[]) => {
-				if (this.isDisposed()) {
+				if (this.isDisposed() || this.registry.isDisposed()) {
 					return WinJS.TPromise.as(null);
 				}
 
@@ -1191,6 +1197,17 @@ export class TreeModel extends Events.EventEmitter {
 		}
 	}
 
+	public focusFirstChild(eventPayload?: any): void {
+		const item = this.getItem(this.getFocus() || this.input);
+		const nav = this.getNavigator(item, false);
+		const next = nav.next();
+		const parent = nav.parent();
+
+		if (parent === item) {
+			this.setFocus(next, eventPayload);
+		}
+	}
+
 	public focusFirst(eventPayload?: any): void {
 		this.focusNth(0, eventPayload);
 	}
@@ -1220,7 +1237,7 @@ export class TreeModel extends Events.EventEmitter {
 		return new TreeNavigator(this.getItem(element), subTreeOnly);
 	}
 
-	private getItem(element: any = null): Item {
+	public getItem(element: any = null): Item {
 		if (element === null) {
 			return this.input;
 		} else if (element instanceof Item) {

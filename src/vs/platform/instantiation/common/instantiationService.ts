@@ -16,7 +16,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 
 export class InstantiationService implements IInstantiationService {
 
-	serviceId: any;
+	_serviceBrand: any;
 
 	private _services: ServiceCollection;
 	private _strict: boolean;
@@ -30,9 +30,15 @@ export class InstantiationService implements IInstantiationService {
 
 	createChild(services: ServiceCollection): IInstantiationService {
 		this._services.forEach((id, thing) => {
-			if (!services.has(id)) {
-				services.set(id, thing);
+			if (services.has(id)) {
+				return;
 			}
+			// If we copy descriptors we might end up with
+			// multiple instances of the same service
+			if (thing instanceof SyncDescriptor) {
+				thing = this._createAndCacheServiceInstance(id, thing);
+			}
+			services.set(id, thing);
 		});
 		return new InstantiationService(services, this._strict);
 	}

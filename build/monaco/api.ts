@@ -3,40 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// PREREQUISITE:
-// SET VSCODE_BUILD_DECLARATION_FILES=1
-// run gulp watch once
-
 import fs = require('fs');
 import ts = require('typescript');
 import path = require('path');
 
+var util = require('gulp-util');
+function log(message: any, ...rest: any[]): void {
+	util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
+}
 
 const SRC = path.join(__dirname, '../../src');
-const OUT = path.join(__dirname, '../../out');
+const OUT_ROOT = path.join(__dirname, '../../');
+const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
+var CURRENT_PROCESSING_RULE = '';
+function logErr(message: any, ...rest: any[]): void {
+	util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
+	util.log(util.colors.red('[monaco.d.ts]'), message, ...rest);
+}
 
-function moduleIdToPath(moduleId:string): string {
+function moduleIdToPath(out:string, moduleId:string): string {
 	if (/\.d\.ts/.test(moduleId)) {
 		return path.join(SRC, moduleId);
 	}
-	return path.join(OUT, moduleId) + '.d.ts';
+	return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
 }
 
-
 let SOURCE_FILE_MAP: {[moduleId:string]:ts.SourceFile;} = {};
-function getSourceFile(moduleId:string): ts.SourceFile {
+function getSourceFile(out:string, moduleId:string): ts.SourceFile {
 	if (!SOURCE_FILE_MAP[moduleId]) {
-		let filePath = moduleIdToPath(moduleId);
+		let filePath = moduleIdToPath(out, moduleId);
 
 		let fileContents: string;
 		try {
 			fileContents = fs.readFileSync(filePath).toString();
 		} catch (err) {
-			console.error('=========================================================================');
-			console.error('=> Have you compiled with env variable VSCODE_BUILD_DECLARATION_FILES=1 ?');
-			console.error('=========================================================================');
-			throw err;
+			logErr('CANNOT FIND FILE ' + filePath);
+			return null;
 		}
 
 		let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
@@ -142,9 +146,6 @@ function getTopLevelDeclaration(sourceFile:ts.SourceFile, typeName:string): TSTo
 		}
 		return false /*continue*/;
 	});
-	if (result === null) {
-		console.log('COULD NOT FIND ' + typeName + '!');
-	}
 	return result;
 }
 
@@ -261,7 +262,7 @@ function createReplacer(data:string): (str:string)=>string {
 	};
 }
 
-export function generateDeclarationFile(recipe:string): string {
+function generateDeclarationFile(out:string, recipe:string): string {
 	let lines = recipe.split(/\r\n|\n|\r/);
 	let result = [];
 
@@ -270,9 +271,12 @@ export function generateDeclarationFile(recipe:string): string {
 
 		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m1) {
-			console.log('HANDLING META: ' + line);
+			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m1[1];
-			let sourceFile = getSourceFile(moduleId);
+			let sourceFile = getSourceFile(out, moduleId);
+			if (!sourceFile) {
+				return;
+			}
 
 			let replacer = createReplacer(m1[2]);
 
@@ -283,6 +287,10 @@ export function generateDeclarationFile(recipe:string): string {
 					return;
 				}
 				let declaration = getTopLevelDeclaration(sourceFile, typeName);
+				if (!declaration) {
+					logErr('Cannot find type ' + typeName);
+					return;
+				}
 				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
 			});
 			return;
@@ -290,9 +298,12 @@ export function generateDeclarationFile(recipe:string): string {
 
 		let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 		if (m2) {
-			console.log('HANDLING META: ' + line);
+			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m2[1];
-			let sourceFile = getSourceFile(moduleId);
+			let sourceFile = getSourceFile(out, moduleId);
+			if (!sourceFile) {
+				return;
+			}
 
 			let replacer = createReplacer(m2[2]);
 
@@ -341,9 +352,54 @@ export function generateDeclarationFile(recipe:string): string {
 	return resultTxt;
 }
 
-const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
-let recipe = fs.readFileSync(RECIPE_PATH).toString();
-let result = generateDeclarationFile(recipe);
+export function getFilesToWatch(out:string): string[] {
+	let recipe = fs.readFileSync(RECIPE_PATH).toString();
+	let lines = recipe.split(/\r\n|\n|\r/);
+	let result = [];
 
-const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
-fs.writeFileSync(DECLARATION_PATH, result);
+	lines.forEach(line => {
+
+		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+		if (m1) {
+			let moduleId = m1[1];
+			result.push(moduleIdToPath(out, moduleId));
+			return;
+		}
+
+		let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+		if (m2) {
+			let moduleId = m2[1];
+			result.push(moduleIdToPath(out, moduleId));
+			return;
+		}
+	});
+
+	return result;
+}
+
+export interface IMonacoDeclarationResult {
+	content: string;
+	filePath: string;
+	isTheSame: boolean;
+}
+
+export function run(out:string): IMonacoDeclarationResult {
+	log('Starting monaco.d.ts generation');
+	SOURCE_FILE_MAP = {};
+
+	let recipe = fs.readFileSync(RECIPE_PATH).toString();
+	let result = generateDeclarationFile(out, recipe);
+
+	let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
+	log('Finished monaco.d.ts generation');
+
+	return {
+		content: result,
+		filePath: DECLARATION_PATH,
+		isTheSame: currentContent === result
+	};
+}
+
+export function complainErrors() {
+	logErr('Not running monaco.d.ts generation due to compile errors');
+}

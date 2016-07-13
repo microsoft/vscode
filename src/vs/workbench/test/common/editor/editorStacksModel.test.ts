@@ -6,28 +6,31 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
+import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/test/utils/servicesTestUtils';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import 'vs/workbench/browser/parts/editor/baseEditor';
 
 function create(): EditorStacksModel {
-	let services = new ServiceCollection();
-	services.set(IStorageService, new TestStorageService());
-	services.set(ILifecycleService, new TestLifecycleService());
-	services.set(IWorkspaceContextService, new TestContextService());
+	let inst = new TestInstantiationService();
+	inst.stub(IStorageService, new TestStorageService());
+	inst.stub(ILifecycleService, new TestLifecycleService());
+	inst.stub(IWorkspaceContextService, new TestContextService());
 
-	let inst = new InstantiationService(services);
+	const config = new TestConfigurationService();
+	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
+	inst.stub(IConfigurationService, config);
+
 
 	return inst.createInstance(EditorStacksModel);
 }
@@ -197,7 +200,6 @@ suite('Editor Stacks Model', () => {
 
 	teardown(() => {
 		index = 1;
-		setOpenEditorDirection(Direction.RIGHT);
 	});
 
 	test('Groups - Basic', function () {
@@ -262,6 +264,21 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups.length, 0);
 	});
 
+	test('Groups - Close Group sends move event for others to the right', function () {
+		const model = create();
+		const events = modelListener(model);
+
+		const first = model.openGroup('first');
+		model.openGroup('second');
+		const third = model.openGroup('third');
+
+		model.closeGroup(first);
+		assert.equal(events.moved.length, 2);
+
+		model.closeGroup(third);
+		assert.equal(events.moved.length, 2);
+	});
+
 	test('Groups - Move Groups', function () {
 		const model = create();
 		const events = modelListener(model);
@@ -289,13 +306,11 @@ suite('Editor Stacks Model', () => {
 
 	test('Groups - Rename Group', function () {
 		const model = create();
-		const events = modelListener(model);
 
 		const group1 = model.openGroup('first');
 		const group2 = model.openGroup('second');
 
 		model.moveGroup(group1, 1);
-		assert.equal(events.moved[0], group1);
 		assert.equal(model.groups[0], group2);
 		assert.equal(model.groups[1], group1);
 
@@ -310,6 +325,38 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups[0], group2);
 		assert.equal(model.groups[1], group3);
 		assert.equal(model.groups[2], group1);
+	});
+
+	test('Groups - Move Group sends move events for all moved groups', function () {
+		const model = create();
+		let events = modelListener(model);
+
+		let group1 = model.openGroup('first');
+		let group2 = model.openGroup('second');
+		let group3 = model.openGroup('third');
+
+		model.moveGroup(group1, 1);
+		assert.equal(events.moved.length, 2);
+
+		model.closeGroups();
+
+		events = modelListener(model);
+		group1 = model.openGroup('first');
+		group2 = model.openGroup('second');
+		group3 = model.openGroup('third');
+
+		model.moveGroup(group1, 2);
+		assert.equal(events.moved.length, 3);
+
+		model.closeGroups();
+
+		events = modelListener(model);
+		group1 = model.openGroup('first');
+		group2 = model.openGroup('second');
+		group3 = model.openGroup('third');
+
+		model.moveGroup(group3, 1);
+		assert.equal(events.moved.length, 2);
 	});
 
 	test('Groups - Event Aggregation', function () {
@@ -587,58 +634,19 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input4, group.getEditors()[2]);
 	});
 
-	test('Stack - Multiple Editors - Recently Closed Tracking', function () {
-		let services = new ServiceCollection();
-
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
-
-		let inst = new InstantiationService(services);
-
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
-
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
-
-		const group1 = model.openGroup('group1');
-		const group2 = model.openGroup('group2');
-
-		const input1 = input();
-		const input2 = input();
-		const input3 = input();
-
-		group1.openEditor(input1, { pinned: false, active: true });
-		group1.openEditor(input2, { pinned: true, active: true });
-		group1.openEditor(input3, { pinned: true, active: true });
-
-		const input4 = input();
-		const input5 = input();
-
-		group2.openEditor(input4, { pinned: true, active: true });
-		group2.openEditor(input5, { pinned: true, active: true });
-
-		assert.ok(!model.popLastClosedEditor());
-
-		group1.closeEditor(input1);
-		assert.ok(!model.popLastClosedEditor()); // preview editors are not recorded
-
-		group1.closeEditor(input3);
-
-		assert.ok(input3.matches(model.popLastClosedEditor()));
-
-		group2.closeAllEditors();
-
-		assert.ok(input5.matches(model.popLastClosedEditor()));
-		assert.ok(input4.matches(model.popLastClosedEditor()));
-
-		assert.ok(!model.popLastClosedEditor());
-	});
-
 	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
-		setOpenEditorDirection(Direction.LEFT);
+		let inst = new TestInstantiationService();
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(ILifecycleService, new TestLifecycleService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 
-		const model = create();
+		const config = new TestConfigurationService();
+		inst.stub(IConfigurationService, config);
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
+
+
+		const model = inst.createInstance(EditorStacksModel);
+
 		const group = model.openGroup('group');
 		const events = groupListener(group);
 
@@ -1159,14 +1167,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Single Group, Single Editor - persist', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1200,14 +1210,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple Groups, Multiple editors - persist', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1279,14 +1291,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Single group, multiple editors - persist (some not persistable)', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1326,14 +1340,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService());
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1365,14 +1381,16 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Stack - Multiple groups, multiple editors - persist (ignore persisted when editors to open on startup)', function () {
-		let services = new ServiceCollection();
+		let inst = new TestInstantiationService();
 
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
 		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
+		inst.stub(ILifecycleService, lifecycle);
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
+		inst.stub(IConfigurationService, config);
 
-		let inst = new InstantiationService(services);
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
@@ -1501,7 +1519,7 @@ suite('Editor Stacks Model', () => {
 		assert.ok(model.isOpen(input2Resource));
 		assert.ok(!model.isOpen(input1Resource));
 
-		group1.openEditor(input3, {pinned: true});
+		group1.openEditor(input3, { pinned: true });
 
 		assert.ok(model.isOpen(input2Resource));
 		assert.ok(model.isOpen(input3Resource));
@@ -1606,7 +1624,7 @@ suite('Editor Stacks Model', () => {
 
 		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
 
-		group1.openEditor(diffInput, { pinned: true, active: true});
+		group1.openEditor(diffInput, { pinned: true, active: true });
 		group1.openEditor(input1, { pinned: true, active: true });
 
 		group1.closeEditor(diffInput);
@@ -1625,11 +1643,11 @@ suite('Editor Stacks Model', () => {
 		const input1 = input();
 		const input2 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true});
+		group1.openEditor(input1, { pinned: true, active: true });
 		group2.openEditor(input2, { pinned: true, active: true });
 
 		let dirtyCounter = 0;
-		model.onEditorDirty(() => {
+		model.onEditorDirty(() => {
 			dirtyCounter++;
 		});
 
@@ -1689,5 +1707,22 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.changed[5].group, group1);
 		assert.ok(events.changed[5].structural); // close
 		assert.equal(events.changed[5].editor, input1);
+	});
+
+	test('Preview tab does not have a stable position (https://github.com/Microsoft/vscode/issues/8245)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('first');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input2, { active: true });
+		group1.setActive(input1);
+
+		group1.openEditor(input3, { active: true });
+		assert.equal(group1.indexOf(input3), 1);
 	});
 });

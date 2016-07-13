@@ -9,8 +9,8 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {addDisposableListener, addClass} from 'vs/base/browser/dom';
-import {isLightTheme} from 'vs/platform/theme/common/themes';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -26,12 +26,8 @@ declare interface WebviewElement extends HTMLElement {
 	closeDevTools(): any;
 }
 
-KeybindingsRegistry.registerCommandDesc({
-	id: '_webview.openDevTools',
-	when: null,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	primary: null,
-	handler() {
+CommandsRegistry.registerCommand('_webview.openDevTools',
+	function () {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
@@ -40,8 +36,9 @@ KeybindingsRegistry.registerCommandDesc({
 				console.error(e);
 			}
 		}
-	}
-});
+	});
+
+type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
 export default class Webview {
 
@@ -50,11 +47,12 @@ export default class Webview {
 	private _disposables: IDisposable[];
 
 	constructor(private _parent: HTMLElement, private _styleElement: Element, onDidClickLink:(uri:URI)=>any) {
-		this._webview = <WebviewElement>document.createElement('webview');
+		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
 		this._webview.style.outline = '0';
+		this._webview.style.opacity = '0';
 		this._webview.autoSize = 'on';
 		this._webview.nodeintegration = 'on';
 		this._webview.src = require.toUrl('./webview.html');
@@ -83,6 +81,12 @@ export default class Webview {
 				if (event.channel === 'did-click-link') {
 					let [uri] = event.args;
 					onDidClickLink(URI.parse(uri));
+					return;
+				}
+
+				if (event.channel === 'did-set-content') {
+					this._webview.style.opacity = '';
+					return;
 				}
 			})
 		];
@@ -125,12 +129,13 @@ export default class Webview {
 			--font-size: ${fontSize};
 		}
 		body {
-			margin: 0;
 			background-color: var(--background-color);
 			color: var(--color);
 			font-family: var(--font-family);
 			font-size: var(--font-size);
+			margin: 0;
 		}
+
 		img {
 			max-width: 100%;
 			max-height: 100%;
@@ -145,29 +150,54 @@ export default class Webview {
 		::-webkit-scrollbar {
 			width: 14px;
 			height: 10px;
-		}
-		::-webkit-scrollbar-thumb:hover {
-			background-color: rgba(100, 100, 100, 0.7);
 		}`;
+
+
+		let activeTheme: ApiThemeClassName;
 
 		if (isLightTheme(themeId)) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(100, 100, 100, 0.4);
 			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(100, 100, 100, 0.7);
+			}
 			::-webkit-scrollbar-thumb:active {
 				background-color: rgba(0, 0, 0, 0.6);
 			}`;
-		} else {
+
+			activeTheme = 'vscode-light';
+
+		} else if (isDarkTheme(themeId)){
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(121, 121, 121, 0.4);
 			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(100, 100, 100, 0.7);
+			}
 			::-webkit-scrollbar-thumb:active {
 				background-color: rgba(85, 85, 85, 0.8);
 			}`;
+
+			activeTheme = 'vscode-dark';
+
+		} else {
+			value += `
+			::-webkit-scrollbar-thumb {
+				background-color: rgba(111, 195, 223, 0.3);
+			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(111, 195, 223, 0.8);
+			}
+			::-webkit-scrollbar-thumb:active {
+				background-color: rgba(111, 195, 223, 0.8);
+			}`;
+
+			activeTheme = 'vscode-high-contrast';
 		}
 
-		this._send('styles', value);
+		this._send('styles', value, activeTheme);
 	}
 }

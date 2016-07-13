@@ -11,7 +11,12 @@ export var IHistoryService = createDecorator<IHistoryService>('historyService');
 
 export interface IHistoryService {
 
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
+
+	/**
+	 * Removes and returns the last closed editor if any.
+	 */
+	popLastClosedEditor(): IEditorInput;
 
 	/**
 	 * Navigate forwards in history.

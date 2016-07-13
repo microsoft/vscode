@@ -11,7 +11,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
 	private session: MockRawSession;
-	public serviceId = debug.IDebugService;
+	public _serviceBrand: any;
 
 	constructor() {
 		this.session = new MockRawSession();
@@ -115,11 +115,23 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
+	public stepBack(threadId: number): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public continue(threadId: number): TPromise<void> {
 		return TPromise.as(null);
 	}
 
 	public pause(threadId: number): TPromise<any> {
+		return TPromise.as(null);
+	}
+
+	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
+		return TPromise.as(null);
+	}
+
+	public restartFrame(frameId: number): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -133,10 +145,6 @@ class MockRawSession implements debug.IRawDebugSession {
 			isAttach: false,
 			capabilities: {}
 		};
-	}
-
-	public get onDidStop(): Event<DebugProtocol.StoppedEvent> {
-		return null;
 	}
 
 	public get onDidEvent(): Event<DebugProtocol.Event> {

@@ -12,7 +12,7 @@ import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelect
 import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult, IColumnSelectResult, IViewColumnSelectResult} from 'vs/editor/common/controller/cursorMoveHelper';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IElectricAction, IndentAction} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -144,7 +144,7 @@ export class OneCursor {
 	private _cachedViewSelection: Selection;
 	private _selStartMarker: string;
 	private _selEndMarker: string;
-	private _selDirection: editorCommon.SelectionDirection;
+	private _selDirection: SelectionDirection;
 
 	constructor(
 		editorId: number,
@@ -415,7 +415,7 @@ export class OneCursor {
 		let start = this.model._getMarker(this._selStartMarker);
 		let end = this.model._getMarker(this._selEndMarker);
 
-		if (this._selDirection === editorCommon.SelectionDirection.LTR) {
+		if (this._selDirection === SelectionDirection.LTR) {
 			return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
 		}
 
@@ -636,7 +636,7 @@ export class OneCursorOp {
 
 	private static _columnSelectOp(cursor:OneCursor, toViewLineNumber:number, toViewVisualColumn: number): IColumnSelectResult {
 		let viewStartSelection = cursor.getViewSelection();
-		let fromVisibleColumn = cursor.getVisibleColumnFromColumn(viewStartSelection.selectionStartLineNumber, viewStartSelection.selectionStartColumn);
+		let fromVisibleColumn = cursor.getViewVisibleColumnFromColumn(viewStartSelection.selectionStartLineNumber, viewStartSelection.selectionStartColumn);
 
 		return cursor.columnSelect(viewStartSelection.selectionStartLineNumber, fromVisibleColumn, toViewLineNumber, toViewVisualColumn);
 	}
@@ -1518,24 +1518,29 @@ export class OneCursorOp {
 
 			ctx.isAutoWhitespaceCommand = true;
 
-			let typeText = '';
 
-			if (cursor.model.getLineMaxColumn(selection.startLineNumber) === 1) {
-				// Line is empty => indent straight to the right place
-				typeText = cursor.model.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
-			} else {
-				let position = cursor.getPosition();
-				let modelOpts = cursor.model.getOptions();
-				if (modelOpts.insertSpaces) {
-					let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
-					let tabSize = modelOpts.tabSize;
-					let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
-					for (let i = 0; i < spacesCnt; i++) {
-						typeText += ' ';
-					}
-				} else {
-					typeText = '\t';
+			let lineText = cursor.model.getLineContent(selection.startLineNumber);
+
+			if (/^\s*$/.test(lineText)) {
+				let possibleTypeText = cursor.model.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
+				if (!strings.startsWith(lineText, possibleTypeText)) {
+					ctx.executeCommand = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText);
+					return true;
 				}
+			}
+
+			let typeText = '';
+			let position = cursor.getPosition();
+			let modelOpts = cursor.model.getOptions();
+			if (modelOpts.insertSpaces) {
+				let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
+				let tabSize = modelOpts.tabSize;
+				let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
+				for (let i = 0; i < spacesCnt; i++) {
+					typeText += ' ';
+				}
+			} else {
+				typeText = '\t';
 			}
 
 			ctx.executeCommand = new ReplaceCommand(selection, typeText);

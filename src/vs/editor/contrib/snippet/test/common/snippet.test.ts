@@ -10,6 +10,83 @@ import {CodeSnippet, ExternalSnippetType} from 'vs/editor/contrib/snippet/common
 
 suite('Editor Contrib - Snippets', () => {
 
+	test('Support tab stop order', () => {
+
+		let external = 'finished:$0, second:${2:name}, first:$1, third:$3';
+		let internal = CodeSnippet.convertExternalSnippet(external, ExternalSnippetType.TextMateSnippet);
+
+		assert.equal(internal, 'finished:{{}}, second:{{2:name}}, first:{{1:}}, third:{{3:}}');
+
+		let snippet = new CodeSnippet(internal);
+
+		assert.deepEqual(snippet.lines, ['finished:, second:name, first:, third:']);
+		assert.equal(snippet.placeHolders.length, 4);
+		assert.equal(snippet.placeHolders[0].id, '1');
+		assert.equal(snippet.placeHolders[0].value, '');
+		assert.equal(snippet.placeHolders[1].id, '2');
+		assert.equal(snippet.placeHolders[1].value, 'name');
+		assert.equal(snippet.placeHolders[2].id, '3');
+		assert.equal(snippet.placeHolders[2].value, '');
+		assert.equal(snippet.placeHolders[3].id, '');
+		assert.equal(snippet.placeHolders[3].value, '');
+		assert.equal(snippet.finishPlaceHolderIndex, 3);
+	});
+
+	test('Support tab stop order with implicit finish', () => {
+
+		let external = 't2:$2, t1:$1';
+		let internal = CodeSnippet.convertExternalSnippet(external, ExternalSnippetType.TextMateSnippet);
+
+		assert.equal(internal, 't2:{{2:}}, t1:{{1:}}');
+
+		let snippet = new CodeSnippet(internal);
+
+		assert.deepEqual(snippet.lines, ['t2:, t1:']);
+		assert.equal(snippet.placeHolders.length, 2);
+		assert.equal(snippet.placeHolders[0].id, '1');
+		assert.equal(snippet.placeHolders[0].value, '');
+		assert.equal(snippet.placeHolders[1].id, '2');
+		assert.equal(snippet.placeHolders[1].value, '');
+		assert.equal(snippet.finishPlaceHolderIndex, 1);
+	});
+
+	test('Support tab stop order with no finish', () => {
+
+		let external = 't2:${2:second}, t3:${3:last}, t1:${1:first}';
+		let internal = CodeSnippet.convertExternalSnippet(external, ExternalSnippetType.TextMateSnippet);
+
+		assert.equal(internal, 't2:{{2:second}}, t3:{{3:last}}, t1:{{1:first}}');
+
+		let snippet = new CodeSnippet(internal);
+
+		assert.deepEqual(snippet.lines, ['t2:second, t3:last, t1:first']);
+		assert.equal(snippet.placeHolders.length, 3);
+		assert.equal(snippet.placeHolders[0].id, '1');
+		assert.equal(snippet.placeHolders[0].value, 'first');
+		assert.equal(snippet.placeHolders[1].id, '2');
+		assert.equal(snippet.placeHolders[1].value, 'second');
+		assert.equal(snippet.placeHolders[2].id, '3');
+		assert.equal(snippet.placeHolders[2].value, 'last');
+		assert.equal(snippet.finishPlaceHolderIndex, -1);
+	});
+
+	test('Support tab stop order wich does not affect named variable id\'s', () => {
+
+		let external = '${first}-${2}-${second}-${1}';
+		let internal = CodeSnippet.convertExternalSnippet(external, ExternalSnippetType.TextMateSnippet);
+
+		assert.equal(internal, '{{first}}-{{2:}}-{{second}}-{{1:}}');
+
+		let snippet = new CodeSnippet(internal);
+
+		assert.deepEqual(snippet.lines, ['first--second-']);
+		assert.equal(snippet.placeHolders.length, 4);
+		assert.equal(snippet.placeHolders[0].id, 'first');
+		assert.equal(snippet.placeHolders[1].id, 'second');
+		assert.equal(snippet.placeHolders[2].id, '1');
+		assert.equal(snippet.placeHolders[3].id, '2');
+	});
+
 	test('bug #17541:[snippets] Support default text in mirrors', () => {
 
 		var external = [

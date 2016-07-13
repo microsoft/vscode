@@ -444,5 +444,5 @@ export function createTokenizationSupport(modeService:IModeService, mode:modes.I
 				stateAfterNestedMode: mstate
 			};
 		}
-	}, lexer.usesEmbedded, false);
+	}, lexer.usesEmbedded);
 }

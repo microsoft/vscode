@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/search.contribution';
 import {Registry} from 'vs/platform/platform';
-import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor} from 'vs/workbench/browser/viewlet';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import {IAction} from 'vs/base/common/actions';
@@ -21,13 +21,17 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {OpenSearchViewletAction, ReplaceInFilesAction} from 'vs/workbench/parts/search/browser/searchActions';
+import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
+import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
+import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
 
-export const VIEWLET_ID = 'workbench.view.search';
+replaceContributions();
+searchWidgetContributions();
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',
@@ -40,15 +44,6 @@ KeybindingsRegistry.registerCommandDesc({
 			.then(viewlet => (<any>viewlet).toggleFileTypes());
 	}
 });
-
-class OpenSearchViewletAction extends ToggleViewletAction {
-	public static ID = VIEWLET_ID;
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
-	}
-}
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 	private _instantiationService: IInstantiationService;
@@ -81,7 +76,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 
 			let action = new DeferredAction(
 				this._instantiationService,
-				new AsyncDescriptor('vs/workbench/parts/search/browser/searchViewlet', 'FindInFolderAction', fileResource.resource),
+				new AsyncDescriptor('vs/workbench/parts/search/browser/searchActions', 'FindInFolderAction', fileResource.resource),
 				'workbench.search.action.findInFolder',
 				nls.localize('findInFolder', "Find in Folder")
 			);
@@ -127,6 +122,13 @@ const openSearchViewletKb: IKeybindings = {
 	nls.localize('view', "View")
 );
 
+(<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).registerWorkbenchAction(
+	new SyncActionDescriptor(ReplaceInFilesAction, ReplaceInFilesAction.ID, ReplaceInFilesAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H
+	}),
+	'Replace in Files'
+);
+
 // Contribute to Explorer Viewer
 const actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
@@ -137,7 +139,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
-		nls.localize('openAnythingHandlerDescription', "Open Files and Symbols by Name")
+		nls.localize('openAnythingHandlerDescription', "Open Files and Global Symbols by Name")
 	)
 );
 
@@ -150,7 +152,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 			{
 				prefix: ALL_SYMBOLS_PREFIX,
 				needsEditor: false,
-				description: nls.localize('openSymbolDescriptionNormal', "Open Symbol By Name")
+				description: nls.localize('openSymbolDescriptionNormal', "Open Any Symbol By Name")
 			}
 		]
 	)
@@ -166,8 +168,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'search',
-	'order': 10,
-	'title': nls.localize('searchConfigurationTitle', "Search configuration"),
+	'order': 13,
+	'title': nls.localize('searchConfigurationTitle', "Search"),
 	'type': 'object',
 	'properties': {
 		'search.exclude': {

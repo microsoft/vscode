@@ -182,6 +182,9 @@ export class ContributableActionProvider implements IActionProvider {
 
 // Helper function used in parts to massage actions before showing in action areas
 export function prepareActions(actions: IAction[]): IAction[] {
+	if (!actions.length) {
+		return actions;
+	}
 
 	// Patch order if not provided
 	for (let l = 0; l < actions.length; l++) {
@@ -195,8 +198,13 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	actions = actions.sort((first: Action, second: Action) => {
 		let firstOrder = first.order;
 		let secondOrder = second.order;
-
-		return firstOrder < secondOrder ? -1 : 1;
+		if (firstOrder < secondOrder) {
+			return -1;
+		} else if (firstOrder > secondOrder) {
+			return 1;
+		} else {
+			return 0;
+		}
 	});
 
 	// Clean up leading separators

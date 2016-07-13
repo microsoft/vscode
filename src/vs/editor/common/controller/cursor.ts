@@ -13,7 +13,7 @@ import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/control
 import {WordNavigationType, IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp} from 'vs/editor/common/controller/oneCursor';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IColumnSelectResult} from 'vs/editor/common/controller/cursorMoveHelper';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -527,7 +527,7 @@ export class Cursor extends EventEmitter {
 					}
 				}
 			} else {
-				if (selection.getDirection() === editorCommon.SelectionDirection.LTR) {
+				if (selection.getDirection() === SelectionDirection.LTR) {
 					selectionMarkerStickToPreviousCharacter = false;
 					positionMarkerStickToPreviousCharacter = true;
 				} else {

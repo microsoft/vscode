@@ -13,13 +13,14 @@ import {QuickOpenModel, QuickOpenEntry, IHighlight} from 'vs/base/parts/quickope
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import filters = require('vs/base/common/filters');
 import {IRange} from 'vs/editor/common/editorCommon';
-import {EditorInput} from 'vs/workbench/common/editor';
+import {EditorInput, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import labels = require('vs/base/common/labels');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITypeBearing, getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 
 class SymbolEntry extends EditorQuickOpenEntry {
@@ -30,7 +31,17 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	private type: string;
 	private range: IRange;
 
-	constructor(name: string, parameters: string, description: string, resource: URI, type: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService) {
+	constructor(
+		name: string,
+		parameters: string,
+		description: string,
+		resource: URI,
+		type: string,
+		range: IRange,
+		highlights: IHighlight[],
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super(editorService);
 
 		this.name = name;
@@ -73,14 +84,15 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	public getInput(): IResourceInput | EditorInput {
 		let input: IResourceInput = {
 			resource: this.resource,
+			options: {
+				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+			}
 		};
 
 		if (this.range) {
-			input.options = {
-				selection: {
-					startLineNumber: this.range.startLineNumber,
-					startColumn: this.range.startColumn
-				}
+			input.options.selection = {
+				startLineNumber: this.range.startLineNumber,
+				startColumn: this.range.startColumn
 			};
 		}
 
@@ -88,13 +100,18 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	}
 }
 
+export interface IOpenSymbolOptions {
+	skipSorting: boolean;
+	skipLocalSymbols: boolean;
+	skipDelay: boolean;
+}
+
 export class OpenSymbolHandler extends QuickOpenHandler {
 
-	private static SUPPORTED_OPEN_TYPES = ['class', 'interface', 'enum', 'function', 'method'];
 	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
-	private isStandalone: boolean;
+	private options: IOpenSymbolOptions;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -105,12 +122,11 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		super();
 
 		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY);
-		this.isStandalone = true;
+		this.options = Object.create(null);
 	}
 
-	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY) : null;
-		this.isStandalone = standalone;
+	public setOptions(options: IOpenSymbolOptions) {
+		this.options = options;
 	}
 
 	public canRun(): boolean | string {
@@ -125,7 +141,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		// Respond directly to empty search
 		if (!searchValue) {
 			promise = TPromise.as([]);
-		} else if (this.delayer) {
+		} else if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => this.doGetResults(searchValue)); // Run search with delay as needed
 		} else {
 			promise = this.doGetResults(searchValue);
@@ -135,7 +151,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	}
 
 	private doGetResults(searchValue: string): TPromise<QuickOpenEntry[]> {
-
 		return getNavigateToItems(searchValue).then(bearings => {
 			return this.toQuickOpenEntries(bearings, searchValue);
 		});
@@ -146,8 +161,8 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 		// Convert to Entries
 		types.forEach(element => {
-			if (!OpenSymbolHandler.SUPPORTED_OPEN_TYPES.some((type: string) => element.type === type)) {
-				return;
+			if (this.options.skipLocalSymbols && !!element.containerName) {
+				return; // ignore local symbols if we are told so
 			}
 
 			// Find Highlights
@@ -179,13 +194,13 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 						container = element.containerName || path;
 					}
 
-					results.push(new SymbolEntry(element.name, element.parameters, container, resource, element.type, element.range, highlights, this.editorService));
+					results.push(this.instantiationService.createInstance(SymbolEntry, element.name, element.parameters, container, resource, element.type, element.range, highlights));
 				}
 			}
 		});
 
 		// Sort (Standalone only)
-		if (this.isStandalone) {
+		if (!this.options.skipSorting) {
 			return results.sort(this.sort.bind(this, searchValue.toLowerCase()));
 		}
 
@@ -200,9 +215,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		if (elementAName === elementBName) {
 			let elementAType = elementA.getType();
 			let elementBType = elementB.getType();
-			if (elementAType !== elementBType) {
-				return OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementAType) < OpenSymbolHandler.SUPPORTED_OPEN_TYPES.indexOf(elementBType) ? -1 : 1;
-			}
+			return elementAType.localeCompare(elementBType);
 		}
 
 		return QuickOpenEntry.compare(elementA, elementB, searchValue);

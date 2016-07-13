@@ -3,33 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
-// PREREQUISITE:
-// SET VSCODE_BUILD_DECLARATION_FILES=1
-// run gulp watch once
 var fs = require('fs');
 var ts = require('typescript');
 var path = require('path');
+var util = require('gulp-util');
+function log(message) {
+    var rest = [];
+    for (var _i = 1; _i < arguments.length; _i++) {
+        rest[_i - 1] = arguments[_i];
+    }
+    util.log.apply(util, [util.colors.cyan('[monaco.d.ts]'), message].concat(rest));
+}
 var SRC = path.join(__dirname, '../../src');
-var OUT = path.join(__dirname, '../../out');
-function moduleIdToPath(moduleId) {
+var OUT_ROOT = path.join(__dirname, '../../');
+var RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+var DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
+var CURRENT_PROCESSING_RULE = '';
+function logErr(message) {
+    var rest = [];
+    for (var _i = 1; _i < arguments.length; _i++) {
+        rest[_i - 1] = arguments[_i];
+    }
+    util.log(util.colors.red('[monaco.d.ts]'), 'WHILE HANDLING RULE: ', CURRENT_PROCESSING_RULE);
+    util.log.apply(util, [util.colors.red('[monaco.d.ts]'), message].concat(rest));
+}
+function moduleIdToPath(out, moduleId) {
     if (/\.d\.ts/.test(moduleId)) {
         return path.join(SRC, moduleId);
     }
-    return path.join(OUT, moduleId) + '.d.ts';
+    return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
 }
 var SOURCE_FILE_MAP = {};
-function getSourceFile(moduleId) {
+function getSourceFile(out, moduleId) {
     if (!SOURCE_FILE_MAP[moduleId]) {
-        var filePath = moduleIdToPath(moduleId);
+        var filePath = moduleIdToPath(out, moduleId);
         var fileContents = void 0;
         try {
             fileContents = fs.readFileSync(filePath).toString();
         }
         catch (err) {
-            console.error('=========================================================================');
-            console.error('=> Have you compiled with env variable VSCODE_BUILD_DECLARATION_FILES=1 ?');
-            console.error('=========================================================================');
-            throw err;
+            logErr('CANNOT FIND FILE ' + filePath);
+            return null;
         }
         var sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
         SOURCE_FILE_MAP[moduleId] = sourceFile;
@@ -116,9 +130,6 @@ function getTopLevelDeclaration(sourceFile, typeName) {
         }
         return false /*continue*/;
     });
-    if (result === null) {
-        console.log('COULD NOT FIND ' + typeName + '!');
-    }
     return result;
 }
 function getNodeText(sourceFile, node) {
@@ -217,15 +228,18 @@ function createReplacer(data) {
         return str;
     };
 }
-function generateDeclarationFile(recipe) {
+function generateDeclarationFile(out, recipe) {
     var lines = recipe.split(/\r\n|\n|\r/);
     var result = [];
     lines.forEach(function (line) {
         var m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m1) {
-            console.log('HANDLING META: ' + line);
+            CURRENT_PROCESSING_RULE = line;
             var moduleId = m1[1];
-            var sourceFile_1 = getSourceFile(moduleId);
+            var sourceFile_1 = getSourceFile(out, moduleId);
+            if (!sourceFile_1) {
+                return;
+            }
             var replacer_1 = createReplacer(m1[2]);
             var typeNames = m1[3].split(/,/);
             typeNames.forEach(function (typeName) {
@@ -234,15 +248,22 @@ function generateDeclarationFile(recipe) {
                     return;
                 }
                 var declaration = getTopLevelDeclaration(sourceFile_1, typeName);
+                if (!declaration) {
+                    logErr('Cannot find type ' + typeName);
+                    return;
+                }
                 result.push(replacer_1(getMassagedTopLevelDeclarationText(sourceFile_1, declaration)));
             });
             return;
         }
         var m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
         if (m2) {
-            console.log('HANDLING META: ' + line);
+            CURRENT_PROCESSING_RULE = line;
             var moduleId = m2[1];
-            var sourceFile_2 = getSourceFile(moduleId);
+            var sourceFile_2 = getSourceFile(out, moduleId);
+            if (!sourceFile_2) {
+                return;
+            }
             var replacer_2 = createReplacer(m2[2]);
             var typeNames = m2[3].split(/,/);
             var typesToExcludeMap_1 = {};
@@ -284,9 +305,42 @@ function generateDeclarationFile(recipe) {
     resultTxt = resultTxt.replace(/\r\n/g, '\n');
     return resultTxt;
 }
-exports.generateDeclarationFile = generateDeclarationFile;
-var RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
-var recipe = fs.readFileSync(RECIPE_PATH).toString();
-var result = generateDeclarationFile(recipe);
-var DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
-fs.writeFileSync(DECLARATION_PATH, result);
+function getFilesToWatch(out) {
+    var recipe = fs.readFileSync(RECIPE_PATH).toString();
+    var lines = recipe.split(/\r\n|\n|\r/);
+    var result = [];
+    lines.forEach(function (line) {
+        var m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        if (m1) {
+            var moduleId = m1[1];
+            result.push(moduleIdToPath(out, moduleId));
+            return;
+        }
+        var m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+        if (m2) {
+            var moduleId = m2[1];
+            result.push(moduleIdToPath(out, moduleId));
+            return;
+        }
+    });
+    return result;
+}
+exports.getFilesToWatch = getFilesToWatch;
+function run(out) {
+    log('Starting monaco.d.ts generation');
+    SOURCE_FILE_MAP = {};
+    var recipe = fs.readFileSync(RECIPE_PATH).toString();
+    var result = generateDeclarationFile(out, recipe);
+    var currentContent = fs.readFileSync(DECLARATION_PATH).toString();
+    log('Finished monaco.d.ts generation');
+    return {
+        content: result,
+        filePath: DECLARATION_PATH,
+        isTheSame: currentContent === result
+    };
+}
+exports.run = run;
+function complainErrors() {
+    logErr('Not running monaco.d.ts generation due to compile errors');
+}
+exports.complainErrors = complainErrors;

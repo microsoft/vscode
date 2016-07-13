@@ -9,12 +9,12 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -40,6 +40,13 @@ export interface IFileService {
 	 * The returned object contains properties of the file and the full value as string.
 	 */
 	resolveContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IContent>;
+
+	/**
+	 * Resolve the contents of a file identified by the resource.
+	 *
+	 * The returned object contains properties of the file and the value as a readable stream.
+	 */
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IStreamContent>;
 
 	/**
 	 * Returns the contents of all files by the given array of file resources.
@@ -339,6 +346,32 @@ export interface IContent extends IBaseStat {
 	 * The content of a text file.
 	 */
 	value: string;
+
+	/**
+	 * The encoding of the content if known.
+	 */
+	encoding: string;
+}
+
+/**
+ * A Stream emitting strings.
+ */
+export interface IStringStream {
+	on(event: 'data', callback: (chunk: string) => void): void;
+	on(event: 'error', callback: (err: any) => void): void;
+	on(event: 'end', callback: () => void): void;
+	on(event: string, callback: any): void;
+}
+
+/**
+ * Streamable content and meta information of a file.
+ */
+export interface IStreamContent extends IBaseStat {
+
+	/**
+	 * The streamable content of a text file.
+	 */
+	value: IStringStream;
 
 	/**
 	 * The encoding of the content if known.

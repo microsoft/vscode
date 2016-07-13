@@ -11,6 +11,8 @@
 	"foldLevel3Action.label": "Faltebene 3",
 	"foldLevel4Action.label": "Faltebene 4",
 	"foldLevel5Action.label": "Faltebene 5",
+	"foldRecursivelyAction.label": "Rekursiv falten",
+	"unFoldRecursivelyAction.label": "Faltung rekursiv aufheben",
 	"unfoldAction.label": "Auffalten",
 	"unfoldAllAction.label": "Alle auffalten"
 }

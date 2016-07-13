@@ -9,26 +9,38 @@
 	<script>
 		'use strict';
 
+		var initData = {};
+
+		function styleBody(body) {
+			if (!body) {
+				return
+			}
+			body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
+			body.classList.add(initData.activeTheme);
+		}
+
 		const ipcRenderer = require('electron').ipcRenderer;
 		const target = document.getElementById('_target');
-
-		let initData = {};
 
 		ipcRenderer.on('baseUrl', function(event, value) {
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', function(event, value) {
+		ipcRenderer.on('styles', function(event, value, activeTheme) {
 			initData.styles = value;
+			initData.activeTheme = activeTheme;
 
 			// webview
 			let defaultStyles = document.getElementById('_defaultStyles');
-			defaultStyles.innerHTML = value;
+			defaultStyles.innerHTML = initData.styles;
+
+			let body = target.contentDocument.getElementsByTagName('body');
+			styleBody(body[0]);
 
 			// iframe
 			defaultStyles = target.contentDocument.getElementById('_defaultStyles');
 			if(defaultStyles) {
-				defaultStyles.innerHTML = value;
+				defaultStyles.innerHTML = initData.styles;
 			}
 		});
 
@@ -43,8 +55,8 @@
 			const parser = new DOMParser();
 			const newDocument = parser.parseFromString(value.join('\n'), 'text/html');
 
-			// set base-url if possible
-			if(initData.baseUrl) {
+			// set base-url if applicable
+			if(initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
 				const baseElement = document.createElement('base');
 				baseElement.href = initData.baseUrl;
 				newDocument.head.appendChild(baseElement);
@@ -66,21 +78,36 @@
 				document.body.addEventListener('click', function(event) {
 					let node = event.target;
 					while (node) {
-						if (node.tagName === 'A' && node.href && node.href[0] !== '#') {
-							window.parent.postMessage({ command: 'did-click-link', data: node.href }, 'file://');
+						if (node.tagName === 'A' && node.href) {
+							let baseElement = window.document.getElementsByTagName('base')[0];
+							if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
+								let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));
+								if (scrollTarget) {
+									scrollTarget.scrollIntoView();
+								}
+							} else {
+								window.parent.postMessage({ command: 'did-click-link', data: node.href }, 'file://');
+							}
 							event.preventDefault();
 							break;
 						}
 						node = node.parentNode;
 					}
 				});`
+
+
 			newDocument.body.appendChild(defaultScripts);
+			styleBody(newDocument.body);
 
 			// write new content onto iframe
 			target.contentDocument.open('text/html', 'replace');
+			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+			target.contentDocument.write('<!DOCTYPE html>');
 			target.contentDocument.write(newDocument.documentElement.innerHTML);
 			target.contentDocument.close();
 
+			ipcRenderer.sendToHost('did-set-content');
 		});
 
 		// forward messages from the embedded iframe

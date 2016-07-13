@@ -7,6 +7,12 @@
 import {Disposable} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
 
+export enum ScrollbarVisibility {
+	Auto = 1,
+	Hidden = 2,
+	Visible = 3
+}
+
 export interface ScrollEvent {
 	width: number;
 	scrollWidth: number;

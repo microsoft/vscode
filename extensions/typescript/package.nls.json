@@ -1,10 +1,11 @@
 {
 	"typescript.reloadProjects.title": "Reload TypeScript Project",
 	"javascript.reloadProjects.title": "Reload JavaScript Project",
-	"configuration.typescript": "TypeScript configuration",
+	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
 	"typescript.tsserver.trace": "Enables tracing of messages send to the TS server",
+	"typescript.tsserver.experimentalAutoBuild": "Enables experimental auto build. Requires 1.9 dev or 2.x tsserver version and a restart of VS Code after changing it.",
 	"typescript.validate.enable": "Enable / disable TypeScript validation",
 	"format.insertSpaceAfterCommaDelimiter": "Defines space handling after a comma delimiter",
 	"format.insertSpaceAfterSemicolonInForStatements": " Defines space handling after a semicolon in a for statement",

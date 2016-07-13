@@ -11,8 +11,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
@@ -125,57 +124,28 @@ export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 	}
 }
 
-export function fromFormattedString(value: vscode.MarkedString): IHTMLContentElement {
-	if (typeof value === 'string') {
-		return { markdown: value };
-	} else if (typeof value === 'object') {
-		return { code: value };
-	}
-}
-
-export function toFormattedString(value: IHTMLContentElement): vscode.MarkedString {
-	if (typeof value.code === 'string') {
-		return value.code;
-	}
-	let {markdown, text} = value;
-	return markdown || text || '<???>';
-}
-
-function isMarkedStringArr(something: vscode.MarkedString | vscode.MarkedString[]): something is vscode.MarkedString[] {
-	return Array.isArray(something);
-}
-
-function fromMarkedStringOrMarkedStringArr(something: vscode.MarkedString | vscode.MarkedString[]): IHTMLContentElement[] {
-	if (isMarkedStringArr(something)) {
-		return something.map(msg => fromFormattedString(msg));
-	} else if (something) {
-		return [fromFormattedString(something)];
-	} else {
-		return [];
-	}
-}
-
-function isRangeWithMessage(something: any): something is vscode.DecorationOptions {
+function isDecorationOptions(something: any): something is vscode.DecorationOptions {
 	return (typeof something.range !== 'undefined');
 }
 
-function isRangeWithMessageArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
+function isDecorationOptionsArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
 	if (something.length === 0) {
 		return true;
 	}
-	return isRangeWithMessage(something[0]) ? true : false;
+	return isDecorationOptions(something[0]) ? true : false;
 }
 
-export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IRangeWithMessage[] {
-	if (isRangeWithMessageArr(ranges)) {
-		return ranges.map((r): IRangeWithMessage => {
+export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IDecorationOptions[] {
+	if (isDecorationOptionsArr(ranges)) {
+		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r.range),
-				hoverMessage: fromMarkedStringOrMarkedStringArr(r.hoverMessage)
+				hoverMessage: r.hoverMessage,
+				renderOptions: r.renderOptions
 			};
 		});
 	} else {
-		return ranges.map((r): IRangeWithMessage => {
+		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r)
 			};
@@ -255,12 +225,12 @@ export const location = {
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{
 		range: fromRange(hover.range),
-		htmlContent: hover.contents.map(fromFormattedString)
+		contents: hover.contents
 	};
 }
 
 export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.htmlContent.map(toFormattedString), toRange(info.range));
+	return new types.Hover(info.contents, toRange(info.range));
 }
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
@@ -366,13 +336,13 @@ export namespace Command {
 		});
 	}
 
-	export function from(command: vscode.Command, disposables: IDisposable[]): modes.ICommand {
+	export function from(command: vscode.Command, disposables: IDisposable[]): modes.Command {
 
 		if (!command) {
 			return;
 		}
 
-		const result = <modes.ICommand>{
+		const result = <modes.Command>{
 			id: command.command,
 			title: command.title
 		};
@@ -396,7 +366,7 @@ export namespace Command {
 		return result;
 	}
 
-	export function to(command: modes.ICommand): vscode.Command {
+	export function to(command: modes.Command): vscode.Command {
 		let result: vscode.Command;
 		if (command.id === _delegateId) {
 			let [key] = command.arguments;

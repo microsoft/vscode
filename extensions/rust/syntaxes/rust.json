@@ -138,6 +138,11 @@
       "name": "support.type.core.rust",
       "match": "\\b(Drop|Fn|FnMut|FnOnce|Clone|PartialEq|PartialOrd|Eq|Ord|AsRef|AsMut|Into|From|Default|Iterator|Extend|IntoIterator|DoubleEndedIterator|ExactSizeIterator)\\b"
     },
+    "where": {
+      "comment": "Where clause",
+      "name": "keyword.other.rust",
+      "match": "\\bwhere\\b"
+    },
     "std_types": {
       "comment": "Standard library type",
       "name": "storage.class.std.rust",
@@ -441,13 +446,16 @@
         },
         {
           "include": "#const"
+        },
+        {
+          "include": "#where"
         }
       ]
     },
     {
       "comment": "Type declaration",
       "begin": "\\b(enum|struct|trait)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-      "end": "[\\{;]",
+      "end": "[\\{\\(;]",
       "beginCaptures": {
         "1": {
           "name": "storage.type.rust"
@@ -477,6 +485,9 @@
         },
         {
           "include": "#pub"
+        },
+        {
+          "include": "#where"
         }
       ]
     },
@@ -574,6 +585,9 @@
         {
           "name": "storage.type.rust",
           "match": "\\bfor\\b"
+        },
+        {
+          "include": "#where"
         }
       ]
     }

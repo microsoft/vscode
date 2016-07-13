@@ -5,7 +5,7 @@
 'use strict';
 
 import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -13,8 +13,9 @@ import {Configuration} from 'vs/editor/browser/config/configuration';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
+import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
-export class ViewOverlays extends ViewLayer {
+export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
 	private _dynamicOverlays:DynamicViewOverlay[];
 	private _isFocused:boolean;
@@ -73,7 +74,7 @@ export class ViewOverlays extends ViewLayer {
 
 	// ----- end event handlers
 
-	_createLine(): IVisibleLineData {
+	_createLine(): ViewOverlayLine {
 		var r = new ViewOverlayLine(this._context, this._dynamicOverlays);
 		return r;
 	}
@@ -103,7 +104,7 @@ export class ViewOverlays extends ViewLayer {
 	}
 }
 
-class ViewOverlayLine implements IVisibleLineData {
+export class ViewOverlayLine implements IVisibleLineData {
 
 	private _context:ViewContext;
 	private _dynamicOverlays:DynamicViewOverlay[];
@@ -151,7 +152,7 @@ class ViewOverlayLine implements IVisibleLineData {
 		}
 	}
 
-	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
+	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean {
 		let newPieces = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			let dynamicOverlay = this._dynamicOverlays[i];
@@ -195,16 +196,24 @@ class ViewOverlayLine implements IVisibleLineData {
 export class ContentViewOverlays extends ViewOverlays {
 
 	private _scrollWidth: number;
+	private _contentWidth:number;
 
 	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._scrollWidth = this._layoutProvider.getScrollWidth();
+		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 
 		this.domNode.setWidth(this._scrollWidth);
 		this.domNode.setHeight(0);
 	}
 
+	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+		if (e.layoutInfo) {
+			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		}
+		return super.onConfigurationChanged(e);
+	}
 	public onScrollChanged(e:IScrollEvent): boolean {
 		this._scrollWidth = e.scrollWidth;
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
@@ -213,7 +222,7 @@ export class ContentViewOverlays extends ViewOverlays {
 	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
-		this.domNode.setWidth(this._scrollWidth);
+		this.domNode.setWidth(Math.max(this._scrollWidth, this._contentWidth));
 	}
 }
 

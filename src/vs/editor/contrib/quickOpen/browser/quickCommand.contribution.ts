@@ -7,11 +7,22 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KEYBINDING_CONTEXT_EDITOR_FOCUS} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
 import {QuickCommandAction} from './quickCommand';
 
 // Contribute "Quick Command" to context menu
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickCommandAction, QuickCommandAction.ID, nls.localize('label', "Command Palette"), {
-	context: ContextKey.EditorFocus,
-	primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
-}, 'Command Palette'));
+CommonEditorRegistry.registerEditorAction({
+	ctor: QuickCommandAction,
+	id: QuickCommandAction.ID,
+	label: nls.localize('label', "Command Palette"),
+	alias: 'Command Palette',
+	kbOpts: {
+		context: ContextKey.EditorFocus,
+		primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
+	},
+	menuOpts: {
+		kbExpr: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_FOCUS)
+	}
+});

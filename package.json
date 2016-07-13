@@ -1,15 +1,12 @@
 {
   "name": "code-oss-dev",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "electronVersion": "0.37.6",
   "author": {
     "name": "Microsoft Corporation"
   },
   "main": "./out/main",
   "private": true,
-  "engines": {
-    "node": ">= 0.10.0 < 0.11.0"
-  },
   "scripts": {
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
@@ -25,15 +22,15 @@
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.13",
-    "minimist": "^1.2.0",
+    "minimist": "1.2.0",
     "native-keymap": "0.1.2",
-    "pty.js": "https://github.com/Tyriar/pty.js/tarball/prebuilt",
+    "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
     "sax": "1.1.2",
     "semver": "4.3.6",
-    "term.js": "https://github.com/jeremyramin/term.js/tarball/master",
-    "vscode-debugprotocol": "1.9.0",
-    "vscode-textmate": "1.1.0",
+    "vscode-debugprotocol": "1.10.0",
+    "vscode-textmate": "2.0.1",
     "winreg": "1.2.0",
+    "xterm": "git+https://github.com/sourcelair/xterm.js.git#8790a94",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -68,7 +65,7 @@
     "gulp-uglify": "^1.4.1",
     "gulp-util": "^3.0.6",
     "gulp-vinyl-zip": "^1.2.2",
-    "gulp-watch": "^4.2.4",
+    "gulp-watch": "4.3.6",
     "innosetup-compiler": "^5.5.60",
     "is": "^3.1.0",
     "istanbul": "^0.3.17",
@@ -85,7 +82,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
-    "typescript": "^1.8.0",
+    "typescript": "^1.8.10",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",

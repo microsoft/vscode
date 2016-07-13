@@ -7,21 +7,12 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {IMonarchLanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {RichEditSupport, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ITestItem {
 	line: string;
 	tokens: modes.IToken[];
-}
-
-export interface ITestItem2 {
-	line: string;
-	tokens: modes.IToken2[];
 }
 
 export function assertWords(actual:string[], expected:string[], message?:string): void {
@@ -48,11 +39,11 @@ export interface IOnEnterAsserter {
 	indentsOutdents(oneLineAboveText:string, beforeText:string, afterText:string): void;
 }
 
-export function createOnEnterAsserter(modeId:string, conf: IRichLanguageConfiguration): IOnEnterAsserter {
+export function createOnEnterAsserter(modeId:string, conf: LanguageConfiguration): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
-		var model = new Model(
+		var model = Model.createFromString(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
-			Model.DEFAULT_CREATION_OPTIONS,
+			undefined,
 			new MockMode(modeId)
 		);
 		var richEditSupport = new RichEditSupport(modeId, null, conf);
@@ -87,23 +78,6 @@ export function executeTests(tokenizationSupport: modes.ITokenizationSupport, te
 	}
 }
 
-export function executeTests2(tokenizationSupport: modes.TokensProvider, tests:ITestItem2[][]): void {
-	for (var i = 0, len = tests.length; i < len; i++) {
-		assert.ok(true, 'TEST #' + i);
-		executeTest2(tokenizationSupport, tests[i]);
-	}
-}
-
-export function executeMonarchTokenizationTests(name:string, language:IMonarchLanguage, tests:ITestItem[][]): void {
-	var lexer = compile(name, language);
-
-	var modeService = createMockModeService();
-
-	var tokenizationSupport = createTokenizationSupport(modeService, new MockMode(), lexer);
-
-	executeTests(tokenizationSupport, tests);
-}
-
 function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITestItem[]): void {
 	var state = tokenizationSupport.getInitialState();
 	for (var i = 0, len = tests.length; i < len; i++) {
@@ -119,25 +93,6 @@ function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITes
 	}
 }
 
-function executeTest2(tokenizationSupport: modes.TokensProvider, tests:ITestItem2[]): void {
-	var state = tokenizationSupport.getInitialState();
-	for (var i = 0, len = tests.length; i < len; i++) {
-		assert.ok(true, tests[i].line);
-
-		var result = tokenizationSupport.tokenize(tests[i].line, state);
-
-		if (tests[i].tokens) {
-			assertTokens2(result.tokens, tests[i].tokens, 'Tokenizing line ' + tests[i].line);
-		}
-
-		state = result.endState;
-	}
-}
-
 function assertTokens(actual:modes.IToken[], expected:modes.IToken[], message?:string): void {
-	assert.deepEqual(actual, expected, message + ': ' + JSON.stringify(actual, null, '\t'));
-}
-
-function assertTokens2(actual:modes.IToken2[], expected:modes.IToken2[], message?:string): void {
 	assert.deepEqual(actual, expected, message + ': ' + JSON.stringify(actual, null, '\t'));
 }

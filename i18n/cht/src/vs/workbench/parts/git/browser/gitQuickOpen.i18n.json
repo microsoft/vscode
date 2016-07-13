@@ -7,6 +7,7 @@
 	"alreadyCheckedOut": "分支 {0} 已是目前的分支",
 	"branchAriaLabel": "{0}，Git 分支",
 	"checkoutBranch": "位於 {0} 的分支",
+	"checkoutRemoteBranch": "位於 {0} 的遠端分支",
 	"checkoutTag": "位於 {0} 的標記",
 	"createBranch": "建立分支 {0}",
 	"noBranches": "沒有其他分支",

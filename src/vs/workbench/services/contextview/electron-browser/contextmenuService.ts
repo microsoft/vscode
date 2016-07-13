@@ -10,17 +10,16 @@ import severity from 'vs/base/common/severity';
 import {IAction} from 'vs/base/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
-import {$} from 'vs/base/browser/builder';
 import {IContextMenuService, IContextMenuDelegate, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 
 import {remote, webFrame} from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 
-	public serviceId = IContextMenuService;
+	public _serviceBrand: any;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -41,12 +40,10 @@ export class ContextMenuService implements IContextMenuService {
 				let x: number, y: number;
 
 				if (dom.isHTMLElement(anchor)) {
-					const $anchor = $(<HTMLElement>anchor);
-					const elementPosition = $anchor.getPosition();
-					const elementSize = $anchor.getTotalSize();
+					let elementPosition = dom.getDomNodePagePosition(anchor);
 
 					x = elementPosition.left;
-					y = elementPosition.top + elementSize.height;
+					y = elementPosition.top + elementPosition.height;
 				} else {
 					const pos = <{ x: number; y: number; }>anchor;
 					x = pos.x;
@@ -57,7 +54,7 @@ export class ContextMenuService implements IContextMenuService {
 				x *= zoom;
 				y *= zoom;
 
-				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y), -1 /* no item selected by default */);
 				if (delegate.onHide) {
 					delegate.onHide(undefined);
 				}
@@ -84,9 +81,9 @@ export class ContextMenuService implements IContextMenuService {
 
 				const item = new remote.MenuItem({
 					label: e.label,
-					checked: e.checked,
+					checked: !!e.checked,
 					accelerator,
-					enabled: e.enabled,
+					enabled: !!e.enabled,
 					click: () => {
 						this.runAction(e, delegate);
 					}

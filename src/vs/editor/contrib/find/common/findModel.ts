@@ -7,6 +7,7 @@
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
+import {ReplacePattern} from 'vs/platform/search/common/replace';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -23,7 +24,9 @@ export const FIND_IDS = {
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	AddSelectionToNextFindMatchAction: 'editor.action.addSelectionToNextFindMatch',
+	AddSelectionToPreviousFindMatchAction: 'editor.action.addSelectionToPreviousFindMatch',
 	MoveSelectionToNextFindMatchAction: 'editor.action.moveSelectionToNextFindMatch',
+	MoveSelectionToPreviousFindMatchAction: 'editor.action.moveSelectionToPreviousFindMatch',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
 	CloseFindWidgetCommand: 'closeFindWidget',
 	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
@@ -174,33 +177,33 @@ export class FindModelBoundToEditorModel {
 		let {lineNumber,column} = before;
 		let model = this._editor.getModel();
 
-		if (this._state.isRegex) {
-			// Force advancing to the previous line if searching for $
-			if (this._state.searchString === '$') {
+		let position = new Position(lineNumber, column);
+
+		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+
+		if (prevMatch && prevMatch.isEmpty() && prevMatch.getStartPosition().equals(position)) {
+			// Looks like we're stuck at this position, unacceptable!
+
+			let isUsingLineStops = this._state.isRegex && (
+				this._state.searchString.indexOf('^') >= 0
+				|| this._state.searchString.indexOf('$') >= 0
+			);
+
+			if (isUsingLineStops || column === 1) {
 				if (lineNumber === 1) {
 					lineNumber = model.getLineCount();
 				} else {
 					lineNumber--;
 				}
 				column = model.getLineMaxColumn(lineNumber);
+			} else {
+				column--;
 			}
 
-			// Force advancing to the previous line if searching for ^ or ^$ and cursor is at the beginning
-			if (this._state.searchString === '^' || this._state.searchString === '^$') {
-				if (column === 1) {
-					if (lineNumber === 1) {
-						lineNumber = model.getLineCount();
-					} else {
-						lineNumber--;
-					}
-					column = model.getLineMaxColumn(lineNumber);
-				}
-			}
+			position = new Position(lineNumber, column);
+			prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 		}
 
-		let position = new Position(lineNumber, column);
-
-		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 		if (!prevMatch) {
 			// there is precisely one match and selection is on top of it
 			return;
@@ -241,33 +244,32 @@ export class FindModelBoundToEditorModel {
 		let {lineNumber,column} = after;
 		let model = this._editor.getModel();
 
-		if (this._state.isRegex) {
-			// Force advancing to the next line if searching for ^ or ^$
-			if (this._state.searchString === '^' || this._state.searchString === '^$') {
+		let position = new Position(lineNumber, column);
+
+		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+
+		if (nextMatch && nextMatch.isEmpty() && nextMatch.getStartPosition().equals(position)) {
+			// Looks like we're stuck at this position, unacceptable!
+
+			let isUsingLineStops = this._state.isRegex && (
+				this._state.searchString.indexOf('^') >= 0
+				|| this._state.searchString.indexOf('$') >= 0
+			);
+
+			if (isUsingLineStops || column === model.getLineMaxColumn(lineNumber)) {
 				if (lineNumber === model.getLineCount()) {
 					lineNumber = 1;
 				} else {
 					lineNumber++;
 				}
 				column = 1;
+			} else {
+				column++;
 			}
 
-			// Force advancing to the next line if searching for $ and at the end of the line
-			if (this._state.searchString === '$') {
-				if (column === model.getLineMaxColumn(lineNumber)) {
-					if (lineNumber === model.getLineCount()) {
-						lineNumber = 1;
-					} else {
-						lineNumber++;
-					}
-					column = 1;
-				}
-			}
+			position = new Position(lineNumber, column);
+			nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 		}
-
-		let position = new Position(lineNumber, column);
-
-		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
 
 		if (!nextMatch) {
 			// there is precisely one match and selection is on top of it
@@ -289,19 +291,14 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private getReplaceString(matchedString:string): string {
-		if (!this._state.isRegex) {
-			return this._state.replaceString;
-		}
-		let regexp = strings.createRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord, true);
-		// Parse the replace string to support that \t or \n mean the right thing
-		let parsedReplaceString = parseReplaceString(this._state.replaceString);
-		return matchedString.replace(regexp, parsedReplaceString);
+		let replacePattern= new ReplacePattern(this._state.replaceString, {pattern: this._state.searchString, isRegExp: this._state.isRegex, isCaseSensitive: this._state.matchCase, isWordMatch: this._state.wholeWord});
+		return replacePattern.getReplaceString(matchedString);
 	}
 
 	private _rangeIsMatch(range:Range): boolean {
 		let selection = this._editor.getSelection();
 		let selectionText = this._editor.getModel().getValueInRange(selection);
-		let regexp = strings.createSafeRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		let regexp = strings.createRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord, true);
 		let m = selectionText.match(regexp);
 		return (m && m[0].length === selectionText.length);
 	}
@@ -377,95 +374,4 @@ export class FindModelBoundToEditorModel {
 			this._ignoreModelContentChanged = false;
 		}
 	}
-}
-
-const BACKSLASH_CHAR_CODE = '\\'.charCodeAt(0);
-const DOLLAR_CHAR_CODE = '$'.charCodeAt(0);
-const ZERO_CHAR_CODE = '0'.charCodeAt(0);
-const n_CHAR_CODE = 'n'.charCodeAt(0);
-const t_CHAR_CODE = 't'.charCodeAt(0);
-
-/**
- * \n => LF
- * \t => TAB
- * \\ => \
- * $0 => $& (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#Specifying_a_string_as_a_parameter)
- * everything else stays untouched
- */
-export function parseReplaceString(input:string): string {
-	if (!input || input.length === 0) {
-		return input;
-	}
-
-	let substrFrom = 0, result = '';
-	for (let i = 0, len = input.length; i < len; i++) {
-		let chCode = input.charCodeAt(i);
-
-		if (chCode === BACKSLASH_CHAR_CODE) {
-
-			// move to next char
-			i++;
-
-			if (i >= len) {
-				// string ends with a \
-				break;
-			}
-
-			let nextChCode = input.charCodeAt(i);
-			let replaceWithCharacter: string = null;
-
-			switch (nextChCode) {
-				case BACKSLASH_CHAR_CODE:
-					// \\ => \
-					replaceWithCharacter = '\\';
-					break;
-				case n_CHAR_CODE:
-					// \n => LF
-					replaceWithCharacter = '\n';
-					break;
-				case t_CHAR_CODE:
-					// \t => TAB
-					replaceWithCharacter = '\t';
-					break;
-			}
-
-			if (replaceWithCharacter) {
-				result += input.substring(substrFrom, i - 1) + replaceWithCharacter;
-				substrFrom = i + 1;
-			}
-		}
-
-		if (chCode === DOLLAR_CHAR_CODE) {
-
-			// move to next char
-			i++;
-
-			if (i >= len) {
-				// string ends with a $
-				break;
-			}
-
-			let nextChCode = input.charCodeAt(i);
-			let replaceWithCharacter: string = null;
-
-			switch (nextChCode) {
-				case ZERO_CHAR_CODE:
-					// $0 => $&
-					replaceWithCharacter = '$&';
-					break;
-			}
-
-			if (replaceWithCharacter) {
-				result += input.substring(substrFrom, i - 1) + replaceWithCharacter;
-				substrFrom = i + 1;
-			}
-		}
-	}
-
-	if (substrFrom === 0) {
-		// no replacement occured
-		return input;
-	}
-
-	return result + input.substring(substrFrom);
 }

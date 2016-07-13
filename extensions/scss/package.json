@@ -1,0 +1,19 @@
+{
+	"name": "scss",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [{
+			"id": "scss",
+			"aliases": ["Sass", "scss"],
+			"extensions": [".scss"],
+			"mimetypes": ["text/x-scss", "text/scss"]
+		}],
+		"grammars": [{
+			"language": "scss",
+			"scopeName": "source.css.scss",
+			"path": "./syntaxes/scss.json"
+		}]
+	}
+}

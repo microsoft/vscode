@@ -14,6 +14,7 @@ export class RenderLineInput {
 	spaceWidth: number;
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
+	renderControlCharacters: boolean;
 	parts: ViewLineToken[];
 
 	constructor(
@@ -22,6 +23,7 @@ export class RenderLineInput {
 		spaceWidth: number,
 		stopRenderingLineAfter: number,
 		renderWhitespace: boolean,
+		renderControlCharacters: boolean,
 		parts: ViewLineToken[]
 	) {
 		this.lineContent = lineContent;
@@ -29,6 +31,7 @@ export class RenderLineInput {
 		this.spaceWidth = spaceWidth;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = renderWhitespace;
+		this.renderControlCharacters = renderControlCharacters;
 		this.parts = parts;
 	}
 }
@@ -52,6 +55,7 @@ const _lowerThan = '<'.charCodeAt(0);
 const _greaterThan = '>'.charCodeAt(0);
 const _ampersand = '&'.charCodeAt(0);
 const _carriageReturn = '\r'.charCodeAt(0);
+const _controlCharacterSequenceConversionStart = 9216;
 const _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
 const _bom = 65279;
 
@@ -62,6 +66,7 @@ export function renderLine(input:RenderLineInput): RenderLineOutput {
 	const spaceWidth = input.spaceWidth;
 	const actualLineParts = input.parts;
 	const renderWhitespace = input.renderWhitespace;
+	const renderControlCharacters = input.renderControlCharacters;
 	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
 
 	if (lineTextLength === 0) {
@@ -77,18 +82,21 @@ export function renderLine(input:RenderLineInput): RenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, charBreakIndex);
+	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, renderControlCharacters, charBreakIndex);
 }
 
 function isWhitespace(type:string): boolean {
 	return (type.indexOf('whitespace') >= 0);
 }
 
-function isIndentGuide(type:string): boolean {
-	return (type.indexOf('indent-guide') >= 0);
+function isControlCharacter(characterCode: number): boolean {
+	return characterCode < 32;
+}
+function controlCharacterToPrintable(characterCode: number): string {
+	return String.fromCharCode(_controlCharacterSequenceConversionStart + characterCode);
 }
 
-function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, spaceWidth:number, actualLineParts:ViewLineToken[], renderWhitespace:boolean, charBreakIndex:number): RenderLineOutput {
+function renderLineActual(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: boolean, renderControlCharacters: boolean, charBreakIndex: number): RenderLineOutput {
 	lineTextLength = +lineTextLength;
 	tabSize = +tabSize;
 	charBreakIndex = +charBreakIndex;
@@ -104,7 +112,6 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 		let part = actualLineParts[partIndex];
 
 		let parsRendersWhitespace = (renderWhitespace && isWhitespace(part.type));
-		let partIsFixedWidth = parsRendersWhitespace || isIndentGuide(part.type);
 
 		let toCharIndex = lineTextLength;
 		if (partIndex + 1 < partIndexLen) {
@@ -113,7 +120,7 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 		}
 
 		charOffsetInPart = 0;
-		if (partIsFixedWidth) {
+		if (parsRendersWhitespace) {
 
 			let partContentCnt = 0;
 			let partContent = '';
@@ -126,7 +133,7 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						partContent += parsRendersWhitespace ? '&rarr;' : '&nbsp;';
+						partContent += '&rarr;';
 						partContentCnt++;
 						insertSpacesCount--;
 					}
@@ -137,7 +144,7 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 					}
 				} else {
 					// must be _space
-					partContent += parsRendersWhitespace ? '&middot;' : '&nbsp;';
+					partContent += '&middot;';
 					partContentCnt++;
 				}
 
@@ -209,7 +216,12 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 						break;
 
 					default:
-						out += lineText.charAt(charIndex);
+						let characterCode = lineText.charCodeAt(charIndex);
+						if (renderControlCharacters && isControlCharacter(characterCode)) {
+							out += controlCharacterToPrintable(characterCode);
+						} else {
+							out += lineText.charAt(charIndex);
+						}
 				}
 
 				charOffsetInPart ++;

@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import strings = require('vs/base/common/strings');
 import { isString } from 'vs/base/common/types';
 import { Action } from 'vs/base/common/actions';
 import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -25,9 +24,8 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { IGitService, IFileStatus, Status, StatusType, ServiceState,
-	IModel, IBranch, GitErrorCodes, ServiceOperations }
-	from 'vs/workbench/parts/git/common/git';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBranch, GitErrorCodes, IGitConfiguration } from 'vs/workbench/parts/git/common/git';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
@@ -212,7 +210,7 @@ export class RefreshAction extends GitAction {
 }
 
 export abstract class BaseStageAction extends GitAction {
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
@@ -283,7 +281,10 @@ export class StageAction extends BaseStageAction {
 	static ID = 'workbench.action.git.stage';
 	static LABEL = nls.localize('stageChanges', "Stage");
 
-	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+	constructor(
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
 		super(StageAction.ID, StageAction.LABEL, 'git-action stage', gitService, editorService);
 	}
 }
@@ -485,7 +486,7 @@ export class GlobalUndoAction extends BaseUndoAction {
 
 export abstract class BaseUnstageAction extends GitAction {
 
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
@@ -559,9 +560,13 @@ export abstract class BaseUnstageAction extends GitAction {
 
 export class UnstageAction extends BaseUnstageAction {
 	static ID = 'workbench.action.git.unstage';
+	static LABEL = nls.localize('unstage', "Unstage");
 
-	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(UnstageAction.ID, nls.localize('unstage', "Unstage"), 'git-action unstage', gitService, editorService);
+	constructor(
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(UnstageAction.ID, UnstageAction.LABEL, 'git-action unstage', gitService, editorService);
 	}
 }
 
@@ -766,7 +771,7 @@ export class InputCommitAction extends GitAction {
 
 		const status = this.gitService.getModel().getStatus();
 
-		return this.quickOpenService.input({ prompt: 'Commit Message' })
+		return this.quickOpenService.input({ prompt: nls.localize('commitMessage', "Commit Message") })
 			.then(message => message && this.gitService.commit(message, false, status.getIndexStatus().all().length === 0));
 	}
 }
@@ -1052,10 +1057,16 @@ export class PublishAction extends GitAction {
 	}
 }
 
-export abstract class BaseSyncAction extends GitAction {
+export class SyncAction extends GitAction {
 
-	constructor(id: string, label: string, className: string, gitService: IGitService) {
-		super(id, label, className, gitService);
+	static ID = 'workbench.action.git.sync';
+	static LABEL = 'Sync';
+
+	constructor(id: string, label: string,
+		@IGitService gitService: IGitService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label, 'git-action sync', gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -1082,6 +1093,12 @@ export abstract class BaseSyncAction extends GitAction {
 			return TPromise.as(null);
 		}
 
+		const config = this.configurationService.getConfiguration<IGitConfiguration>('git');
+
+		if (config.confirmSync && !window.confirm(nls.localize('sureSync', "Are you sure you want to synchronize your git repository?"))) {
+			return TPromise.as(null);
+		}
+
 		return this.gitService.sync().then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));
@@ -1089,79 +1106,6 @@ export abstract class BaseSyncAction extends GitAction {
 
 			return Promise.wrapError(err);
 		});
-	}
-}
-
-export class SyncAction extends BaseSyncAction {
-
-	static ID = 'workbench.action.git.sync';
-	static LABEL = 'Sync';
-
-	constructor(id: string, label: string, @IGitService gitService: IGitService) {
-		super(id, label, 'git-action sync', gitService);
-	}
-}
-
-export class LiveSyncAction extends BaseSyncAction {
-
-	static ID = 'workbench.action.git.liveSync';
-	static CLASS_NAME = 'git-action live-sync';
-	static CLASS_NAME_LOADING = 'git-action live-sync loading';
-
-	constructor(@IGitService gitService: IGitService) {
-		super(LiveSyncAction.ID, 'sync', LiveSyncAction.CLASS_NAME, gitService);
-	}
-
-	protected onGitServiceChange(): void {
-		super.onGitServiceChange();
-
-		if (this.gitService.getRunningOperations().some(op =>
-			op.id === ServiceOperations.SYNC ||
-			op.id === ServiceOperations.PULL ||
-			op.id === ServiceOperations.PUSH))
-		{
-			this.label = '';
-			this.class = LiveSyncAction.CLASS_NAME_LOADING;
-			this.tooltip = nls.localize('synchronizing', "Synchronizing...");
-
-		} else {
-			this.class = LiveSyncAction.CLASS_NAME;
-
-			var model = this.gitService.getModel();
-			var HEAD = model.getHEAD();
-
-			if (!HEAD) {
-				this.label = '';
-				this.tooltip = '';
-
-			} else if (!HEAD.name) {
-				this.label = '';
-				this.tooltip = nls.localize('currentlyDetached', "Can't sync in detached mode.");
-
-			} else if (!HEAD.upstream) {
-				this.label = '';
-				this.tooltip = nls.localize('noUpstream', "Current branch '{0} doesn't have an upstream branch configured.", HEAD.name);
-
-			} else if (!HEAD.ahead && !HEAD.behind) {
-				this.label = '';
-				this.tooltip = nls.localize('currentBranch', "Current branch '{0}' is up to date.", HEAD.name);
-
-			} else {
-				this.label = strings.format('{0}↓ {1}↑', HEAD.behind, HEAD.ahead);
-
-				if (model.getStatus().getGroups().some(g => g.all().length > 0)) {
-					this.tooltip = nls.localize('dirtyChanges', "Please commit, undo or stash your changes before synchronizing.");
-				} else if (HEAD.behind === 1 && HEAD.ahead === 1) {
-					this.tooltip = nls.localize('currentBranchSingle', "Current branch '{0}' is {1} commit behind and {2} commit ahead of '{3}'.", HEAD.name, HEAD.behind, HEAD.ahead, HEAD.upstream);
-				} else if (HEAD.behind === 1) {
-					this.tooltip = nls.localize('currentBranchSinglePlural', "Current branch '{0}' is {1} commit behind and {2} commits ahead of '{3}'.", HEAD.name, HEAD.behind, HEAD.ahead, HEAD.upstream);
-				} else if (HEAD.ahead === 1) {
-					this.tooltip = nls.localize('currentBranchPluralSingle', "Current branch '{0}' is {1} commits behind and {2} commit ahead of '{3}'.", HEAD.name, HEAD.behind, HEAD.ahead, HEAD.upstream);
-				} else {
-					this.tooltip = nls.localize('currentBranchPlural', "Current branch '{0}' is {1} commits behind and {2} commits ahead of '{3}'.", HEAD.name, HEAD.behind, HEAD.ahead, HEAD.upstream);
-				}
-			}
-		}
 	}
 }
 

@@ -9,7 +9,7 @@
 	"autoSave": "Controla el guardado automático de los archivos con modificaciones. Valores aceptados: \"{0}\", \"{1}\", \"{2}\". Si se establece en \"{3}\", puede configurar el retraso en \"files.autoSaveDelay\".",
 	"autoSaveDelay": "Controla el retraso en MS tras el cual un archivo con modificaciones se guarda automáticamente. Solo se aplica si \"files.autoSave\" está establecido en \"{0}\".",
 	"binaryFileEditor": "Editor de archivos binarios",
-	"dynamicHeight": "Controla si la altura de la sección de los archivos de trabajo debería adaptarse o no de forma dinámica al número de elementos.",
+	"dynamicHeight": "Controla si la altura de la sección de editores abiertos debería adaptarse o no de forma dinámica al número de elementos.",
 	"encoding": "La codificación del juego de caracteres predeterminada que debe utilizarse al leer y escribir archivos.",
 	"eol": "Carácter predeterminado de final de línea.",
 	"exclude": "Configurar patrones globales para excluir archivos y carpetas.",
@@ -17,14 +17,11 @@
 	"explorerConfigurationTitle": "Configuración del Explorador de archivos",
 	"files.exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",
 	"files.exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
-	"filesCategory": "Archivos",
 	"filesConfigurationTitle": "Configuración de los archivos",
-	"maxVisible": "Número máximo de archivos de trabajo que se mostrarán antes de que aparezcan las barras de desplazamiento.",
-	"openWorkingFile": "Abrir archivo de trabajo por nombre",
+	"openEditorsVisible": "Número de editores mostrados en el panel Editores abiertos. Establezca este valor en 0 para ocultar el panel.",
 	"showExplorerViewlet": "Mostrar explorador",
 	"textFileEditor": "Editor de archivos de texto",
 	"trimTrailingWhitespace": "Si está habilitado, se recortará el espacio final cuando guarde un archivo.",
 	"view": "Ver",
-	"watcherExclude": "Configure patrones globales de las rutas de acceso de archivo que se van a excluir de la inspección de archivos. Al cambiar esta configuración, es necesario reiniciar. Si observa que Code consume mucho tiempo de CPU al iniciarse, puede excluir las carpetas grandes para reducir la carga inicial.",
-	"workingFilesPicker": "Abrir archivo de trabajo por nombre"
+	"watcherExclude": "Configure patrones globales de las rutas de acceso de archivo que se van a excluir de la inspección de archivos. Al cambiar esta configuración, es necesario reiniciar. Si observa que Code consume mucho tiempo de CPU al iniciarse, puede excluir las carpetas grandes para reducir la carga inicial."
 }

@@ -37,15 +37,19 @@ export function score(selector: LanguageSelector, uri: URI, language: string): n
 			return 0;
 		}
 	} else if (selector) {
-		let filter = <LanguageFilter>selector;
-		let value = 0;
+		// all must match but only highest score counts
+		const filter = <LanguageFilter>selector;
+
+		let valueLanguage = 0;
+		let valueScheme = 0;
+		let valuePattern = 0;
 
 		// language id
 		if (filter.language) {
 			if (filter.language === language) {
-				value += 10;
+				valueLanguage = 10;
 			} else if (filter.language === '*') {
-				value += 5;
+				valueLanguage = 5;
 			} else {
 				return 0;
 			}
@@ -54,7 +58,7 @@ export function score(selector: LanguageSelector, uri: URI, language: string): n
 		// scheme
 		if (filter.scheme) {
 			if (filter.scheme === uri.scheme) {
-				value += 10;
+				valueScheme = 10;
 			} else {
 				return 0;
 			}
@@ -63,14 +67,14 @@ export function score(selector: LanguageSelector, uri: URI, language: string): n
 		// match fsPath with pattern
 		if (filter.pattern) {
 			if (filter.pattern === uri.fsPath) {
-				value += 10;
+				valuePattern = 10;
 			} else if (matchGlobPattern(filter.pattern, uri.fsPath)) {
-				value += 5;
+				valuePattern = 5;
 			} else {
 				return 0;
 			}
 		}
 
-		return value;
+		return Math.max(valueLanguage, valueScheme, valuePattern);
 	}
 }

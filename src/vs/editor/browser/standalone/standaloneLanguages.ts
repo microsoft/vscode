@@ -17,7 +17,7 @@ import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
 import {startup} from './standaloneCodeEditor';
-import {IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -26,11 +26,18 @@ import {toThenable} from 'vs/base/common/async';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {IMarkerData} from 'vs/platform/markers/common/markers';
 
+/**
+ * Register information about a new language.
+ */
 export function register(language:ILanguageExtensionPoint): void {
 	ModesRegistry.registerLanguage(language);
 }
 
+/**
+ * Get the information of all the registered languages.
+ */
 export function getLanguages(): ILanguageExtensionPoint[] {
 	let result:ILanguageExtensionPoint[] = [];
 	result = result.concat(ModesRegistry.getLanguages());
@@ -38,6 +45,9 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 	return result;
 }
 
+/**
+ * An event emitted when a language is first time needed (e.g. a model has it set).
+ */
 export function onLanguage(languageId:string, callback:()=>void): IDisposable {
 	let isDisposed = false;
 	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
@@ -50,16 +60,25 @@ export function onLanguage(languageId:string, callback:()=>void): IDisposable {
 	};
 }
 
-export function setLanguageConfiguration(languageId:string, configuration:IRichLanguageConfiguration): IDisposable {
+/**
+ * Set the editing configuration for a language.
+ */
+export function setLanguageConfiguration(languageId:string, configuration:LanguageConfiguration): IDisposable {
 	return LanguageConfigurationRegistry.register(languageId, configuration);
 }
 
-export function setTokensProvider(languageId:string, support:modes.TokensProvider): IDisposable {
+/**
+ * Set the tokens provider for a language (manual implementation).
+ */
+export function setTokensProvider(languageId:string, provider:modes.TokensProvider): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
-	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, support);
+	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, provider);
 }
 
+/**
+ * Set the tokens provider for a language (monarch implementation).
+ */
 export function setMonarchTokensProvider(languageId:string, languageDef:IMonarchLanguage): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
@@ -71,14 +90,151 @@ export function setMonarchTokensProvider(languageId:string, languageDef:IMonarch
 	});
 }
 
-export function registerReferenceProvider(languageId:string, support:modes.ReferenceProvider): IDisposable {
-	return modes.ReferenceProviderRegistry.register(languageId, support);
+/**
+ * Register a reference provider (used by e.g. reference search).
+ */
+export function registerReferenceProvider(languageId:string, provider:modes.ReferenceProvider): IDisposable {
+	return modes.ReferenceProviderRegistry.register(languageId, provider);
 }
 
-export function registerRenameProvider(languageId:string, support:modes.RenameProvider): IDisposable {
-	return modes.RenameProviderRegistry.register(languageId, support);
+/**
+ * Register a rename provider (used by e.g. rename symbol).
+ */
+export function registerRenameProvider(languageId:string, provider:modes.RenameProvider): IDisposable {
+	return modes.RenameProviderRegistry.register(languageId, provider);
 }
 
+/**
+ * Register a signature help provider (used by e.g. paremeter hints).
+ */
+export function registerSignatureHelpProvider(languageId:string, provider:modes.SignatureHelpProvider): IDisposable {
+	return modes.SignatureHelpProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a hover provider (used by e.g. editor hover).
+ */
+export function registerHoverProvider(languageId:string, provider:modes.HoverProvider): IDisposable {
+	return modes.HoverProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a document symbol provider (used by e.g. outline).
+ */
+export function registerDocumentSymbolProvider(languageId:string, provider:modes.DocumentSymbolProvider): IDisposable {
+	return modes.DocumentSymbolProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a document highlight provider (used by e.g. highlight occurences).
+ */
+export function registerDocumentHighlightProvider(languageId:string, provider:modes.DocumentHighlightProvider): IDisposable {
+	return modes.DocumentHighlightProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a definition provider (used by e.g. go to definition).
+ */
+export function registerDefinitionProvider(languageId:string, provider:modes.DefinitionProvider): IDisposable {
+	return modes.DefinitionProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a code lens provider (used by e.g. inline code lenses).
+ */
+export function registerCodeLensProvider(languageId:string, provider:modes.CodeLensProvider): IDisposable {
+	return modes.CodeLensProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a code action provider (used by e.g. quick fix).
+ */
+export function registerCodeActionProvider(languageId:string, provider:CodeActionProvider): IDisposable {
+	return modes.CodeActionProviderRegistry.register(languageId, {
+		provideCodeActions: (model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]> => {
+			startup.initStaticServicesIfNecessary();
+			var markerService = ensureStaticPlatformServices(null).markerService;
+			let markers = markerService.read({resource: model.uri }).filter(m => {
+				return Range.areIntersectingOrTouching(m, range);
+			});
+			return provider.provideCodeActions(model, range, { markers }, token);
+		}
+	});
+}
+
+/**
+ * Register a formatter that can handle only entire models.
+ */
+export function registerDocumentFormattingEditProvider(languageId:string, provider:modes.DocumentFormattingEditProvider): IDisposable {
+	return modes.DocumentFormattingEditProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a formatter that can handle a range inside a model.
+ */
+export function registerDocumentRangeFormattingEditProvider(languageId:string, provider:modes.DocumentRangeFormattingEditProvider): IDisposable {
+	return modes.DocumentRangeFormattingEditProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a formatter than can do formatting as the user types.
+ */
+export function registerOnTypeFormattingEditProvider(languageId:string, provider:modes.OnTypeFormattingEditProvider): IDisposable {
+	return modes.OnTypeFormattingEditProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a link provider that can find links in text.
+ */
+export function registerLinkProvider(languageId:string, provider:modes.LinkProvider): IDisposable {
+	return modes.LinkProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register a completion item provider (use by e.g. suggestions).
+ */
+export function registerCompletionItemProvider(languageId:string, provider:CompletionItemProvider): IDisposable {
+	let adapter = new SuggestAdapter(provider);
+	return modes.SuggestRegistry.register(languageId, {
+		triggerCharacters: provider.triggerCharacters,
+		shouldAutotriggerSuggest: true,
+		provideCompletionItems: (model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
+			return adapter.provideCompletionItems(model, position, token);
+		},
+		resolveCompletionItem: (model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+			return adapter.resolveCompletionItem(model, position, suggestion, token);
+		}
+	});
+}
+
+/**
+ * Contains additional diagnostic information about the context in which
+ * a [code action](#CodeActionProvider.provideCodeActions) is run.
+ */
+export interface CodeActionContext {
+
+	/**
+	 * An array of diagnostics.
+	 *
+	 * @readonly
+	 */
+	markers: IMarkerData[];
+}
+
+/**
+ * The code action interface defines the contract between extensions and
+ * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+ */
+export interface CodeActionProvider {
+	/**
+	 * Provide commands for the given document and range.
+	 */
+	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, context: CodeActionContext, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]>;
+}
+
+/**
+ * Completion item kinds.
+ */
 export enum CompletionItemKind {
 	Text,
 	Method,
@@ -99,39 +255,100 @@ export enum CompletionItemKind {
 	File,
 	Reference
 }
+/**
+ * A completion item represents a text snippet that is
+ * proposed to complete text that is being typed.
+ */
 export interface CompletionItem {
+	/**
+	 * The label of this completion item. By default
+	 * this is also the text that is inserted when selecting
+	 * this completion.
+	 */
 	label: string;
+	/**
+	 * The kind of this completion item. Based on the kind
+	 * an icon is chosen by the editor.
+	 */
 	kind: CompletionItemKind;
+	/**
+	 * A human-readable string with additional information
+	 * about this item, like type or symbol information.
+	 */
 	detail?: string;
+	/**
+	 * A human-readable string that represents a doc-comment.
+	 */
 	documentation?: string;
+	/**
+	 * A string that should be used when comparing this item
+	 * with other items. When `falsy` the [label](#CompletionItem.label)
+	 * is used.
+	 */
 	sortText?: string;
+	/**
+	 * A string that should be used when filtering a set of
+	 * completion items. When `falsy` the [label](#CompletionItem.label)
+	 * is used.
+	 */
 	filterText?: string;
+	/**
+	 * A string that should be inserted in a document when selecting
+	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * is used.
+	 */
 	insertText?: string;
+	/**
+	 * An [edit](#TextEdit) which is applied to a document when selecting
+	 * this completion. When an edit is provided the value of
+	 * [insertText](#CompletionItem.insertText) is ignored.
+	 *
+	 * The [range](#Range) of the edit must be single-line and one the same
+	 * line completions where [requested](#CompletionItemProvider.provideCompletionItems) at.
+	 */
 	textEdit?: editorCommon.ISingleEditOperation;
 }
+/**
+ * Represents a collection of [completion items](#CompletionItem) to be presented
+ * in the editor.
+ */
 export interface CompletionList {
+	/**
+	 * This list it not complete. Further typing should result in recomputing
+	 * this list.
+	 */
 	isIncomplete?: boolean;
+	/**
+	 * The completion items.
+	 */
 	items: CompletionItem[];
 }
+/**
+ * The completion item provider interface defines the contract between extensions and
+ * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+ *
+ * When computing *complete* completion items is expensive, providers can optionally implement
+ * the `resolveCompletionItem`-function. In that case it is enough to return completion
+ * items with a [label](#CompletionItem.label) from the
+ * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+ * when a completion item is shown in the UI and gains focus this provider is asked to resolve
+ * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+ */
 export interface CompletionItemProvider {
 	triggerCharacters?: string[];
+	/**
+	 * Provide completion items for the given position and document.
+	 */
 	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	/**
+	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
+	 * or [details](#CompletionItem.detail).
+	 *
+	 * The editor will only resolve a completion item once.
+	 */
 	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
 }
 
-export function registerCompletionItemProvider(languageId:string, provider:CompletionItemProvider): IDisposable {
-	let adapter = new SuggestAdapter(provider);
-	return modes.SuggestRegistry.register(languageId, {
-		triggerCharacters: provider.triggerCharacters,
-		shouldAutotriggerSuggest: true,
-		provideCompletionItems: (model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
-			return adapter.provideCompletionItems(model, position, token);
-		},
-		resolveCompletionItem: (model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
-			return adapter.resolveCompletionItem(model, position, suggestion, token);
-		}
-	});
-}
 interface ISuggestion2 extends modes.ISuggestion {
 	_actual: CompletionItem;
 }
@@ -179,7 +396,7 @@ class SuggestAdapter {
 	}
 
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
-		const ran = model.getWordAtPosition(position);
+		const ran = model.getWordUntilPosition(position);
 
 		return toThenable<CompletionItem[]|CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
 			let list: CompletionList;
@@ -200,7 +417,7 @@ class SuggestAdapter {
 
 			let defaultSuggestions: modes.ISuggestResult = {
 				suggestions: [],
-				currentWord: ran ? model.getValueInRange(new Range(position.lineNumber, ran.startColumn, position.lineNumber, ran.endColumn)) : '',
+				currentWord: ran ? ran.word : '',
 			};
 			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
 
@@ -214,7 +431,7 @@ class SuggestAdapter {
 					let isSingleLine = (editRange.startLineNumber === editRange.endLineNumber);
 
 					// invalid text edit
-					if (!isSingleLine || editRange.startColumn !== position.lineNumber) {
+					if (!isSingleLine || editRange.startLineNumber !== position.lineNumber) {
 						console.warn('INVALID text edit, must be single line and on the same line');
 						continue;
 					}
@@ -256,103 +473,6 @@ class SuggestAdapter {
 	}
 }
 
-export function registerSignatureHelpProvider(languageId:string, support:modes.SignatureHelpProvider): IDisposable {
-	return modes.SignatureHelpProviderRegistry.register(languageId, support);
-}
-
-export function registerHoverProvider(languageId:string, support:modes.HoverProvider): IDisposable {
-	return modes.HoverProviderRegistry.register(languageId, support);
-}
-
-export function registerDocumentSymbolProvider(languageId:string, support:modes.DocumentSymbolProvider): IDisposable {
-	return modes.DocumentSymbolProviderRegistry.register(languageId, support);
-}
-
-export function registerDocumentHighlightProvider(languageId:string, support:modes.DocumentHighlightProvider): IDisposable {
-	return modes.DocumentHighlightProviderRegistry.register(languageId, support);
-}
-
-export function registerDefinitionProvider(languageId:string, support:modes.DefinitionProvider): IDisposable {
-	return modes.DefinitionProviderRegistry.register(languageId, support);
-}
-
-export function registerCodeLensProvider(languageId:string, support:modes.CodeLensProvider): IDisposable {
-	return modes.CodeLensProviderRegistry.register(languageId, support);
-}
-
-export function registerCodeActionProvider(languageId:string, support:modes.CodeActionProvider): IDisposable {
-	return modes.CodeActionProviderRegistry.register(languageId, support);
-}
-
-export function registerDocumentFormattingEditProvider(languageId:string, support:modes.DocumentFormattingEditProvider): IDisposable {
-	return modes.DocumentFormattingEditProviderRegistry.register(languageId, support);
-}
-
-export function registerDocumentRangeFormattingEditProvider(languageId:string, support:modes.DocumentRangeFormattingEditProvider): IDisposable {
-	return modes.DocumentRangeFormattingEditProviderRegistry.register(languageId, support);
-}
-
-export function registerOnTypeFormattingEditProvider(languageId:string, support:modes.OnTypeFormattingEditProvider): IDisposable {
-	return modes.OnTypeFormattingEditProviderRegistry.register(languageId, support);
-}
-
-export function registerLinkProvider(languageId:string, support:modes.LinkProvider): IDisposable {
-	return modes.LinkProviderRegistry.register(languageId, support);
-}
-
-/**
- * @internal
- */
-export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	ModesRegistry.registerLanguage(language);
-
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{language:IMonarchLanguage;conf:IRichLanguageConfiguration}) => {
-			if (!value.language) {
-				console.error('Expected ' + defModule + ' to export a `language`');
-				return;
-			}
-
-			startup.initStaticServicesIfNecessary();
-			let staticPlatformServices = ensureStaticPlatformServices(null);
-			let modeService = staticPlatformServices.modeService;
-
-			let lexer = compile(language.id, value.language);
-
-			modeService.registerTokenizationSupport(language.id, (mode) => {
-				return createTokenizationSupport(modeService, mode, lexer);
-			});
-
-			LanguageConfigurationRegistry.register(language.id, value.conf);
-		}, (err) => {
-			console.error('Cannot find module ' + defModule, err);
-		});
-	});
-}
-
-/**
- * @internal
- */
-export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	ModesRegistry.registerLanguage(language);
-
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{activate:()=>void}) => {
-			if (!value.activate) {
-				console.error('Expected ' + defModule + ' to export an `activate` function');
-				return;
-			}
-
-			startup.initStaticServicesIfNecessary();
-			let staticPlatformServices = ensureStaticPlatformServices(null);
-			let instantiationService = staticPlatformServices.instantiationService;
-
-			instantiationService.invokeFunction(value.activate);
-		}, (err) => {
-			console.error('Cannot find module ' + defModule, err);
-		});
-	});
-}
 
 /**
  * @internal

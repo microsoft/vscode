@@ -43,7 +43,7 @@ interface ILoadConfigResult {
 
 export abstract class ConfigurationService implements IConfigurationService, IDisposable {
 
-	public serviceId = IConfigurationService;
+	public _serviceBrand: any;
 
 	private static RELOAD_CONFIGURATION_DELAY = 50;
 

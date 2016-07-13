@@ -7,12 +7,12 @@
 import * as nls from 'vs/nls';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import * as platform from 'vs/base/common/platform';
+import {USUAL_WORD_SEPARATORS} from 'vs/editor/common/model/wordHelper';
 
 export interface IConfiguration {
 	editor:IEditorOptions;
 }
 
-export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 export const DEFAULT_INDENTATION = {
 	tabSize: 4,
 	insertSpaces: true,
@@ -58,6 +58,7 @@ class ConfigClass implements IConfiguration {
 			},
 			overviewRulerLanes: 2,
 			cursorBlinking: 'blink',
+			mouseWheelZoom: false,
 			cursorStyle: 'line',
 			fontLigatures: false,
 			disableTranslate3d: false,
@@ -69,7 +70,6 @@ class ConfigClass implements IConfiguration {
 			wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 			wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
 			wordWrapBreakObtrusiveCharacters: '.',
-			tabFocusMode: false,
 
 			// Features
 			hover: true,
@@ -84,11 +84,11 @@ class ConfigClass implements IConfiguration {
 			suggestOnTriggerCharacters: true,
 			acceptSuggestionOnEnter: true,
 			selectionHighlight: true,
-			outlineMarkers: false,
 			referenceInfos: true,
 			folding: true,
 			renderWhitespace: false,
-			indentGuides: false,
+			renderControlCharacters: false,
+			renderIndentGuides: false,
 			useTabStops: true,
 
 			fontFamily: (

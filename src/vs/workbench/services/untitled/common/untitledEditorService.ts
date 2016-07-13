@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
@@ -14,7 +14,7 @@ export var IUntitledEditorService = createDecorator<IUntitledEditorService>('unt
 
 export interface IUntitledEditorService {
 
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
 	 * Returns the untitled editor input matching the provided resource.
@@ -57,7 +57,7 @@ export interface IUntitledEditorService {
 }
 
 export class UntitledEditorService implements IUntitledEditorService {
-	public serviceId = IUntitledEditorService;
+	public _serviceBrand: any;
 
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
@@ -132,7 +132,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			// Create new taking a resource URI that is not already taken
 			let counter = Object.keys(UntitledEditorService.CACHE).length + 1;
 			do {
-				resource = URI.create(UntitledEditorInput.SCHEMA, null, 'Untitled-' + counter);
+				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: 'Untitled-' + counter });
 				counter++;
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
@@ -156,7 +156,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			return resource;
 		}
 
-		return URI.create(UntitledEditorInput.SCHEMA, null, resource.fsPath);
+		return URI.from({ scheme: UntitledEditorInput.SCHEMA, path: resource.fsPath });
 	}
 
 	public hasAssociatedFilePath(resource: URI): boolean {

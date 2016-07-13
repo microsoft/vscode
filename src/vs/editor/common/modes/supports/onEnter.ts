@@ -7,27 +7,54 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import {IPosition, ITextModel, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {IEnterAction, ILineContext, IRichEditOnEnter, IndentAction, CharacterPair} from 'vs/editor/common/modes';
+import {EnterAction, ILineContext, IRichEditOnEnter, IndentAction, CharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-export interface IIndentationRules {
+/**
+ * Describes indentation rules for a language.
+ */
+export interface IndentationRule {
+	/**
+	 * If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).
+	 */
 	decreaseIndentPattern: RegExp;
+	/**
+	 * If a line matches this pattern, then all the lines after it should be indented once (until another rule matches).
+	 */
 	increaseIndentPattern: RegExp;
+	/**
+	 * If a line matches this pattern, then **only the next line** after it should be indented once.
+	 */
 	indentNextLinePattern?: RegExp;
+	/**
+	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
+	 */
 	unIndentedLinePattern?: RegExp;
 }
 
-export interface IOnEnterRegExpRules {
+/**
+ * Describes a rule to be evaluated when pressing Enter.
+ */
+export interface OnEnterRule {
+	/**
+	 * This rule will only execute if the text before the cursor matches this regular expression.
+	 */
 	beforeText: RegExp;
+	/**
+	 * This rule will only execute if the text after the cursor matches this regular expression.
+	 */
 	afterText?: RegExp;
-	action: IEnterAction;
+	/**
+	 * The action to execute.
+	 */
+	action: EnterAction;
 }
 
 export interface IOnEnterSupportOptions {
 	brackets?: CharacterPair[];
-	indentationRules?: IIndentationRules;
-	regExpRules?: IOnEnterRegExpRules[];
+	indentationRules?: IndentationRule;
+	regExpRules?: OnEnterRule[];
 }
 
 interface IProcessedBracketPair {
@@ -39,15 +66,15 @@ interface IProcessedBracketPair {
 
 export class OnEnterSupport implements IRichEditOnEnter {
 
-	private static _INDENT: IEnterAction = { indentAction: IndentAction.Indent };
-	private static _INDENT_OUTDENT: IEnterAction = { indentAction: IndentAction.IndentOutdent };
-	private static _OUTDENT: IEnterAction = { indentAction: IndentAction.Outdent };
+	private static _INDENT: EnterAction = { indentAction: IndentAction.Indent };
+	private static _INDENT_OUTDENT: EnterAction = { indentAction: IndentAction.IndentOutdent };
+	private static _OUTDENT: EnterAction = { indentAction: IndentAction.Outdent };
 
 	private _registry: LanguageConfigurationRegistryImpl;
 	private _modeId: string;
 	private _brackets: IProcessedBracketPair[];
-	private _indentationRules: IIndentationRules;
-	private _regExpRules: IOnEnterRegExpRules[];
+	private _indentationRules: IndentationRule;
+	private _regExpRules: OnEnterRule[];
 
 	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, opts?:IOnEnterSupportOptions) {
 		this._registry = registry;
@@ -71,7 +98,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		this._indentationRules = opts.indentationRules;
 	}
 
-	public onEnter(model:ITokenizedModel, position: IPosition): IEnterAction {
+	public onEnter(model:ITokenizedModel, position: IPosition): EnterAction {
 		var context = model.getLineContext(position.lineNumber);
 
 		return handleEvent(context, position.column - 1, (nestedModeId:string, context:ILineContext, offset:number) => {
@@ -88,7 +115,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		});
 	}
 
-	private _onEnter(model:ITextModel, position: IPosition): IEnterAction {
+	private _onEnter(model:ITextModel, position: IPosition): EnterAction {
 		let lineText = model.getLineContent(position.lineNumber);
 		let beforeEnterText = lineText.substr(0, position.column - 1);
 		let afterEnterText = lineText.substr(position.column - 1);
@@ -98,7 +125,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		return this._actualOnEnter(oneLineAboveText, beforeEnterText, afterEnterText);
 	}
 
-	_actualOnEnter(oneLineAboveText:string, beforeEnterText:string, afterEnterText:string): IEnterAction {
+	_actualOnEnter(oneLineAboveText:string, beforeEnterText:string, afterEnterText:string): EnterAction {
 		// (1): `regExpRules`
 		for (let i = 0, len = this._regExpRules.length; i < len; i++) {
 			let rule = this._regExpRules[i];

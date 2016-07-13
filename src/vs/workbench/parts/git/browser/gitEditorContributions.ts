@@ -51,6 +51,10 @@ class MergeDecoratorBoundToModel extends Disposable {
 
 	private redecorate(): void {
 		const gitModel = this.gitService.getModel();
+		if (!gitModel) {
+			return;
+		}
+
 		const mergeStatus = gitModel.getStatus().find(this.filePath, StatusType.MERGE);
 
 		if (!mergeStatus) {

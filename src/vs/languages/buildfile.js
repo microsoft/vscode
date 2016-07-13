@@ -41,22 +41,6 @@ exports.collectModules = function(args) {
 	// ---- beautify-html (shared btw html and xml) -----------------------------
 	worker.define('vs/languages/lib/common/beautify-html');
 
-	// ---- css -----------------------------------
-	worker.define('vs/languages/css/common/services/browsers');
-	common.define('vs/languages/css/common/css')
-		.combine(worker)
-			.define('vs/languages/css/common/cssWorker', ['vs/languages/css/common/services/browsers']);
-
-	// ---- less ---------------------------------------
-	common.define('vs/languages/less/common/less')
-		.combine(worker)
-			.define('vs/languages/less/common/lessWorker', ['vs/languages/css/common/cssWorker', 'vs/languages/css/common/services/browsers']);
-
-	// ---- sass ---------------------------------------
-	common.define('vs/languages/sass/common/sass')
-		.combine(worker)
-			.define('vs/languages/sass/common/sassWorker', ['vs/languages/css/common/cssWorker', 'vs/languages/css/common/services/browsers']);
-
 	// ---- handlebars ----------------------------------
 	common.define('vs/languages/handlebars/common/handlebars', ['vs/languages/html/common/html']);
 
@@ -64,11 +48,6 @@ exports.collectModules = function(args) {
 	common.define('vs/languages/html/common/html')
 		.combine(worker)
 			.define('vs/languages/html/common/htmlWorker', ['vs/languages/lib/common/beautify-html']);
-
-	// ---- markdown -------------------------------
-	common.define('vs/languages/markdown/common/markdown', ['vs/languages/html/common/html'])
-		.combine(worker)
-			.define('vs/languages/markdown/common/markdownWorker');
 
 	// ---- php -----------------------------------
 	common.define('vs/languages/php/common/php');

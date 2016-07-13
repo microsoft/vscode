@@ -8,86 +8,196 @@ import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import {IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions, OverviewRulerLane} from 'vs/editor/common/editorCommon';
+import {IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
+	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
 import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
+import {IDisposable, toDisposable} from 'vs/base/common/lifecycle';
 
 export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	private _styleSheet: HTMLStyleElement;
-	private _decorationRenderOptions: {[key:string]:DecorationRenderOptions};
+	private _decorationOptionProviders: {[key:string]:IModelDecorationOptionsProvider};
 
-	constructor() {
+	constructor(styleSheet = dom.createStyleSheet()) {
 		super();
-		this._styleSheet = dom.createStyleSheet();
-		this._decorationRenderOptions = Object.create(null);
+		this._styleSheet = styleSheet;
+		this._decorationOptionProviders = Object.create(null);
 	}
 
-	public registerDecorationType(key:string, options: IDecorationRenderOptions): void {
-		if (this._decorationRenderOptions[key]) {
-			this._decorationRenderOptions[key].dispose();
-			delete this._decorationRenderOptions[key];
+	public registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
+		let provider = this._decorationOptionProviders[key];
+		if (!provider) {
+			if (!parentTypeKey) {
+				provider = new DecorationTypeOptionsProvider(this._styleSheet, key, options);
+			} else {
+				provider = new DecorationSubTypeOptionsProvider(this._styleSheet, key, parentTypeKey, options);
+			}
+			this._decorationOptionProviders[key] = provider;
 		}
-		var decorationRenderOptions = new DecorationRenderOptions(this._styleSheet, key, options);
-		this._decorationRenderOptions[key] = decorationRenderOptions;
+		provider.refCount++;
 	}
 
 	public removeDecorationType(key:string): void {
-		if (this._decorationRenderOptions[key]) {
-			this._decorationRenderOptions[key].dispose();
-			delete this._decorationRenderOptions[key];
-
-			this.listCodeEditors().forEach((ed) => ed.removeDecorations(key));
+		let provider = this._decorationOptionProviders[key];
+		if (provider) {
+			provider.refCount--;
+			if (provider.refCount <= 0) {
+				delete this._decorationOptionProviders[key];
+				provider.dispose();
+				this.listCodeEditors().forEach((ed) => ed.removeDecorations(key));
+			}
 		}
 	}
 
-	public resolveDecorationType(key:string): IModelDecorationOptions {
-		if (this._decorationRenderOptions[key]) {
-			return this._decorationRenderOptions[key];
+	public resolveDecorationOptions(decorationTypeKey:string, writable: boolean): IModelDecorationOptions {
+		let provider = this._decorationOptionProviders[decorationTypeKey];
+		if (!provider) {
+			throw new Error('Unknown decoration type key: ' + decorationTypeKey);
 		}
-		throw new Error('Unknown decoration type key: ' + key);
+		return provider.getOptions(this, writable);
 	}
 
 }
 
-class DecorationRenderOptions implements IModelDecorationOptions {
+interface IModelDecorationOptionsProvider extends IDisposable {
+	refCount: number;
+	getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions;
+}
 
-	private _styleSheet: HTMLStyleElement;
-	private _key: string;
+class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
+
+	public refCount: number;
+
+	private _disposable: IDisposable;
+	private _parentTypeKey: string;
+	private _beforeContentClassName: string;
+	private _afterContentClassName: string;
+
+	constructor(styleSheet: HTMLStyleElement, key: string, parentTypeKey: string, options:IDecorationRenderOptions) {
+		this._parentTypeKey = parentTypeKey;
+		this.refCount = 0;
+
+		var themedOpts = getThemedRenderOptions(options);
+
+		this._beforeContentClassName = DecorationRenderHelper.createCSSRules(
+			styleSheet,
+			key,
+			parentTypeKey,
+			ModelDecorationCSSRuleType.BeforeContentClassName,
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.before),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.before)
+			}
+		);
+
+		this._afterContentClassName = DecorationRenderHelper.createCSSRules(
+			styleSheet,
+			key,
+			parentTypeKey,
+			ModelDecorationCSSRuleType.AfterContentClassName,
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.after),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.after)
+			}
+		);
+		if (this._beforeContentClassName || this._afterContentClassName) {
+			this._disposable = toDisposable(() => {
+				dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionSubstring(key), styleSheet);
+			});
+		}
+	}
+
+	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
+		let options = codeEditorService.resolveDecorationOptions(this._parentTypeKey, true);
+		if (this._beforeContentClassName) {
+			options.beforeContentClassName = this._beforeContentClassName;
+		}
+		if (this._afterContentClassName) {
+			options.afterContentClassName = this._afterContentClassName;
+		}
+		return options;
+	}
+
+	public dispose(): void {
+		if (this._disposable) {
+			this._disposable.dispose();
+			delete this._disposable;
+		}
+	}
+}
+
+class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
+
+	private _disposable: IDisposable;
+	public refCount: number;
 
 	public className: string;
 	public inlineClassName: string;
+	public beforeContentClassName: string;
+	public afterContentClassName: string;
 	public glyphMarginClassName: string;
 	public isWholeLine:boolean;
 	public overviewRuler:IModelDecorationOverviewRulerOptions;
+	public stickiness: TrackedRangeStickiness;
 
 	constructor(styleSheet: HTMLStyleElement, key:string, options:IDecorationRenderOptions) {
-		var themedOpts = resolveDecorationRenderOptions(options);
+		this.refCount = 0;
 
-		this._styleSheet = styleSheet;
-		this._key = key;
+		var themedOpts = getThemedRenderOptions(options);
 
-		this.className = DecorationRenderOptions._handle(
-			this._styleSheet,
-			this._key,
+		this.className = DecorationRenderHelper.createCSSRules(
+			styleSheet,
+			key,
+			null,
 			ModelDecorationCSSRuleType.ClassName,
-			DecorationRenderOptions._getCSSTextForModelDecorationClassName(themedOpts.light),
-			DecorationRenderOptions._getCSSTextForModelDecorationClassName(themedOpts.dark)
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationClassName(themedOpts.light),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationClassName(themedOpts.dark)
+			}
 		);
 
-		this.inlineClassName = DecorationRenderOptions._handle(
-			this._styleSheet,
-			this._key,
+		this.inlineClassName = DecorationRenderHelper.createCSSRules(
+			styleSheet,
+			key,
+			null,
 			ModelDecorationCSSRuleType.InlineClassName,
-			DecorationRenderOptions._getCSSTextForModelDecorationInlineClassName(themedOpts.light),
-			DecorationRenderOptions._getCSSTextForModelDecorationInlineClassName(themedOpts.dark)
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationInlineClassName(themedOpts.light),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationInlineClassName(themedOpts.dark)
+			}
 		);
 
-		this.glyphMarginClassName = DecorationRenderOptions._handle(
-			this._styleSheet,
-			this._key,
+		this.beforeContentClassName = DecorationRenderHelper.createCSSRules(
+			styleSheet,
+			key,
+			null,
+			ModelDecorationCSSRuleType.BeforeContentClassName,
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.before),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.before)
+			}
+		);
+
+		this.afterContentClassName = DecorationRenderHelper.createCSSRules(
+			styleSheet,
+			key,
+			null,
+			ModelDecorationCSSRuleType.AfterContentClassName,
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.after),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.after)
+			}
+		);
+
+		this.glyphMarginClassName = DecorationRenderHelper.createCSSRules(
+			styleSheet,
+			key,
+			null,
 			ModelDecorationCSSRuleType.GlyphMarginClassName,
-			DecorationRenderOptions._getCSSTextForModelDecorationGlyphMarginClassName(themedOpts.light),
-			DecorationRenderOptions._getCSSTextForModelDecorationGlyphMarginClassName(themedOpts.dark)
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationGlyphMarginClassName(themedOpts.light),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationGlyphMarginClassName(themedOpts.dark)
+			}
 		);
 
 		this.isWholeLine = Boolean(options.isWholeLine);
@@ -102,22 +212,47 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 				position: options.overviewRulerLane || OverviewRulerLane.Center
 			};
 		}
+
+		this._disposable = toDisposable(() => {
+			dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionSubstring(key), styleSheet);
+		});
+	}
+
+	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
+		if (!writable) {
+			return this;
+		}
+		return {
+			inlineClassName: this.inlineClassName,
+			beforeContentClassName: this.beforeContentClassName,
+			afterContentClassName: this.afterContentClassName,
+			className: this.className,
+			glyphMarginClassName: this.glyphMarginClassName,
+			isWholeLine: this.isWholeLine,
+			overviewRuler: this.overviewRuler,
+			stickiness: this.stickiness
+		};
 	}
 
 	public dispose(): void {
-		dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.Light, this._key), this._styleSheet);
-		dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.Dark, this._key), this._styleSheet);
-		dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.HighContrastBlack, this._key), this._styleSheet);
+		if (this._disposable) {
+			this._disposable.dispose();
+			delete this._disposable;
+		}
 	}
+}
 
+class DecorationRenderHelper {
 	private static _CSS_MAP = {
 		color: 'color:{0} !important;',
 		backgroundColor: 'background-color:{0};',
 
+		outline: 'outline:{0};',
 		outlineColor: 'outline-color:{0};',
 		outlineStyle: 'outline-style:{0};',
 		outlineWidth: 'outline-width:{0};',
 
+		border: 'border:{0};',
 		borderColor: 'border-color:{0};',
 		borderRadius: 'border-radius:{0};',
 		borderSpacing: 'border-spacing:{0};',
@@ -129,53 +264,22 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 		letterSpacing: 'letter-spacing:{0};',
 
 		gutterIconPath: 'background:url(\'{0}\') center center no-repeat;',
+		gutterIconSize: 'background-size:{0};',
+
+		contentText: 'content:\'{0}\';',
+		contentIconPath: 'content:url(\'{0}\');',
+		margin: 'margin:{0};',
+		width: 'width:{0};',
+		height: 'height:{0};'
 	};
 
 	/**
 	 * Build the CSS for decorations styled via `className`.
 	 */
-	private static _getCSSTextForModelDecorationClassName(opts:IThemeDecorationRenderOptions): string {
+	public static getCSSTextForModelDecorationClassName(opts:IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
-
-		if (typeof opts.backgroundColor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.backgroundColor, opts.backgroundColor));
-		}
-
-		if (typeof opts.outlineColor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.outlineColor, opts.outlineColor));
-		}
-		if (typeof opts.outlineStyle !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.outlineStyle, opts.outlineStyle));
-		}
-		if (typeof opts.outlineWidth !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.outlineWidth, opts.outlineWidth));
-		}
-
-		if (
-			typeof opts.borderColor !== 'undefined'
-			|| typeof opts.borderRadius !== 'undefined'
-			|| typeof opts.borderSpacing !== 'undefined'
-			|| typeof opts.borderStyle !== 'undefined'
-			|| typeof opts.borderWidth !== 'undefined'
-		) {
-			cssTextArr.push(strings.format('box-sizing: border-box;'));
-		}
-
-		if (typeof opts.borderColor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderColor, opts.borderColor));
-		}
-		if (typeof opts.borderRadius !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderRadius, opts.borderRadius));
-		}
-		if (typeof opts.borderSpacing !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderSpacing, opts.borderSpacing));
-		}
-		if (typeof opts.borderStyle !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderStyle, opts.borderStyle));
-		}
-		if (typeof opts.borderWidth !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderWidth, opts.borderWidth));
-		}
+		DecorationRenderHelper.collectCSSText(opts, ['backgroundColor', 'outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
+		DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
 
 		return cssTextArr.join('');
 	}
@@ -183,20 +287,31 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 	/**
 	 * Build the CSS for decorations styled via `inlineClassName`.
 	 */
-	private static _getCSSTextForModelDecorationInlineClassName(opts:IThemeDecorationRenderOptions): string {
+	public static getCSSTextForModelDecorationInlineClassName(opts:IThemeDecorationRenderOptions): string {
+		let cssTextArr = [];
+		DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
+		return cssTextArr.join('');
+	}
+
+	/**
+	 * Build the CSS for decorations styled before or after content.
+	 */
+	public static getCSSTextForModelDecorationContentClassName(opts:IContentDecorationRenderOptions): string {
 		let cssTextArr = [];
 
-		if (typeof opts.textDecoration !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.textDecoration, opts.textDecoration));
-		}
-		if (typeof opts.cursor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.cursor, opts.cursor));
-		}
-		if (typeof opts.color !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.color, opts.color));
-		}
-		if (typeof opts.letterSpacing !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.letterSpacing, opts.letterSpacing));
+		if (typeof opts !== 'undefined') {
+			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
+			if (typeof opts.contentIconPath !== 'undefined') {
+				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString()));
+			}
+			if (typeof opts.contentText !== 'undefined') {
+				let escaped = opts.contentText.replace(/\"/g, '\\\"');
+				cssTextArr.push(strings.format(this._CSS_MAP.contentText, escaped));
+			}
+			DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
+			if (DecorationRenderHelper.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
+				cssTextArr.push('display:inline-block;');
+			}
 		}
 
 		return cssTextArr.join('');
@@ -205,32 +320,66 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 	/**
 	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
 	 */
-	private static _getCSSTextForModelDecorationGlyphMarginClassName(opts:IThemeDecorationRenderOptions): string {
+	public static getCSSTextForModelDecorationGlyphMarginClassName(opts:IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.file(opts.gutterIconPath).toString()));
+			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.parse(opts.gutterIconPath).toString()));
+			if (typeof opts.gutterIconSize !== 'undefined') {
+				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconSize, opts.gutterIconSize));
+			}
 		}
 
 		return cssTextArr.join('');
 	}
 
-	private static _handle(styleSheet: HTMLStyleElement, key:string, ruleType:ModelDecorationCSSRuleType, lightCSS:string, darkCSS:string): string {
-		if (lightCSS.length > 0 || darkCSS.length > 0) {
-			if (lightCSS.length > 0) {
-				this._createCSSSelector(styleSheet, ThemeType.Light, key, ruleType, lightCSS);
-			}
-			if (darkCSS.length > 0) {
-				this._createCSSSelector(styleSheet, ThemeType.Dark, key, ruleType, darkCSS);
-				this._createCSSSelector(styleSheet, ThemeType.HighContrastBlack, key, ruleType, darkCSS);
-			}
-			return CSSNameHelper.getClassName(key, ruleType);
+	private static border_rules = ['border', 'borderColor', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
+
+	public static collectBorderSettingsCSSText(opts: any, cssTextArr: string[]) : boolean {
+		if (DecorationRenderHelper.collectCSSText(opts, DecorationRenderHelper.border_rules, cssTextArr)) {
+			cssTextArr.push(strings.format('box-sizing: border-box;'));
+			return true;
 		}
-		return undefined;
+		return false;
 	}
 
-	private static _createCSSSelector(styleSheet: HTMLStyleElement, themeType:ThemeType, key:string, ruleType:ModelDecorationCSSRuleType, cssText:string): void {
-		dom.createCSSRule(CSSNameHelper.getSelector(themeType, key, ruleType), cssText, styleSheet);
+	private static collectCSSText(opts: any, properties: string[], cssTextArr: string[]) : boolean {
+		let lenBefore = cssTextArr.length;
+		for (let property of properties) {
+			if (typeof opts[property] !== 'undefined') {
+				cssTextArr.push(strings.format(this._CSS_MAP[property], opts[property]));
+			}
+		}
+		return cssTextArr.length !== lenBefore;
+	}
+
+	/**
+	 * Create CSS rules for `cssTexts` with the generated class names from `ruleType`
+	 */
+	public static createCSSRules(styleSheet: HTMLStyleElement, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, cssTexts: {light:string, dark:string}): string {
+		function createCSSSelector(themeType:ThemeType, cssText:string) {
+			let selector = CSSNameHelper.getSelector(themeType, key, parentKey, ruleType);
+			dom.createCSSRule(selector, cssText, styleSheet);
+		}
+
+		let hasContent = false;
+		if (cssTexts.light.length > 0) {
+			createCSSSelector(ThemeType.Light, cssTexts.light);
+			hasContent = true;
+		}
+		if (cssTexts.dark.length > 0) {
+			createCSSSelector(ThemeType.Dark, cssTexts.dark);
+			createCSSSelector(ThemeType.HighContrastBlack, cssTexts.dark);
+			hasContent = true;
+		}
+		if (hasContent) {
+			let className = CSSNameHelper.getClassName(key, ruleType);
+			if (parentKey) {
+				className = className + ' ' + CSSNameHelper.getClassName(parentKey, ruleType);
+			}
+			return className;
+		}
+		return void 0;
 	}
 }
 
@@ -242,8 +391,11 @@ enum ThemeType {
 enum ModelDecorationCSSRuleType {
 	ClassName = 0,
 	InlineClassName = 1,
-	GlyphMarginClassName = 2
+	GlyphMarginClassName = 2,
+	BeforeContentClassName = 3,
+	AfterContentClassName = 4
 }
+
 class CSSNameHelper {
 
 	private static _getSelectorPrefixOf(theme:ThemeType): string {
@@ -260,12 +412,21 @@ class CSSNameHelper {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(themeType:ThemeType, key:string, ruleType:ModelDecorationCSSRuleType): string {
-		return this._getSelectorPrefixOf(themeType) + ' .' + this.getClassName(key, ruleType);
+	public static getSelector(themeType:ThemeType, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType): string {
+		let selector = this._getSelectorPrefixOf(themeType) + ' .' + this.getClassName(key, ruleType);
+		if (parentKey) {
+			selector = selector + '.' + this.getClassName(parentKey, ruleType);
+		}
+		if (ruleType === ModelDecorationCSSRuleType.BeforeContentClassName) {
+			selector += '::before';
+		} else if (ruleType === ModelDecorationCSSRuleType.AfterContentClassName) {
+			selector += '::after';
+		}
+		return selector;
 	}
 
-	public static getDeletionPrefixFor(themeType:ThemeType, key:string): string {
-		return this._getSelectorPrefixOf(themeType) + ' .ced-' + key;
+	public static getDeletionSubstring(key:string): string {
+		return '.ced-' + key + '-';
 	}
 }
 
@@ -274,11 +435,11 @@ interface IResolvedDecorationRenderOptions {
 	light: IThemeDecorationRenderOptions;
 	dark: IThemeDecorationRenderOptions;
 }
-function resolveDecorationRenderOptions(opts:IDecorationRenderOptions): IResolvedDecorationRenderOptions {
-	var light = objects.deepClone(opts);
+function getThemedRenderOptions<T>(opts:{light?:T, dark?:T}): {light?:T, dark?:T} {
+	var light = <T> objects.deepClone(opts);
 	objects.mixin(light, opts.light);
 
-	var dark = objects.deepClone(opts);
+	var dark = <T> objects.deepClone(opts);
 	objects.mixin(dark, opts.dark);
 
 	return {

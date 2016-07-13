@@ -18,7 +18,7 @@ import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
 import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
@@ -985,6 +985,16 @@ export class TreeView extends HeightMap {
 		}
 	}
 
+	public getRelativeTop(item: Model.Item): number {
+		if (item && item.isVisible()) {
+			var viewItem = this.items[item.id];
+			if (viewItem) {
+				return (viewItem.top - this.scrollTop) / (this.viewHeight - viewItem.height);
+			}
+		}
+		return -1;
+	}
+
 	private onItemReveal(e:Model.IItemRevealEvent): void {
 		var item = <Model.Item> e.item;
 		var relativeTop = <number> e.relativeTop;
@@ -1207,7 +1217,7 @@ export class TreeView extends HeightMap {
 
 			var id = this.context.dataSource.getId(this.context.tree, element);
 			var viewItem = this.items[id];
-			var position = DOM.getDomNodePosition(viewItem.element);
+			var position = DOM.getDomNodePagePosition(viewItem.element);
 
 			resultEvent = new _.KeyboardContextMenuEvent(position.left + position.width, position.top, keyboardEvent);
 

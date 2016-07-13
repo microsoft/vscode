@@ -5,11 +5,5 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
-	/* Inline icon to prevent slow loading on startup (original: files-dark.svg) */
-	background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiI+PHBhdGggZD0iTTE3LjcwNSA4aC04LjcwNXMtMiAuMDc4LTIgMnYxNXMwIDIgMiAybDExLS4wMDRjMiAuMDA0IDItMS45OTYgMi0xLjk5NnYtMTEuNDkxbC00LjI5NS01LjUwOXptLTEuNzA1IDJ2NWg0djEwaC0xMXYtMTVoN3ptNS41MDktNmgtOC40OTNzLTIuMDE2LjAxNi0yLjAzMSAyaDguMDE1di40NTRsMy45MzEgNC41NDZoMS4wNjl2MTJjMiAwIDItMS45OTUgMi0xLjk5NXYtMTEuMzU3bC00LjQ5MS01LjY0OHoiIGZpbGw9IiNmZmYiLz48L3N2Zz4=');
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-workbench > .activitybar .monaco-action-bar .action-label.explore:before {
-	content: url('files-dark.svg');
+	background-image: url('files-dark.svg');
 }

@@ -6,7 +6,7 @@
 
 import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
-import {IFilter, matchesStrictPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
+import {IFilter, matchesPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
@@ -21,6 +21,7 @@ export class TextualSuggestSupport implements ISuggestSupport {
 	/* tslint:disable */
 	private static _c = Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 		type: 'object',
+		order: 5.1,
 		properties: {
 			'editor.wordBasedSuggestions': {
 				'type': 'boolean',
@@ -40,7 +41,7 @@ export class TextualSuggestSupport implements ISuggestSupport {
 	}
 
 	public get filter(): IFilter {
-		return matchesStrictPrefix;
+		return matchesPrefix;
 	}
 
 	private _editorWorkerService: IEditorWorkerService;

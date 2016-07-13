@@ -131,10 +131,10 @@ class LineContext implements ILineContext {
 	private _text:string;
 	private _lineTokens:editorCommon.ILineTokens;
 
-	constructor (topLevelMode:IMode, line:ModelLine) {
+	constructor (topLevelMode:IMode, line:ModelLine, map:TokensInflatorMap) {
 		this.modeTransitions = line.getModeTransitions(topLevelMode);
 		this._text = line.text;
-		this._lineTokens = line.getTokens();
+		this._lineTokens = line.getTokens(map);
 	}
 
 	public getLineContent(): string {
@@ -172,7 +172,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
 
-	private _shouldAutoTokenize:boolean;
 	private _mode: IMode;
 	private _modeListener: IDisposable;
 	private _modeToModelBinder:ModeToModelBinder;
@@ -185,13 +184,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _scheduleRetokenizeNow: RunOnceScheduler;
 	private _retokenizers:IRetokenizeRequest[];
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, shouldAutoTokenize:boolean, modeOrPromise:IMode|TPromise<IMode>) {
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
 		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelModeChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelModeSupportChanged);
 		super(allowedEventTypes, rawText);
 
-		this._shouldAutoTokenize = shouldAutoTokenize;
 		this._mode = null;
 		this._modeListener = null;
 		this._modeToModelBinder = null;
@@ -245,6 +243,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._scheduleRetokenizeNow.dispose();
 
 		super.dispose();
+	}
+
+	protected _shouldAutoTokenize(): boolean {
+		return false;
 	}
 
 	private _massageMode(mode: IMode): IMode {
@@ -395,7 +397,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!inaccurateTokensAcceptable) {
 			this._updateTokensUntilLine(lineNumber, true);
 		}
-		return this._lines[lineNumber - 1].getTokens();
+		return this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 	}
 
 	public getLineContext(lineNumber:number): ILineContext {
@@ -405,12 +407,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._updateTokensUntilLine(lineNumber, true);
 
-		return new LineContext(this._mode, this._lines[lineNumber - 1]);
+		return new LineContext(this._mode, this._lines[lineNumber - 1], this._tokensInflatorMap);
 	}
 
 	_getInternalTokens(lineNumber:number): editorCommon.ILineTokens {
 		this._updateTokensUntilLine(lineNumber, true);
-		return this._lines[lineNumber - 1].getTokens();
+		return this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 	}
 
 	public getMode(): IMode {
@@ -505,7 +507,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _beginBackgroundTokenization(): void {
-		if (this._shouldAutoTokenize && this._revalidateTokensTimeout === -1) {
+		if (this._shouldAutoTokenize() && this._revalidateTokensTimeout === -1) {
 			this._revalidateTokensTimeout = setTimeout(() => {
 				this._revalidateTokensTimeout = -1;
 				this._revalidateTokensNow();
@@ -526,6 +528,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 		}
 		this._revalidateTokensNow(toLineNumber);
+
+		if (this._invalidLineStartIndex < this._lines.length) {
+			this._beginBackgroundTokenization();
+		}
 	}
 
 	private _revalidateTokensNow(toLineNumber:number = this._invalidLineStartIndex + 1000000): void {
@@ -785,7 +791,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let lineNumber = position.lineNumber;
 		let lineText = this._lines[lineNumber - 1].text;
 
-		let lineTokens = this._lines[lineNumber - 1].getTokens();
+		let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 		let currentTokenIndex = lineTokens.findIndexOfOffset(position.column - 1);
 		let currentTokenStart = lineTokens.getTokenStartIndex(currentTokenIndex);
 
@@ -893,7 +899,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let count = -1;
 
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
-			let lineTokens = this._lines[lineNumber - 1].getTokens();
+			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			let lineText = this._lines[lineNumber - 1].text;
 			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 			let currentModeIndex = modeTransitions.length - 1;
@@ -960,7 +966,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let count = 1;
 
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-			let lineTokens = this._lines[lineNumber - 1].getTokens();
+			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			let lineText = this._lines[lineNumber - 1].text;
 			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 			let currentModeIndex = 0;
@@ -1024,7 +1030,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let reversedBracketRegex = /[\(\)\[\]\{\}]/; // TODO@Alex: use mode's brackets
 
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
-			let lineTokens = this._lines[lineNumber - 1].getTokens();
+			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			let lineText = this._lines[lineNumber - 1].text;
 
 			let tokensLength = lineTokens.getTokenCount() - 1;
@@ -1058,7 +1064,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let bracketRegex = /[\(\)\[\]\{\}]/; // TODO@Alex: use mode's brackets
 
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-			let lineTokens = this._lines[lineNumber - 1].getTokens();
+			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			let lineText = this._lines[lineNumber - 1].text;
 
 			let startTokenIndex = 0;

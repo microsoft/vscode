@@ -279,14 +279,17 @@
 	box-shadow: 0 2px 8px #000;
 }
 
+.monaco-editor.hc-black .find-widget .previous,
 .monaco-editor.vs-dark .find-widget .previous {
 	background-image: url('images/previous-inverse.svg');
 }
 
+.monaco-editor.hc-black .find-widget .next,
 .monaco-editor.vs-dark .find-widget .next {
 	background-image: url('images/next-inverse.svg');
 }
 
+.monaco-editor.hc-black .find-widget .monaco-checkbox .label,
 .monaco-editor.vs-dark .find-widget .monaco-checkbox .label {
 	background-image: url('images/cancelSelectionFind-inverse.svg');
 }
@@ -299,26 +302,32 @@
 	background-color: rgba(150, 150, 150, 0.3);
 }
 
+.monaco-editor.hc-black .find-widget .close-fw,
 .monaco-editor.vs-dark .find-widget .close-fw {
 	background-image: url('images/close-dark.svg');
 }
 
+.monaco-editor.hc-black .find-widget .replace,
 .monaco-editor.vs-dark .find-widget .replace {
 	background-image: url('images/replace-inverse.svg');
 }
 
+.monaco-editor.hc-black .find-widget .replace-all,
 .monaco-editor.vs-dark .find-widget .replace-all {
 	background-image: url('images/replace-all-inverse.svg');
 }
 
+.monaco-editor.hc-black .find-widget .expand,
 .monaco-editor.vs-dark .find-widget .expand {
 	background-image: url('images/expando-expanded-dark.svg');
 }
 
+.monaco-editor.hc-black .find-widget .collapse,
 .monaco-editor.vs-dark .find-widget .collapse {
 	background-image: url('images/expando-collapsed-dark.svg');
 }
 
+.monaco-editor.hc-black .find-widget .button:not(.disabled):hover,
 .monaco-editor.vs-dark .find-widget .button:not(.disabled):hover {
 	background-color: #2f3334;
 }
@@ -343,62 +352,14 @@
 	box-shadow: none;
 }
 
-.monaco-editor.hc-black .find-widget .button:not(.disabled):hover {
-	background: none;
-}
-
-.monaco-editor.hc-black .find-widget .button {
-	background: none;
-}
-
 .monaco-editor.hc-black .find-widget .button:before {
 	position: relative;
 	top: 1px;
 	left: 2px;
 }
 
-.monaco-editor.hc-black .find-widget .previous:before {
-	content: url('images/previous-inverse.svg');
-}
-
-.monaco-editor.hc-black .find-widget .next:before {
-	content: url('images/next-inverse.svg');
-}
-
-.monaco-editor.hc-black .find-widget .replace:before {
-	content: url('images/replace-inverse.svg');
-}
-
-.monaco-editor.hc-black .find-widget .replace-all:before {
-	content: url('images/replace-all-inverse.svg');
-}
-
-.monaco-editor.hc-black .find-widget .monaco-checkbox .label {
-	content: url('images/cancelSelectionFind-inverse.svg');
-	top: 1px;
-	left: 2px;
-}
-
 .monaco-editor.hc-black .find-widget .monaco-checkbox .checkbox:checked + .label {
 	background-color: rgba(150, 150, 150, 0.3);
-}
-
-.monaco-editor.hc-black .find-widget .close-fw:before {
-	content: url('images/close-dark.svg');
-	top: 1px;
-	left: 0px;
-}
-
-.monaco-editor.hc-black .find-widget .expand:before {
-	content: url('images/expando-expanded-dark.svg');
-	top: 38%;
-	left: 40%
-}
-
-.monaco-editor.hc-black .find-widget .collapse:before {
-	content: url('images/expando-collapsed-dark.svg');
-	top: 30%;
-	left: 40%;
 }
 
 .monaco-editor.hc-black .findMatch {

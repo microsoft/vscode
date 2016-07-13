@@ -21,15 +21,15 @@
 }
 
 .monaco-workbench .part.editor.empty {
-	background-image: url('./letterpress.png');
+	background-image: url('letterpress.png');
 }
 
 .vs-dark .monaco-workbench .part.editor.empty {
-	background-image: url('./letterpress-dark.png');
+	background-image: url('letterpress-dark.png');
 }
 
 .hc-black .monaco-workbench .part.editor.empty {
-	background-image: url('./letterpress-dark.png');
+	background-image: url('letterpress-dark.png');
 }
 
 @media
@@ -40,14 +40,14 @@
 	}
 
 	.monaco-workbench .part.editor.empty {
-		background-image: url('./letterpress@2x.png');
+		background-image: url('letterpress@2x.png');
 	}
 
 	.vs-dark .monaco-workbench .part.editor.empty {
-		background-image: url('./letterpress-dark@2x.png');
+		background-image: url('letterpress-dark@2x.png');
 	}
 
 	.hc-black .monaco-workbench .part.editor.empty {
-		background-image: url('./letterpress-dark@2x.png');
+		background-image: url('letterpress-dark@2x.png');
 	}
 }

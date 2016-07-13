@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import {IMarkerData} from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
+import {MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape} from './extHost.protocol';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	private static _maxDiagnosticsPerFile: number = 250;
 
 	private _name: string;
-	private _proxy: MainThreadDiagnostics;
+	private _proxy: MainThreadDiagnosticsShape;
 
 	private _isDisposed = false;
 	private _data: {[uri:string]: vscode.Diagnostic[]} = Object.create(null);
 
-	constructor(name: string, proxy: MainThreadDiagnostics) {
+	constructor(name: string, proxy: MainThreadDiagnosticsShape) {
 		this._name = name;
 		this._proxy = proxy;
 	}
@@ -175,16 +175,16 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
-@Remotable.ExtHostContext('ExtHostDiagnostics')
-export class ExtHostDiagnostics {
+export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 
-	private _proxy: MainThreadDiagnostics;
+	private _proxy: MainThreadDiagnosticsShape;
 	private _collections: DiagnosticCollection[];
 
-	constructor(@IThreadService threadService: IThreadService) {
-		this._proxy = threadService.getRemotable(MainThreadDiagnostics);
+	constructor(threadService: IThreadService) {
+		super();
+		this._proxy = threadService.get(MainContext.MainThreadDiagnostics);
 		this._collections = [];
 	}
 
@@ -216,25 +216,3 @@ export class ExtHostDiagnostics {
 	}
 }
 
-@Remotable.MainContext('MainThreadDiagnostics')
-export class MainThreadDiagnostics {
-
-	private _markerService: IMarkerService;
-
-	constructor(@IMarkerService markerService: IMarkerService) {
-		this._markerService = markerService;
-	}
-
-	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
-		for (let entry of entries) {
-			let [uri, markers] = entry;
-			this._markerService.changeOne(owner, uri, markers);
-		}
-		return undefined;
-	}
-
-	$clear(owner: string): TPromise<any> {
-		this._markerService.changeAll(owner, undefined);
-		return undefined;
-	}
-}

@@ -13,7 +13,7 @@ import {IWorkspaceContextService, IWorkspace, IConfiguration} from './workspace'
  * between different layers of the platform.
  */
 export class BaseWorkspaceContextService implements IWorkspaceContextService {
-	public serviceId = IWorkspaceContextService;
+	public _serviceBrand: any;
 	protected options: any;
 
 	private workspace: IWorkspace;

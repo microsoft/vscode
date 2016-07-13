@@ -54,7 +54,7 @@ export class DeleteLinesCommand implements ICommand {
 	public computeCursorState(model:ITokenizedModel, helper: ICursorStateComputerData):Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
-		return Selection.createSelection(
+		return new Selection(
 			srcRange.endLineNumber,
 			this.restoreCursorToColumn,
 			srcRange.endLineNumber,

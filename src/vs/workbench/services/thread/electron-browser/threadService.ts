@@ -15,14 +15,14 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {findFreePort} from 'vs/base/node/ports';
 import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
+import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstractThreadService';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {IConfiguration, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {ChildProcess, fork} from 'child_process';
 import {ipcRenderer as ipc} from 'electron';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -37,7 +37,9 @@ export interface ILogEntry {
 	arguments: any;
 }
 
-export class MainThreadService extends CommonMainThreadService {
+export class MainThreadService extends AbstractThreadService implements IThreadService {
+	public _serviceBrand: any;
+
 	private extensionHostProcessManager: ExtensionHostProcessManager;
 	private remoteCom: IMainProcessExtHostIPC;
 
@@ -47,7 +49,7 @@ export class MainThreadService extends CommonMainThreadService {
 		@IWindowService windowService: IWindowService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		super(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
+		super(true);
 
 		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService);
 
@@ -80,8 +82,8 @@ export class MainThreadService extends CommonMainThreadService {
 		this.extensionHostProcessManager.terminate();
 	}
 
-	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-		return this._getOrCreateProxyInstance(this.remoteCom, id, descriptor);
+	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {
+		return this.remoteCom.callOnRemote(proxyId, path, args);
 	}
 }
 

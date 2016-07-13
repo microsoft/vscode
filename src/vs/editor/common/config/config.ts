@@ -7,7 +7,7 @@
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -231,10 +231,14 @@ registerCoreCommand(H.ScrollLineDown, {
 });
 
 registerCoreCommand(H.ScrollPageUp, {
-	primary: KeyMod.CtrlCmd | KeyCode.PageUp
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+	win: { primary: KeyMod.Alt | KeyCode.PageUp },
+	linux: { primary: KeyMod.Alt | KeyCode.PageUp }
 });
 registerCoreCommand(H.ScrollPageDown, {
-	primary: KeyMod.CtrlCmd | KeyCode.PageDown
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+	win: { primary: KeyMod.Alt | KeyCode.PageDown },
+	linux: { primary: KeyMod.Alt | KeyCode.PageDown }
 });
 
 registerCoreCommand(H.CursorColumnSelectLeft, {

@@ -12,12 +12,13 @@ import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as browser from 'vs/base/browser/browser';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
 class ClipboardWritingAction extends EditorAction {
 
@@ -62,11 +63,7 @@ function editorCursorIsInEditableRange(editor:editorCommon.ICommonCodeEditor): b
 class ExecCommandCutAction extends ClipboardWritingAction {
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
-	}
-
-	public getGroupId(): string {
-		return '3_edit/1_cut';
+		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
 	}
 
 	public getEnablementState(): boolean {
@@ -83,11 +80,7 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 class ExecCommandCopyAction extends ClipboardWritingAction {
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
-	}
-
-	public getGroupId(): string {
-		return '3_edit/2_copy';
+		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
 
 	public run(): TPromise<boolean> {
@@ -100,11 +93,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 class ExecCommandPasteAction extends EditorAction {
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
-	}
-
-	public getGroupId(): string {
-		return '3_edit/3_paste';
+		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
 	}
 
 	public getEnablementState(): boolean {
@@ -123,8 +112,9 @@ interface IClipboardCommand extends IKeybindings {
 	id: string;
 	label: string;
 	execCommand: string;
+	kbExpr: KbExpr;
 }
-function registerClipboardAction(desc:IClipboardCommand, alias:string) {
+function registerClipboardAction(desc: IClipboardCommand, alias: string, weight: number) {
 	if (!browser.supportsExecCommand(desc.execCommand)) {
 		return;
 	}
@@ -136,8 +126,18 @@ function registerClipboardAction(desc:IClipboardCommand, alias:string) {
 		secondary: desc.secondary,
 		win: desc.win,
 		linux: desc.linux,
-		mac: desc.mac
+		mac: desc.mac,
+		kbExpr: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)
 	}, alias));
+
+	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+		command: {
+			id: desc.id,
+			title: desc.label
+		},
+		group: `cutcopypaste@${weight}`,
+		when: desc.kbExpr
+	});
 }
 
 registerClipboardAction({
@@ -146,24 +146,29 @@ registerClipboardAction({
 	label: nls.localize('actions.clipboard.cutLabel', "Cut"),
 	execCommand: 'cut',
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
-}, 'Cut');
+	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
+	kbExpr: KbExpr.and(KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS), KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY))
+}, 'Cut', 1);
+
 registerClipboardAction({
 	ctor: ExecCommandCopyAction,
 	id: 'editor.action.clipboardCopyAction',
 	label: nls.localize('actions.clipboard.copyLabel', "Copy"),
 	execCommand: 'copy',
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
-}, 'Copy');
+	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
+	kbExpr: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS)
+}, 'Copy', 2);
+
 registerClipboardAction({
 	ctor: ExecCommandPasteAction,
 	id: 'editor.action.clipboardPasteAction',
 	label: nls.localize('actions.clipboard.pasteLabel', "Paste"),
 	execCommand: 'paste',
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
-}, 'Paste');
+	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+	kbExpr: KbExpr.and(KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS), KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY))
+}, 'Paste', 3);
 
 function execCommandToHandler(actionId: string, browserCommand: string, accessor: ServicesAccessor, args: any): void {
 	let focusedEditor = findFocusedEditor(actionId, accessor, false);

@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { TPromise, Promise, xhr } from 'vs/base/common/winjs.base';
+import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { xhr } from 'vs/base/common/network';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
@@ -144,8 +145,8 @@ export class RequestService extends BaseRequestService {
 let confRegistry = <IConfigurationRegistry>platform.Registry.as(Extensions.Configuration);
 confRegistry.registerConfiguration({
 	id: 'http',
-	order: 9,
-	title: nls.localize('httpConfigurationTitle', "HTTP configuration"),
+	order: 15,
+	title: nls.localize('httpConfigurationTitle', "HTTP"),
 	type: 'object',
 	properties: {
 		'http.proxy': {

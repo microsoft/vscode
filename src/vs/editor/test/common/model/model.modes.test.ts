@@ -61,7 +61,7 @@ suite('Editor Model - Model Modes 1', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, thisHighlighter);
+		thisModel = Model.createFromString(text, undefined, thisHighlighter);
 	});
 
 	teardown(() => {
@@ -179,7 +179,7 @@ suite('Editor Model - Model Modes 2', () => {
 			'Line3' + '\n' +
 			'Line4' + '\r\n' +
 			'Line5';
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, thisHighlighter);
+		thisModel = Model.createFromString(text, undefined, thisHighlighter);
 	});
 
 	teardown(() => {
@@ -259,7 +259,7 @@ suite('Editor Model - Token Iterator', () => {
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n';
-		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, nmode);
+		thisModel = Model.createFromString(text, undefined, nmode);
 	});
 
 	teardown(() => {

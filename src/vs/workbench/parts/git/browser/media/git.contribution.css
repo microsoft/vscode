@@ -13,18 +13,21 @@
 	background: url('OpenEditor.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .git-action.open-in-diff {
+.vs-dark .monaco-workbench .git-action.open-in-diff,
+.hc-black .monaco-workbench .git-action.open-in-diff {
 	background: url('Compare_inverse.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .git-action.open-in-editor {
+.vs-dark .monaco-workbench .git-action.open-in-editor,
+.hc-black .monaco-workbench .git-action.open-in-editor {
 	background: url('OpenEditor_inverse.svg') center center no-repeat;
 }
 
 /* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.git {
-	/* Inline icon to prevent slow loading on startup (original: git-dark.svg) */
-	background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiI+PHBhdGggZD0iTTI3LjQ1OSAxNC45MDJsLTEwLjQzOS0xMC40MzljLS4yOTYtLjI5NC0uNjcyLS40NTItMS4wODktLjQ1Mi0uNDE3IDAtLjc5My4xNTctMS4wODkuNDUybC0yLjI0OCAyLjI0NyAyLjU0OSAyLjU0OWMuMjQ5LS4xMTIuNTIyLS4xNzcuODEzLS4xNzcgMS4xMDYgMCAyLjAwMi44OTYgMi4wMDIgMi4wMDIgMCAuMjkxLS4wNjQuNTY1LS4xNzYuODE0bDIuMzExIDIuMzM2Yy4yNS0uMTExLjYzMy0uMjM0LjkyMy0uMjM0IDEuMTA2IDAgMiAuOTExIDIgMi4wMTZzLS44OTQgMS45NjktMiAxLjk2OWMtMS4xMDUtLjAwMS0yLjAxNi0uNzUxLTIuMDE2LTEuOTg1IDAtLjI4LjAxNi0uNDYyLjExOS0uNzA0bC0yLjM3My0yLjM3NC0uMDIzLjAwN3Y2LjI3NGMuNzQ3LjI5NSAxLjI3NyAxLjAyNiAxLjI3NyAxLjg3NSAwIDEuMTA1LS44NzggMi4wMTYtMS45ODQgMi4wMTYtMS4xMDQgMC0yLjAzMS0uOTI2LTIuMDMxLTIuMDMxIDAtLjg0Ni41MzUtMS41NjQgMS4yOC0xLjg1N2wuMDAxLTYuMjVjLS43NjItLjI4Mi0xLjMwOS0xLjAwOS0xLjMwOS0xLjg3MSAwLS4yOC4wNTktLjU0Ni4xNjItLjc4OGwtMi41NTUtMi41NTctNy4xMTUgNy4xMTRjLS41OTkuNjAxLS42MDEgMS41NzYuMDAxIDIuMTc4bDEwLjQ0IDEwLjUxOGMuMjk2LjI5NS42NzEuNDUgMS4wODkuNDUuNDE1IDAgLjc5Ni0uMTU5IDEuMDg5LS40NWwxMC4zOTEtMTAuNDcxYy42MDEtLjU5OS41OTktMS41NzYgMC0yLjE3N3oiIGZpbGw9IiNmZmYiLz48L3N2Zz4=');
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.git,
+.monaco-shell .git-statusbar-group > .git-statusbar-branch-item,
+.vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.git {
+	background-image: url('git-dark.svg');
 }
 
 /* Git viewlet label */
@@ -104,10 +107,6 @@
 	background-image: url('git.svg');
 }
 
-.vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.git {
-	background-image: url('git-dark.svg');
-}
-
 /* Actions */
 
 .monaco-shell .git-action.live-sync.icon {
@@ -115,54 +114,14 @@
 }
 
 .monaco-shell .git-action.live-sync.icon.loading {
-	animation:			spin-forever 1.6s linear infinite;
+	animation: spin-forever 1.6s linear infinite;
 }
 
-@keyframes			spin-forever { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes spin-forever { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* High Contrast Theming */
-.hc-black .monaco-workbench > .activitybar .monaco-action-bar .action-label.git:before {
-	content: url('git-dark.svg');
-}
-
 .hc-black .monaco-workbench > .activitybar .monaco-action-bar .badge.git-viewlet-label-progress .badge-content {
-	background: none;
 	width: 1px;
-}
-
-.hc-black .monaco-workbench > .activitybar .monaco-action-bar .badge.git-viewlet-label-progress .badge-content:before {
-	content: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=");
-	position: relative;
-	top: 2px;
-	left: -4px;
-	display: block;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .git-action {
-	background: none;
-}
-
-.hc-black .monaco-workbench .action-item.disabled .git-action:before {
-}
-
-.hc-black .monaco-workbench .git-action.open-in-diff:before {
-	content: url('Compare_inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .git-action.open-in-editor:before {
-	content: url('OpenEditor_inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
 }
 
 /* Status bar */
@@ -204,7 +163,6 @@
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-branch-item {
-	background-image: url('../media/git-dark.svg');
 	background-repeat: no-repeat;
 	background-position: 4px 50%;
 	background-size: 17px;

@@ -6,27 +6,28 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IDataSource, ITree, IRenderer} from 'vs/base/parts/tree/browser/tree';
+import {IDataSource, ITree, IRenderer, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
-import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/markersStatisticsWidget';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
 interface IResourceTemplateData {
 	file: FileLabel;
-	statistics: MarkersStatisticsWidget;
 	count: CountBadge;
 }
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
-	label: HTMLElement;
+	source: HighlightedLabel;
+	description: HighlightedLabel;
+	lnCol: HTMLElement;
 }
 
 export class DataSource implements IDataSource {
@@ -99,7 +100,8 @@ export class Renderer implements IRenderer {
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		var data: IResourceTemplateData = Object.create(null);
-		data.file = new FileLabel(container, null, this.contextService);
+		const resourceLabelContainer = dom.append(container, dom.emmet('.resource-label-container'));
+		data.file = new FileLabel(resourceLabelContainer, null, this.contextService);
 
 		// data.statistics= new MarkersStatisticsWidget(dom.append(container, dom.emmet('.marker-stats')));
 
@@ -112,7 +114,9 @@ export class Renderer implements IRenderer {
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		var data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.emmet('.marker-icon'));
-		data.label = dom.append(container, dom.emmet('span.label'));
+		data.source = new HighlightedLabel(dom.append(container, dom.emmet('')));
+		data.description = new HighlightedLabel(dom.append(container, dom.emmet('.marker-description')));
+		data.lnCol = dom.append(container, dom.emmet('span.marker-line'));
 		return data;
 	}
 
@@ -121,19 +125,26 @@ export class Renderer implements IRenderer {
 			case Renderer.RESOURCE_TEMPLATE_ID:
 				return this.renderResourceElement(tree, <Resource> element, templateData);
 			case Renderer.MARKER_TEMPLATE_ID:
-				return this.renderMarkerElement(tree, (<Marker>element).marker, templateData);
+				return this.renderMarkerElement(tree, (<Marker>element), templateData);
 		}
 	}
 
 	private renderResourceElement(tree: ITree, element: Resource, templateData: IResourceTemplateData) {
-		templateData.file.setValue(element.uri);
+		templateData.file.setValue(element.uri, element.matches);
 		// templateData.statistics.setStatistics(element.statistics);
 		templateData.count.setCount(element.markers.length);
 	}
 
-	private renderMarkerElement(tree: ITree, element: IMarker, templateData: IMarkerTemplateData) {
-		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(element);
-		templateData.label.textContent = Messages.MARKERS_PANEL_AT_LINE_NUMBER(element.startLineNumber) + element.message;
+	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
+		let marker= element.marker;
+		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
+		templateData.description.set(marker.message, element.labelMatches);
+		templateData.description.element.title= marker.message;
+
+		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
+		templateData.source.set(marker.source, element.sourceMatches);
+
+		templateData.lnCol.textContent= Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
@@ -152,4 +163,18 @@ export class Renderer implements IRenderer {
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 	}
+}
+
+export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
+
+	public getAriaLabel(tree: ITree, element: any): string {
+		if (element instanceof Resource) {
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.markers.length);
+		}
+		if (element instanceof Marker) {
+			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element.marker);
+		}
+		return null;
+	}
+
 }

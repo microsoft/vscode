@@ -44,8 +44,7 @@ export class StringEditorInput extends EditorInput {
 	}
 
 	protected getResource(): URI {
-		// Subclasses can implement to associate a resource with the input
-		return null;
+		return null; // Subclasses can implement to associate a resource with the input
 	}
 
 	public getTypeId(): string {
@@ -143,6 +142,13 @@ export class StringEditorInput extends EditorInput {
 			// If both inputs are singletons, check on the mime for equalness
 			if (otherStringEditorInput.singleton && this.singleton && otherStringEditorInput.mime === this.mime) {
 				return true;
+			}
+
+			// If we have resource URIs, use those to compare
+			const resource = this.getResource();
+			const otherResource = otherStringEditorInput.getResource();
+			if (resource && otherResource) {
+				return resource.toString() === otherResource.toString();
 			}
 
 			// Otherwise compare by properties

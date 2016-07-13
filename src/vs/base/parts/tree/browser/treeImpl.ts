@@ -160,6 +160,11 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		return this.model.reveal(element, relativeTop);
 	}
 
+	public getRelativeTop(element: any): number {
+		let item = this.model.getItem(element);
+		return this.view.getRelativeTop(item);
+	}
+
 	public getScrollPosition(): number {
 		return this.view.getScrollPosition();
 	}
@@ -266,6 +271,10 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 	public focusParent(eventPayload?:any): void {
 		this.model.focusParent(eventPayload);
+	}
+
+	public focusFirstChild(eventPayload?:any): void {
+		this.model.focusFirstChild(eventPayload);
 	}
 
 	public focusFirst(eventPayload?:any): void {

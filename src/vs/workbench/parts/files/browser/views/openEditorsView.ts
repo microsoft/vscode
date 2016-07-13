@@ -17,12 +17,11 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -56,7 +55,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
@@ -138,6 +136,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			if (e.compositeId === VIEWLET_ID) {
 				this.fullRefreshNeeded = true;
 				this.structuralTreeUpdate();
+				this.updateDirtyIndicator();
 			}
 		}));
 	}
@@ -159,9 +158,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			this.structuralTreeRefreshScheduler.schedule(this.structuralRefreshDelay);
 		} else {
 			const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
-			this.tree.refresh(toRefresh, false).done(null, errors.onUnexpectedError);
 			this.updateDirtyIndicator();
-			this.highlightActiveEditor();
+			this.tree.refresh(toRefresh, false).done(() => this.highlightActiveEditor(), errors.onUnexpectedError);
 		}
 	}
 
@@ -177,10 +175,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh(toRefresh)).done(() => {
 			this.fullRefreshNeeded = false;
 			this.groupToRefresh = null;
-			this.highlightActiveEditor();
 
 			// Always expand all the groups as they are unclickable
-			return this.tree.expandAll(this.model.groups);
+			return this.tree.expandAll(this.model.groups).then(() => this.highlightActiveEditor());
 		}, errors.onUnexpectedError);
 	}
 
@@ -193,7 +190,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			if (openEditor) {
 				this.tree.setFocus(openEditor);
 				this.tree.setSelection([openEditor]);
-				this.tree.reveal(openEditor).done(null, errors.onUnexpectedError);
+				const relativeTop = this.tree.getRelativeTop(openEditor);
+				if (relativeTop <= 0 || relativeTop >= 1) {
+					// Only reveal the element if it is not visible #8279
+					this.tree.reveal(openEditor).done(null, errors.onUnexpectedError);
+				}
 			}
 		}
 	}

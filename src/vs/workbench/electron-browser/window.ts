@@ -6,19 +6,22 @@
 'use strict';
 
 import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
-import uri from 'vs/base/common/uri';
+import URI from 'vs/base/common/uri';
+import DOM = require('vs/base/browser/dom');
+import DND = require('vs/base/browser/dnd');
+import {Builder, $} from 'vs/base/browser/builder';
 import {Identifiers} from 'vs/workbench/common/constants';
-import workbenchEditorCommon = require('vs/workbench/common/editor');
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import dom = require('vs/base/browser/dom');
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, remote} from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const dialog = remote.dialog;
 
@@ -29,6 +32,13 @@ export interface IWindowConfiguration {
 		restoreFullscreen: boolean;
 		zoomLevel: number;
 	};
+}
+
+enum DraggedFileType {
+	UNKNOWN,
+	FILE,
+	EXTENSION,
+	FOLDER
 }
 
 export class ElectronWindow {
@@ -55,7 +65,7 @@ export class ElectronWindow {
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
 			this.editorGroupService.onEditorsChanged(() => {
-				let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+				let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 				let representedFilename = '';
 				if (fileInput) {
 					representedFilename = fileInput.getResource().fsPath;
@@ -65,62 +75,60 @@ export class ElectronWindow {
 			});
 		}
 
-		// Prevent a dropped file from opening as nw application
-		window.document.body.addEventListener('dragover', (e: DragEvent) => {
-			e.preventDefault();
-		});
+		let draggedExternalResources: URI[];
+		let dropOverlay: Builder;
 
-		// Let a dropped file open inside Code (only if dropped over editor area)
-		window.document.body.addEventListener('drop', (e: DragEvent) => {
-			e.preventDefault();
+		function cleanUp(): void {
+			draggedExternalResources = void 0;
 
-			let editorArea = window.document.getElementById(Identifiers.EDITOR_PART);
-			if (dom.isAncestor(e.toElement, editorArea)) {
-				let pathsOpened = false;
+			if (dropOverlay) {
+				dropOverlay.destroy();
+				dropOverlay = void 0;
+			}
+		}
 
-				// Check for native file transfer
-				if (e.dataTransfer && e.dataTransfer.files) {
-					let thepaths: string[] = [];
-					for (let i = 0; i < e.dataTransfer.files.length; i++) {
-						if (e.dataTransfer.files[i] && (<any>e.dataTransfer.files[i]).path) {
-							thepaths.push((<any>e.dataTransfer.files[i]).path);
-						}
-					}
+		// Detect resources dropped into Code from outside
+		window.document.body.addEventListener(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			DOM.EventHelper.stop(e);
 
-					if (thepaths.length) {
-						pathsOpened = true;
-						this.focus(); // make sure this window has focus so that the open call reaches the right window!
-						this.open(thepaths);
-					}
-				}
+			if (!draggedExternalResources) {
+				draggedExternalResources = DND.extractResources(e, true /* external only */);
 
-				// Otherwise check for special webkit transfer
-				if (!pathsOpened && e.dataTransfer && (<any>e).dataTransfer.items) {
-					let items: { getAsString: (clb: (str: string) => void) => void; }[] = (<any>e).dataTransfer.items;
-					if (items.length && typeof items[0].getAsString === 'function') {
-						items[0].getAsString((str) => {
-							try {
-								let resource = uri.parse(str);
-								if (resource.scheme === 'file') {
+				// Show Code wide overlay if we detect a Folder or Extension to be dragged
+				if (draggedExternalResources.some(r => {
+					const kind = this.getFileKind(r);
 
-									// Do not allow to drop a child of the currently active workspace. This prevents an issue
-									// where one would drop a folder from the explorer by accident into the editor area and
-									// loose all the context.
-									let workspace = this.contextService.getWorkspace();
-									if (workspace && paths.isEqualOrParent(resource.fsPath, workspace.resource.fsPath)) {
-										return;
-									}
+					return kind === DraggedFileType.FOLDER || kind === DraggedFileType.EXTENSION;
+				})) {
+					dropOverlay = $(window.document.getElementById(Identifiers.WORKBENCH_CONTAINER))
+						.div({ id: 'monaco-workbench-drop-overlay' })
+						.on(DOM.EventType.DROP, (e: DragEvent) => {
+							DOM.EventHelper.stop(e, true);
 
-									this.focus(); // make sure this window has focus so that the open call reaches the right window!
-									this.open([decodeURIComponent(resource.fsPath)]);
-								}
-							} catch (error) {
-								// not a resource
-							}
+							this.focus(); // make sure this window has focus so that the open call reaches the right window!
+							ipc.send('vscode:windowOpen', draggedExternalResources.map(r => r.fsPath)); // handled from browser process
+
+							cleanUp();
+						})
+						.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
+							cleanUp();
 						});
-					}
 				}
 			}
+		});
+
+		// Clear our map and overlay on any finish of DND outside the overlay
+		[DOM.EventType.DROP, DOM.EventType.DRAG_END].forEach(event => {
+			window.document.body.addEventListener(event, (e: DragEvent) => {
+				if (!dropOverlay || e.target !== dropOverlay.getHTMLElement()) {
+					cleanUp(); // only run cleanUp() if we are not over the overlay (because we are being called in capture phase)
+				}
+			}, true /* use capture because components within may preventDefault() when they accept the drop */);
+		});
+
+		// prevent opening a real URL inside the shell
+		window.document.body.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
+			DOM.EventHelper.stop(e);
 		});
 
 		// Handle window.open() calls
@@ -129,22 +137,29 @@ export class ElectronWindow {
 
 			return null;
 		};
+
+		// Patch focus to also focus the entire window
+		const originalFocus = window.focus;
+		const $this = this;
+		window.focus = function () {
+			originalFocus.call(this, arguments);
+			$this.focus();
+		};
 	}
 
-	public open(pathsToOpen: string[]): void;
-	public open(fileResource: uri): void;
-	public open(pathToOpen: string): void;
-	public open(arg1: any): void {
-		let pathsToOpen: string[];
-		if (Array.isArray(arg1)) {
-			pathsToOpen = arg1;
-		} else if (typeof arg1 === 'string') {
-			pathsToOpen = [arg1];
-		} else {
-			pathsToOpen = [(<uri>arg1).fsPath];
+	private getFileKind(resource: URI): DraggedFileType {
+		if (path.extname(resource.fsPath) === '.vsix') {
+			return DraggedFileType.EXTENSION;
 		}
 
-		ipc.send('vscode:windowOpen', pathsToOpen); // handled from browser process
+		let kind = DraggedFileType.UNKNOWN;
+		try {
+			kind = fs.statSync(resource.fsPath).isDirectory() ? DraggedFileType.FOLDER : DraggedFileType.FILE;
+		} catch (error) {
+			// Do not fail in DND handler
+		}
+
+		return kind;
 	}
 
 	public openNew(): void {
@@ -159,11 +174,11 @@ export class ElectronWindow {
 		ipc.send('vscode:reloadWindow', this.windowId);
 	}
 
-	public showMessageBox(options: Electron.Dialog.ShowMessageBoxOptions): number {
+	public showMessageBox(options: Electron.ShowMessageBoxOptions): number {
 		return dialog.showMessageBox(this.win, options);
 	}
 
-	public showSaveDialog(options: Electron.Dialog.SaveDialogOptions, callback?: (fileName: string) => void): string {
+	public showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
 		if (callback) {
 			return dialog.showSaveDialog(this.win, options, callback);
 		}

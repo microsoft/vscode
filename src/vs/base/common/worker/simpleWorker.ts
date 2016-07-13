@@ -8,6 +8,7 @@ import {transformErrorForSerialization} from 'vs/base/common/errors';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {ErrorCallback, TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import {IWorker, IWorkerFactory} from './workerClient';
+import {ShallowCancelThenPromise} from 'vs/base/common/async';
 
 const INITIALIZE = '$initialize';
 
@@ -159,15 +160,26 @@ export class SimpleWorkerClient<T> extends Disposable {
 	private _worker:IWorker;
 	private _onModuleLoaded:TPromise<string[]>;
 	private _protocol: SimpleWorkerProtocol;
-	private _proxy: T;
 	private _lazyProxy: TPromise<T>;
 	private _lastRequestTimestamp = -1;
 
-	constructor(workerFactory:IWorkerFactory, moduleId:string, ctor:any) {
+	constructor(workerFactory:IWorkerFactory, moduleId:string) {
 		super();
-		this._worker = this._register(workerFactory.create('vs/base/common/worker/simpleWorker', (msg:string) => {
-			this._protocol.handleMessage(msg);
-		}));
+
+		let lazyProxyFulfill : (v:T)=>void = null;
+		let lazyProxyReject: (err:any)=>void = null;
+
+		this._worker = this._register(workerFactory.create(
+			'vs/base/common/worker/simpleWorker',
+			(msg:string) => {
+				this._protocol.handleMessage(msg);
+			},
+			(err:any) => {
+				// in Firefox, web workers fail lazily :(
+				// we will reject the proxy
+				lazyProxyReject(err);
+			}
+		));
 
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg:string): void => {
@@ -190,9 +202,6 @@ export class SimpleWorkerClient<T> extends Disposable {
 			// Get the configuration from requirejs
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
-
-		let lazyProxyFulfill : (v:T)=>void = null;
-		let lazyProxyReject: (err:any)=>void = null;
 
 		this._lazyProxy = new TPromise((c, e, p) => {
 			lazyProxyFulfill = c;
@@ -227,26 +236,11 @@ export class SimpleWorkerClient<T> extends Disposable {
 				return proxyMethodRequest(method, args);
 			};
 		};
-
-		this._proxy = <T><any>{};
-		if (ctor) {
-			// console.warn('deprecated');
-			for (let prop in ctor.prototype) {
-				if (ctor.prototype.hasOwnProperty(prop)) {
-					if (typeof ctor.prototype[prop] === 'function') {
-						this._proxy[prop] = createProxyMethod(prop, proxyMethodRequest);
-					}
-				}
-			}
-		}
-	}
-
-	public get(): T {
-		return this._proxy;
 	}
 
 	public getProxyObject(): TPromise<T> {
-		return this._lazyProxy;
+		// Do not allow chaining promises to cancel the proxy creation
+		return new ShallowCancelThenPromise(this._lazyProxy);
 	}
 
 	public getLastRequestTimestamp(): number {
@@ -345,7 +339,8 @@ export class SimpleWorkerServer {
 			ee = e;
 		});
 
-		require([moduleId], (...result:any[]) => {
+		// Use the global require to be sure to get the global config
+		(<any>self).require([moduleId], (...result:any[]) => {
 			let handlerModule = result[0];
 			this._requestHandler = handlerModule.create();
 
