@@ -199,9 +199,9 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		// Clear timer when checking for update
 		this.on('checking-for-update', () => clearTimeout(timer));
 
-		// If update not found, try again in 10 minutes
+		// If update not found, try again in 1 hour
 		this.on('update-not-available', () => {
-			timer = setTimeout(() => this.checkForUpdates(), 10 * 60 * 1000);
+			timer = setTimeout(() => this.checkForUpdates(), 60 * 60 * 1000);
 		});
 	}
 
