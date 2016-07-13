@@ -33,7 +33,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {extractResources} from 'vs/base/browser/dnd';
 
@@ -181,7 +181,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					titleContainer.empty();
 
 					// Create new
-					this.createTitleControl(position, titleContainer);
+					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
 				}
 			}
 		});
@@ -730,9 +730,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// For each position
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
+			const silo = this.silos[position];
 
 			// Containers (they contain everything and can move between silos)
-			const container = $(this.silos[position]).div({ 'class': 'container' });
+			const container = $(silo).div({ 'class': 'container' });
 
 			// InstantiationServices
 			const instantiationService = this.instantiationService.createChild(new ServiceCollection(
@@ -745,10 +746,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (useTabs) {
 				titleContainer.addClass('tabs');
 			}
-			this.hookTitleDragListener(position, titleContainer);
+			this.hookTitleDragListener(titleContainer);
 
 			// Title Control
-			this.createTitleControl(position, titleContainer);
+			this.createTitleControl(this.stacks.groupAt(position), silo, titleContainer, instantiationService);
 
 			// Progress Bar
 			const progressBar = new ProgressBar($(container));
@@ -1003,22 +1004,39 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 	}
 
-	private createTitleControl(position: Position, container: Builder): void {
+	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
-		const titleAreaControl = this.getInstantiationService(position).createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
-		titleAreaControl.setContext(this.stacks.groupAt(position));
+		titleAreaControl.setContext(context);
 		titleAreaControl.refresh();
 
-		this.silos[position].child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
+		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
 	}
 
-	private hookTitleDragListener(position: number, container: Builder): void {
+	private findPosition(element: HTMLElement): Position {
+		let parent = element.parentElement;
+		while (parent) {
+			for (let i = 0; i < POSITIONS.length; i++) {
+				const position = POSITIONS[i];
+				if (this.silos[position].getHTMLElement() === parent) {
+					return position;
+				}
+			}
+
+			parent = parent.parentElement;
+		}
+
+		return null;
+	}
+
+	private hookTitleDragListener(titleContainer: Builder): void {
 		let wasDragged = false;
 
 		// Allow to reorder positions by dragging the title
-		container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		titleContainer.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			const position = this.findPosition(titleContainer.getHTMLElement());
 			if (!this.getTitleAreaControl(position).allowDragging(<any>e.target || e.srcElement)) {
 				return; // return early if we are not in the drag zone of the title widget
 			}
