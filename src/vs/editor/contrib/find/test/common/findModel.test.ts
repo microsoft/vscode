@@ -10,65 +10,11 @@ import {Position} from 'vs/editor/common/core/position';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Range} from 'vs/editor/common/core/range';
 import {Handler, ICommonCodeEditor, IRange} from 'vs/editor/common/editorCommon';
-import {FindModelBoundToEditorModel, parseReplaceString} from 'vs/editor/contrib/find/common/findModel';
+import {FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 suite('FindModel', () => {
-
-	test('parseFindWidgetString', () => {
-		let testParse = (input:string, expected:string) => {
-			let actual = parseReplaceString(input);
-			assert.equal(actual, expected);
-
-			let actual2 = parseReplaceString('hello' + input + 'hi');
-			assert.equal(actual2, 'hello' + expected + 'hi');
-		};
-
-		// no backslash => no treatment
-		testParse('hello', 'hello');
-
-		// \t => TAB
-		testParse('\\thello', '\thello');
-
-		// \n => LF
-		testParse('\\nhello', '\nhello');
-
-		// \\t => \t
-		testParse('\\\\thello', '\\thello');
-
-		// \\\t => \TAB
-		testParse('\\\\\\thello', '\\\thello');
-
-		// \\\\t => \\t
-		testParse('\\\\\\\\thello', '\\\\thello');
-
-		// \ at the end => no treatment
-		testParse('hello\\', 'hello\\');
-
-		// \ with unknown char => no treatment
-		testParse('hello\\x', 'hello\\x');
-
-		// \ with back reference => no treatment
-		testParse('hello\\0', 'hello\\0');
-
-
-
-		// $1 => no treatment
-		testParse('hello$1', 'hello$1');
-		// $2 => no treatment
-		testParse('hello$2', 'hello$2');
-		// $12 => no treatment
-		testParse('hello$12', 'hello$12');
-		// $$ => no treatment
-		testParse('hello$$', 'hello$$');
-		// $$0 => no treatment
-		testParse('hello$$0', 'hello$$0');
-
-		// $0 => $&
-		testParse('hello$0', 'hello$&');
-		testParse('hello$02', 'hello$&2');
-	});
 
 	function findTest(testName:string, callback:(editor:ICommonCodeEditor, cursor:Cursor)=>void): void {
 		test(testName, () => {
