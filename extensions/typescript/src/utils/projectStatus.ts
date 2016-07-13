@@ -61,6 +61,9 @@ export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>P
 		}
 
 		const file = client.asAbsolutePath(editor.document.uri);
+		if (!file) {
+			return;
+		}
 
 		isOpen(file).then(value => {
 			if (!value) {
