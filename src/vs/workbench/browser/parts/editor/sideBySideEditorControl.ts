@@ -86,6 +86,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
+	private static INSTANTIATION_SERVICE_KEY = '__instantiationService';
 
 	private static MIN_EDITOR_WIDTH = 170;
 	private static EDITOR_TITLE_HEIGHT = 35;
@@ -96,8 +97,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private parent: Builder;
 	private dimension: Dimension;
 	private dragging: boolean;
-
-	private instantiationServices: IInstantiationService[];
 
 	private silos: Builder[];
 	private siloWidths: number[];
@@ -137,8 +136,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.parent = parent;
 		this.dimension = new Dimension(0, 0);
-
-		this.instantiationServices = [];
 
 		this.silos = [];
 		this.siloWidths = [];
@@ -734,13 +731,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
 
-			// Containers (for title and editor)
+			// Containers (they contain everything and can move between silos)
 			const container = $(this.silos[position]).div({ 'class': 'container' });
 
 			// InstantiationServices
-			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
+			const instantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IKeybindingService, this.keybindingService.createScoped(container.getHTMLElement())]
 			));
+			container.setProperty(SideBySideEditorControl.INSTANTIATION_SERVICE_KEY, instantiationService); // associate with container
 
 			// Title containers
 			const titleContainer = $(container).div({ 'class': 'title' });
@@ -1008,7 +1006,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private createTitleControl(position: Position, container: Builder): void {
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
-		const titleAreaControl = this.instantiationServices[position].createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = this.getInstantiationService(position).createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(this.stacks.groupAt(position));
 		titleAreaControl.refresh();
@@ -1594,15 +1592,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public getInstantiationService(position: Position): IInstantiationService {
-		return this.instantiationServices[position];
+		return this.getFromContainer(position, SideBySideEditorControl.INSTANTIATION_SERVICE_KEY);
 	}
 
 	public getProgressBar(position: Position): ProgressBar {
-		return this.silos[position].child().getProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY);
+		return this.getFromContainer(position, SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY);
 	}
 
 	private getTitleAreaControl(position: Position): ITitleAreaControl {
-		return this.silos[position].child().getProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY);
+		return this.getFromContainer(position, SideBySideEditorControl.TITLE_AREA_CONTROL_KEY);
+	}
+
+	private getFromContainer(position: Position, key: string): any {
+		return this.silos[position].child().getProperty(key);
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {
