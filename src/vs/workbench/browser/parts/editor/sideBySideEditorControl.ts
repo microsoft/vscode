@@ -15,6 +15,7 @@ import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
+import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {isMacintosh} from 'vs/base/common/platform';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -763,11 +764,23 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const overlayId = 'monaco-workbench-editor-drop-overlay';
 		const splitToPropertyKey = 'splitToPosition';
 		const stacks = this.editorGroupService.getStacksModel();
+
 		let overlay: Builder;
+		let draggedResources: URI[];
+
+		function cleanUp(): void {
+			draggedResources = void 0;
+
+			if (overlay) {
+				overlay.destroy();
+				overlay = void 0;
+			}
+		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
+			const droppedResources = draggedResources;
 			DOM.removeClass(node, 'dropfeedback');
-			destroyOverlay();
+			cleanUp();
 
 			const editorService = $this.editorService;
 			const groupService = $this.editorGroupService;
@@ -816,7 +829,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Check for URI transfer
 			else {
-				const droppedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
 				if (droppedResources.length) {
 					window.focus(); // make sure this window has focus so that the open call reaches the right window!
 
@@ -831,13 +843,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						})
 						.done(null, errors.onUnexpectedError);
 				}
-			}
-		}
-
-		function destroyOverlay(): void {
-			if (overlay) {
-				overlay.destroy();
-				overlay = void 0;
 			}
 		}
 
@@ -941,7 +946,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						});
 
 						overlay.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
-							destroyOverlay();
+							cleanUp();
 						});
 
 						// Under some circumstances we have seen reports where the drop overlay is not being
@@ -953,7 +958,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						// actual DROP event that can also trigger a mouse over event.
 						overlay.once(DOM.EventType.MOUSE_OVER, () => {
 							setTimeout(() => {
-								destroyOverlay();
+								cleanUp();
 							}, 100);
 						});
 					}
@@ -973,6 +978,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Drag over
 		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+
+			// Upon first drag, detect the dragged resources and only take valid ones
+			if (!draggedResources) {
+				draggedResources = extractResources(e).filter(r => r.scheme === 'file' || r.scheme === 'untitled');
+			}
+
+			if (!draggedResources.length && !TitleControl.getDraggedEditor()) {
+				return; // do not show drop feedback if we drag invalid resources or no tab around
+			}
+
 			if (e.target === node) {
 				DOM.addClass(node, 'dropfeedback');
 			}
@@ -980,7 +995,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const target = <HTMLElement>e.target;
 			if (target) {
 				if (overlay && target.id !== overlayId) {
-					destroyOverlay(); // somehow we managed to move the mouse quickly out of the current overlay, so destroy it
+					cleanUp(); // somehow we managed to move the mouse quickly out of the current overlay, so destroy it
 				}
 				createOverlay(target);
 
@@ -999,7 +1014,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		[node, window].forEach(container => {
 			this.toDispose.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
 				DOM.removeClass(node, 'dropfeedback');
-				destroyOverlay();
+				cleanUp();
 			}));
 		});
 	}
