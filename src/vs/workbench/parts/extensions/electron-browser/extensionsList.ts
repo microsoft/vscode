@@ -17,7 +17,7 @@ import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 
 export interface ITemplateData {
 	element: HTMLElement;
-	icon: HTMLElement;
+	icon: HTMLImageElement;
 	name: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
@@ -42,7 +42,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderTemplate(root: HTMLElement): ITemplateData {
 		const element = append(root, $('.extension'));
-		const icon = append(element, $('.icon'));
+		const icon = append(element, $<HTMLImageElement>('img.icon'));
 		const details = append(element, $('.details'));
 		const header = append(details, $('.header'));
 		const name = append(header, $('span.name'));
@@ -80,7 +80,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
 		addClass(data.element, 'loading');
-		data.icon.style.backgroundImage = '';
+		data.icon.src = '';
 		data.name.textContent = '';
 		data.author.textContent = '';
 		data.description.textContent = '';
@@ -91,7 +91,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
-		data.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
+		data.icon.src = extension.iconUrl;
+
+		if (!data.icon.complete) {
+			data.icon.style.visibility = 'hidden';
+			data.icon.onload = () => data.icon.style.visibility = 'inherit';
+		} else {
+			data.icon.style.visibility = 'inherit';
+		}
+
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;

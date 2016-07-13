@@ -41,9 +41,7 @@
 	height: 42px;
 	padding: 10px 14px 10px 0;
 	flex-shrink: 0;
-	background-repeat: no-repeat;
-	background-size: 42px;
-	background-position: left center;
+	object-fit: contain;
 }
 
 .extensions-viewlet.narrow > .extensions .extension > .icon {
