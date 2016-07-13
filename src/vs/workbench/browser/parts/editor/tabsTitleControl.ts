@@ -49,6 +49,7 @@ export class TabsTitleControl extends TitleControl {
 	private currentSecondaryGroupActionIds: string[] = [];
 
 	constructor(
+		getContext:() => IEditorGroup,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -60,7 +61,7 @@ export class TabsTitleControl extends TitleControl {
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService);
+		super(getContext, contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService);
 
 		this.currentPrimaryGroupActionIds = [];
 		this.currentSecondaryGroupActionIds = [];
@@ -68,15 +69,9 @@ export class TabsTitleControl extends TitleControl {
 		this.tabDisposeables = [];
 	}
 
-	public setContext(group: IEditorGroup): void {
-		super.setContext(group);
-
-		this.groupActionsToolbar.context = { group };
-	}
-
 	public create(parent: HTMLElement): void {
 		super.create(parent);
-		
+
 		this.titleContainer = parent;
 
 		// Tabs Container
@@ -223,7 +218,9 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	protected doRefresh(): void {
-		const group = this.context;
+		const group = this.context; // TODO
+		this.groupActionsToolbar.context = { group };
+
 		const editor = group && group.activeEditor;
 		if (!editor) {
 			this.clearTabs();

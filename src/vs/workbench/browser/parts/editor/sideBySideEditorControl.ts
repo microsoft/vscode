@@ -195,11 +195,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
 
-		// Up to date context
-		POSITIONS.forEach(position => {
-			this.getTitleAreaControl(position).setContext(this.stacks.groupAt(position));
-		});
-
 		// Refresh / update if group is visible and has a position
 		const position = this.stacks.positionOfGroup(e.group);
 		if (position >= 0) {
@@ -1017,9 +1012,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
-		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
+		let titleAreaControl: TabsTitleControl | NoTabsTitleControl;
+		if (useTabs) {
+			titleAreaControl = instantiationService.createInstance(TabsTitleControl, () => this.stacks.groupAt(this.findPosition(container.getHTMLElement())));
+		} else {
+			titleAreaControl = instantiationService.createInstance(NoTabsTitleControl, () => this.stacks.groupAt(this.findPosition(container.getHTMLElement())));
+		}
 		titleAreaControl.create(container.getHTMLElement());
-		titleAreaControl.setContext(context);
 		titleAreaControl.refresh();
 
 		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
