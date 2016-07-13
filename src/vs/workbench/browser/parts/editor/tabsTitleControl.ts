@@ -267,6 +267,8 @@ export class TabsTitleControl extends TitleControl {
 
 		const tabContainers: HTMLElement[] = [];
 
+		// cache the editor names to check for ambiguity
+		const tabNames: Array<string> = [];
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
 			const description = editor.getDescription(true) || '';
@@ -287,7 +289,13 @@ export class TabsTitleControl extends TitleControl {
 
 			// Tab Label
 			const tabLabel = document.createElement('a');
-			tabLabel.innerText = editor.getName();
+			let name = editor.getName();
+			if (tabNames.indexOf(name) > -1) {
+				name += ` - ${editor.getDescription()}`;
+			} else {
+				tabNames.push(name);
+			}
+			tabLabel.innerText = name;
 			tabLabelContainer.appendChild(tabLabel);
 
 			// Tab Close
