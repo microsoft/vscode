@@ -75,6 +75,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	public create(parent: HTMLElement): void {
+		super.create(parent);
+		
 		this.titleContainer = parent;
 
 		// Tabs Container

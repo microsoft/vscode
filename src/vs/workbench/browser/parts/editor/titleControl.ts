@@ -68,6 +68,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 	protected splitEditorAction: SplitEditorAction;
 	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
 
+	private parent: HTMLElement;
+
 	private previewEditors: boolean;
 	private showTabs: boolean;
 
@@ -182,7 +184,13 @@ export abstract class TitleControl implements ITitleAreaControl {
 		}
 	}
 
-	public abstract create(parent: HTMLElement): void;
+	public create(parent: HTMLElement): void {
+		this.parent = parent;
+	}
+
+	public getContainer(): HTMLElement {
+		return this.parent;
+	}
 
 	protected abstract doRefresh(): void;
 
