@@ -100,6 +100,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private siloWidths: number[];
 	private siloInitialRatios: number[];
 
+	private containers: Builder[];
+
 	private titleContainer: Builder[];
 	private titleAreaControl: ITitleAreaControl[];
 	private progressBar: ProgressBar[];
@@ -143,6 +145,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.silos = [];
 		this.siloWidths = [];
+
+		this.containers = [];
 
 		this.titleContainer = [];
 		this.titleAreaControl = [];
@@ -239,7 +243,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.trackFocus(editor, position);
 
 		// Find target container and build into
-		const target = this.silos[position];
+		const target = this.containers[position];
 		editor.getContainer().build(target);
 
 		// Adjust layout according to provided ratios (used when restoring multiple editors at once)
@@ -547,7 +551,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Move editor to new position
 		const editor = this.visibleEditors[from];
-		editor.getContainer().offDOM().build(this.silos[to]);
+		editor.getContainer().offDOM().build(this.containers[to]);
 		editor.changePosition(to);
 
 		// Change data structures
@@ -571,11 +575,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Move editors to new position
 			let editorPos1 = this.visibleEditors[from];
-			editorPos1.getContainer().offDOM().build(this.silos[to]);
+			editorPos1.getContainer().offDOM().build(this.containers[to]);
 			editorPos1.changePosition(to);
 
 			let editorPos2 = this.visibleEditors[to];
-			editorPos2.getContainer().offDOM().build(this.silos[from]);
+			editorPos2.getContainer().offDOM().build(this.containers[from]);
 			editorPos2.changePosition(from);
 
 			// Update last active position accordingly
@@ -606,15 +610,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Move editors to new position
 			let editorPos1 = this.visibleEditors[Position.LEFT];
-			editorPos1.getContainer().offDOM().build(this.silos[newLeftPosition]);
+			editorPos1.getContainer().offDOM().build(this.containers[newLeftPosition]);
 			editorPos1.changePosition(newLeftPosition);
 
 			let editorPos2 = this.visibleEditors[Position.CENTER];
-			editorPos2.getContainer().offDOM().build(this.silos[newCenterPosition]);
+			editorPos2.getContainer().offDOM().build(this.containers[newCenterPosition]);
 			editorPos2.changePosition(newCenterPosition);
 
 			const editorPos3 = this.visibleEditors[Position.RIGHT];
-			editorPos3.getContainer().offDOM().build(this.silos[newRightPosition]);
+			editorPos3.getContainer().offDOM().build(this.containers[newRightPosition]);
 			editorPos3.changePosition(newRightPosition);
 
 			// Update last active position accordingly
@@ -736,17 +740,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Right Silo
 		this.silos[Position.RIGHT] = $(parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
 
+		// Containers (for title and editor)
+		POSITIONS.forEach(position => {
+			this.containers[position] = $(this.silos[position]).div({ 'class': 'container' });
+		});
+
 		// InstantiationServices
 		POSITIONS.forEach(position => {
 			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
-				[IKeybindingService, this.keybindingService.createScoped(this.silos[position].getHTMLElement())]
+				[IKeybindingService, this.keybindingService.createScoped(this.containers[position].getHTMLElement())]
 			));
 		});
 
 		// Title containers
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
-			this.titleContainer[position] = $(this.silos[position]).div({ 'class': 'title' });
+			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
 			if (useTabs) {
 				this.titleContainer[position].addClass('tabs');
 			}
