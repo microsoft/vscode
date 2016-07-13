@@ -10,7 +10,7 @@ import {Registry} from 'vs/platform/platform';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, InstanceCollection} from './extHostProtocol';
+import {MainContext, InstanceCollection} from './extHost.protocol';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 // --- addressable
@@ -60,7 +60,6 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		// Addressable instances
 		const col = new InstanceCollection();
 		col.define(MainContext.MainThreadCommands).set(create(MainThreadCommands));
-		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
 		col.define(MainContext.MainThreadDocuments).set(create(MainThreadDocuments));
 		col.define(MainContext.MainThreadEditors).set(create(MainThreadEditors));
@@ -81,6 +80,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 
 		// Other interested parties
 		create(MainProcessTextMateSyntax);
+		create(MainThreadConfiguration);
 		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
 		create(LanguageConfigurationFileHandler);

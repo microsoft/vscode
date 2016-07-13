@@ -406,6 +406,7 @@ export interface IDebugService {
 	stepBack(threadId: number): TPromise<void>;
 	continue(threadId: number): TPromise<void>;
 	pause(threadId: number): TPromise<any>;
+	restartFrame(frameId: number): TPromise<any>;
 }
 
 // Editor interfaces

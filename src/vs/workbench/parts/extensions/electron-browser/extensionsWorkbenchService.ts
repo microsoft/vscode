@@ -119,6 +119,10 @@ class Extension implements IExtension {
 	}
 }
 
+function stripVersion(id: string): string {
+	return id.replace(/-\d+\.\d+\.\d+$/, '');
+}
+
 export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private static SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
@@ -152,7 +156,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	get local(): IExtension[] {
 		const installing = this.installing
-			.filter(e => !this.installed.some(installed => installed.local.id === e.id))
+			.filter(e => !this.installed.some(installed => stripVersion(installed.local.id) === e.id))
 			.map(e => e.extension);
 
 		return [...this.installed, ...installing];
@@ -276,12 +280,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		extension.gallery = gallery;
-		this.installing.push({ id, extension });
+		this.installing.push({ id: stripVersion(id), extension });
 
 		this._onChange.fire();
 	}
 
 	private onDidInstallExtension(id: string, local: ILocalExtension, error: Error): void {
+		id = stripVersion(id);
+
 		const installing = this.installing.filter(e => e.id === id)[0];
 
 		if (!installing) {

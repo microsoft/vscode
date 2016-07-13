@@ -26,7 +26,7 @@ import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHostProtocol';
+import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 
 const defaultSelector = { scheme: 'far' };
@@ -80,7 +80,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		const extHostDocuments = new ExtHostDocuments(threadService);
 		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
-		extHostDocuments._acceptModelAdd({
+		extHostDocuments.$acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),

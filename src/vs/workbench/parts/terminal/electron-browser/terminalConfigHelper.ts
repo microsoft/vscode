@@ -167,6 +167,11 @@ export class TerminalConfigHelper {
 		return shell;
 	}
 
+	public isSetLocaleVariables() {
+		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.setLocaleVariables;
+	}
+
 	private toInteger(source: any, minimum?: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {

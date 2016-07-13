@@ -491,7 +491,7 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		return this.session.setVarialbe({
+		return this.session.setVariable({
 			name: variable.name,
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
@@ -926,6 +926,14 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.pause({ threadId });
+	}
+
+	public restartFrame(frameId: number): TPromise<any> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.restartFrame({ frameId });
 	}
 
 	private lazyTransitionToRunningState(threadId?: number): void {
