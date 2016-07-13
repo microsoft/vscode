@@ -304,7 +304,7 @@ export class ClearExtensionsInputAction extends Action {
 	}
 }
 
-export class ListOutdatedExtensionsAction extends Action {
+export class ShowOutdatedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.listOutdatedExtensions';
 	static LABEL = localize('showOutdatedExtensions', "Show Outdated Extensions");
