@@ -3827,11 +3827,31 @@ export var Handler = {
 	CursorPageDown:				'cursorPageDown',
 	CursorPageDownSelect:		'cursorPageDownSelect',
 
-	CursorHome:					'cursorHome',
-	CursorHomeSelect:			'cursorHomeSelect',
+	CursorHome:					 'cursorHome',
+	CursorHomeSelect:            'cursorHomeSelect',
+
+	CursorHomeVisualThenLogical: 'cursorHomeVisualThenLogical',
+	CursorHomeLogicalThenVisual: 'cursorHomeLogicalThenVisual',
+	CursorHomeVisualOnly:        'cursorHomeVisualOnly',
+	CursorHomeLogicalOnly:       'cursorHomeLogicalOnly',
+
+	CursorHomeVisualThenLogicalSelect: 'cursorHomeVisualThenLogicalSelect',
+	CursorHomeLogicalThenVisualSelect: 'cursorHomeLogicalThenVisualSelect',
+	CursorHomeVisualOnlySelect:        'cursorHomeVisualOnlySelect',
+	CursorHomeLogicalOnlySelect:       'cursorHomeLogicalOnlySelect',
 
 	CursorEnd:					'cursorEnd',
 	CursorEndSelect:			'cursorEndSelect',
+
+	CursorEndVisualThenLogical:	'cursorEndVisualThenLogical',
+	CursorEndLogicalThenVisual:	'cursorEndLogicalThenVisual',
+	CursorEndVisualOnly:		'cursorEndVisualOnly',
+	CursorEndLogicalOnly:		'cursorEndLogicalOnly',
+
+	CursorEndVisualThenLogicalSelect:	'cursorEndVisualThenLogicalSelect',
+	CursorEndLogicalThenVisualSelect:	'cursorEndLogicalThenVisualSelect',
+	CursorEndVisualOnlySelect:			'cursorEndVisualOnlySelect',
+	CursorEndLogicalOnlySelect:			'cursorEndLogicalOnlySelect',
 
 	ExpandLineSelection:		'expandLineSelection',
 

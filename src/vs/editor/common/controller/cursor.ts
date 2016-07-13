@@ -10,7 +10,7 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
-import {WordNavigationType, IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp} from 'vs/editor/common/controller/oneCursor';
+import {WordNavigationType, LineNavigationType, IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp} from 'vs/editor/common/controller/oneCursor';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
@@ -985,11 +985,31 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.CursorPageDown] =				(ctx) => this._moveDown(false, true, ctx);
 		this._handlers[H.CursorPageDownSelect] =		(ctx) => this._moveDown(true, true, ctx);
 
-		this._handlers[H.CursorHome] =					(ctx) => this._moveToBeginningOfLine(false, ctx);
-		this._handlers[H.CursorHomeSelect] =			(ctx) => this._moveToBeginningOfLine(true, ctx);
+		this._handlers[H.CursorHome] =					(ctx) => this._moveToBeginningOfLine(false, LineNavigationType.VisualThenLogical, ctx);
+		this._handlers[H.CursorHomeSelect] =			(ctx) => this._moveToBeginningOfLine(true, LineNavigationType.VisualThenLogical, ctx);
 
-		this._handlers[H.CursorEnd] =					(ctx) => this._moveToEndOfLine(false, ctx);
-		this._handlers[H.CursorEndSelect] =				(ctx) => this._moveToEndOfLine(true, ctx);
+		this._handlers[H.CursorHomeVisualThenLogical] =			(ctx) => this._moveToBeginningOfLine(false, LineNavigationType.VisualThenLogical, ctx);
+		this._handlers[H.CursorHomeLogicalThenVisual] =			(ctx) => this._moveToBeginningOfLine(false, LineNavigationType.LogicalThenVisual, ctx);
+		this._handlers[H.CursorHomeVisualOnly] =				(ctx) => this._moveToBeginningOfLine(false, LineNavigationType.VisualOnly, ctx);
+		this._handlers[H.CursorHomeLogicalOnly] =				(ctx) => this._moveToBeginningOfLine(false, LineNavigationType.LogicalOnly, ctx);
+
+		this._handlers[H.CursorHomeVisualThenLogicalSelect] =	(ctx) => this._moveToBeginningOfLine(true, LineNavigationType.VisualThenLogical, ctx);
+		this._handlers[H.CursorHomeLogicalThenVisualSelect] =	(ctx) => this._moveToBeginningOfLine(true, LineNavigationType.LogicalThenVisual, ctx);
+		this._handlers[H.CursorHomeVisualOnlySelect] =			(ctx) => this._moveToBeginningOfLine(true, LineNavigationType.VisualOnly, ctx);
+		this._handlers[H.CursorHomeLogicalOnlySelect] =			(ctx) => this._moveToBeginningOfLine(true, LineNavigationType.LogicalOnly, ctx);
+
+		this._handlers[H.CursorEnd] = 					(ctx) => this._moveToEndOfLine(false, LineNavigationType.VisualThenLogical, ctx);
+		this._handlers[H.CursorEndSelect] =				(ctx) => this._moveToEndOfLine(true, LineNavigationType.VisualThenLogical, ctx);
+
+		this._handlers[H.CursorEndVisualThenLogical] =			(ctx) => this._moveToEndOfLine(false, LineNavigationType.VisualThenLogical, ctx);
+		this._handlers[H.CursorEndLogicalThenVisual] =			(ctx) => this._moveToEndOfLine(false, LineNavigationType.LogicalThenVisual, ctx);
+		this._handlers[H.CursorEndVisualOnly] =					(ctx) => this._moveToEndOfLine(false, LineNavigationType.VisualOnly, ctx);
+		this._handlers[H.CursorEndLogicalOnly] =				(ctx) => this._moveToEndOfLine(false, LineNavigationType.LogicalOnly, ctx);
+
+		this._handlers[H.CursorEndVisualThenLogicalSelect] =	(ctx) => this._moveToEndOfLine(true, LineNavigationType.VisualThenLogical, ctx);
+		this._handlers[H.CursorEndLogicalThenVisualSelect] =	(ctx) => this._moveToEndOfLine(true, LineNavigationType.LogicalThenVisual, ctx);
+		this._handlers[H.CursorEndVisualOnlySelect] =			(ctx) => this._moveToEndOfLine(true, LineNavigationType.VisualOnly, ctx);
+		this._handlers[H.CursorEndLogicalOnlySelect] =			(ctx) => this._moveToEndOfLine(true, LineNavigationType.LogicalOnly, ctx);
 
 		this._handlers[H.CursorTop] =					(ctx) => this._moveToBeginningOfBuffer(false, ctx);
 		this._handlers[H.CursorTopSelect] =				(ctx) => this._moveToBeginningOfBuffer(true, ctx);
@@ -1296,12 +1316,12 @@ export class Cursor extends EventEmitter {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveUp(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
 	}
 
-	private _moveToBeginningOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToBeginningOfLine(oneCursor, inSelectionMode, oneCtx));
+	private _moveToBeginningOfLine(inSelectionMode:boolean, lineNavigationType: LineNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToBeginningOfLine(oneCursor, inSelectionMode, lineNavigationType, oneCtx));
 	}
 
-	private _moveToEndOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToEndOfLine(oneCursor, inSelectionMode, oneCtx));
+	private _moveToEndOfLine(inSelectionMode:boolean, lineNavigationType: LineNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveToEndOfLine(oneCursor, inSelectionMode, lineNavigationType, oneCtx));
 	}
 
 	private _moveToBeginningOfBuffer(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
