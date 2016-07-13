@@ -71,6 +71,7 @@ class SelectThemeAction extends Action {
 					id: 'themes.findmore',
 					label: localize('findMore', "Find more in the Marketplace..."),
 					separator: { border: true },
+					alwaysShow: true,
 					run
 				});
 			}
