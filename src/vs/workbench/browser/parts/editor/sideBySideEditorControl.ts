@@ -102,7 +102,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private containers: Builder[];
 
-	private titleContainer: Builder[];
 	private titleAreaControl: ITitleAreaControl[];
 	private progressBar: ProgressBar[];
 
@@ -148,7 +147,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.containers = [];
 
-		this.titleContainer = [];
 		this.titleAreaControl = [];
 
 		this.progressBar = [];
@@ -176,7 +174,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		POSITIONS.forEach(position => {
 
 			// TItle Container
-			const titleContainer = this.titleContainer[position];
+			const titleContainer = $(this.titleAreaControl[position].getContainer());
 			if (useTabs) {
 				titleContainer.addClass('tabs');
 			} else {
@@ -191,10 +189,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 					// Dispose old
 					titleControl.dispose();
-					this.titleContainer[position].empty();
+					titleContainer.empty();
 
 					// Create new
-					this.createTitleControl(position);
+					this.createTitleControl(position, titleContainer);
 				}
 			}
 		});
@@ -755,14 +753,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Title containers
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
-			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
+			const titleContainer = $(this.containers[position]).div({ 'class': 'title' });
 			if (useTabs) {
-				this.titleContainer[position].addClass('tabs');
+				titleContainer.addClass('tabs');
 			}
-			this.hookTitleDragListener(position);
+			this.hookTitleDragListener(position, titleContainer);
 
 			// Title Control
-			this.createTitleControl(position);
+			this.createTitleControl(position, titleContainer);
 		});
 
 		// Progress Bars per position
@@ -1018,20 +1016,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 	}
 
-	private createTitleControl(position: Position): void {
+	private createTitleControl(position: Position, container: Builder): void {
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
 		this.titleAreaControl[position] = this.instantiationServices[position].createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
-		this.titleAreaControl[position].create(this.titleContainer[position].getHTMLElement());
+		this.titleAreaControl[position].create(container.getHTMLElement());
 		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
 		this.titleAreaControl[position].refresh();
 	}
 
-	private hookTitleDragListener(position: Position): void {
+	private hookTitleDragListener(position: number, container: Builder): void {
 		let wasDragged = false;
 
 		// Allow to reorder positions by dragging the title
-		this.titleContainer[position].on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (!this.titleAreaControl[position].allowDragging(<any>e.target || e.srcElement)) {
 				return; // return early if we are not in the drag zone of the title widget
 			}

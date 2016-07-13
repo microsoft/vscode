@@ -44,6 +44,7 @@ export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	allowDragging(element: HTMLElement): boolean;
 	create(parent: HTMLElement): void;
+	getContainer(): HTMLElement;
 	refresh(instant?: boolean): void;
 	update(instant?: boolean): void;
 	layout(): void;
