@@ -125,4 +125,8 @@ export class PagedList<T> {
 	layout(height?: number): void {
 		this.list.layout(height);
 	}
+
+	reveal(index: number, relativeTop?: number): void {
+		this.list.reveal(index, relativeTop);
+	}
 }
