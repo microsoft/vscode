@@ -178,7 +178,7 @@ suite('Event',function(){
 		}
 	});
 
-	test('Debounce Event', function () {
+	test('Debounce Event', function (done: () => void) {
 		let doc = new Samples.Document3();
 
 		let onDocDidChange = debounceEvent(doc.onDidChange, (prev: string[], cur) => {
@@ -190,13 +190,17 @@ suite('Event',function(){
 			return prev;
 		}, 10);
 
+		let count = 0;
+
 		onDocDidChange(keys => {
+			count++;
 			assert.ok(keys, 'was not expecting keys.');
-			if (keys.length === 3) {
+			if (count === 1) {
 				doc.setText('4');
 				assert.deepEqual(keys, ['1', '2', '3']);
-			} else {
+			} else if (count === 2){
 				assert.deepEqual(keys, ['4']);
+				done();
 			}
 		});
 
