@@ -104,3 +104,7 @@
 	height: calc(100% - 168px);
 	overflow: hidden;
 }
+
+.extension-editor > .body > p {
+	margin: 20px;
+}

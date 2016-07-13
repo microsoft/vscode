@@ -31,7 +31,7 @@ suite('LanguageSelector', function() {
 	test('score, filter', function() {
 		assert.equal(score('farboo', model.uri, model.language), 10);
 		assert.equal(score({ language: 'farboo'}, model.uri, model.language), 10);
-		assert.equal(score({ language: 'farboo', scheme: 'file' }, model.uri, model.language), 20);
+		assert.equal(score({ language: 'farboo', scheme: 'file' }, model.uri, model.language), 10);
 		assert.equal(score({ language: 'farboo', scheme: 'http' }, model.uri, model.language), 0);
 
 		assert.equal(score({ pattern: '**/*.fb' }, model.uri, model.language), 5);
@@ -42,9 +42,9 @@ suite('LanguageSelector', function() {
 		let match = { language: 'farboo', scheme: 'file' };
 		let fail = { language: 'farboo', scheme: 'http' };
 
-		assert.equal(score(match, model.uri, model.language), 20);
+		assert.equal(score(match, model.uri, model.language), 10);
 		assert.equal(score(fail, model.uri, model.language), 0);
-		assert.equal(score([match, fail], model.uri, model.language), 20);
+		assert.equal(score([match, fail], model.uri, model.language), 10);
 		assert.equal(score(['farboo', '*'], model.uri, model.language), 10);
 		assert.equal(score(['*', 'farboo'], model.uri, model.language), 10);
 	});

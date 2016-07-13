@@ -305,6 +305,24 @@ export class PauseAction extends AbstractDebugAction {
 	}
 }
 
+export class RestartFrameAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.restartFrame';
+	static LABEL = nls.localize('restartFrame', "Restart Frame");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action restart-frame', debugService, keybindingService);
+	}
+
+	public run(frame: debug.IStackFrame): TPromise<any> {
+
+		const frameId = (frame && frame instanceof model.StackFrame)
+			? frame.frameId
+			: this.debugService.getViewModel().getFocusedStackFrame().frameId;
+
+		return this.debugService.restartFrame(frameId);
+	}
+}
+
 export class RemoveBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.removeBreakpoint';
 	static LABEL = nls.localize('removeBreakpoint', "Remove Breakpoint");

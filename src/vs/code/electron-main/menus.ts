@@ -757,10 +757,6 @@ export class VSCodeMenu {
 					}, 0)
 				})];
 
-				if (this.updateService.lastCheckDate) {
-					result.push(new MenuItem({ label: nls.localize('miLastCheckedAt', "Last checked at {0}", this.updateService.lastCheckDate.toLocaleTimeString()), enabled: false }));
-				}
-
 				return result;
 		}
 	}

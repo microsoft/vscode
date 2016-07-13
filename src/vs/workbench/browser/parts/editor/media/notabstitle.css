@@ -5,29 +5,29 @@
 
 /* Title Decoration */
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration {
 	width: 18px;
 	padding-left: 2px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty {
 	background: url('close-dirty.svg') center center no-repeat;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty {
 	background: url('close-dirty-inverse.svg') center center no-repeat;
 }
 
 /* Title Label */
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label {
 	line-height: 35px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -37,27 +37,27 @@
 
 /* Title Description */
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	cursor: default;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
 	color: rgba(108, 108, 108, 0.7);
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
 	color: rgba(204, 204, 204, 0.7);
 }
 
 /* Title Actions */
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions {
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title.active .title-actions {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-actions {
 	opacity: 1;
 }

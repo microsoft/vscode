@@ -8,15 +8,11 @@ var fs = require('fs');
 var event_stream_1 = require('event-stream');
 var File = require('vinyl');
 var Is = require('is');
-var quiet = !!process.env['VSCODE_BUILD_QUIET'] && false;
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
         rest[_i - 1] = arguments[_i];
-    }
-    if (quiet) {
-        return;
     }
     util.log.apply(util, [util.colors.cyan('[i18n]'), message].concat(rest));
 }

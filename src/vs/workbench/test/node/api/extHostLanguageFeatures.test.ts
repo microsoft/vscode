@@ -36,7 +36,7 @@ import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/para
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
 import {asWinJsPromise} from 'vs/base/common/async';
-import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHostProtocol';
+import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 
 const defaultSelector = { scheme: 'far' };
@@ -70,7 +70,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		const extHostDocuments = new ExtHostDocuments(threadService);
 		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
-		extHostDocuments._acceptModelAdd({
+		extHostDocuments.$acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
