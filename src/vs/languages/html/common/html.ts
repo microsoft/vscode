@@ -47,16 +47,16 @@ export class State extends AbstractState {
 	public lastAttributeName:string;
 	public embeddedContentType:string;
 	public attributeValueQuote:string;
-	public attributeValue:string;
+	public attributeValueLength:number;
 
-	constructor(mode:modes.IMode, kind:States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValue:string) {
+	constructor(mode:modes.IMode, kind:States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValueLength:number) {
 		super(mode);
 		this.kind = kind;
 		this.lastTagName = lastTagName;
 		this.lastAttributeName = lastAttributeName;
 		this.embeddedContentType = embeddedContentType;
 		this.attributeValueQuote = attributeValueQuote;
-		this.attributeValue = attributeValue;
+		this.attributeValueLength = attributeValueLength;
 	}
 
 	static escapeTagName(s:string):string {
@@ -64,7 +64,7 @@ export class State extends AbstractState {
 	}
 
 	public makeClone():State {
-		return new State(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValue);
+		return new State(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
 	}
 
 	public equals(other:modes.IState):boolean {
@@ -76,7 +76,7 @@ export class State extends AbstractState {
 				this.lastAttributeName === other.lastAttributeName &&
 				this.embeddedContentType === other.embeddedContentType &&
 				this.attributeValueQuote === other.attributeValueQuote &&
-				this.attributeValue === other.attributeValue
+				this.attributeValueLength === other.attributeValueLength
 			);
 		}
 		return false;
@@ -223,24 +223,24 @@ export class State extends AbstractState {
 				// We are in a attribute value
 				if (this.attributeValueQuote === '"' || this.attributeValueQuote === '\'') {
 
-					if (this.attributeValue === this.attributeValueQuote && ('script' === this.lastTagName || 'style' === this.lastTagName) && 'type' === this.lastAttributeName) {
-						this.attributeValue = stream.advanceUntilString(this.attributeValueQuote, true);
-						if (this.attributeValue.length > 0) {
-							this.embeddedContentType = this.unquote(this.attributeValue);
+					if (this.attributeValueLength === 1 && ('script' === this.lastTagName || 'style' === this.lastTagName) && 'type' === this.lastAttributeName) {
+						let attributeValue = stream.advanceUntilString(this.attributeValueQuote, true);
+						if (attributeValue.length > 0) {
+							this.embeddedContentType = this.unquote(attributeValue);
 							this.kind = States.WithinTag;
-							this.attributeValue = '';
+							this.attributeValueLength = 0;
 							this.attributeValueQuote = '';
 							return { type: htmlTokenTypes.ATTRIB_VALUE };
 						}
 					} else {
 						if (stream.advanceIfCharCode2(this.attributeValueQuote.charCodeAt(0))) {
 							this.kind = States.WithinTag;
-							this.attributeValue = '';
+							this.attributeValueLength = 0;
 							this.attributeValueQuote = '';
 							this.lastAttributeName = null;
 						} else {
-							var part = stream.next();
-							this.attributeValue += part;
+							stream.next();
+							this.attributeValueLength++;
 						}
 						return { type: htmlTokenTypes.ATTRIB_VALUE };
 					}
@@ -254,7 +254,7 @@ export class State extends AbstractState {
 					var ch = stream.peek();
 					if (ch === '\'' || ch === '"') {
 						this.attributeValueQuote = ch;
-						this.attributeValue = ch;
+						this.attributeValueLength = 1;
 						stream.next2();
 						return { type: htmlTokenTypes.ATTRIB_VALUE };
 					} else {
@@ -396,7 +396,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 	// TokenizationSupport
 
 	public getInitialState():modes.IState {
-		return new State(this, States.Content, '', '', '', '', '');
+		return new State(this, States.Content, '', '', '', '', 0);
 	}
 
 	public enterNestedMode(state:modes.IState):boolean {
@@ -443,7 +443,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 			return {
 				nestedModeBuffer: line.substring(0, match.index),
 				bufferAfterNestedMode: line.substring(match.index),
-				stateAfterNestedMode: new State(this, States.Content, '', '', '', '', '')
+				stateAfterNestedMode: new State(this, States.Content, '', '', '', '', 0)
 			};
 		}
 		return null;
