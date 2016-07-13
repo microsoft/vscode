@@ -10,7 +10,7 @@
 /* title styles are defined for two classes because the editor puts the title into the content */
 
 .monaco-workbench > .part > .title,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .title {
 	height: 35px;
 	display: flex;
 	box-sizing:	border-box;
