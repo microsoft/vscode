@@ -132,7 +132,13 @@ export class DefinitionAction extends EditorAction {
 
 	private _openReference(reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
 		let {uri, range} = reference;
-		return this._editorService.openEditor({ resource:uri, options: { selection: range } }, sideBySide).then(editor => {
+		return this._editorService.openEditor({
+			resource: uri,
+			options: {
+				selection: range,
+				revealIfOpened: !sideBySide
+			}
+		}, sideBySide).then(editor => {
 			return <editorCommon.IEditor> editor.getControl();
 		});
 	}
