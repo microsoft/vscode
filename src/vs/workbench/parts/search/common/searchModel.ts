@@ -16,6 +16,7 @@ import { ArraySet } from 'vs/base/common/set';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as Search from 'vs/platform/search/common/search';
 import { ISearchProgressItem, ISearchComplete, ISearchQuery } from 'vs/platform/search/common/search';
+import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -65,6 +66,10 @@ export class Match {
 			inside,
 			after,
 		};
+	}
+
+	public get replaceString(): string {
+		return this.parent().parent().searchModel.replacePattern.getReplaceString(this.preview().inside);
 	}
 }
 
@@ -208,8 +213,8 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(match: Match, replaceText: string): TPromise<any> {
-		return this.replaceService.replace(match, replaceText).then(() => {
+	public replace(match: Match): TPromise<any> {
+		return this.replaceService.replace(match).then(() => {
 			this._matches.delete(match.id());
 			this._onChange.fire(false);
 		});
@@ -299,16 +304,16 @@ export class SearchResult extends Disposable {
 		this.doRemove(match);
 	}
 
-	public replace(match: FileMatch, replaceText: string): TPromise<any> {
-		return this.replaceService.replace([match], replaceText).then(() => {
+	public replace(match: FileMatch): TPromise<any> {
+		return this.replaceService.replace([match]).then(() => {
 			this.doRemove(match, false, true);
 		});
 	}
 
-	public replaceAll(replaceText: string, progressRunner: IProgressRunner): TPromise<any> {
+	public replaceAll(progressRunner: IProgressRunner): TPromise<any> {
 		this._replacingAll= true;
 		let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
-		return this.replaceService.replace(this.matches(), replaceText, progressRunner).then(() => {
+		return this.replaceService.replace(this.matches(), progressRunner).then(() => {
 			replaceAllTimer.stop();
 			this._replacingAll= false;
 			this.clear();
@@ -402,7 +407,8 @@ export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
 	private _searchQuery: ISearchQuery= null;
-	private _replaceText: string= null;
+	private _replaceString: string= null;
+	private _replacePattern: ReplacePattern= null;
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 	private progressTimer: timer.ITimerEvent;
@@ -418,7 +424,15 @@ export class SearchModel extends Disposable {
 	 * Return true if replace is enabled otherwise false
 	 */
 	public isReplaceActive():boolean {
-		return this.replaceText !== null && this.replaceText !== void 0;
+		return this._replaceString !== null && this._replaceString !== void 0;
+	}
+
+	/**
+	 * Return true if replace is enabled and replace text is not empty, otherwise false.
+	 * This is necessary in cases handling empty replace text when replace is active.
+	 */
+	public hasReplaceString():boolean {
+		return this.isReplaceActive() && !!this._replaceString;
 	}
 
 	/**
@@ -426,24 +440,19 @@ export class SearchModel extends Disposable {
 	 * Can be null if replace is not enabled. Use replace() before.
 	 * Can be empty.
 	 */
-	public get replaceText(): string {
-		return this._replaceText;
+	public get replacePattern(): ReplacePattern {
+		return this._replacePattern;
 	}
 
-	public set replaceText(replace: string) {
-		this._replaceText= replace;
+	public set replaceString(replaceString: string) {
+		this._replaceString= replaceString;
+		if (this._searchQuery) {
+			this._replacePattern= new ReplacePattern(replaceString, this._searchQuery.contentPattern);
+		}
 	}
 
 	public get searchResult():SearchResult {
 		return this._searchResult;
-	}
-
-	/**
-	 * Return true if replace is enabled and replace text is not empty, otherwise false.
-	 * This is necessary in cases handling empty replace text when replace is active.
-	 */
-	public hasReplaceText():boolean {
-		return this.isReplaceActive() && !!this.replaceText;
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
@@ -452,11 +461,13 @@ export class SearchModel extends Disposable {
 
 		this._searchQuery= query;
 		this._searchResult.query= this._searchQuery.contentPattern;
+		this._replacePattern= new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
+
 		this.progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
 		this.doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
 		this.timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
-		this.currentRequest = this.searchService.search(this._searchQuery);
 
+		this.currentRequest = this.searchService.search(this._searchQuery);
 		this.currentRequest.then(value => this.onSearchCompleted(value),
 									e => this.onSearchError(e),
 									p => this.onSearchProgress(p));
