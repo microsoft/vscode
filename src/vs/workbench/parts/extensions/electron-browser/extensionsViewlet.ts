@@ -78,12 +78,16 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const onEscape = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Escape);
 		const onUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow);
 		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
+		const onPageUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp);
+		const onPageDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown);
 		const onTab = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Tab);
 
 		onEnter(this.onEnter, this, this.disposables);
 		onEscape(this.onEscape, this, this.disposables);
 		onUpArrow(this.onUpArrow, this, this.disposables);
 		onDownArrow(this.onDownArrow, this, this.disposables);
+		onPageUpArrow(this.onPageUpArrow, this, this.disposables);
+		onPageDownArrow(this.onPageDownArrow, this, this.disposables);
 		onTab(this.onTab, this, this.disposables);
 
 		const onInput = domEvent(this.searchBox, 'input');
@@ -212,6 +216,16 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private onDownArrow(): void {
 		this.list.focusNext();
+		this.list.reveal(this.list.getFocus()[0]);
+	}
+
+	private onPageUpArrow(): void {
+		this.list.focusPreviousPage();
+		this.list.reveal(this.list.getFocus()[0]);
+	}
+
+	private onPageDownArrow(): void {
+		this.list.focusNextPage();
 		this.list.reveal(this.list.getFocus()[0]);
 	}
 
