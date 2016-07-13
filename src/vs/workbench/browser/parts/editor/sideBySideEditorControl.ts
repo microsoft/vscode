@@ -102,8 +102,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private siloWidths: number[];
 	private siloInitialRatios: number[];
 
-	private containers: Builder[];
-
 	private titleAreaControl: ITitleAreaControl[];
 
 	private leftSash: Sash;
@@ -145,8 +143,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.silos = [];
 		this.siloWidths = [];
-
-		this.containers = [];
 
 		this.titleAreaControl = [];
 
@@ -240,7 +236,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.trackFocus(editor, position);
 
 		// Find target container and build into
-		const target = this.containers[position];
+		const target = this.silos[position].child();
 		editor.getContainer().build(target);
 
 		// Adjust layout according to provided ratios (used when restoring multiple editors at once)
@@ -548,7 +544,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Move editor to new position
 		const editor = this.visibleEditors[from];
-		editor.getContainer().offDOM().build(this.containers[to]);
+		editor.getContainer().offDOM().build(this.silos[to].child());
 		editor.changePosition(to);
 
 		// Change data structures
@@ -572,11 +568,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Move editors to new position
 			let editorPos1 = this.visibleEditors[from];
-			editorPos1.getContainer().offDOM().build(this.containers[to]);
+			editorPos1.getContainer().offDOM().build(this.silos[to].child());
 			editorPos1.changePosition(to);
 
 			let editorPos2 = this.visibleEditors[to];
-			editorPos2.getContainer().offDOM().build(this.containers[from]);
+			editorPos2.getContainer().offDOM().build(this.silos[from].child());
 			editorPos2.changePosition(from);
 
 			// Update last active position accordingly
@@ -607,15 +603,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Move editors to new position
 			let editorPos1 = this.visibleEditors[Position.LEFT];
-			editorPos1.getContainer().offDOM().build(this.containers[newLeftPosition]);
+			editorPos1.getContainer().offDOM().build(this.silos[newLeftPosition].child(0));
 			editorPos1.changePosition(newLeftPosition);
 
 			let editorPos2 = this.visibleEditors[Position.CENTER];
-			editorPos2.getContainer().offDOM().build(this.containers[newCenterPosition]);
+			editorPos2.getContainer().offDOM().build(this.silos[newCenterPosition].child(0));
 			editorPos2.changePosition(newCenterPosition);
 
 			const editorPos3 = this.visibleEditors[Position.RIGHT];
-			editorPos3.getContainer().offDOM().build(this.containers[newRightPosition]);
+			editorPos3.getContainer().offDOM().build(this.silos[newRightPosition].child(0));
 			editorPos3.changePosition(newRightPosition);
 
 			// Update last active position accordingly
@@ -737,22 +733,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Right Silo
 		this.silos[Position.RIGHT] = $(parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
 
-		// Containers (for title and editor)
-		POSITIONS.forEach(position => {
-			this.containers[position] = $(this.silos[position]).div({ 'class': 'container' });
-		});
-
-		// InstantiationServices
-		POSITIONS.forEach(position => {
-			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
-				[IKeybindingService, this.keybindingService.createScoped(this.containers[position].getHTMLElement())]
-			));
-		});
-
-		// Title containers
+		// For each position
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
-			const titleContainer = $(this.containers[position]).div({ 'class': 'title' });
+
+			// Containers (for title and editor)
+			const container = $(this.silos[position]).div({ 'class': 'container' });
+
+			// InstantiationServices
+			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
+				[IKeybindingService, this.keybindingService.createScoped(container.getHTMLElement())]
+			));
+
+			// Title containers
+			const titleContainer = $(container).div({ 'class': 'title' });
 			if (useTabs) {
 				titleContainer.addClass('tabs');
 			}
@@ -760,13 +754,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Title Control
 			this.createTitleControl(position, titleContainer);
-		});
 
-		// Progress Bars per position
-		POSITIONS.forEach(position => {
-			const progressBar = new ProgressBar($(this.containers[position]));
+			// Progress Bar
+			const progressBar = new ProgressBar($(container));
 			progressBar.getContainer().hide();
-			this.containers[position].setProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY, progressBar);
+			container.setProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY, progressBar); // associate with container
 		});
 	}
 
@@ -1607,7 +1599,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public getProgressBar(position: Position): ProgressBar {
-		return this.containers[position].getProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY);
+		return this.silos[position].child().getProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY);
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {
