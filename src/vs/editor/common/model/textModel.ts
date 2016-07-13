@@ -999,6 +999,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 				break;
 			}
 			bestResult = result;
+			if (m.index + m[0].length === text.length) {
+				// Reached the end of the line
+				break;
+			}
 		}
 		return bestResult;
 	}
@@ -1011,13 +1015,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			m = searchRegex.exec(text);
 			if (m) {
 				var range = new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
-				// Exit early if the regex matches the same range
 				if (range.equalsRange(result[result.length - 1])) {
+					// Exit early if the regex matches the same range
 					return counter;
 				}
 				result.push(range);
 				counter++;
 				if (counter >= limitResultCount) {
+					return counter;
+				}
+				if (m.index + m[0].length === text.length) {
+					// Reached the end of the line
 					return counter;
 				}
 			}
