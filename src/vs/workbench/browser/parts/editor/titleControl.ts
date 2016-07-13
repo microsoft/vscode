@@ -195,7 +195,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
-		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-container');
+		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
 	}
 
 	private initActions(): void {

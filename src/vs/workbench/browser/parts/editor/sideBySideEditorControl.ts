@@ -96,9 +96,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private instantiationServices: IInstantiationService[];
 
-	private containers: Builder[];
-	private containerWidth: number[];
-	private containerInitialRatios: number[];
+	private silos: Builder[];
+	private siloWidths: number[];
+	private siloInitialRatios: number[];
 
 	private titleContainer: Builder[];
 	private titleAreaControl: ITitleAreaControl[];
@@ -141,8 +141,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.instantiationServices = [];
 
-		this.containers = [];
-		this.containerWidth = [];
+		this.silos = [];
+		this.siloWidths = [];
 
 		this.titleContainer = [];
 		this.titleAreaControl = [];
@@ -239,7 +239,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.trackFocus(editor, position);
 
 		// Find target container and build into
-		const target = this.containers[position];
+		const target = this.silos[position];
 		editor.getContainer().build(target);
 
 		// Adjust layout according to provided ratios (used when restoring multiple editors at once)
@@ -248,20 +248,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// We received width ratios but were not layouted yet. So we keep these ratios for when we layout()
 			if (!hasLayoutInfo) {
-				this.containerInitialRatios = widthRatios;
+				this.siloInitialRatios = widthRatios;
 			}
 
 			// Adjust layout: -> [!][!]
 			if (widthRatios.length === 2) {
 				if (hasLayoutInfo) {
-					this.containerWidth[position] = this.dimension.width * widthRatios[position];
+					this.siloWidths[position] = this.dimension.width * widthRatios[position];
 				}
 			}
 
 			// Adjust layout: -> [!][!][!]
 			else if (widthRatios.length === 3) {
 				if (hasLayoutInfo) {
-					this.containerWidth[position] = this.dimension.width * widthRatios[position];
+					this.siloWidths[position] = this.dimension.width * widthRatios[position];
 				}
 
 				if (this.rightSash.isHidden()) {
@@ -282,15 +282,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Adjust layout: -> [!]
 		else if (visibleEditorCount === 0 && this.dimension) {
-			this.containerWidth[position] = this.dimension.width;
+			this.siloWidths[position] = this.dimension.width;
 
 			this.layoutContainers();
 		}
 
 		// Adjust layout: [] -> []|[!]
 		else if (position === Position.CENTER && this.leftSash.isHidden() && this.rightSash.isHidden() && this.dimension) {
-			this.containerWidth[Position.LEFT] = this.dimension.width / 2;
-			this.containerWidth[Position.CENTER] = this.dimension.width - this.containerWidth[Position.LEFT];
+			this.siloWidths[Position.LEFT] = this.dimension.width / 2;
+			this.siloWidths[Position.CENTER] = this.dimension.width - this.siloWidths[Position.LEFT];
 
 			this.leftSash.show();
 			this.leftSash.layout();
@@ -300,9 +300,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Adjust layout: []|[] -> []|[]|[!]
 		else if (position === Position.RIGHT && this.rightSash.isHidden() && this.dimension) {
-			this.containerWidth[Position.LEFT] = this.dimension.width / 3;
-			this.containerWidth[Position.CENTER] = this.dimension.width / 3;
-			this.containerWidth[Position.RIGHT] = this.dimension.width - this.containerWidth[Position.LEFT] - this.containerWidth[Position.CENTER];
+			this.siloWidths[Position.LEFT] = this.dimension.width / 3;
+			this.siloWidths[Position.CENTER] = this.dimension.width / 3;
+			this.siloWidths[Position.RIGHT] = this.dimension.width - this.siloWidths[Position.LEFT] - this.siloWidths[Position.CENTER];
 
 			this.leftSash.layout();
 			this.rightSash.show();
@@ -347,7 +347,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.doSetActive(editor, this.visibleEditors.indexOf(editor));
 
 			// Automatically maximize this position if it has min editor width
-			if (this.containerWidth[this.lastActivePosition] === SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+			if (this.siloWidths[this.lastActivePosition] === SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 
 				// Log this fact in telemetry
 				if (this.telemetryService) {
@@ -357,16 +357,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				let remainingWidth = this.dimension.width;
 
 				// Minimize all other positions to min width
-				POSITIONS.forEach((p) => {
+				POSITIONS.forEach(p => {
 					if (this.lastActivePosition !== p && !!this.visibleEditors[p]) {
-						this.containerWidth[p] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
-						remainingWidth -= this.containerWidth[p];
+						this.siloWidths[p] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
+						remainingWidth -= this.siloWidths[p];
 					}
 				});
 
 				// Grow focussed position if there is more width to spend
 				if (remainingWidth > SideBySideEditorControl.MIN_EDITOR_WIDTH) {
-					this.containerWidth[this.lastActivePosition] = remainingWidth;
+					this.siloWidths[this.lastActivePosition] = remainingWidth;
 
 					if (!this.leftSash.isHidden()) {
 						this.leftSash.layout();
@@ -388,16 +388,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private focusNextNonMinimized(): void {
 
 		// If the current focussed editor is minimized, try to focus the next largest editor
-		if (!types.isUndefinedOrNull(this.lastActivePosition) && this.containerWidth[this.lastActivePosition] === SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+		if (!types.isUndefinedOrNull(this.lastActivePosition) && this.siloWidths[this.lastActivePosition] === SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 			let candidate: Position = null;
 			let currentWidth = SideBySideEditorControl.MIN_EDITOR_WIDTH;
 			POSITIONS.forEach(position => {
 
 				// Skip current active position and check if the editor is larger than min width
 				if (position !== this.lastActivePosition) {
-					if (this.visibleEditors[position] && this.containerWidth[position] > currentWidth) {
+					if (this.visibleEditors[position] && this.siloWidths[position] > currentWidth) {
 						candidate = position;
-						currentWidth = this.containerWidth[position];
+						currentWidth = this.siloWidths[position];
 					}
 				}
 			});
@@ -433,7 +433,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Adjust layout: [x] ->
 			if (visibleEditorCount === 1) {
-				this.containerWidth[position] = 0;
+				this.siloWidths[position] = 0;
 
 				this.leftSash.hide();
 				this.rightSash.hide();
@@ -443,8 +443,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Adjust layout: []|[x] -> [] or [x]|[] -> []
 			else if (hasCenter && !hasRight) {
-				this.containerWidth[Position.LEFT] = this.dimension.width;
-				this.containerWidth[Position.CENTER] = 0;
+				this.siloWidths[Position.LEFT] = this.dimension.width;
+				this.siloWidths[Position.CENTER] = 0;
 
 				this.leftSash.hide();
 				this.rightSash.hide();
@@ -460,9 +460,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Adjust layout: []|[]|[x] -> [ ]|[ ] or []|[x]|[] -> [ ]|[ ] or [x]|[]|[] -> [ ]|[ ]
 			else if (hasCenter && hasRight) {
-				this.containerWidth[Position.LEFT] = this.dimension.width / 2;
-				this.containerWidth[Position.CENTER] = this.dimension.width - this.containerWidth[Position.LEFT];
-				this.containerWidth[Position.RIGHT] = 0;
+				this.siloWidths[Position.LEFT] = this.dimension.width / 2;
+				this.siloWidths[Position.CENTER] = this.dimension.width - this.siloWidths[Position.LEFT];
+				this.siloWidths[Position.RIGHT] = 0;
 
 				this.leftSash.layout();
 				this.rightSash.hide();
@@ -547,7 +547,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Move editor to new position
 		const editor = this.visibleEditors[from];
-		editor.getContainer().offDOM().build(this.containers[to]);
+		editor.getContainer().offDOM().build(this.silos[to]);
 		editor.changePosition(to);
 
 		// Change data structures
@@ -571,11 +571,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Move editors to new position
 			let editorPos1 = this.visibleEditors[from];
-			editorPos1.getContainer().offDOM().build(this.containers[to]);
+			editorPos1.getContainer().offDOM().build(this.silos[to]);
 			editorPos1.changePosition(to);
 
 			let editorPos2 = this.visibleEditors[to];
-			editorPos2.getContainer().offDOM().build(this.containers[from]);
+			editorPos2.getContainer().offDOM().build(this.silos[from]);
 			editorPos2.changePosition(from);
 
 			// Update last active position accordingly
@@ -606,15 +606,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Move editors to new position
 			let editorPos1 = this.visibleEditors[Position.LEFT];
-			editorPos1.getContainer().offDOM().build(this.containers[newLeftPosition]);
+			editorPos1.getContainer().offDOM().build(this.silos[newLeftPosition]);
 			editorPos1.changePosition(newLeftPosition);
 
 			let editorPos2 = this.visibleEditors[Position.CENTER];
-			editorPos2.getContainer().offDOM().build(this.containers[newCenterPosition]);
+			editorPos2.getContainer().offDOM().build(this.silos[newCenterPosition]);
 			editorPos2.changePosition(newCenterPosition);
 
 			const editorPos3 = this.visibleEditors[Position.RIGHT];
-			editorPos3.getContainer().offDOM().build(this.containers[newRightPosition]);
+			editorPos3.getContainer().offDOM().build(this.silos[newRightPosition]);
 			editorPos3.changePosition(newRightPosition);
 
 			// Update last active position accordingly
@@ -630,7 +630,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Change data structures
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorFocusTrackers, from, to);
-		arrays.move(this.containerWidth, from, to);
+		arrays.move(this.siloWidths, from, to);
 
 		// Layout
 		if (!this.leftSash.isHidden()) {
@@ -661,20 +661,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			POSITIONS.forEach(position => {
 				if (this.visibleEditors[position]) {
 					if (position !== this.lastActivePosition) {
-						this.containerWidth[position] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
+						this.siloWidths[position] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
 						availableWidth -= SideBySideEditorControl.MIN_EDITOR_WIDTH;
 					}
 				}
 			});
 
-			this.containerWidth[this.lastActivePosition] = availableWidth;
+			this.siloWidths[this.lastActivePosition] = availableWidth;
 		}
 
 		// Even Widths
 		else if (arrangement === GroupArrangement.EVEN_WIDTH) {
 			POSITIONS.forEach(position => {
 				if (this.visibleEditors[position]) {
-					this.containerWidth[position] = availableWidth / visibleEditors;
+					this.siloWidths[position] = availableWidth / visibleEditors;
 				}
 			});
 		}
@@ -690,7 +690,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			POSITIONS.forEach(position => {
 				if (this.visibleEditors[position]) {
-					ratio.push(this.containerWidth[position] / fullWidth);
+					ratio.push(this.siloWidths[position] / fullWidth);
 				}
 			});
 		}
@@ -711,8 +711,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Allow to drop into container to open
 		this.enableDropTarget(parent.getHTMLElement());
 
-		// Left Container
-		this.containers[Position.LEFT] = $(parent).div({ class: 'one-editor-container editor-left monaco-editor-background' });
+		// Left Silo
+		this.silos[Position.LEFT] = $(parent).div({ class: 'one-editor-silo editor-left monaco-editor-background' });
 
 		// Left Sash
 		this.leftSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
@@ -722,8 +722,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.toDispose.push(this.leftSash.addListener2('reset', () => this.onLeftSashReset()));
 		this.leftSash.hide();
 
-		// Center Container
-		this.containers[Position.CENTER] = $(parent).div({ class: 'one-editor-container editor-center monaco-editor-background' });
+		// Center Silo
+		this.silos[Position.CENTER] = $(parent).div({ class: 'one-editor-silo editor-center monaco-editor-background' });
 
 		// Right Sash
 		this.rightSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
@@ -733,20 +733,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.toDispose.push(this.rightSash.addListener2('reset', () => this.onRightSashReset()));
 		this.rightSash.hide();
 
-		// Right Container
-		this.containers[Position.RIGHT] = $(parent).div({ class: 'one-editor-container editor-right monaco-editor-background' });
+		// Right Silo
+		this.silos[Position.RIGHT] = $(parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
 
 		// InstantiationServices
 		POSITIONS.forEach(position => {
 			this.instantiationServices[position] = this.instantiationService.createChild(new ServiceCollection(
-				[IKeybindingService, this.keybindingService.createScoped(this.containers[position].getHTMLElement())]
+				[IKeybindingService, this.keybindingService.createScoped(this.silos[position].getHTMLElement())]
 			));
 		});
 
 		// Title containers
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 		POSITIONS.forEach(position => {
-			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
+			this.titleContainer[position] = $(this.silos[position]).div({ 'class': 'title' });
 			if (useTabs) {
 				this.titleContainer[position].addClass('tabs');
 			}
@@ -758,7 +758,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Progress Bars per position
 		POSITIONS.forEach(position => {
-			this.progressBar[position] = new ProgressBar($(this.containers[position]));
+			this.progressBar[position] = new ProgressBar($(this.silos[position]));
 			this.progressBar[position].getContainer().hide();
 		});
 	}
@@ -1057,7 +1057,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const startX = mouseDownEvent.posx;
 			let oldNewLeft: number = null;
 
-			this.containers[position].addClass('drag');
+			this.silos[position].addClass('drag');
 			this.parent.addClass('drag');
 
 			const $window = $(window);
@@ -1076,7 +1076,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 					// [ ! ]|[ ]: Moves only to the right but not outside of dimension width to the right
 					case Position.LEFT: {
-						newLeft = Math.max(-1 /* 1px border accomodation */, Math.min(diffX, this.dimension.width - this.containerWidth[Position.LEFT]));
+						newLeft = Math.max(-1 /* 1px border accomodation */, Math.min(diffX, this.dimension.width - this.siloWidths[Position.LEFT]));
 						break;
 					}
 
@@ -1084,19 +1084,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 						// [ ]|[ ! ]: Moves only to the left but not outside of dimension width to the left
 						if (visibleEditorCount === 2) {
-							newLeft = Math.min(this.containerWidth[Position.LEFT], Math.max(-1 /* 1px border accomodation */, this.containerWidth[Position.LEFT] + diffX));
+							newLeft = Math.min(this.siloWidths[Position.LEFT], Math.max(-1 /* 1px border accomodation */, this.siloWidths[Position.LEFT] + diffX));
 						}
 
 						// [ ]|[ ! ]|[ ]: Moves to left and right but not outside of dimensions width on both sides
 						else {
-							newLeft = Math.min(this.dimension.width - this.containerWidth[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.containerWidth[Position.LEFT] + diffX));
+							newLeft = Math.min(this.dimension.width - this.siloWidths[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.siloWidths[Position.LEFT] + diffX));
 						}
 						break;
 					}
 
 					// [ ]|[ ]|[ ! ]: Moves to the right but not outside of dimension width on the left side
 					case Position.RIGHT: {
-						newLeft = Math.min(this.containerWidth[Position.LEFT] + this.containerWidth[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.containerWidth[Position.LEFT] + this.containerWidth[Position.CENTER] + diffX));
+						newLeft = Math.min(this.siloWidths[Position.LEFT] + this.siloWidths[Position.CENTER], Math.max(-1 /* 1px border accomodation */, this.siloWidths[Position.LEFT] + this.siloWidths[Position.CENTER] + diffX));
 						break;
 					}
 				}
@@ -1113,46 +1113,46 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				switch (position) {
 					case Position.LEFT: {
 						if (moveTo === Position.LEFT || moveTo === null) {
-							this.containers[Position.CENTER].style({ left: this.containerWidth[Position.LEFT] + 'px', right: 'auto', borderLeftWidth: '1px' });
-							this.containers[Position.RIGHT].style({ left: 'auto', right: 0 });
+							this.silos[Position.CENTER].style({ left: this.siloWidths[Position.LEFT] + 'px', right: 'auto', borderLeftWidth: '1px' });
+							this.silos[Position.RIGHT].style({ left: 'auto', right: 0 });
 						} else if (moveTo === Position.CENTER) {
-							this.containers[Position.CENTER].style({ left: 0, right: 'auto', borderLeftWidth: 0 });
-							this.containers[Position.CENTER].addClass('draggedunder');
-							this.containers[Position.RIGHT].style({ left: 'auto', right: 0 });
+							this.silos[Position.CENTER].style({ left: 0, right: 'auto', borderLeftWidth: 0 });
+							this.silos[Position.CENTER].addClass('draggedunder');
+							this.silos[Position.RIGHT].style({ left: 'auto', right: 0 });
 						} else if (moveTo === Position.RIGHT) {
-							this.containers[Position.CENTER].style({ left: 0, right: 'auto' });
-							this.containers[Position.RIGHT].style({ left: 'auto', right: this.containerWidth[Position.LEFT] + 'px' });
-							this.containers[Position.RIGHT].addClass('draggedunder');
+							this.silos[Position.CENTER].style({ left: 0, right: 'auto' });
+							this.silos[Position.RIGHT].style({ left: 'auto', right: this.siloWidths[Position.LEFT] + 'px' });
+							this.silos[Position.RIGHT].addClass('draggedunder');
 						}
 						break;
 					}
 
 					case Position.CENTER: {
 						if (moveTo === Position.LEFT) {
-							this.containers[Position.LEFT].style({ left: this.containerWidth[Position.CENTER] + 'px', right: 'auto' });
-							this.containers[Position.LEFT].addClass('draggedunder');
+							this.silos[Position.LEFT].style({ left: this.siloWidths[Position.CENTER] + 'px', right: 'auto' });
+							this.silos[Position.LEFT].addClass('draggedunder');
 						} else if (moveTo === Position.CENTER || moveTo === null) {
-							this.containers[Position.LEFT].style({ left: 0, right: 'auto' });
-							this.containers[Position.RIGHT].style({ left: 'auto', right: 0 });
+							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
+							this.silos[Position.RIGHT].style({ left: 'auto', right: 0 });
 						} else if (moveTo === Position.RIGHT) {
-							this.containers[Position.RIGHT].style({ left: 'auto', right: this.containerWidth[Position.CENTER] + 'px' });
-							this.containers[Position.RIGHT].addClass('draggedunder');
-							this.containers[Position.LEFT].style({ left: 0, right: 'auto' });
+							this.silos[Position.RIGHT].style({ left: 'auto', right: this.siloWidths[Position.CENTER] + 'px' });
+							this.silos[Position.RIGHT].addClass('draggedunder');
+							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
 						}
 						break;
 					}
 
 					case Position.RIGHT: {
 						if (moveTo === Position.LEFT) {
-							this.containers[Position.LEFT].style({ left: this.containerWidth[Position.RIGHT] + 'px', right: 'auto' });
-							this.containers[Position.LEFT].addClass('draggedunder');
+							this.silos[Position.LEFT].style({ left: this.siloWidths[Position.RIGHT] + 'px', right: 'auto' });
+							this.silos[Position.LEFT].addClass('draggedunder');
 						} else if (moveTo === Position.CENTER) {
-							this.containers[Position.LEFT].style({ left: 0, right: 'auto' });
-							this.containers[Position.CENTER].style({ left: (this.containerWidth[Position.LEFT] + this.containerWidth[Position.RIGHT]) + 'px', right: 'auto' });
-							this.containers[Position.CENTER].addClass('draggedunder');
+							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
+							this.silos[Position.CENTER].style({ left: (this.siloWidths[Position.LEFT] + this.siloWidths[Position.RIGHT]) + 'px', right: 'auto' });
+							this.silos[Position.CENTER].addClass('draggedunder');
 						} else if (moveTo === Position.RIGHT || moveTo === null) {
-							this.containers[Position.LEFT].style({ left: 0, right: 'auto' });
-							this.containers[Position.CENTER].style({ left: this.containerWidth[Position.LEFT] + 'px', right: 'auto' });
+							this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
+							this.silos[Position.CENTER].style({ left: this.siloWidths[Position.LEFT] + 'px', right: 'auto' });
 						}
 						break;
 					}
@@ -1160,8 +1160,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// Move the editor to provide feedback to the user and add class
 				if (newLeft !== null) {
-					this.containers[position].style({ left: newLeft + 'px' });
-					this.containers[position].addClass('dragging');
+					this.silos[position].style({ left: newLeft + 'px' });
+					this.silos[position].addClass('dragging');
 					this.parent.addClass('dragging');
 				}
 			}).once(DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
@@ -1175,13 +1175,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// Restore styles
 				this.parent.removeClass('drag');
-				this.containers[position].removeClass('drag');
+				this.silos[position].removeClass('drag');
 				this.parent.removeClass('dragging');
-				this.containers[position].removeClass('dragging');
-				POSITIONS.forEach((p) => this.containers[p].removeClass('draggedunder'));
-				this.containers[Position.LEFT].style({ left: 0, right: 'auto' });
-				this.containers[Position.CENTER].style({ left: 'auto', right: 'auto', borderLeftWidth: '1px' });
-				this.containers[Position.RIGHT].style({ left: 'auto', right: 0, borderLeftWidth: '1px' });
+				this.silos[position].removeClass('dragging');
+				POSITIONS.forEach(p => this.silos[p].removeClass('draggedunder'));
+				this.silos[Position.LEFT].style({ left: 0, right: 'auto' });
+				this.silos[Position.CENTER].style({ left: 'auto', right: 'auto', borderLeftWidth: '1px' });
+				this.silos[Position.RIGHT].style({ left: 'auto', right: 0, borderLeftWidth: '1px' });
 
 				// Find move target
 				const mouseUpEvent = new StandardMouseEvent(e);
@@ -1221,17 +1221,17 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			case Position.LEFT: {
 
 				// [ ! ]|[] -> []|[ ! ]
-				if (visibleEditorCount === 2 && (diffX >= this.containerWidth[Position.LEFT] / 2 || diffX >= this.containerWidth[Position.CENTER] / 2)) {
+				if (visibleEditorCount === 2 && (diffX >= this.siloWidths[Position.LEFT] / 2 || diffX >= this.siloWidths[Position.CENTER] / 2)) {
 					return Position.CENTER;
 				}
 
 				// [ ! ]|[]|[] -> []|[]|[ ! ]
-				if (visibleEditorCount === 3 && (diffX >= this.containerWidth[Position.LEFT] / 2 + this.containerWidth[Position.CENTER] || diffX >= this.containerWidth[Position.RIGHT] / 2 + this.containerWidth[Position.CENTER])) {
+				if (visibleEditorCount === 3 && (diffX >= this.siloWidths[Position.LEFT] / 2 + this.siloWidths[Position.CENTER] || diffX >= this.siloWidths[Position.RIGHT] / 2 + this.siloWidths[Position.CENTER])) {
 					return Position.RIGHT;
 				}
 
 				// [ ! ]|[]|[] -> []|[ ! ]|[]
-				if (visibleEditorCount === 3 && (diffX >= this.containerWidth[Position.LEFT] / 2 || diffX >= this.containerWidth[Position.CENTER] / 2)) {
+				if (visibleEditorCount === 3 && (diffX >= this.siloWidths[Position.LEFT] / 2 || diffX >= this.siloWidths[Position.CENTER] / 2)) {
 					return Position.CENTER;
 				}
 				break;
@@ -1243,17 +1243,17 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				}
 
 				// []|[ ! ] -> [ ! ]|[]
-				if (visibleEditorCount === 2 && (Math.abs(diffX) >= this.containerWidth[Position.CENTER] / 2 || Math.abs(diffX) >= this.containerWidth[Position.LEFT] / 2)) {
+				if (visibleEditorCount === 2 && (Math.abs(diffX) >= this.siloWidths[Position.CENTER] / 2 || Math.abs(diffX) >= this.siloWidths[Position.LEFT] / 2)) {
 					return Position.LEFT;
 				}
 
 				// []|[ ! ]|[] -> [ ! ]|[]|[]
-				if (visibleEditorCount === 3 && ((diffX < 0 && Math.abs(diffX) >= this.containerWidth[Position.CENTER] / 2) || (diffX < 0 && Math.abs(diffX) >= this.containerWidth[Position.LEFT] / 2))) {
+				if (visibleEditorCount === 3 && ((diffX < 0 && Math.abs(diffX) >= this.siloWidths[Position.CENTER] / 2) || (diffX < 0 && Math.abs(diffX) >= this.siloWidths[Position.LEFT] / 2))) {
 					return Position.LEFT;
 				}
 
 				// []|[ ! ]|[] -> []|[]|[ ! ]
-				if (visibleEditorCount === 3 && ((diffX > 0 && Math.abs(diffX) >= this.containerWidth[Position.CENTER] / 2) || (diffX > 0 && Math.abs(diffX) >= this.containerWidth[Position.RIGHT] / 2))) {
+				if (visibleEditorCount === 3 && ((diffX > 0 && Math.abs(diffX) >= this.siloWidths[Position.CENTER] / 2) || (diffX > 0 && Math.abs(diffX) >= this.siloWidths[Position.RIGHT] / 2))) {
 					return Position.RIGHT;
 				}
 				break;
@@ -1265,12 +1265,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				}
 
 				// []|[]|[ ! ] -> [ ! ]|[]|[]
-				if (Math.abs(diffX) >= this.containerWidth[Position.RIGHT] / 2 + this.containerWidth[Position.CENTER] || Math.abs(diffX) >= this.containerWidth[Position.LEFT] / 2 + this.containerWidth[Position.CENTER]) {
+				if (Math.abs(diffX) >= this.siloWidths[Position.RIGHT] / 2 + this.siloWidths[Position.CENTER] || Math.abs(diffX) >= this.siloWidths[Position.LEFT] / 2 + this.siloWidths[Position.CENTER]) {
 					return Position.LEFT;
 				}
 
 				// []|[]|[ ! ] -> []|[ ! ]|[]
-				if (Math.abs(diffX) >= this.containerWidth[Position.RIGHT] / 2 || Math.abs(diffX) >= this.containerWidth[Position.CENTER] / 2) {
+				if (Math.abs(diffX) >= this.siloWidths[Position.RIGHT] / 2 || Math.abs(diffX) >= this.siloWidths[Position.CENTER] / 2) {
 					return Position.CENTER;
 				}
 				break;
@@ -1281,19 +1281,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private centerSash(a: Position, b: Position): void {
-		const sumWidth = this.containerWidth[a] + this.containerWidth[b];
+		const sumWidth = this.siloWidths[a] + this.siloWidths[b];
 		const meanWidth = sumWidth / 2;
-		this.containerWidth[a] = meanWidth;
-		this.containerWidth[b] = sumWidth - meanWidth;
+		this.siloWidths[a] = meanWidth;
+		this.siloWidths[b] = sumWidth - meanWidth;
 		this.layoutContainers();
 	}
 
 	private onLeftSashDragStart(): void {
-		this.startLeftContainerWidth = this.containerWidth[Position.LEFT];
+		this.startLeftContainerWidth = this.siloWidths[Position.LEFT];
 	}
 
 	private onLeftSashDrag(e: ISashEvent): void {
-		let oldLeftContainerWidth = this.containerWidth[Position.LEFT];
+		let oldLeftContainerWidth = this.siloWidths[Position.LEFT];
 		let newLeftContainerWidth = this.startLeftContainerWidth + e.currentX - e.startX;
 
 		// Side-by-Side
@@ -1319,8 +1319,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				newLeftContainerWidth = this.dimension.width - SideBySideEditorControl.MIN_EDITOR_WIDTH;
 			}
 
-			this.containerWidth[Position.LEFT] = newLeftContainerWidth;
-			this.containerWidth[Position.CENTER] = this.dimension.width - newLeftContainerWidth;
+			this.siloWidths[Position.LEFT] = newLeftContainerWidth;
+			this.siloWidths[Position.CENTER] = this.dimension.width - newLeftContainerWidth;
 		}
 
 		// Side-by-Side-by-Side
@@ -1332,22 +1332,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// [      ]|[!]|[  ] : center side can not get smaller than MIN_EDITOR_WIDTH
-			else if (this.dimension.width - newLeftContainerWidth - this.containerWidth[Position.RIGHT] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+			else if (this.dimension.width - newLeftContainerWidth - this.siloWidths[Position.RIGHT] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 
 				// [      ]|[ ]|[!] : right side can not get smaller than MIN_EDITOR_WIDTH
-				if (this.dimension.width - newLeftContainerWidth - this.containerWidth[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+				if (this.dimension.width - newLeftContainerWidth - this.siloWidths[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 					newLeftContainerWidth = this.dimension.width - (2 * SideBySideEditorControl.MIN_EDITOR_WIDTH);
-					this.containerWidth[Position.CENTER] = this.containerWidth[Position.RIGHT] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
+					this.siloWidths[Position.CENTER] = this.siloWidths[Position.RIGHT] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
 				}
 
 				// [      ]|[ ]|[-> ] : right side can snap into minimized
-				else if (this.dimension.width - newLeftContainerWidth - this.containerWidth[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
-					this.containerWidth[Position.RIGHT] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
+				else if (this.dimension.width - newLeftContainerWidth - this.siloWidths[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+					this.siloWidths[Position.RIGHT] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
 				}
 
 				// [      ]|[ ]|[ ] : right side shrinks
 				else {
-					this.containerWidth[Position.RIGHT] = this.containerWidth[Position.RIGHT] - (newLeftContainerWidth - oldLeftContainerWidth);
+					this.siloWidths[Position.RIGHT] = this.siloWidths[Position.RIGHT] - (newLeftContainerWidth - oldLeftContainerWidth);
 				}
 
 				this.rightSash.layout();
@@ -1359,12 +1359,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// [      ]|[-> ]|[  ] : center side can snap into minimized
-			else if (this.dimension.width - this.containerWidth[Position.RIGHT] - newLeftContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
-				newLeftContainerWidth = this.dimension.width - this.containerWidth[Position.RIGHT] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
+			else if (this.dimension.width - this.siloWidths[Position.RIGHT] - newLeftContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+				newLeftContainerWidth = this.dimension.width - this.siloWidths[Position.RIGHT] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
 			}
 
-			this.containerWidth[Position.LEFT] = newLeftContainerWidth;
-			this.containerWidth[Position.CENTER] = this.dimension.width - this.containerWidth[Position.LEFT] - this.containerWidth[Position.RIGHT];
+			this.siloWidths[Position.LEFT] = newLeftContainerWidth;
+			this.siloWidths[Position.CENTER] = this.dimension.width - this.siloWidths[Position.LEFT] - this.siloWidths[Position.RIGHT];
 		}
 
 		// Pass on to containers
@@ -1383,11 +1383,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onRightSashDragStart(): void {
-		this.startRightContainerWidth = this.containerWidth[Position.RIGHT];
+		this.startRightContainerWidth = this.siloWidths[Position.RIGHT];
 	}
 
 	private onRightSashDrag(e: ISashEvent): void {
-		let oldRightContainerWidth = this.containerWidth[Position.RIGHT];
+		let oldRightContainerWidth = this.siloWidths[Position.RIGHT];
 		let newRightContainerWidth = this.startRightContainerWidth - e.currentX + e.startX;
 
 		// [  ]|[      ]|[!] : right side can not get smaller than MIN_EDITOR_WIDTH
@@ -1396,22 +1396,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// [      ]|[!]|[  ] : center side can not get smaller than MIN_EDITOR_WIDTH
-		else if (this.dimension.width - newRightContainerWidth - this.containerWidth[Position.LEFT] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+		else if (this.dimension.width - newRightContainerWidth - this.siloWidths[Position.LEFT] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 
 			// [!]|[ ]|[    ] : left side can not get smaller than MIN_EDITOR_WIDTH
-			if (this.dimension.width - newRightContainerWidth - this.containerWidth[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+			if (this.dimension.width - newRightContainerWidth - this.siloWidths[Position.CENTER] < SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 				newRightContainerWidth = this.dimension.width - (2 * SideBySideEditorControl.MIN_EDITOR_WIDTH);
-				this.containerWidth[Position.LEFT] = this.containerWidth[Position.CENTER] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
+				this.siloWidths[Position.LEFT] = this.siloWidths[Position.CENTER] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
 			}
 
 			// [ <-]|[ ]|[    ] : left side can snap into minimized
-			else if (this.dimension.width - newRightContainerWidth - this.containerWidth[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
-				this.containerWidth[Position.LEFT] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
+			else if (this.dimension.width - newRightContainerWidth - this.siloWidths[Position.CENTER] - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+				this.siloWidths[Position.LEFT] = SideBySideEditorControl.MIN_EDITOR_WIDTH;
 			}
 
 			// [  ]|[ ]|[   ] : left side shrinks
 			else {
-				this.containerWidth[Position.LEFT] = this.containerWidth[Position.LEFT] - (newRightContainerWidth - oldRightContainerWidth);
+				this.siloWidths[Position.LEFT] = this.siloWidths[Position.LEFT] - (newRightContainerWidth - oldRightContainerWidth);
 			}
 
 			this.leftSash.layout();
@@ -1423,12 +1423,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// [ ]|[ <-]|[      ] : center side can snap into minimized
-		else if (this.dimension.width - this.containerWidth[Position.LEFT] - newRightContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
-			newRightContainerWidth = this.dimension.width - this.containerWidth[Position.LEFT] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
+		else if (this.dimension.width - this.siloWidths[Position.LEFT] - newRightContainerWidth - SideBySideEditorControl.SNAP_TO_MINIMIZED_THRESHOLD <= SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+			newRightContainerWidth = this.dimension.width - this.siloWidths[Position.LEFT] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
 		}
 
-		this.containerWidth[Position.RIGHT] = newRightContainerWidth;
-		this.containerWidth[Position.CENTER] = this.dimension.width - this.containerWidth[Position.LEFT] - this.containerWidth[Position.RIGHT];
+		this.siloWidths[Position.RIGHT] = newRightContainerWidth;
+		this.siloWidths[Position.CENTER] = this.dimension.width - this.siloWidths[Position.LEFT] - this.siloWidths[Position.RIGHT];
 
 		this.layoutContainers();
 	}
@@ -1449,7 +1449,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public getVerticalSashLeft(sash: Sash): number {
-		return sash === this.leftSash ? this.containerWidth[Position.LEFT] : this.containerWidth[Position.CENTER] + this.containerWidth[Position.LEFT];
+		return sash === this.leftSash ? this.siloWidths[Position.LEFT] : this.siloWidths[Position.CENTER] + this.siloWidths[Position.LEFT];
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
@@ -1487,22 +1487,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (this.visibleEditors[position]) {
 
 				// Keep minimized editors in tact by not letting them grow if we have width to give
-				if (this.containerWidth[position] !== SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+				if (this.siloWidths[position] !== SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 					let sashWidthRatio: number;
 
 					// We have some stored initial ratios when the editor was restored on startup
 					// Use those ratios over anything else but only once.
-					if (this.containerInitialRatios && types.isNumber(this.containerInitialRatios[position])) {
-						sashWidthRatio = this.containerInitialRatios[position];
-						delete this.containerInitialRatios[position]; // dont use again
+					if (this.siloInitialRatios && types.isNumber(this.siloInitialRatios[position])) {
+						sashWidthRatio = this.siloInitialRatios[position];
+						delete this.siloInitialRatios[position]; // dont use again
 					} else {
-						sashWidthRatio = this.containerWidth[position] / oldDimension.width;
+						sashWidthRatio = this.siloWidths[position] / oldDimension.width;
 					}
 
-					this.containerWidth[position] = Math.max(Math.round(this.dimension.width * sashWidthRatio), SideBySideEditorControl.MIN_EDITOR_WIDTH);
+					this.siloWidths[position] = Math.max(Math.round(this.dimension.width * sashWidthRatio), SideBySideEditorControl.MIN_EDITOR_WIDTH);
 				}
 
-				totalWidth += this.containerWidth[position];
+				totalWidth += this.siloWidths[position];
 			}
 		});
 
@@ -1518,7 +1518,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// that if the user chose this layout.
 				let positionToGive: Position = null;
 				POSITIONS.forEach(position => {
-					if (this.visibleEditors[position] && positionToGive === null && this.containerWidth[position] !== SideBySideEditorControl.MIN_EDITOR_WIDTH) {
+					if (this.visibleEditors[position] && positionToGive === null && this.siloWidths[position] !== SideBySideEditorControl.MIN_EDITOR_WIDTH) {
 						positionToGive = position;
 					}
 				});
@@ -1527,19 +1527,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					positionToGive = Position.LEFT; // maybe all are minimized, so give LEFT the extra width
 				}
 
-				this.containerWidth[positionToGive] -= overflow;
+				this.siloWidths[positionToGive] -= overflow;
 			}
 
 			// We have width to take
 			else if (overflow > 0) {
 				POSITIONS.forEach(position => {
-					const maxCompensation = this.containerWidth[position] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
+					const maxCompensation = this.siloWidths[position] - SideBySideEditorControl.MIN_EDITOR_WIDTH;
 					if (maxCompensation >= overflow) {
-						this.containerWidth[position] -= overflow;
+						this.siloWidths[position] -= overflow;
 						overflow = 0;
 					} else if (maxCompensation > 0) {
 						const compensation = overflow - maxCompensation;
-						this.containerWidth[position] -= compensation;
+						this.siloWidths[position] -= compensation;
 						overflow -= compensation;
 					}
 				});
@@ -1558,22 +1558,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Layout containers
 		POSITIONS.forEach(position => {
-			this.containers[position].size(this.containerWidth[position], this.dimension.height);
+			this.silos[position].size(this.siloWidths[position], this.dimension.height);
 		});
 
 		// Position center depending on visibility of right hand editor
 		if (this.visibleEditors[Position.RIGHT]) {
-			this.containers[Position.CENTER].position(null, this.containerWidth[Position.RIGHT]);
+			this.silos[Position.CENTER].position(null, this.siloWidths[Position.RIGHT]);
 		} else {
-			this.containers[Position.CENTER].position(null, this.dimension.width - this.containerWidth[Position.LEFT] - this.containerWidth[Position.CENTER]);
+			this.silos[Position.CENTER].position(null, this.dimension.width - this.siloWidths[Position.LEFT] - this.siloWidths[Position.CENTER]);
 		}
 
 		// Visibility
 		POSITIONS.forEach(position => {
-			if (this.visibleEditors[position] && this.containers[position].isHidden()) {
-				this.containers[position].show();
-			} else if (!this.visibleEditors[position] && !this.containers[position].isHidden()) {
-				this.containers[position].hide();
+			if (this.visibleEditors[position] && this.silos[position].isHidden()) {
+				this.silos[position].show();
+			} else if (!this.visibleEditors[position] && !this.silos[position].isHidden()) {
+				this.silos[position].hide();
 			}
 		});
 
@@ -1589,7 +1589,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private layoutEditor(position: Position): void {
-		const editorWidth = this.containerWidth[position];
+		const editorWidth = this.siloWidths[position];
 		if (editorWidth && this.visibleEditors[position]) {
 			this.visibleEditors[position].layout(new Dimension(editorWidth, this.dimension.height - SideBySideEditorControl.EDITOR_TITLE_HEIGHT));
 		}
@@ -1629,7 +1629,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.titleAreaControl.forEach(c => c.dispose());
 
 		// Progress bars
-		this.progressBar.forEach((bar) => {
+		this.progressBar.forEach(bar => {
 			bar.dispose();
 		});
 
@@ -1638,8 +1638,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.rightSash.dispose();
 
 		// Destroy Container
-		this.containers.forEach((container) => {
-			container.destroy();
+		this.silos.forEach(silo => {
+			silo.destroy();
 		});
 
 		this.lastActiveEditor = null;
