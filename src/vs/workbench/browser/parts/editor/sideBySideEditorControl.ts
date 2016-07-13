@@ -84,6 +84,7 @@ export interface ISideBySideEditorControl {
  */
 export class SideBySideEditorControl implements ISideBySideEditorControl, IVerticalSashLayoutProvider {
 
+	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
 
 	private static MIN_EDITOR_WIDTH = 170;
@@ -101,8 +102,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private silos: Builder[];
 	private siloWidths: number[];
 	private siloInitialRatios: number[];
-
-	private titleAreaControl: ITitleAreaControl[];
 
 	private leftSash: Sash;
 	private startLeftContainerWidth: number;
@@ -144,8 +143,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.silos = [];
 		this.siloWidths = [];
 
-		this.titleAreaControl = [];
-
 		this.visibleEditors = [];
 		this.visibleEditorFocusTrackers = [];
 
@@ -167,9 +164,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const useTabs = configuration.workbench.editor.showTabs;
 
 		POSITIONS.forEach(position => {
+			const titleControl = this.getTitleAreaControl(position);
 
 			// TItle Container
-			const titleContainer = $(this.titleAreaControl[position].getContainer());
+			const titleContainer = $(titleControl.getContainer());
 			if (useTabs) {
 				titleContainer.addClass('tabs');
 			} else {
@@ -177,7 +175,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Title Control
-			const titleControl = this.titleAreaControl[position];
 			if (titleControl) {
 				const usingTabs = (titleControl instanceof TabsTitleControl);
 				if (usingTabs !== useTabs) {
@@ -196,23 +193,23 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private onExtensionsReady(): void {
 
 		// Up to date title areas
-		POSITIONS.forEach(position => this.titleAreaControl[position].update());
+		POSITIONS.forEach(position => this.getTitleAreaControl(position).update());
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
 
 		// Up to date context
 		POSITIONS.forEach(position => {
-			this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
+			this.getTitleAreaControl(position).setContext(this.stacks.groupAt(position));
 		});
 
 		// Refresh / update if group is visible and has a position
 		const position = this.stacks.positionOfGroup(e.group);
 		if (position >= 0) {
 			if (e.structural) {
-				this.titleAreaControl[position].refresh();
+				this.getTitleAreaControl(position).refresh();
 			} else {
-				this.titleAreaControl[position].update();
+				this.getTitleAreaControl(position).update();
 			}
 		}
 	}
@@ -1011,10 +1008,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private createTitleControl(position: Position, container: Builder): void {
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
-		this.titleAreaControl[position] = this.instantiationServices[position].createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
-		this.titleAreaControl[position].create(container.getHTMLElement());
-		this.titleAreaControl[position].setContext(this.stacks.groupAt(position));
-		this.titleAreaControl[position].refresh();
+		const titleAreaControl = this.instantiationServices[position].createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
+		titleAreaControl.create(container.getHTMLElement());
+		titleAreaControl.setContext(this.stacks.groupAt(position));
+		titleAreaControl.refresh();
+
+		this.silos[position].child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
 	}
 
 	private hookTitleDragListener(position: number, container: Builder): void {
@@ -1022,7 +1021,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Allow to reorder positions by dragging the title
 		container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			if (!this.titleAreaControl[position].allowDragging(<any>e.target || e.srcElement)) {
+			if (!this.getTitleAreaControl(position).allowDragging(<any>e.target || e.srcElement)) {
 				return; // return early if we are not in the drag zone of the title widget
 			}
 
@@ -1194,7 +1193,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					// To reduce flickering during this operation we trigger a refresh of all
 					// title controls right after.
 					POSITIONS.forEach(p => {
-						this.titleAreaControl[p].refresh(true);
+						this.getTitleAreaControl(p).refresh(true);
 					});
 				}
 
@@ -1583,7 +1582,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Layout title controls
 		POSITIONS.forEach(position => {
-			this.titleAreaControl[position].layout();
+			this.getTitleAreaControl(position).layout();
 		});
 	}
 
@@ -1600,6 +1599,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	public getProgressBar(position: Position): ProgressBar {
 		return this.silos[position].child().getProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY);
+	}
+
+	private getTitleAreaControl(position: Position): ITitleAreaControl {
+		return this.silos[position].child().getProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY);
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {
@@ -1624,11 +1627,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.clearPosition(position);
 		});
 
-		// Title Area Control
-		this.titleAreaControl.forEach(c => c.dispose());
-
-		// Progress bars
+		// Controls
 		POSITIONS.forEach(position => {
+			this.getTitleAreaControl(position).dispose();
 			this.getProgressBar(position).dispose();
 		});
 
