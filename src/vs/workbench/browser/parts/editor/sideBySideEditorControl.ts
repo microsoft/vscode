@@ -84,6 +84,8 @@ export interface ISideBySideEditorControl {
  */
 export class SideBySideEditorControl implements ISideBySideEditorControl, IVerticalSashLayoutProvider {
 
+	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
+
 	private static MIN_EDITOR_WIDTH = 170;
 	private static EDITOR_TITLE_HEIGHT = 35;
 	private static SNAP_TO_MINIMIZED_THRESHOLD = 50;
@@ -103,7 +105,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private containers: Builder[];
 
 	private titleAreaControl: ITitleAreaControl[];
-	private progressBar: ProgressBar[];
 
 	private leftSash: Sash;
 	private startLeftContainerWidth: number;
@@ -148,8 +149,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.containers = [];
 
 		this.titleAreaControl = [];
-
-		this.progressBar = [];
 
 		this.visibleEditors = [];
 		this.visibleEditorFocusTrackers = [];
@@ -765,8 +764,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Progress Bars per position
 		POSITIONS.forEach(position => {
-			this.progressBar[position] = new ProgressBar($(this.silos[position]));
-			this.progressBar[position].getContainer().hide();
+			const progressBar = new ProgressBar($(this.containers[position]));
+			progressBar.getContainer().hide();
+			this.containers[position].setProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY, progressBar);
 		});
 	}
 
@@ -1607,19 +1607,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public getProgressBar(position: Position): ProgressBar {
-		return this.progressBar[position];
+		return this.containers[position].getProperty(SideBySideEditorControl.PROGRESS_BAR_CONTROL_KEY);
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {
 		switch (state) {
 			case ProgressState.INFINITE:
-				this.progressBar[position].infinite().getContainer().show();
+				this.getProgressBar(position).infinite().getContainer().show();
 				break;
 			case ProgressState.DONE:
-				this.progressBar[position].done().getContainer().hide();
+				this.getProgressBar(position).done().getContainer().hide();
 				break;
 			case ProgressState.STOP:
-				this.progressBar[position].stop().getContainer().hide();
+				this.getProgressBar(position).stop().getContainer().hide();
 				break;
 		}
 	}
@@ -1636,8 +1636,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.titleAreaControl.forEach(c => c.dispose());
 
 		// Progress bars
-		this.progressBar.forEach(bar => {
-			bar.dispose();
+		POSITIONS.forEach(position => {
+			this.getProgressBar(position).dispose();
 		});
 
 		// Sash

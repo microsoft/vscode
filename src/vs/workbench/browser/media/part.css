@@ -71,7 +71,7 @@
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
-	z-index: 1;
+	z-index: 5; /* on top of things */
 	height: 2px;
 }
 
