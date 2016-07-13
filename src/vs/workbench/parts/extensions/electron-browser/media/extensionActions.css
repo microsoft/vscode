@@ -75,6 +75,7 @@
 	background-color: #4294CC
 }
 
+.monaco-action-bar .action-item.disabled .action-label.extension-action.install.no-extension,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable {
 	display: none;

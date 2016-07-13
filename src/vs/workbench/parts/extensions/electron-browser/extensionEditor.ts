@@ -137,15 +137,20 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		}
 
-		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, extension, {});
+		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, { extension });
 		this.transientDisposables.push(install);
 
-		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, extension, {});
+		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
 		this.transientDisposables.push(ratings);
 
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
-		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
-		const enableAction = this.instantiationService.createInstance(EnableAction, extension);
+		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const updateAction = this.instantiationService.createInstance(UpdateAction);
+		const enableAction = this.instantiationService.createInstance(EnableAction);
+
+		installAction.extension = extension;
+		updateAction.extension = extension;
+		enableAction.extension = extension;
+
 		this.actionBar.clear();
 		this.actionBar.push([enableAction, updateAction, installAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, installAction);
