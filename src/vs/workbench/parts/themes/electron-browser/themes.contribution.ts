@@ -62,7 +62,7 @@ class SelectThemeAction extends Action {
 					return this.viewletService.openViewlet(VIEWLET_ID, true)
 						.then(viewlet => viewlet as IExtensionsViewlet)
 						.then(viewlet => {
-							viewlet.search('tag:theme', true);
+							viewlet.search('category:themes', true);
 							viewlet.focus();
 						});
 				};
