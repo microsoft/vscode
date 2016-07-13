@@ -22,9 +22,11 @@ export class InstallAction extends Action {
 	private static InstallLabel = localize('installAction', "Install");
 	private static InstallingLabel = localize('installing', "Installing");
 	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		private extension: IExtension,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super('extensions.install', InstallAction.InstallLabel, 'extension-action install', false);
@@ -34,6 +36,12 @@ export class InstallAction extends Action {
 	}
 
 	private update(): void {
+		if (!this.extension) {
+			this.enabled = false;
+			this.label = InstallAction.InstallLabel;
+			return;
+		}
+
 		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
 		this.label = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingLabel : InstallAction.InstallLabel;
 	}
@@ -51,20 +59,27 @@ export class InstallAction extends Action {
 export class UninstallAction extends Action {
 
 	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		private extension: IExtension,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super('extensions.uninstall', localize('uninstall', "Uninstall"), 'extension-action uninstall', false);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.updateEnablement()));
-		this.updateEnablement();
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
 	}
 
-	private updateEnablement(): void {
+	private update(): void {
+		if (!this.extension) {
+			this.enabled = false;
+			return;
+		}
+
 		this.enabled = this.extension.state === ExtensionState.Installed
 			|| this.extension.state === ExtensionState.NeedsRestart;
 	}
@@ -90,18 +105,25 @@ export class UninstallAction extends Action {
 
 export class CombinedInstallAction extends Action {
 
+	private static NoExtensionClass = 'extension-action install no-extension';
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
 	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) {
+		this._extension = extension;
+		this.installAction.extension = extension;
+		this.uninstallAction.extension = extension;
+	}
 
 	constructor(
-		private extension: IExtension,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super('extensions.combinedInstall', '', '', false);
 
-		this.installAction = instantiationService.createInstance(InstallAction, extension);
-		this.uninstallAction = instantiationService.createInstance(UninstallAction, extension);
+		this.installAction = instantiationService.createInstance(InstallAction);
+		this.uninstallAction = instantiationService.createInstance(UninstallAction);
 		this.disposables.push(this.installAction, this.uninstallAction);
 
 		this.installAction.onDidChange(this.update, this, this.disposables);
@@ -110,7 +132,10 @@ export class CombinedInstallAction extends Action {
 	}
 
 	private update(): void {
-		if (this.installAction.enabled) {
+		if (!this.extension) {
+			this.enabled = false;
+			this.class = CombinedInstallAction.NoExtensionClass;
+		} else if (this.installAction.enabled) {
 			this.enabled = true;
 			this.label = this.installAction.label;
 			this.class = this.installAction.class;
@@ -124,6 +149,8 @@ export class CombinedInstallAction extends Action {
 			this.class = this.installAction.class;
 		} else {
 			this.enabled = false;
+			this.label = this.installAction.label;
+			this.class = this.installAction.class;
 		}
 	}
 
@@ -149,18 +176,26 @@ export class UpdateAction extends Action {
 	private static DisabledClass = `${ UpdateAction.EnabledClass } disabled`;
 
 	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		private extension: IExtension,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super('extensions.update', localize('updateAction', "Update"), UpdateAction.DisabledClass, false);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.updateEnablement()));
-		this.updateEnablement();
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
 	}
 
-	private updateEnablement(): void {
+	private update(): void {
+		if (!this.extension) {
+			this.enabled = false;
+			this.class = UpdateAction.DisabledClass;
+			return;
+		}
+
 		const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed
 			|| this.extension.state === ExtensionState.NeedsRestart;
@@ -185,19 +220,27 @@ export class EnableAction extends Action {
 	private static DisabledClass = `${ EnableAction.EnabledClass } disabled`;
 
 	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		private extension: IExtension,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super('extensions.enable', localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.updateEnablement()));
-		this.updateEnablement();
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
 	}
 
-	private updateEnablement(): void {
+	private update(): void {
+		if (!this.extension) {
+			this.enabled = false;
+			this.class = EnableAction.DisabledClass;
+			return;
+		}
+
 		this.enabled = this.extension.state === ExtensionState.NeedsRestart;
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
@@ -259,7 +302,6 @@ export class ClearExtensionsInputAction extends Action {
 				viewlet.focus();
 			});
 	}
-
 }
 
 export class ListOutdatedExtensionsAction extends Action {
