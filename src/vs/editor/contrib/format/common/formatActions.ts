@@ -141,7 +141,7 @@ export class FormatAction extends EditorAction {
 	private _disposables: IDisposable[];
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable);
+		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange);
 		this._disposables = [
 			DocumentFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState()),
 			DocumentRangeFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState())
@@ -151,6 +151,15 @@ export class FormatAction extends EditorAction {
 	public dispose() {
 		super.dispose();
 		this._disposables = dispose(this._disposables);
+	}
+	public isSupported(): boolean {
+		return (
+			(
+				DocumentFormattingEditProviderRegistry.has(this.editor.getModel())
+				|| DocumentRangeFormattingEditProviderRegistry.has(this.editor.getModel())
+			)
+			&& super.isSupported()
+		);
 	}
 
 	public run(): TPromise<boolean> {

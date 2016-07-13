@@ -20,6 +20,7 @@ import {IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon
 import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
 import {KEYBINDING_CONTEXT_EDITOR_READONLY, ModeContextKeys} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
+import {RenameProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {rename} from '../common/rename';
 import RenameInputField from './renameInputField';
@@ -50,6 +51,14 @@ export class RenameAction extends EditorAction {
 		this._editorService = editorService;
 		this._renameInputField = new RenameInputField(editor);
 		this._renameInputVisible = keybindingService.createKey(CONTEXT_RENAME_INPUT_VISIBLE, false);
+	}
+
+	public isSupported(): boolean {
+		return RenameProviderRegistry.has(this.editor.getModel()) && !this.editor.getModel().hasEditableRange() && super.isSupported();
+	}
+
+	public getEnablementState(): boolean {
+		return RenameProviderRegistry.has(this.editor.getModel());
 	}
 
 	public run(event?: any): TPromise<any> {

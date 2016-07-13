@@ -115,6 +115,9 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor, nls.localize('QuickOutlineAction.label', "Go to Symbol..."));
 	}
+	public isSupported(): boolean {
+		return DocumentSymbolProviderRegistry.has(this.editor.getModel()) && super.isSupported();
+	}
 
 	public run(): TPromise<boolean> {
 		let model = this.editor.getModel();
