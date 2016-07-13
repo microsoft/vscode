@@ -207,10 +207,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private onUpArrow(): void {
 		this.list.focusPrevious();
+		this.list.reveal(this.list.getFocus()[0]);
 	}
 
 	private onDownArrow(): void {
 		this.list.focusNext();
+		this.list.reveal(this.list.getFocus()[0]);
 	}
 
 	private onTab(): void {
