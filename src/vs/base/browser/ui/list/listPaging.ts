@@ -114,6 +114,14 @@ export class PagedList<T> {
 		this.list.selectPrevious(n, loop);
 	}
 
+	focusNextPage(): void {
+		this.list.focusNextPage();
+	}
+
+	focusPreviousPage(): void {
+		this.list.focusPreviousPage();
+	}
+
 	getFocus(): number[] {
 		return this.list.getFocus();
 	}
