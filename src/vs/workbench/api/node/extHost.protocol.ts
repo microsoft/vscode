@@ -81,9 +81,6 @@ export abstract class MainThreadCommandsShape {
 	$getCommands(): Thenable<string[]> { throw ni(); }
 }
 
-export abstract class MainThreadConfigurationShape {
-}
-
 export abstract class MainThreadDiagnosticsShape {
 	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> { throw ni(); }
 	$clear(owner: string): TPromise<any> { throw ni(); }
@@ -281,7 +278,6 @@ export abstract class ExtHostQuickOpenShape {
 
 export const MainContext = {
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands', MainThreadCommandsShape),
-	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration', MainThreadConfigurationShape),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics', MainThreadDiagnosticsShape),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', MainThreadDocumentsShape),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),
