@@ -775,6 +775,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				overlay.destroy();
 				overlay = void 0;
 			}
+
+			DOM.removeClass(node, 'dragged-over');
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
@@ -920,6 +922,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Make sure the overlay is visible
 			overlay.style({ opacity: 1 });
+
+			// Indicate a drag over is happening
+			DOM.addClass(node, 'dragged-over');
 		}
 
 		function createOverlay(target: HTMLElement): void {
