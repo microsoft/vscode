@@ -44,6 +44,7 @@ export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	allowDragging(element: HTMLElement): boolean;
 	create(parent: HTMLElement): void;
+	getContainer(): HTMLElement;
 	refresh(instant?: boolean): void;
 	update(instant?: boolean): void;
 	layout(): void;
@@ -67,6 +68,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
 	protected splitEditorAction: SplitEditorAction;
 	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
+
+	private parent: HTMLElement;
 
 	private previewEditors: boolean;
 	private showTabs: boolean;
@@ -182,7 +185,13 @@ export abstract class TitleControl implements ITitleAreaControl {
 		}
 	}
 
-	public abstract create(parent: HTMLElement): void;
+	public create(parent: HTMLElement): void {
+		this.parent = parent;
+	}
+
+	public getContainer(): HTMLElement {
+		return this.parent;
+	}
 
 	protected abstract doRefresh(): void;
 
@@ -195,7 +204,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
-		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-container');
+		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
 	}
 
 	private initActions(): void {
