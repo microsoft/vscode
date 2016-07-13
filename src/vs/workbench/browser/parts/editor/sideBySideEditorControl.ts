@@ -536,9 +536,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private rochade(from: Position, to: Position): void {
 
-		// Move editor to new position
+		// Move container to new position
+		const containerFrom = this.silos[from].child();
+		containerFrom.appendTo(this.silos[to]);
+
+		const containerTo = this.silos[to].child();
+		containerTo.appendTo(this.silos[from]);
+
+		// Inform editor
 		const editor = this.visibleEditors[from];
-		editor.getContainer().offDOM().build(this.silos[to].child());
 		editor.changePosition(to);
 
 		// Change data structures
@@ -560,14 +566,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Distance 1: Swap Editors
 		if (Math.abs(from - to) === 1) {
 
-			// Move editors to new position
-			let editorPos1 = this.visibleEditors[from];
-			editorPos1.getContainer().offDOM().build(this.silos[to].child());
-			editorPos1.changePosition(to);
+			// Move containers to new position
+			const containerFrom = this.silos[from].child();
+			containerFrom.appendTo(this.silos[to]);
 
-			let editorPos2 = this.visibleEditors[to];
-			editorPos2.getContainer().offDOM().build(this.silos[from].child());
-			editorPos2.changePosition(from);
+			const containerTo = this.silos[to].child();
+			containerTo.appendTo(this.silos[from]);
+
+			// Inform Editors
+			this.visibleEditors[from].changePosition(to);
+			this.visibleEditors[to].changePosition(from);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === from) {
@@ -595,18 +603,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				newRightPosition = Position.LEFT;
 			}
 
-			// Move editors to new position
-			let editorPos1 = this.visibleEditors[Position.LEFT];
-			editorPos1.getContainer().offDOM().build(this.silos[newLeftPosition].child(0));
-			editorPos1.changePosition(newLeftPosition);
+			// Move containers to new position
+			const containerPos1 = this.silos[Position.LEFT].child();
+			containerPos1.appendTo(this.silos[newLeftPosition]);
 
-			let editorPos2 = this.visibleEditors[Position.CENTER];
-			editorPos2.getContainer().offDOM().build(this.silos[newCenterPosition].child(0));
-			editorPos2.changePosition(newCenterPosition);
+			const containerPos2 = this.silos[Position.CENTER].child();
+			containerPos2.appendTo(this.silos[newCenterPosition]);
 
-			const editorPos3 = this.visibleEditors[Position.RIGHT];
-			editorPos3.getContainer().offDOM().build(this.silos[newRightPosition].child(0));
-			editorPos3.changePosition(newRightPosition);
+			const containerPos3 = this.silos[Position.RIGHT].child();
+			containerPos3.appendTo(this.silos[newRightPosition]);
+
+			// Inform Editors
+			this.visibleEditors[Position.LEFT].changePosition(newLeftPosition);
+			this.visibleEditors[Position.CENTER].changePosition(newCenterPosition);
+			this.visibleEditors[Position.RIGHT].changePosition(newRightPosition);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === Position.LEFT) {
