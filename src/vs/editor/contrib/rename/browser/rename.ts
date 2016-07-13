@@ -12,14 +12,15 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {RenameProviderRegistry} from 'vs/editor/common/modes';
+import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
+import {KEYBINDING_CONTEXT_EDITOR_READONLY, ModeContextKeys} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
+import {RenameProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {rename} from '../common/rename';
 import RenameInputField from './renameInputField';
@@ -43,17 +44,13 @@ export class RenameAction extends EditorAction {
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICodeEditor,
 		@IMessageService messageService: IMessageService, @IKeybindingService keybindingService: IKeybindingService,
 		@IEventService eventService: IEventService, @IEditorService editorService: IEditorService) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
+		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable);
 
 		this._messageService = messageService;
 		this._eventService = eventService;
 		this._editorService = editorService;
 		this._renameInputField = new RenameInputField(editor);
 		this._renameInputVisible = keybindingService.createKey(CONTEXT_RENAME_INPUT_VISIBLE, false);
-	}
-
-	public getGroupId(): string {
-		return '2_change/1_rename2';
 	}
 
 	public isSupported(): boolean {
@@ -145,10 +142,20 @@ export class RenameAction extends EditorAction {
 
 const weight = CommonEditorRegistry.commandWeight(99);
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RenameAction, RenameAction.ID, nls.localize('rename.label', "Rename Symbol"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyCode.F2
-}, 'Rename Symbol'));
+CommonEditorRegistry.registerEditorAction({
+	ctor: RenameAction,
+	id: RenameAction.ID,
+	label: nls.localize('rename.label', "Rename Symbol"),
+	alias: 'Rename Symbol',
+	kbOpts: {
+		context: ContextKey.EditorTextFocus,
+		primary: KeyCode.F2
+	},
+	menuOpts: {
+		group: 'modification@100',
+		kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
+	}
+});
 
 CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
 	const action = <RenameAction>editor.getAction(RenameAction.ID);

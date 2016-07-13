@@ -6,11 +6,23 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {ModeContextKeys} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
 import {QuickOutlineAction} from './quickOutline';
 
 // Contribute "Quick Outline" to context menu
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickOutlineAction, QuickOutlineAction.ID, nls.localize('label', "Go to Symbol..."), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}, 'Go to Symbol...'));
+CommonEditorRegistry.registerEditorAction({
+	ctor: QuickOutlineAction,
+	id: QuickOutlineAction.ID,
+	label: nls.localize('label', "Go to Symbol..."),
+	alias: 'Go to Symbol...',
+	kbOpts: {
+		context: ContextKey.EditorFocus,
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+	},
+	menuOpts: {
+		group: 'navigation@13',
+		kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasDocumentSymbolProvider))
+	}
+});

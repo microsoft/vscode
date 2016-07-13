@@ -18,8 +18,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {MenuRegistry} from 'vs/platform/actions/browser/menuService';
-import {MenuId} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
 class ClipboardWritingAction extends EditorAction {
 
@@ -67,10 +66,6 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
 	}
 
-	public getGroupId(): string {
-		return '3_edit/1_cut';
-	}
-
 	public getEnablementState(): boolean {
 		return super.getEnablementState() && editorCursorIsInEditableRange(this.editor);
 	}
@@ -88,10 +83,6 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
 
-	public getGroupId(): string {
-		return '3_edit/2_copy';
-	}
-
 	public run(): TPromise<boolean> {
 		this.editor.focus();
 		document.execCommand('copy');
@@ -103,10 +94,6 @@ class ExecCommandPasteAction extends EditorAction {
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
-	}
-
-	public getGroupId(): string {
-		return '3_edit/3_paste';
 	}
 
 	public getEnablementState(): boolean {
@@ -143,13 +130,11 @@ function registerClipboardAction(desc: IClipboardCommand, alias: string, weight:
 		kbExpr: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)
 	}, alias));
 
-	MenuRegistry.addCommand({
-		id: desc.id,
-		title: desc.label
-	});
-
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-		command: MenuRegistry.getCommand(desc.id),
+		command: {
+			id: desc.id,
+			title: desc.label
+		},
 		group: `cutcopypaste@${weight}`,
 		when: desc.kbExpr
 	});

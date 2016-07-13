@@ -149,6 +149,7 @@ export interface IStaticServices {
 	editorWorkerService: IEditorWorkerService;
 	eventService: IEventService;
 	storageService: IStorageService;
+	commandService: ICommandService;
 	instantiationService: IInstantiationService;
 }
 
@@ -266,6 +267,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	staticServices = {
 		configurationService: configurationService,
 		extensionService: extensionService,
+		commandService: commandService,
 		compatWorkerService: compatWorkerService,
 		modeService: modeService,
 		markerService: markerService,

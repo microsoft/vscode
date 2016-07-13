@@ -31,6 +31,7 @@ import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
 import {hash} from 'vs/base/common/hash';
+import {EditorModeContext} from 'vs/editor/common/modes/editorModeContext';
 
 var EDITOR_ID = 0;
 
@@ -150,6 +151,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._hasMultipleSelectionsKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS, false);
 		this._hasNonEmptySelectionKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION, false);
 		this._langIdKey = this._keybindingService.createKey<string>(editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, undefined);
+		this._lifetimeDispose.push(new EditorModeContext(this, this._keybindingService));
 
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
