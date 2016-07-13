@@ -76,7 +76,7 @@ export class TabsTitleControl extends TitleControl {
 
 	public create(parent: HTMLElement): void {
 		super.create(parent);
-		
+
 		this.titleContainer = parent;
 
 		// Tabs Container
@@ -218,6 +218,19 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 
+		// Update Group Actions Toolbar
+		const groupActions = this.getGroupActions(group);
+		const primaryGroupActions = groupActions.primary;
+		const secondaryGroupActions = groupActions.secondary;
+		const primaryGroupActionIds = primaryGroupActions.map(a => a.id);
+		const secondaryGroupActionIds = secondaryGroupActions.map(a => a.id);
+
+		if (!arrays.equals(primaryGroupActionIds, this.currentPrimaryGroupActionIds) || !arrays.equals(secondaryGroupActionIds, this.currentSecondaryGroupActionIds)) {
+			this.groupActionsToolbar.setActions(primaryGroupActions, secondaryGroupActions)();
+			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
+			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
+		}
+
 		// Ensure the active tab is always revealed
 		this.layout();
 	}
@@ -234,19 +247,6 @@ export class TabsTitleControl extends TitleControl {
 			this.currentSecondaryGroupActionIds = [];
 
 			return; // return early if we are being closed
-		}
-
-		// Refresh Group Actions Toolbar
-		const groupActions = this.getGroupActions(group);
-		const primaryGroupActions = groupActions.primary;
-		const secondaryGroupActions = groupActions.secondary;
-		const primaryGroupActionIds = primaryGroupActions.map(a => a.id);
-		const secondaryGroupActionIds = secondaryGroupActions.map(a => a.id);
-
-		if (!arrays.equals(primaryGroupActionIds, this.currentPrimaryGroupActionIds) || !arrays.equals(secondaryGroupActionIds, this.currentSecondaryGroupActionIds)) {
-			this.groupActionsToolbar.setActions(primaryGroupActions, secondaryGroupActions)();
-			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
-			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
 		}
 
 		// Refresh Tabs
