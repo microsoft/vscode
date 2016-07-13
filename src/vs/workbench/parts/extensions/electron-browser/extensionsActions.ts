@@ -105,6 +105,7 @@ export class CombinedInstallAction extends Action {
 		this.disposables.push(this.installAction, this.uninstallAction);
 
 		this.installAction.onDidChange(this.update, this, this.disposables);
+		this.uninstallAction.onDidChange(this.update, this, this.disposables);
 		this.update();
 	}
 
