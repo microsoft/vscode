@@ -99,7 +99,7 @@ export class ExtHostFileSystemEventService extends ExtHostFileSystemEventService
 		return new FileSystemWatcher(this._emitter.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 
-	_onFileEvent(events: FileSystemEvents) {
+	$onFileEvent(events: FileSystemEvents) {
 		this._emitter.fire(events);
 	}
 }
