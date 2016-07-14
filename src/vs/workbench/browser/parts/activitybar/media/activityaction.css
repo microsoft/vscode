@@ -25,7 +25,6 @@
 	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .badge:active:before,
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	content: "";
 	position: absolute;
@@ -35,24 +34,19 @@
 	border-left: 2px solid;
 }
 
-.vs .monaco-workbench > .activitybar > .content .monaco-action-bar .badge:active:before,
-.vs-dark .monaco-workbench > .activitybar > .content .monaco-action-bar .badge:active:before,
 .vs .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before,
 .vs-dark .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	border-left-color: #007ACC;
 }
 
-.hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .badge:active:before,
 .hc-black .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
 	border-left-color: #f38518;
 }
 
-.monaco-workbench > .activitybar.left > .content .monaco-action-bar .badge:active:before,
 .monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before {
 	left: 1px;
 }
 
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .badge:active:before,
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
 	right: 1px;
 }
