@@ -207,8 +207,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _editorWorkerService: IEditorWorkerService;
 	private _keybindingService: IKeybindingService;
 
-	private _lastUsedFontInfo:editorCommon.FontInfo;
-
 	constructor(
 		domElement:HTMLElement,
 		options:editorCommon.IDiffEditorOptions,
@@ -765,13 +763,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 				this._onViewZonesChanged();
 			}
 			if (type === editorCommon.EventType.ConfigurationChanged) {
+				let e = <editorCommon.IConfigurationChangedEvent>data;
 				let isViewportWrapping = this.modifiedEditor.getConfiguration().wrappingInfo.isViewportWrapping;
 				if (isViewportWrapping) {
 					// oh no, you didn't!
 					this.modifiedEditor.updateOptions({ wrappingColumn: -1 });
 				}
-				if (this._lastUsedFontInfo !== this.modifiedEditor.getConfiguration().fontInfo) {
-					this._lastUsedFontInfo = this.modifiedEditor.getConfiguration().fontInfo;
+				if (e.fontInfo && this.modifiedEditor.getModel()) {
 					this._onViewZonesChanged();
 				}
 			}
