@@ -1057,12 +1057,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Allow to reorder positions by dragging the title
 		titleContainer.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			const position = this.findPosition(titleContainer.getHTMLElement());
-			if (!this.getTitleAreaControl(position).allowDragging(<any>e.target || e.srcElement)) {
+			const titleAreaControl = this.getTitleAreaControl(position);
+			if (!titleAreaControl.allowDragging(<any>e.target || e.srcElement)) {
 				return; // return early if we are not in the drag zone of the title widget
 			}
 
 			// Reset flag
 			wasDragged = false;
+			titleAreaControl.setDragged(false);
 
 			// Return early if there is only one editor active or the user clicked into the toolbar
 			if (this.getVisibleEditorCount() <= 1) {
@@ -1206,6 +1208,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// Update flag
 				this.dragging = false;
+				if (wasDragged) {
+					titleAreaControl.setDragged(true);
+				}
 
 				// Restore styles
 				this.parent.removeClass('drag');
