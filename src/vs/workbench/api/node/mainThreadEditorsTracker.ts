@@ -40,6 +40,11 @@ function configurationsEqual(a:IResolvedTextEditorConfiguration, b:IResolvedText
 	);
 }
 
+export interface ISelectionChangeEvent {
+	selections: Selection[];
+	source?: string;
+}
+
 export interface IFocusTracker {
 	onGainedFocus(): void;
 	onLostFocus(): void;
@@ -68,7 +73,7 @@ export class MainThreadTextEditor {
 	private _lastSelection: Selection[];
 	private _configuration: IResolvedTextEditorConfiguration;
 
-	private _onSelectionChanged: Emitter<Selection[]>;
+	private _onSelectionChanged: Emitter<ISelectionChangeEvent>;
 	private _onConfigurationChanged: Emitter<IResolvedTextEditorConfiguration>;
 
 	constructor(
@@ -85,7 +90,7 @@ export class MainThreadTextEditor {
 		this._modelService = modelService;
 		this._codeEditorListeners = [];
 
-		this._onSelectionChanged = new Emitter<Selection[]>();
+		this._onSelectionChanged = new Emitter<ISelectionChangeEvent>();
 		this._onConfigurationChanged = new Emitter<IResolvedTextEditorConfiguration>();
 
 		this._lastSelection = [ new Selection(1,1,1,1) ];
@@ -132,9 +137,12 @@ export class MainThreadTextEditor {
 				this.setCodeEditor(null);
 			}));
 
-			let forwardSelection = () => {
+			let forwardSelection = (event?: EditorCommon.ICursorSelectionChangedEvent) => {
 				this._lastSelection = this._codeEditor.getSelections();
-				this._onSelectionChanged.fire(this._lastSelection);
+				this._onSelectionChanged.fire({
+					selections: this._lastSelection,
+					source: event && event.source
+				});
 			};
 			this._codeEditorListeners.push(this._codeEditor.onDidChangeCursorSelection(forwardSelection));
 			if (!Selection.selectionsArrEqual(this._lastSelection, this._codeEditor.getSelections())) {
@@ -157,7 +165,7 @@ export class MainThreadTextEditor {
 		return !!this._codeEditor;
 	}
 
-	public get onSelectionChanged(): Event<Selection[]> {
+	public get onSelectionChanged(): Event<ISelectionChangeEvent> {
 		return this._onSelectionChanged.event;
 	}
 
