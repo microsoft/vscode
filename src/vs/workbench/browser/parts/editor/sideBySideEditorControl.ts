@@ -1063,7 +1063,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
-		titleAreaControl.refresh();
+		titleAreaControl.refresh(true /* instant */);
 
 		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
 	}
