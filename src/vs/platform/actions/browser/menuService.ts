@@ -105,7 +105,7 @@ class Menu implements IMenu {
 					activeActions.push(action);
 				}
 			}
-			if (actions.length > 0) {
+			if (activeActions.length > 0) {
 				result.push([id, activeActions]);
 			}
 		}
