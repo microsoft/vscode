@@ -121,7 +121,9 @@ class VisualEditorState {
 		this._decorations = editor.deltaDecorations(this._decorations, newDecorations.decorations);
 
 		// overview ruler
-		overviewRuler.setZones(newDecorations.overviewZones);
+		if (overviewRuler) {
+			overviewRuler.setZones(newDecorations.overviewZones);
+		}
 	}
 }
 
@@ -204,6 +206,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _editorWorkerService: IEditorWorkerService;
 	private _keybindingService: IKeybindingService;
+
+	private _lastUsedFontInfo:editorCommon.FontInfo;
 
 	constructor(
 		domElement:HTMLElement,
@@ -765,6 +769,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 				if (isViewportWrapping) {
 					// oh no, you didn't!
 					this.modifiedEditor.updateOptions({ wrappingColumn: -1 });
+				}
+				if (this._lastUsedFontInfo !== this.modifiedEditor.getConfiguration().fontInfo) {
+					this._lastUsedFontInfo = this.modifiedEditor.getConfiguration().fontInfo;
+					this._onViewZonesChanged();
 				}
 			}
 		}
