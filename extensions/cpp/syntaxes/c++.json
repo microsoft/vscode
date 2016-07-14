@@ -14,11 +14,12 @@
     "hxx",
     "h++",
     "inl",
+    "ino",
     "ipp",
     "tcc",
     "tpp"
   ],
-  "firstLineMatch": "-\\*-\\s*([Mm]ode: )?C\\+\\+;?\\s*-\\*-",
+  "firstLineMatch": "(?i)-\\*-[^*]*(Mode:\\s*)?C\\+\\+(\\s*;.*?)?\\s*-\\*-",
   "name": "C++",
   "patterns": [
     {
@@ -28,7 +29,7 @@
       "include": "source.c"
     },
     {
-      "match": "\\b(friend|explicit|virtual)\\b",
+      "match": "\\b(friend|explicit|virtual|override|final|noexcept)\\b",
       "name": "storage.modifier.cpp"
     },
     {
@@ -65,15 +66,15 @@
       "name": "keyword.operator.cast.cpp"
     },
     {
-      "match": "\\b(and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq)\\b",
+      "match": "\\b(and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\b",
       "name": "keyword.operator.cpp"
     },
     {
-      "match": "\\b(class|decltype|wchar_t)\\b",
+      "match": "\\b(class|decltype|wchar_t|char16_t|char32_t)\\b",
       "name": "storage.type.cpp"
     },
     {
-      "match": "\\b(constexpr|export|mutable|typename)\\b",
+      "match": "\\b(constexpr|export|mutable|typename|thread_local)\\b",
       "name": "storage.modifier.cpp"
     },
     {
