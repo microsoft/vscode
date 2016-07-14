@@ -305,7 +305,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			return editor;
 
-		}, (e: any) => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
+		}, e => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
 	}
 
 	private doCreateEditor(group: EditorGroup, descriptor: IEditorDescriptor, monitor: ProgressMonitor): TPromise<BaseEditor> {
@@ -418,7 +418,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Fullfill promise with Editor that is being used
 			return editor;
 
-		}, (e: any) => this.doHandleSetInputError(e, group, editor, input, options, monitor));
+		}, e => this.doHandleSetInputError(e, group, editor, input, options, monitor));
 	}
 
 	private doHandleSetInputError(e: Error | IMessageWithAction, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
@@ -681,7 +681,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	public getVisibleEditors(): BaseEditor[] {
-		return this.visibleEditors ? this.visibleEditors.filter((editor) => !!editor) : [];
+		return this.visibleEditors ? this.visibleEditors.filter(editor => !!editor) : [];
 	}
 
 	public moveGroup(from: EditorGroup, to: EditorGroup): void;
@@ -1107,7 +1107,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.sideBySideControl.dispose();
 
 		// Pass to active editors
-		this.visibleEditors.forEach((editor) => {
+		this.visibleEditors.forEach(editor => {
 			if (editor) {
 				editor.dispose();
 			}
@@ -1116,7 +1116,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Pass to instantiated editors
 		for (var i = 0; i < this.instantiatedEditors.length; i++) {
 			for (var j = 0; j < this.instantiatedEditors[i].length; j++) {
-				if (this.visibleEditors.some((editor) => editor === this.instantiatedEditors[i][j])) {
+				if (this.visibleEditors.some(editor => editor === this.instantiatedEditors[i][j])) {
 					continue;
 				}
 
@@ -1148,18 +1148,26 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Respect option to reveal an editor if it is already opened
 		if (options && options.revealIfOpened) {
-			if (typeof arg1 === 'number') {
-				const desiredGroup = this.stacks.groupAt(arg1);
-				if (desiredGroup && desiredGroup.contains(input)) {
-					return arg1;
+
+			// First check over active and visible editors from left to right
+			const editorsToCheck: BaseEditor[] = [];
+			if (activeEditor) { editorsToCheck.push(activeEditor); }
+			visibleEditors.forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e); }});
+			for (let i = 0; i < editorsToCheck.length; i++) {
+				const editorToCheck = editorsToCheck[i];
+				if (input.matches(editorToCheck.input)) {
+					return editorToCheck.position;
 				}
 			}
 
-			const groups = this.stacks.groups;
-			for (let i = 0; i < groups.length; i++) {
-				const group = groups[i];
-				if (group.contains(input)) {
-					return this.stacks.positionOfGroup(group);
+			// Then check over active and visible groups from left to right
+			const groupsToCheck: EditorGroup[] = [];
+			if (this.stacks.activeGroup) { groupsToCheck.push(this.stacks.activeGroup); }
+			this.stacks.groups.forEach(g => { if (g !== this.stacks.activeGroup) { groupsToCheck.push(g); }});
+			for (let i = 0; i < groupsToCheck.length; i++) {
+				const groupToCheck = groupsToCheck[i];
+				if (groupToCheck.contains(input)) {
+					return this.stacks.positionOfGroup(groupToCheck);
 				}
 			}
 		}
