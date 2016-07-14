@@ -17,6 +17,7 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
+import {RunOnceScheduler} from 'vs/base/common/async';
 import {isMacintosh} from 'vs/base/common/platform';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -118,6 +119,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private _onGroupFocusChanged: Emitter<void>;
 
+	private onStacksChangeScheduler: RunOnceScheduler;
+	private stacksChangedBuffer: IStacksModelChangeEvent[];
+
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -134,6 +138,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.stacks = editorGroupService.getStacksModel();
+		this.toDispose = [];
 
 		this.parent = parent;
 		this.dimension = new Dimension(0, 0);
@@ -146,7 +151,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this._onGroupFocusChanged = new Emitter<void>();
 
-		this.toDispose = [];
+		this.onStacksChangeScheduler = new RunOnceScheduler(() => this.handleStacksChanged(), 0);
+		this.toDispose.push(this.onStacksChangeScheduler);
+		this.stacksChangedBuffer = [];
 
 		this.create(this.parent);
 		this.registerListeners();
@@ -195,21 +202,37 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
+		this.stacksChangedBuffer.push(e);
+		this.onStacksChangeScheduler.schedule();
+	}
 
-		// Up to date context
+	private handleStacksChanged(): void {
+
+		// Read and reset buffer of events
+		const buffer = this.stacksChangedBuffer;
+		this.stacksChangedBuffer = [];
+
+		// Up to date context for all title controls
 		POSITIONS.forEach(position => {
-			this.getTitleAreaControl(position).setContext(this.stacks.groupAt(position));
+			const titleAreaControl = this.getTitleAreaControl(position);
+			const context = this.stacks.groupAt(position);
+			titleAreaControl.setContext(context);
+			if (!context) {
+				titleAreaControl.refresh(); // clear out the control if the context is no longer present
+			}
 		});
 
 		// Refresh / update if group is visible and has a position
-		const position = this.stacks.positionOfGroup(e.group);
-		if (position >= 0) {
-			if (e.structural) {
-				this.getTitleAreaControl(position).refresh();
-			} else {
-				this.getTitleAreaControl(position).update();
+		buffer.forEach(e => {
+			const position = this.stacks.positionOfGroup(e.group);
+			if (position >= 0) { // group could be gone by now because we run from a scheduler with timeout
+				if (e.structural) {
+					this.getTitleAreaControl(position).refresh();
+				} else {
+					this.getTitleAreaControl(position).update();
+				}
 			}
-		}
+		});
 	}
 
 	public get onGroupFocusChanged(): Event<void> {
@@ -537,9 +560,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private rochade(from: Position, to: Position): void {
 
-		// Move editor to new position
+		// Move container to new position
+		const containerFrom = this.silos[from].child();
+		containerFrom.appendTo(this.silos[to]);
+
+		const containerTo = this.silos[to].child();
+		containerTo.appendTo(this.silos[from]);
+
+		// Inform editor
 		const editor = this.visibleEditors[from];
-		editor.getContainer().offDOM().build(this.silos[to].child());
 		editor.changePosition(to);
 
 		// Change data structures
@@ -561,14 +590,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Distance 1: Swap Editors
 		if (Math.abs(from - to) === 1) {
 
-			// Move editors to new position
-			let editorPos1 = this.visibleEditors[from];
-			editorPos1.getContainer().offDOM().build(this.silos[to].child());
-			editorPos1.changePosition(to);
+			// Move containers to new position
+			const containerFrom = this.silos[from].child();
+			containerFrom.appendTo(this.silos[to]);
 
-			let editorPos2 = this.visibleEditors[to];
-			editorPos2.getContainer().offDOM().build(this.silos[from].child());
-			editorPos2.changePosition(from);
+			const containerTo = this.silos[to].child();
+			containerTo.appendTo(this.silos[from]);
+
+			// Inform Editors
+			this.visibleEditors[from].changePosition(to);
+			this.visibleEditors[to].changePosition(from);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === from) {
@@ -596,18 +627,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				newRightPosition = Position.LEFT;
 			}
 
-			// Move editors to new position
-			let editorPos1 = this.visibleEditors[Position.LEFT];
-			editorPos1.getContainer().offDOM().build(this.silos[newLeftPosition].child());
-			editorPos1.changePosition(newLeftPosition);
+			// Move containers to new position
+			const containerPos1 = this.silos[Position.LEFT].child();
+			containerPos1.appendTo(this.silos[newLeftPosition]);
 
-			let editorPos2 = this.visibleEditors[Position.CENTER];
-			editorPos2.getContainer().offDOM().build(this.silos[newCenterPosition].child());
-			editorPos2.changePosition(newCenterPosition);
+			const containerPos2 = this.silos[Position.CENTER].child();
+			containerPos2.appendTo(this.silos[newCenterPosition]);
 
-			const editorPos3 = this.visibleEditors[Position.RIGHT];
-			editorPos3.getContainer().offDOM().build(this.silos[newRightPosition].child());
-			editorPos3.changePosition(newRightPosition);
+			const containerPos3 = this.silos[Position.RIGHT].child();
+			containerPos3.appendTo(this.silos[newRightPosition]);
+
+			// Inform Editors
+			this.visibleEditors[Position.LEFT].changePosition(newLeftPosition);
+			this.visibleEditors[Position.CENTER].changePosition(newCenterPosition);
+			this.visibleEditors[Position.RIGHT].changePosition(newRightPosition);
 
 			// Update last active position accordingly
 			if (this.lastActivePosition === Position.LEFT) {
@@ -1030,7 +1063,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
-		titleAreaControl.refresh();
+		titleAreaControl.refresh(true /* instant */);
 
 		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
 	}
@@ -1230,12 +1263,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move to valid position if any
 				if (moveTo !== null) {
 					this.editorGroupService.moveGroup(position, moveTo);
-
-					// To reduce flickering during this operation we trigger a refresh of all
-					// title controls right after.
-					POSITIONS.forEach(p => {
-						this.getTitleAreaControl(p).refresh(true);
-					});
 				}
 
 				// Otherwise layout to restore proper positioning
