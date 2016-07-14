@@ -3188,8 +3188,11 @@ declare module monaco.editor {
      * Positions on the view
      */
     export const ViewPosition: {
-        FirstCharacterOfLine: string;
-        FirstNonWhiteSpaceCharacterOfLine: string;
+        LineStart: string;
+        LineFirstNonWhitespaceCharacter: string;
+        LineCenter: string;
+        LineEnd: string;
+        LineLastNonWhitespaceCharacter: string;
     };
 
     /**

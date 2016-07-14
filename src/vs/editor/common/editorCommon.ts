@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
 import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
+import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -19,6 +21,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
+import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 
 /**
  * @internal
@@ -4167,8 +4170,27 @@ export var EventType = {
  * Positions on the view
  */
 export const ViewPosition = {
-	FirstCharacterOfLine: 'firstCharacterOfLine',
-	FirstNonWhiteSpaceCharacterOfLine: 'firstNonWhiteSpaceCharacterOfLine'
+	LineStart: 'lineStart',
+	LineFirstNonWhitespaceCharacter: 'lineFirstNonWhitespaceCharacter',
+	LineCenter: 'lineCenter',
+	LineEnd: 'lineEnd',
+	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter'
+};
+
+/**
+ * @internal
+ */
+export var CommandDescription= {
+	CursorMove: <ICommandHandlerDescription>{
+		description: nls.localize('editorCommand.cursorMove.description', "Move cursor to a logical position in the view"),
+		args: [
+			{
+				name: 'Logical position argument',
+				description: nls.localize('editorCommand.cursorMove.arg.description', "A logical position in the view"),
+				constraint: (arg) => types.isObject(arg) && types.isString(arg.to)
+			}
+		]
+	}
 };
 
 /**

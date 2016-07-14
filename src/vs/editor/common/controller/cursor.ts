@@ -1129,7 +1129,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _move(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, inSelectionMode, ctx.eventData.viewPosition, ctx.eventSource, oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, inSelectionMode, ctx.eventData.to, ctx.eventSource, oneCtx));
 	}
 
 	private _columnSelectToLineNumber: number = 0;
