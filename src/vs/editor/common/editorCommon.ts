@@ -4164,6 +4164,14 @@ export var EventType = {
 };
 
 /**
+ * Positions on the view
+ */
+export const ViewPosition = {
+	FirstCharacterOfLine: 'firstCharacterOfLine',
+	FirstNonWhiteSpaceCharacterOfLine: 'firstNonWhiteSpaceCharacterOfLine'
+};
+
+/**
  * Built-in commands.
  */
 export var Handler = {
@@ -4221,6 +4229,8 @@ export var Handler = {
 	CursorColumnSelectPageUp:	'cursorColumnSelectPageUp',
 	CursorColumnSelectDown:		'cursorColumnSelectDown',
 	CursorColumnSelectPageDown:	'cursorColumnSelectPageDown',
+
+	CursorMove:					'cursorMove',
 
 	AddCursorDown:				'addCursorDown',
 	AddCursorUp:				'addCursorUp',

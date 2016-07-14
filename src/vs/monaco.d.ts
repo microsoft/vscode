@@ -3185,6 +3185,14 @@ declare module monaco.editor {
     };
 
     /**
+     * Positions on the view
+     */
+    export const ViewPosition: {
+        FirstCharacterOfLine: string;
+        FirstNonWhiteSpaceCharacterOfLine: string;
+    };
+
+    /**
      * Built-in commands.
      */
     export var Handler: {
@@ -3229,6 +3237,7 @@ declare module monaco.editor {
         CursorColumnSelectPageUp: string;
         CursorColumnSelectDown: string;
         CursorColumnSelectPageDown: string;
+        CursorMove: string;
         AddCursorDown: string;
         AddCursorUp: string;
         CursorUndo: string;

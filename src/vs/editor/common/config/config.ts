@@ -154,6 +154,9 @@ function getWordNavigationKB(shift:boolean, key:KeyCode): number {
 // Control+Command+d => noop
 // Control+Command+shift+d => noop
 
+// Register cursor commands
+registerCoreCommand(H.CursorMove, { primary: null });
+
 registerCoreCommand(H.CursorLeft, {
 	primary: KeyCode.LeftArrow,
 	mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_B] }
