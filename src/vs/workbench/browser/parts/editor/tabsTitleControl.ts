@@ -31,6 +31,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
@@ -58,9 +59,10 @@ export class TabsTitleControl extends TitleControl {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService);
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.currentPrimaryGroupActionIds = [];
 		this.currentSecondaryGroupActionIds = [];
