@@ -374,23 +374,23 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			return;
 		}
 
-		let htmlMessage: MarkedString = void 0;;
+		let hoverMessage: MarkedString = void 0;
 		if (text && text.trim().length > 0) {
 			if (isCode) {
-				htmlMessage = {
+				hoverMessage = {
 					language: model.getMode().getId(),
 					value: text
 				};
 			} else {
-				htmlMessage = textToMarkedString(text);
+				hoverMessage = textToMarkedString(text);
 			}
 		}
 
-		let newDecorations = {
+		let newDecorations : editorCommon.IModelDeltaDecoration = {
 			range: range,
 			options: {
 				inlineClassName: 'goto-definition-link',
-				htmlMessage: [htmlMessage]
+				hoverMessage
 			}
 		};
 
