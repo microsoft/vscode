@@ -41,6 +41,7 @@ export interface IToolbarActions {
 }
 
 export interface ITitleAreaControl {
+	setContext(group: IEditorGroup): void;
 	allowDragging(element: HTMLElement): boolean;
 	create(parent: HTMLElement): void;
 	getContainer(): HTMLElement;
@@ -55,6 +56,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private static draggedEditor: IEditorIdentifier;
 
 	protected stacks: IEditorStacksModel;
+	protected context: IEditorGroup;
 	protected toDispose: IDisposable[];
 
 	protected closeEditorAction: CloseEditorAction;
@@ -81,7 +83,6 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private contributedTitleBarMenu: IMenu;
 
 	constructor(
-		private getContext:() => IEditorGroup,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
@@ -109,10 +110,6 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		this.initActions();
 		this.registerListeners();
-	}
-
-	protected get context(): IEditorGroup {
-		return this.getContext();
 	}
 
 	public static getDraggedEditor(): IEditorIdentifier {
@@ -162,6 +159,10 @@ export abstract class TitleControl implements ITitleAreaControl {
 		}
 
 		this.refreshScheduled = false;
+	}
+
+	public setContext(group: IEditorGroup): void {
+		this.context = group;
 	}
 
 	public update(instant?: boolean): void {
