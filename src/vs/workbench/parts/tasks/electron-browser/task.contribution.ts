@@ -1210,7 +1210,7 @@ let schema : IJSONSchema =
 					'echoCommand': {
 						'type': 'boolean',
 						'description': nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-						'default': true
+						'default': false
 					},
 					'suppressTaskName': {
 						'type': 'boolean',
@@ -1263,7 +1263,7 @@ let schema : IJSONSchema =
 					'echoCommand': {
 						'type': 'boolean',
 						'description': nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-						'default': true
+						'default': false
 					},
 					'isWatching': {
 						'type': 'boolean',
