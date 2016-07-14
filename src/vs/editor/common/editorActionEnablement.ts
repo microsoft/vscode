@@ -13,7 +13,6 @@ export enum Behaviour {
 	Writeable = 1 << 2,
 	UpdateOnModelChange = 1 << 3,
 	UpdateOnConfigurationChange = 1 << 4,
-	ShowInContextMenu = 1 << 5,
 	UpdateOnCursorPositionChange = 1 << 6
 }
 

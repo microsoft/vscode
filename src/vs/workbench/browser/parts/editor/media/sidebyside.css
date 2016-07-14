@@ -127,6 +127,10 @@
 	transition-property: right;
 }
 
+.monaco-workbench > .editor > .content > .one-editor-silo > .container {
+	height: 100%;
+}
+
 .monaco-workbench > .editor > .content > .one-editor-silo > .container > .editor-container {
 	height: calc(100% - 35px); /* Editor is below editor title */
 }

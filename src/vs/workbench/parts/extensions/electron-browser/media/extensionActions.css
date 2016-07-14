@@ -50,6 +50,11 @@
 	background-color: #6DA770;
 }
 
+.monaco-action-bar .action-item:not(.disabled) .action-label:focus.extension-action.install,
+.monaco-action-bar .action-item:not(.disabled) .action-label:focus.extension-action.update {
+	outline: 1px solid rgb(14, 99, 156) !important;
+}
+
 
 .monaco-action-bar .action-item .action-label.extension-action.enable {
 	color: white;
@@ -75,6 +80,7 @@
 	background-color: #4294CC
 }
 
+.monaco-action-bar .action-item.disabled .action-label.extension-action.install.no-extension,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable {
 	display: none;

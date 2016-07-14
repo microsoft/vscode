@@ -55,16 +55,15 @@ export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>P
 	}));
 
 	function onEditor(editor: vscode.TextEditor): void {
-		if (!editor || !vscode.languages.match(selector, editor.document)) {
+		if (!editor
+			|| !vscode.languages.match(selector, editor.document)
+			|| !client.asAbsolutePath(editor.document.uri)) {
+
 			item.hide();
 			return;
 		}
 
 		const file = client.asAbsolutePath(editor.document.uri);
-		if (!file) {
-			return;
-		}
-
 		isOpen(file).then(value => {
 			if (!value) {
 				return;

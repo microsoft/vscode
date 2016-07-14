@@ -14,7 +14,6 @@ import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {ICommonCodeEditor, IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
 import {SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry} from 'vs/editor/common/modes';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
@@ -114,15 +113,10 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 	private cachedResult: SymbolInformation[];
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor, nls.localize('QuickOutlineAction.label', "Go to Symbol..."), Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
+		super(descriptor, editor, nls.localize('QuickOutlineAction.label', "Go to Symbol..."));
 	}
-
-	public getGroupId(): string {
-		return '1_goto/5_visitSymbol';
-	}
-
 	public isSupported(): boolean {
-		return (DocumentSymbolProviderRegistry.has(this.editor.getModel()) && super.isSupported());
+		return DocumentSymbolProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public run(): TPromise<boolean> {

@@ -230,28 +230,28 @@ suite('SearchModel', () => {
 
 	test('Search Model: isReplaceActive return false if replace text is set to null', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= null;
+		testObject.replaceString= null;
 
 		assert.ok(!testObject.isReplaceActive());
 	});
 
 	test('Search Model: isReplaceActive return false if replace text is set to undefined', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= void 0;
+		testObject.replaceString= void 0;
 
 		assert.ok(!testObject.isReplaceActive());
 	});
 
 	test('Search Model: isReplaceActive return true if replace text is set to empty string', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= '';
+		testObject.replaceString= '';
 
 		assert.ok(testObject.isReplaceActive());
 	});
 
 	test('Search Model: isReplaceActive return true if replace text is set to non empty string', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= 'some value';
+		testObject.replaceString= 'some value';
 
 		assert.ok(testObject.isReplaceActive());
 	});
@@ -259,35 +259,35 @@ suite('SearchModel', () => {
 	test('Search Model: hasReplaceText return false if no replace text is set', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
 
-		assert.ok(!testObject.hasReplaceText());
+		assert.ok(!testObject.hasReplaceString());
 	});
 
 	test('Search Model: hasReplaceText return false if replace text is set to null', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= null;
+		testObject.replaceString= null;
 
-		assert.ok(!testObject.hasReplaceText());
+		assert.ok(!testObject.hasReplaceString());
 	});
 
 	test('Search Model: hasReplaceText return false if replace text is set to undefined', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= void 0;
+		testObject.replaceString= void 0;
 
-		assert.ok(!testObject.hasReplaceText());
+		assert.ok(!testObject.hasReplaceString());
 	});
 
 	test('Search Model: hasReplaceText return false if replace text is set to empty string', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= '';
+		testObject.replaceString= '';
 
-		assert.ok(!testObject.hasReplaceText());
+		assert.ok(!testObject.hasReplaceString());
 	});
 
 	test('Search Model: hasReplaceText return true if replace text is set to non empty string', function () {
 		let testObject:SearchModel= instantiationService.createInstance(SearchModel);
-		testObject.replaceText= 'some value';
+		testObject.replaceString= 'some value';
 
-		assert.ok(testObject.hasReplaceText());
+		assert.ok(testObject.hasReplaceString());
 	});
 
 	function aRawMatch(resource: string, ...lineMatches: ILineMatch[]): IFileMatch {

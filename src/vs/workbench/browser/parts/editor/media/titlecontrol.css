@@ -24,6 +24,10 @@
 	cursor: pointer;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
+	cursor: pointer;
+}
+
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
 	color: rgba(51, 51, 51, 0.5);

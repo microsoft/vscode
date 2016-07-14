@@ -22,10 +22,6 @@
 	z-index: 1; /* on top of tabs */
 }
 
-.monaco-workbench > .part.editor > .content.drag > .one-editor-silo > .container > .title.tabs::before {
-	z-index: auto;
-}
-
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
 	border-top: 1px solid #DDDDDD;
 }
@@ -76,7 +72,7 @@
 	z-index: 2; /* on top of the horizontal border of the title */
 }
 
-.monaco-workbench > .part.editor > .content.drag > .one-editor-silo > .container > .title .tabs-container > .tab.active {
+.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title .tabs-container > .tab.active {
 	z-index: auto;
 }
 

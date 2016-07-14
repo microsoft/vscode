@@ -528,22 +528,26 @@ suite('Editor Model - Find', () => {
 		let actualRanges = model.findMatches(searchString, false, isRegex, matchCase, wholeWord);
 		let actual = actualRanges.map(toArrRange);
 
-		assert.deepEqual(actual, expected);
+		assert.deepEqual(actual, expected, 'findMatches OK');
 
 		// test `findNextMatch`
-		let match = model.findNextMatch(searchString, new Position(1, 1), isRegex, matchCase, wholeWord);
-		assert.deepEqual(toArrRange(match), expected[0]);
+		let startPos = new Position(1, 1);
+		let match = model.findNextMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+		assert.deepEqual(toArrRange(match), expected[0], `findNextMatch ${startPos}`);
 		for (let i = 0; i < expected.length; i++) {
-			match = model.findNextMatch(searchString, new Position(expected[i][0], expected[i][1]), isRegex, matchCase, wholeWord);
-			assert.deepEqual(toArrRange(match), expected[i]);
+			startPos = new Position(expected[i][0], expected[i][1]);
+			match = model.findNextMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+			assert.deepEqual(toArrRange(match), expected[i], `findNextMatch ${startPos}`);
 		}
 
 		// test `findPrevMatch`
-		match = model.findPreviousMatch(searchString, new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount())), isRegex, matchCase, wholeWord);
-		assert.deepEqual(toArrRange(match), expected[expected.length-1]);
+		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
+		match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+		assert.deepEqual(toArrRange(match), expected[expected.length-1], `findPrevMatch ${startPos}`);
 		for (let i = 0; i < expected.length; i++) {
-			match = model.findPreviousMatch(searchString, new Position(expected[i][2], expected[i][3]), isRegex, matchCase, wholeWord);
-			assert.deepEqual(toArrRange(match), expected[i]);
+			startPos = new Position(expected[i][2], expected[i][3]);
+			match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
+			assert.deepEqual(toArrRange(match), expected[i], `findPrevMatch ${startPos}`);
 		}
 
 		model.dispose();
@@ -619,6 +623,20 @@ suite('Editor Model - Find', () => {
 				[3, 54, 3, 54],
 				[4, 65, 4, 65],
 				[5, 31, 5, 31]
+			]
+		);
+	});
+
+	test('/.*/ find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'.*', true, false, false,
+			[
+				[1, 1, 1, 74],
+				[2, 1, 2, 69],
+				[3, 1, 3, 54],
+				[4, 1, 4, 65],
+				[5, 1, 5, 31]
 			]
 		);
 	});

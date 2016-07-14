@@ -31,6 +31,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
@@ -58,9 +59,10 @@ export class TabsTitleControl extends TitleControl {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService);
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.currentPrimaryGroupActionIds = [];
 		this.currentSecondaryGroupActionIds = [];
@@ -218,6 +220,19 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 
+		// Update Group Actions Toolbar
+		const groupActions = this.getGroupActions(group);
+		const primaryGroupActions = groupActions.primary;
+		const secondaryGroupActions = groupActions.secondary;
+		const primaryGroupActionIds = primaryGroupActions.map(a => a.id);
+		const secondaryGroupActionIds = secondaryGroupActions.map(a => a.id);
+
+		if (!arrays.equals(primaryGroupActionIds, this.currentPrimaryGroupActionIds) || !arrays.equals(secondaryGroupActionIds, this.currentSecondaryGroupActionIds)) {
+			this.groupActionsToolbar.setActions(primaryGroupActions, secondaryGroupActions)();
+			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
+			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
+		}
+
 		// Ensure the active tab is always revealed
 		this.layout();
 	}
@@ -234,19 +249,6 @@ export class TabsTitleControl extends TitleControl {
 			this.currentSecondaryGroupActionIds = [];
 
 			return; // return early if we are being closed
-		}
-
-		// Refresh Group Actions Toolbar
-		const groupActions = this.getGroupActions(group);
-		const primaryGroupActions = groupActions.primary;
-		const secondaryGroupActions = groupActions.secondary;
-		const primaryGroupActionIds = primaryGroupActions.map(a => a.id);
-		const secondaryGroupActionIds = secondaryGroupActions.map(a => a.id);
-
-		if (!arrays.equals(primaryGroupActionIds, this.currentPrimaryGroupActionIds) || !arrays.equals(secondaryGroupActionIds, this.currentSecondaryGroupActionIds)) {
-			this.groupActionsToolbar.setActions(primaryGroupActions, secondaryGroupActions)();
-			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
-			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
 		}
 
 		// Refresh Tabs

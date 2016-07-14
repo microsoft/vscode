@@ -289,17 +289,17 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 				// Model
 				let model = new QuickOpenModel();
-				let entries = picks.map((e) => {
+				let entries = picks.map(e => {
 					let entry = (<IPickOpenEntryItem>e);
 					if (entry.height && entry.render) {
-						return new PickOpenItem(entry.label, entry.description, entry.height, entry.render.bind(entry), () => progress(e));
+						return new PickOpenItem(entry, () => progress(e));
 					}
 
-					return new PickOpenEntry(entry.label, entry.description, entry.detail, () => progress(e), entry.separator && entry.separator.border, entry.separator && entry.separator.label);
+					return new PickOpenEntry(entry, () => progress(e));
 				});
 
 				if (picks.length === 0) {
-					entries.push(new PickOpenEntry(nls.localize('emptyPicks', "There are no entries to pick from")));
+					entries.push(new PickOpenEntry({ label: nls.localize('emptyPicks', "There are no entries to pick from") }));
 				}
 
 				model.setEntries(entries);
@@ -346,7 +346,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 						// Reset filtering
 						if (!value) {
-							entries.forEach((e) => {
+							entries.forEach(e => {
 								e.setHighlights(null);
 								e.setHidden(false);
 							});
@@ -354,12 +354,12 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 						// Filter by value
 						else {
-							entries.forEach((entry) => {
+							entries.forEach(entry => {
 								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
 								let descriptionHighlights = options.matchOnDescription && filters.matchesFuzzy(value, entry.getDescription());
 								let detailHighlights = options.matchOnDetail && entry.getDetail() && filters.matchesFuzzy(value, entry.getDetail());
 
-								if (labelHighlights || descriptionHighlights || detailHighlights) {
+								if (entry.shouldAlwaysShow() || labelHighlights || descriptionHighlights || detailHighlights) {
 									entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
 									entry.setHidden(false);
 								} else {
@@ -441,7 +441,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.previousValue = prefix;
 
-		let promiseCompletedOnHide = new TPromise<void>((c) => {
+		let promiseCompletedOnHide = new TPromise<void>(c => {
 			this.promisesToCompleteOnHide.push(c);
 		});
 
@@ -660,13 +660,13 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Resolve all default handlers
 		let resolvePromises: TPromise<QuickOpenHandler>[] = [];
-		defaultHandlers.forEach((defaultHandler) => {
+		defaultHandlers.forEach(defaultHandler => {
 			resolvePromises.push(this.resolveHandler(defaultHandler));
 		});
 
 		return TPromise.join(resolvePromises).then((resolvedHandlers: QuickOpenHandler[]) => {
 			let resultPromises: TPromise<void>[] = [];
-			resolvedHandlers.forEach((resolvedHandler) => {
+			resolvedHandlers.forEach(resolvedHandler => {
 
 				// Return early if the handler can not run in the current environment
 				let canRun = resolvedHandler.canRun();
@@ -675,7 +675,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				}
 
 				// Receive Results from Handler and apply
-				resultPromises.push(resolvedHandler.getResults(value).then((result) => {
+				resultPromises.push(resolvedHandler.getResults(value).then(result => {
 					if (this.currentResultToken === currentResultToken) {
 						let handlerResults = result && result.entries;
 
@@ -788,7 +788,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			}
 
 			// Receive Results from Handler and apply
-			return resolvedHandler.getResults(value).then((result) => {
+			return resolvedHandler.getResults(value).then(result => {
 				if (this.currentResultToken === currentResultToken) {
 					if (!result || !result.entries.length) {
 						const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(resolvedHandler.getEmptyLabel(value))]);
@@ -890,12 +890,21 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private _shouldRunWithContext: IEntryRunContext;
 	private description: string;
 	private detail: string;
+	private hasSeparator: boolean;
+	private separatorLabel: string;
+	private alwaysShow: boolean;
 
-	constructor(label: string, description?: string, detail?: string, private onPreview?: () => void, private hasSeparator?: boolean, private separatorLabel?: string) {
-		super(label);
+	constructor(
+		item: IPickOpenEntry,
+		private onPreview?: () => void
+	) {
+		super(item.label);
 
-		this.description = description;
-		this.detail = detail;
+		this.description = item.description;
+		this.detail = item.detail;
+		this.hasSeparator = item.separator && item.separator.border;
+		this.separatorLabel = item.separator && item.separator.label;
+		this.alwaysShow = item.alwaysShow;
 	}
 
 	public get shouldRunWithContext(): IEntryRunContext {
@@ -918,6 +927,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		return this.separatorLabel;
 	}
 
+	public shouldAlwaysShow(): boolean {
+		return this.alwaysShow;
+	}
+
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			this._shouldRunWithContext = context;
@@ -935,9 +948,23 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 class PickOpenItem extends QuickOpenEntryItem {
 	private _shouldRunWithContext: IEntryRunContext;
+	private label: string;
+	private description: string;
+	private height: number;
+	private renderFn: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
+	private alwaysShow: boolean;
 
-	constructor(private label: string, private description: string, private height: number, private renderFn: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback, private onPreview?: () => void) {
+	constructor(
+		item: IPickOpenEntryItem,
+		private onPreview?: () => void
+	) {
 		super();
+
+		this.label = item.label;
+		this.description = item.description;
+		this.height = item.height;
+		this.renderFn = item.render.bind(item);
+		this.alwaysShow = item.alwaysShow;
 	}
 
 	public getHeight(): number {
@@ -958,6 +985,10 @@ class PickOpenItem extends QuickOpenEntryItem {
 
 	public getDescription(): string {
 		return this.description;
+	}
+
+	public shouldAlwaysShow(): boolean {
+		return this.alwaysShow;
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {

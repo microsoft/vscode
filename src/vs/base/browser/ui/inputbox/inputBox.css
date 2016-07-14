@@ -18,12 +18,6 @@
 	font-size: inherit;
 }
 
-/*.monaco-inputbox { font-family: "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; }
-.monaco-inputbox:lang(zh-Hans) { font-family: "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-inputbox:lang(zh-Hant) { font-family: "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
-.monaco-inputbox:lang(ja) { font-family: "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
-.monaco-inputbox:lang(ko) { font-family: "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }*/
-
 .monaco-inputbox > .wrapper > .input,
 .monaco-inputbox > .wrapper > .mirror {
 
