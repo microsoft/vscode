@@ -143,7 +143,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._lifetimeDispose = [];
 
 		this._commandService = commandService;
-		this._keybindingService = keybindingService.createScoped(domElement);
+		this._keybindingService = keybindingService;
 		this._editorIdContextKey = this._keybindingService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS, undefined);
 		this._editorTabMovesFocusKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS, false);
