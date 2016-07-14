@@ -112,12 +112,11 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			let lineIndex = lineNumber - visibleStartLineNumber;
 			let classNames = toRender[lineIndex];
-
-			if (classNames.length === 0) {
-				output[lineIndex] = '';
-			} else {
-				output[lineIndex] = classNames.map(className => '<div class="cldr ' + className + common).join('');
+			let lineOutput = '';
+			for (let i = 0, len = classNames.length; i < len; i++) {
+				lineOutput += '<div class="cldr ' + classNames[i] + common;
 			}
+			output[lineIndex] = lineOutput;
 		}
 
 		this._renderResult = output;
