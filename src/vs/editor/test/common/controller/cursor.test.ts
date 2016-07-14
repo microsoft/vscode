@@ -13,7 +13,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {
 	EndOfLinePreference, EventType, Handler, IPosition, ISelection, IEditorOptions,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData
+	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData, ViewPosition
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode, IndentAction} from 'vs/editor/common/modes';
@@ -28,6 +28,20 @@ let H = Handler;
 
 function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwriteSource?: string) {
 	cursor.trigger(overwriteSource || 'tests', command, extraData);
+}
+
+// Move command
+
+function move(cursor: Cursor, args: any) {
+	cursorCommand(cursor, H.CursorMove, args);
+}
+
+function moveToFirstCharacterOfLine(cursor: Cursor) {
+	move(cursor, {viewPosition: ViewPosition.FirstCharacterOfLine});
+}
+
+function moveToFirstNonWhiteSpaceCharacterOfLine(cursor: Cursor) {
+	move(cursor, {viewPosition: ViewPosition.FirstNonWhiteSpaceCharacterOfLine});
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
@@ -189,6 +203,44 @@ suite('Editor Controller - Cursor', () => {
 	test('no move', () => {
 		moveTo(thisCursor, 1, 1);
 		cursorEqual(thisCursor, 1, 1);
+	});
+
+	// --------- move to first character of line
+
+	test('move to first character of line from middle', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToFirstCharacterOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move to first character of line from first non white space character', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToFirstCharacterOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move to first character of line from first character', () => {
+		moveTo(thisCursor, 1, 1);
+		moveToFirstCharacterOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move to first non white space character of line from middle', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToFirstNonWhiteSpaceCharacterOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to first non white space character of line from first non white space character', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToFirstNonWhiteSpaceCharacterOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to first non white space character of line from first character', () => {
+		moveTo(thisCursor, 1, 1);
+		moveToFirstNonWhiteSpaceCharacterOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
 	});
 
 	test('move', () => {
