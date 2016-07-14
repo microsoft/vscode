@@ -54,7 +54,7 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('css', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|((::|[@#.!:])?[\w-?]+%?)|::|[@#.!:]/g,
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
 		comments: {
 			blockComment: ['/*', '*/']
 		},
@@ -71,7 +71,7 @@ export function activate(context: ExtensionContext) {
 	});
 
 	languages.setLanguageConfiguration('less', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
 		comments: {
 			blockComment: ['/*', '*/'],
 			lineComment: '//'
@@ -90,7 +90,7 @@ export function activate(context: ExtensionContext) {
 	});
 
 	languages.setLanguageConfiguration('scss', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#$!.:]?[\w-?]+%?)|[@#!.]/g,
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g,
 		comments: {
 			blockComment: ['/*', '*/'],
 			lineComment: '//'
