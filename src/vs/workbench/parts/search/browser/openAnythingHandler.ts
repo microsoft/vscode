@@ -41,6 +41,14 @@ interface ITimerEventData {
 	numberOfResultEntries: number;
 }
 
+interface ITelemetryData {
+	fromCache: boolean;
+	searchLength: number;
+	unsortedResultTime: number;
+	sortedResultTime: number;
+	numberOfResultEntries: number;
+}
+
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
 
@@ -87,7 +95,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		const timerEvent = this.telemetryService.timedPublicLog('openAnything');
-		const startTime = timerEvent.startTime ? timerEvent.startTime.getTime() : Date.now();
+		const startTime = timerEvent.startTime ? timerEvent.startTime.getTime() : Date.now(); // startTime is undefined when telemetry is disabled
 		searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
 
 		// Help Windows users to search for paths when using slash
@@ -115,15 +123,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Check Cache first
 		let cachedResults = this.getResultsFromCache(searchValue, searchWithRange ? searchWithRange.range : null);
 		if (cachedResults) {
-			timerEvent.data = <ITimerEventData>{
-				fromCache: true,
-				searchLength: searchValue.length,
-				unsortedResultDuration: cachedResults.unsortedResultTime - startTime,
-				sortedResultDuration: cachedResults.sortedResultTime - startTime,
-				numberOfResultEntries: cachedResults.numberOfResultEntries
-			};
+			const [viewResults, telemetry] = cachedResults;
+			timerEvent.data = this.createTimerEventData(startTime, telemetry);
 			timerEvent.stop();
-			return TPromise.as(new QuickOpenModel(cachedResults.viewResults));
+			return TPromise.as(new QuickOpenModel(viewResults));
 		}
 
 		// The throttler needs a factory for its promises
@@ -205,13 +208,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					}
 				});
 
-				timerEvent.data = <ITimerEventData>{
+				timerEvent.data = this.createTimerEventData(startTime, {
 					fromCache: false,
 					searchLength: searchValue.length,
-					unsortedResultDuration: unsortedResultTime - startTime,
-					sortedResultDuration: sortedResultTime - startTime,
+					unsortedResultTime,
+					sortedResultTime,
 					numberOfResultEntries: result.length
-				};
+				});
 				timerEvent.stop();
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
@@ -274,7 +277,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return null;
 	}
 
-	public getResultsFromCache(searchValue: string, range: IRange = null) {
+	private getResultsFromCache(searchValue: string, range: IRange = null): [QuickOpenEntry[], ITelemetryData] {
 		if (paths.isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
@@ -340,12 +343,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 		});
 
-		return {
-			viewResults: viewResults,
-			unsortedResultTime: unsortedResultTime,
-			sortedResultTime: sortedResultTime,
+		return [viewResults, {
+			fromCache: true,
+			searchLength: searchValue.length,
+			unsortedResultTime,
+			sortedResultTime,
 			numberOfResultEntries: results.length
-		};
+		}];
 	}
 
 	public getGroupLabel(): string {
@@ -378,5 +382,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			this.pendingSearch.cancel();
 			this.pendingSearch = null;
 		}
+	}
+
+	private createTimerEventData(startTime: number, telemetry: ITelemetryData): ITimerEventData {
+		return {
+			fromCache: telemetry.fromCache,
+			searchLength: telemetry.searchLength,
+			unsortedResultDuration: telemetry.unsortedResultTime - startTime,
+			sortedResultDuration: telemetry.sortedResultTime - startTime,
+			numberOfResultEntries: telemetry.numberOfResultEntries
+		};
 	}
 }
