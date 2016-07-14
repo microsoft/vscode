@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import platform = require('vs/platform/platform');
-import {MenuId, SyncActionDescriptor} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuRegistry, SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
@@ -20,7 +20,6 @@ import panel = require('vs/workbench/browser/panel');
 import {KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID} from 'vs/editor/common/editorCommon';
 import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {MenuRegistry} from 'vs/platform/actions/browser/menuService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
@@ -11,8 +12,11 @@ export interface IEnvironmentService {
 	_serviceBrand: any;
 
 	appRoot: string;
+	userHome: string;
 	userDataPath: string;
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
 	isBuilt: boolean;
+
+	createPaths(): TPromise<void>;
 }

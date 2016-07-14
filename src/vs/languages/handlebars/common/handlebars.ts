@@ -26,19 +26,19 @@ export enum States {
 export class HandlebarsState extends htmlMode.State {
 
 	constructor(mode:modes.IMode,
-		public kind:htmlMode.States,
+		kind:htmlMode.States,
 		public handlebarsKind:States,
-		public lastTagName:string,
-		public lastAttributeName:string,
-		public embeddedContentType:string,
-		public attributeValueQuote:string,
-		public attributeValue:string) {
+		lastTagName:string,
+		lastAttributeName:string,
+		embeddedContentType:string,
+		attributeValueQuote:string,
+		attributeValueLength:number) {
 
-		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValue);
+		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValueLength);
 	}
 
 	public makeClone(): HandlebarsState {
-		return new HandlebarsState(this.getMode(), this.kind, this.handlebarsKind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValue);
+		return new HandlebarsState(this.getMode(), this.kind, this.handlebarsKind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
 	}
 
 	public equals(other:modes.IState):boolean {
@@ -186,13 +186,13 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	}
 
 	public getInitialState() : modes.IState {
-		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');
+		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', 0);
 	}
 
 	public getLeavingNestedModeData(line:string, state:modes.IState):ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
-			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');
+			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', 0);
 		}
 		return leavingNestedModeData;
 	}

@@ -23,27 +23,25 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 class EditorInputCache {
 
 	private cache: Map.SimpleMap<URI, TPromise<DiffEditorInput>>;
-	private replaceTextcache: Map.SimpleMap<URI, string>;
 
 	constructor(private replaceService: ReplaceService, private editorService: IWorkbenchEditorService,
 					private modelService: IModelService) {
 		this.cache= new Map.SimpleMap<URI, TPromise<DiffEditorInput>>();
-		this.replaceTextcache= new Map.SimpleMap<URI, string>();
 	}
 
-	public getInput(fileMatch: FileMatch, text: string): TPromise<DiffEditorInput> {
+	public getInput(fileMatch: FileMatch): TPromise<DiffEditorInput> {
 		let editorInputPromise= this.cache.get(fileMatch.resource());
 		if (!editorInputPromise) {
 			editorInputPromise= this.createInput(fileMatch);
 			this.cache.set(fileMatch.resource(), editorInputPromise);
-			this.refreshInput(fileMatch, text, true);
+			this.refreshInput(fileMatch, true);
 			fileMatch.onDispose(() => this.disposeInput(fileMatch));
-			fileMatch.onChange((modelChange) => this.refreshInput(fileMatch, this.replaceTextcache.get(fileMatch.resource()), modelChange));
+			fileMatch.onChange((modelChange) => this.refreshInput(fileMatch, modelChange));
 		}
 		return editorInputPromise;
 	}
 
-	public refreshInput(fileMatch: FileMatch, text: string, reloadFromSource: boolean= false): void {
+	public refreshInput(fileMatch: FileMatch, reloadFromSource: boolean= false): void {
 		let editorInputPromise= this.cache.get(fileMatch.resource());
 		if (editorInputPromise) {
 			editorInputPromise.done(() => {
@@ -51,14 +49,13 @@ class EditorInputCache {
 					this.editorService.resolveEditorModel({resource: fileMatch.resource()}).then((value: ITextEditorModel) => {
 						let replaceResource= this.getReplaceResource(fileMatch.resource());
 						this.modelService.getModel(replaceResource).setValue((<IModel> value.textEditorModel).getValue());
-						this.replaceService.replace(fileMatch, text, null, replaceResource);
+						this.replaceService.replace(fileMatch, null, replaceResource);
 					});
 				} else {
 					let replaceResource= this.getReplaceResource(fileMatch.resource());
 					this.modelService.getModel(replaceResource).undo();
-					this.replaceService.replace(fileMatch, text, null, replaceResource);
+					this.replaceService.replace(fileMatch, null, replaceResource);
 				}
-				this.replaceTextcache.set(fileMatch.resource(), text);
 			});
 		}
 	}
@@ -73,7 +70,6 @@ class EditorInputCache {
 				editorInputPromise.done((diffInput) => {
 					this.disposeReplaceInput(this.getReplaceResource(resourceUri), diffInput);
 					this.cache.delete(resourceUri);
-					this.replaceTextcache.delete(resourceUri);
 				});
 			}
 		}
@@ -127,16 +123,17 @@ export class ReplaceService implements IReplaceService {
 		this.cache= new EditorInputCache(this, editorService, modelService);
 	}
 
-	public replace(match: Match, text: string): TPromise<any>
-	public replace(files: FileMatch[], text: string, progress?: IProgressRunner): TPromise<any>
-	public replace(match: FileMatchOrMatch, text: string, progress?: IProgressRunner, resource?: URI): TPromise<any>
-	public replace(arg: any, text: string, progress: IProgressRunner= null, resource: URI= null): TPromise<any> {
+	public replace(match: Match): TPromise<any>
+	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>
+	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
+	public replace(arg: any, progress: IProgressRunner= null, resource: URI= null): TPromise<any> {
 
 		let bulkEdit: BulkEdit = createBulkEdit(this.eventService, this.editorService, null);
 		bulkEdit.progress(progress);
 
 		if (arg instanceof Match) {
-			bulkEdit.add([this.createEdit(arg, text, resource)]);
+			let match= <Match>arg;
+			bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
 		}
 
 		if (arg instanceof FileMatch) {
@@ -148,7 +145,7 @@ export class ReplaceService implements IReplaceService {
 				let fileMatch = <FileMatch>element;
 				if (fileMatch.count() > 0) {
 					fileMatch.matches().forEach(match => {
-						bulkEdit.add([this.createEdit(match, text, resource)]);
+						bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
 					});
 				}
 			});
@@ -157,12 +154,12 @@ export class ReplaceService implements IReplaceService {
 		return bulkEdit.finish();
 	}
 
-	public getInput(element: FileMatch, text: string): TPromise<EditorInput> {
-		return this.cache.getInput(element, text);
+	public getInput(element: FileMatch): TPromise<EditorInput> {
+		return this.cache.getInput(element);
 	}
 
-	public refreshInput(element: FileMatch, text: string, reload: boolean= false): void {
-		this.cache.refreshInput(element, text, reload);
+	public refreshInput(element: FileMatch, reload: boolean= false): void {
+		this.cache.refreshInput(element, reload);
 	}
 
 	public disposeAllInputs(): void {

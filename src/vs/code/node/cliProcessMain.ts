@@ -134,44 +134,48 @@ export function main(argv: ParsedArgs): TPromise<void> {
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	return instantiationService.invokeFunction(accessor => {
-		const services = new ServiceCollection();
-		services.set(IEventService, new SyncDescriptor(EventService));
-		services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
-		services.set(IRequestService, new SyncDescriptor(NodeRequestService));
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		const envService = accessor.get(IEnvironmentService);
 
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = accessor.get(IEnvironmentService);
+		return envService.createPaths().then(() => {
+			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
 
-		if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
-			const appenders: AppInsightsAppender[] = [];
+			const services = new ServiceCollection();
+			services.set(IEventService, new SyncDescriptor(EventService));
+			services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+			services.set(IRequestService, new SyncDescriptor(NodeRequestService));
+			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
-			if (product.aiConfig && product.aiConfig.key) {
-				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
+			if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+				const appenders: AppInsightsAppender[] = [];
+
+				if (product.aiConfig && product.aiConfig.key) {
+					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
+				}
+
+				if (product.aiConfig && product.aiConfig.asimovKey) {
+					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+				}
+
+				// It is important to dispose the AI adapter properly because
+				// only then they flush remaining data.
+				process.once('exit', () => appenders.forEach(a => a.dispose()));
+
+				const config: ITelemetryServiceConfig = {
+					appender: combinedAppender(...appenders),
+					commonProperties: resolveCommonProperties(product.commit, pkg.version),
+					piiPaths: [appRoot, extensionsPath]
+				};
+
+				services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
+			} else {
+				services.set(ITelemetryService, NullTelemetryService);
 			}
 
-			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
-			}
+			const instantiationService2 = instantiationService.createChild(services);
+			const main = instantiationService2.createInstance(Main);
 
-			// It is important to dispose the AI adapter properly because
-			// only then they flush remaining data.
-			process.once('exit', () => appenders.forEach(a => a.dispose()));
-
-			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(...appenders),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version),
-				piiPaths: [appRoot, extensionsPath]
-			};
-
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
-		} else {
-			services.set(ITelemetryService, NullTelemetryService);
-		}
-
-		const instantiationService2 = instantiationService.createChild(services);
-		const main = instantiationService2.createInstance(Main);
-
-		return main.run(argv);
+			return main.run(argv);
+		});
 	});
 }

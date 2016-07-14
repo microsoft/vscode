@@ -7,7 +7,9 @@ import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
-import Event, { Emitter, mapEvent, EventBufferer } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import Event, { Emitter, mapEvent, EventBufferer, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -120,15 +122,23 @@ class FocusTrait<T> extends Trait<T> {
 
 class Controller<T> implements IDisposable {
 
-	private toDispose: IDisposable[];
+	private disposables: IDisposable[];
 
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>
 	) {
-		this.toDispose = [];
-		this.toDispose.push(view.addListener('mousedown', e => this.onMouseDown(e)));
-		this.toDispose.push(view.addListener('click', e => this.onClick(e)));
+		this.disposables = [];
+		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
+		this.disposables.push(view.addListener('click', e => this.onClick(e)));
+
+		const onRawKeyDown = domEvent(view.domNode, 'keydown');
+		const onKeyDown = mapEvent(onRawKeyDown, e => new StandardKeyboardEvent(e));
+		filterEvent(onKeyDown, e => e.keyCode === KeyCode.Enter)(this.onEnter, this, this.disposables);
+		filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow)(this.onUpArrow, this, this.disposables);
+		filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow)(this.onDownArrow, this, this.disposables);
+		filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp)(this.onPageUpArrow, this, this.disposables);
+		filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown)(this.onPageDownArrow, this, this.disposables);
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>) {
@@ -144,8 +154,46 @@ class Controller<T> implements IDisposable {
 		this.list.setSelection(e.index);
 	}
 
+	private onEnter(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.setSelection(...this.list.getFocus());
+	}
+
+	private onUpArrow(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.focusPrevious();
+		this.list.reveal(this.list.getFocus()[0]);
+		this.view.domNode.focus();
+	}
+
+	private onDownArrow(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.focusNext();
+		this.list.reveal(this.list.getFocus()[0]);
+		this.view.domNode.focus();
+	}
+
+	private onPageUpArrow(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.focusPreviousPage();
+		this.list.reveal(this.list.getFocus()[0]);
+		this.view.domNode.focus();
+	}
+
+	private onPageDownArrow(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.focusNextPage();
+		this.list.reveal(this.list.getFocus()[0]);
+		this.view.domNode.focus();
+	}
+
 	dispose() {
-		this.toDispose = dispose(this.toDispose);
+		this.disposables = dispose(this.disposables);
 	}
 }
 

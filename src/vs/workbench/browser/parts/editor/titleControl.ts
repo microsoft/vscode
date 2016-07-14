@@ -28,6 +28,7 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -43,6 +44,7 @@ export interface IToolbarActions {
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
 	allowDragging(element: HTMLElement): boolean;
+	setDragged(dragged: boolean): void;
 	create(parent: HTMLElement): void;
 	getContainer(): HTMLElement;
 	refresh(instant?: boolean): void;
@@ -58,6 +60,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
 	protected toDispose: IDisposable[];
+
+	protected dragged: boolean;
 
 	protected closeEditorAction: CloseEditorAction;
 	protected pinEditorAction: KeepEditorAction;
@@ -91,7 +95,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IMessageService protected messageService: IMessageService,
-		@IMenuService protected menuService: IMenuService
+		@IMenuService protected menuService: IMenuService,
+		@IQuickOpenService protected quickOpenService: IQuickOpenService
 	) {
 		this.toDispose = [];
 		this.stacks = editorGroupService.getStacksModel();
@@ -114,6 +119,10 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	public static getDraggedEditor(): IEditorIdentifier {
 		return TitleControl.draggedEditor;
+	}
+
+	public setDragged(dragged: boolean): void {
+		this.dragged = dragged;
 	}
 
 	protected onEditorDragStart(editor: IEditorIdentifier): void {

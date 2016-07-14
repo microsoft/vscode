@@ -26,7 +26,6 @@ export class NoTabsTitleControl extends TitleControl {
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
 
-
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
 
@@ -39,18 +38,10 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleContainer = parent;
 
 		// Pin on double click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e);
-
-			this.onTitleDoubleClick();
-		}));
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, false);
-
-			this.onTitleClick(e);
-		}));
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Left Title Decoration
 		this.titleDecoration = document.createElement('div');
@@ -67,6 +58,10 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleDescription = document.createElement('span');
 		labelContainer.appendChild(this.titleDescription);
 
+		// Detect title label & description click
+		this.toDispose.push(DOM.addDisposableListener(this.titleLabel, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.titleDescription, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+
 		this.titleContainer.appendChild(labelContainer);
 
 		// Right Actions Container
@@ -81,7 +76,15 @@ export class NoTabsTitleControl extends TitleControl {
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
 	}
 
-	private onTitleDoubleClick(): void {
+	private onTitleLabelClick(e: MouseEvent): void {
+		DOM.EventHelper.stop(e, false);
+		if (!this.dragged) {
+			this.quickOpenService.show();
+		}
+	}
+
+	private onTitleDoubleClick(e: MouseEvent): void {
+		DOM.EventHelper.stop(e);
 		if (!this.context) {
 			return;
 		}
@@ -92,6 +95,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private onTitleClick(e: MouseEvent): void {
+		DOM.EventHelper.stop(e, false);
 		if (!this.context) {
 			return;
 		}

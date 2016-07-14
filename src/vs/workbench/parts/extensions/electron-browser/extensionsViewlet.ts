@@ -25,7 +25,7 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
-import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ListOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -39,7 +39,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private extensionsBox: HTMLElement;
 	private list: PagedList<IExtension>;
 	private disposables: IDisposable[] = [];
-	private focusInvokedByTab: boolean;
 	private clearAction: ClearExtensionsInputAction;
 
 	constructor(
@@ -78,24 +77,18 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const onEscape = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Escape);
 		const onUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow);
 		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
-		const onTab = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Tab);
+		const onPageUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp);
+		const onPageDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown);
 
 		onEnter(this.onEnter, this, this.disposables);
 		onEscape(this.onEscape, this, this.disposables);
 		onUpArrow(this.onUpArrow, this, this.disposables);
 		onDownArrow(this.onDownArrow, this, this.disposables);
-		onTab(this.onTab, this, this.disposables);
+		onPageUpArrow(this.onPageUpArrow, this, this.disposables);
+		onPageDownArrow(this.onPageDownArrow, this, this.disposables);
 
 		const onInput = domEvent(this.searchBox, 'input');
 		onInput(() => this.triggerSearch(), null, this.disposables);
-
-		this.list.onDOMFocus(focusEvent => {
-			// Allow tab to move focus out of search box #7966
-			if (!this.focusInvokedByTab) {
-				this.searchBox.focus();
-			}
-			this.focusInvokedByTab = false;
-		}, null, this.disposables);
 
 		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
 		onSelectedExtension(this.onExtensionSelected, this, this.disposables);
@@ -141,7 +134,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	getSecondaryActions(): IAction[] {
 		return [
 			this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL),
+			this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
 			this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
 		];
@@ -207,14 +200,22 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private onUpArrow(): void {
 		this.list.focusPrevious();
+		this.list.reveal(this.list.getFocus()[0]);
 	}
 
 	private onDownArrow(): void {
 		this.list.focusNext();
+		this.list.reveal(this.list.getFocus()[0]);
 	}
 
-	private onTab(): void {
-		this.focusInvokedByTab = true;
+	private onPageUpArrow(): void {
+		this.list.focusPreviousPage();
+		this.list.reveal(this.list.getFocus()[0]);
+	}
+
+	private onPageDownArrow(): void {
+		this.list.focusNextPage();
+		this.list.reveal(this.list.getFocus()[0]);
 	}
 
 	dispose(): void {

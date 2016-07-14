@@ -69,6 +69,12 @@
 	cursor: default;
 }
 
+/* Bold font style does not go well with CJK fonts */
+.git-viewlet:lang(zh-Hans) > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group,
+.git-viewlet:lang(zh-Hant) > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group,
+.git-viewlet:lang(ja) > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group,
+.git-viewlet:lang(ko) > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group { font-weight: normal; }
+
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .count-badge-wrapper {
 	padding-right: 12px;
 }
