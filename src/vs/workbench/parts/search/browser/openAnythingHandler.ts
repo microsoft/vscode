@@ -24,12 +24,21 @@ import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbol
 /* tslint:enable:no-unused-variable */
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 interface ISearchWithRange {
 	search: string;
 	range: IRange;
+}
+
+interface ITimerEventData {
+	fromCache: boolean;
+	searchLength: number;
+	unsortedResultDuration: number;
+	sortedResultDuration: number;
+	numberOfResultEntries: number;
 }
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
@@ -56,7 +65,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -76,6 +86,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+		const timerEvent = this.telemetryService.timedPublicLog('openAnything');
+		const startTime = timerEvent.startTime ? timerEvent.startTime.getTime() : Date.now();
 		searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
 
 		// Help Windows users to search for paths when using slash
@@ -103,7 +115,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Check Cache first
 		let cachedResults = this.getResultsFromCache(searchValue, searchWithRange ? searchWithRange.range : null);
 		if (cachedResults) {
-			return TPromise.as(new QuickOpenModel(cachedResults));
+			timerEvent.data = <ITimerEventData>{
+				fromCache: true,
+				searchLength: searchValue.length,
+				unsortedResultDuration: cachedResults.unsortedResultTime - startTime,
+				sortedResultDuration: cachedResults.sortedResultTime - startTime,
+				numberOfResultEntries: cachedResults.numberOfResultEntries
+			};
+			timerEvent.stop();
+			return TPromise.as(new QuickOpenModel(cachedResults.viewResults));
 		}
 
 		// The throttler needs a factory for its promises
@@ -148,6 +168,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Join and sort unified
 			this.pendingSearch = TPromise.join(resultPromises).then((results: QuickOpenModel[]) => {
+				const unsortedResultTime = Date.now();
 				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
@@ -161,6 +182,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				// Sort
 				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
 				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
+				const sortedResultTime = Date.now();
 
 				// Apply Range
 				result.forEach((element) => {
@@ -183,6 +205,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					}
 				});
 
+				timerEvent.data = <ITimerEventData>{
+					fromCache: false,
+					searchLength: searchValue.length,
+					unsortedResultDuration: unsortedResultTime - startTime,
+					sortedResultDuration: sortedResultTime - startTime,
+					numberOfResultEntries: result.length
+				};
+				timerEvent.stop();
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
 				this.pendingSearch = null;
@@ -244,7 +274,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return null;
 	}
 
-	public getResultsFromCache(searchValue: string, range: IRange = null): QuickOpenEntry[] {
+	public getResultsFromCache(searchValue: string, range: IRange = null) {
 		if (paths.isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
@@ -288,9 +318,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			results.push(entry);
 		}
+		const unsortedResultTime = Date.now();
 
 		// Sort
 		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache));
+		const sortedResultTime = Date.now();
 
 		// Apply Range
 		results.forEach((element) => {
@@ -308,7 +340,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 		});
 
-		return viewResults;
+		return {
+			viewResults: viewResults,
+			unsortedResultTime: unsortedResultTime,
+			sortedResultTime: sortedResultTime,
+			numberOfResultEntries: results.length
+		};
 	}
 
 	public getGroupLabel(): string {
