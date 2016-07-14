@@ -116,11 +116,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 			if (classNames.length === 0) {
 				output[lineIndex] = '';
 			} else {
-				output[lineIndex] = (
-					'<div class="cldr'
-					+ classNames
-					+ common
-				);
+				output[lineIndex] = classNames.map(className => '<div class="cldr ' + className + common).join('');
 			}
 		}
 
