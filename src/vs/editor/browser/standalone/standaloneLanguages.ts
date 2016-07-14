@@ -399,6 +399,12 @@ class SuggestAdapter {
 		const ran = model.getWordUntilPosition(position);
 
 		return toThenable<CompletionItem[]|CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
+			let defaultSuggestions: modes.ISuggestResult = {
+				suggestions: [],
+				currentWord: ran ? ran.word : '',
+			};
+			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
+
 			let list: CompletionList;
 			if (Array.isArray(value)) {
 				list = {
@@ -407,6 +413,7 @@ class SuggestAdapter {
 				};
 			} else if (typeof value === 'object' && Array.isArray(value.items)) {
 				list = value;
+				defaultSuggestions.incomplete = list.isIncomplete;
 			} else if (!value) {
 				// undefined and null are valid results
 				return;
@@ -414,12 +421,6 @@ class SuggestAdapter {
 				// warn about everything else
 				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);
 			}
-
-			let defaultSuggestions: modes.ISuggestResult = {
-				suggestions: [],
-				currentWord: ran ? ran.word : '',
-			};
-			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
 
 			for (let i = 0; i < list.items.length; i++) {
 				const item = list.items[i];
