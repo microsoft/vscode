@@ -10,7 +10,7 @@ import {IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
-import {EditorInput} from 'vs/workbench/common/editor';
+import {IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
@@ -25,6 +25,13 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
+
+
+	public setContext(group: IEditorGroup): void {
+		super.setContext(group);
+
+		this.editorActionsToolbar.context = { group };
+	}
 
 	public create(parent: HTMLElement): void {
 		super.create(parent);
@@ -104,9 +111,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	protected doRefresh(): void {
-		const group = this.context; // TODO
-		this.editorActionsToolbar.context = { group };
-
+		const group = this.context;
 		const editor = group && group.activeEditor;
 		if (!editor) {
 			this.titleLabel.innerText = '';

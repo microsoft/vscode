@@ -16,6 +16,7 @@ import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
+import {RunOnceScheduler} from 'vs/base/common/async';
 import {isMacintosh} from 'vs/base/common/platform';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -117,6 +118,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private _onGroupFocusChanged: Emitter<void>;
 
+	private onStacksChangeScheduler: RunOnceScheduler;
+	private stacksChangedBuffer: IStacksModelChangeEvent[];
+
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -133,6 +137,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.stacks = editorGroupService.getStacksModel();
+		this.toDispose = [];
 
 		this.parent = parent;
 		this.dimension = new Dimension(0, 0);
@@ -145,7 +150,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this._onGroupFocusChanged = new Emitter<void>();
 
-		this.toDispose = [];
+		this.onStacksChangeScheduler = new RunOnceScheduler(() => this.handleStacksChanged(), 0);
+		this.toDispose.push(this.onStacksChangeScheduler);
+		this.stacksChangedBuffer = [];
 
 		this.create(this.parent);
 		this.registerListeners();
@@ -194,16 +201,32 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private onStacksChanged(e: IStacksModelChangeEvent): void {
+		this.stacksChangedBuffer.push(e);
+		this.onStacksChangeScheduler.schedule();
+	}
+
+	private handleStacksChanged(): void {
+
+		// Read and reset buffer of events
+		const buffer = this.stacksChangedBuffer;
+		this.stacksChangedBuffer = [];
+
+		// Up to date context for all title controls
+		POSITIONS.forEach(position => {
+			this.getTitleAreaControl(position).setContext(this.stacks.groupAt(position));
+		});
 
 		// Refresh / update if group is visible and has a position
-		const position = this.stacks.positionOfGroup(e.group);
-		if (position >= 0) {
-			if (e.structural) {
-				this.getTitleAreaControl(position).refresh();
-			} else {
-				this.getTitleAreaControl(position).update();
+		buffer.forEach(e => {
+			const position = this.stacks.positionOfGroup(e.group);
+			if (position >= 0) { // group could be gone by now because we run from a scheduler with timeout
+				if (e.structural) {
+					this.getTitleAreaControl(position).refresh();
+				} else {
+					this.getTitleAreaControl(position).update();
+				}
 			}
-		}
+		});
 	}
 
 	public get onGroupFocusChanged(): Event<void> {
@@ -1012,13 +1035,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
 		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
 
-		let titleAreaControl: TabsTitleControl | NoTabsTitleControl;
-		if (useTabs) {
-			titleAreaControl = instantiationService.createInstance(TabsTitleControl, () => this.stacks.groupAt(this.findPosition(container.getHTMLElement())));
-		} else {
-			titleAreaControl = instantiationService.createInstance(NoTabsTitleControl, () => this.stacks.groupAt(this.findPosition(container.getHTMLElement())));
-		}
+		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
+		titleAreaControl.setContext(context);
 		titleAreaControl.refresh();
 
 		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
@@ -1214,12 +1233,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Move to valid position if any
 				if (moveTo !== null) {
 					this.editorGroupService.moveGroup(position, moveTo);
-
-					// To reduce flickering during this operation we trigger a refresh of all
-					// title controls right after.
-					POSITIONS.forEach(p => {
-						this.getTitleAreaControl(p).refresh(true);
-					});
 				}
 
 				// Otherwise layout to restore proper positioning
