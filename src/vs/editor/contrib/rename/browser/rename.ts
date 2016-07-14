@@ -103,6 +103,7 @@ export class RenameAction extends EditorAction {
 				if (typeof err === 'string') {
 					this._messageService.show(Severity.Info, err);
 				} else {
+					this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed with to execute."));
 					return TPromise.wrapError(err);
 				}
 			});
