@@ -196,10 +196,6 @@
 	text-decoration: underline;
 }
 
-.monaco-shell a.strong {
-	font-weight: bold;
-}
-
 a:active {
 	color: inherit;
 	background-color: inherit;
@@ -231,18 +227,6 @@ a:active {
 .monaco-shell .context-view.bottom.right .tooltip:after {
 	border-width: 5px;
 	border-bottom: 5px solid white;
-}
-
-.monaco-shell .context-view .monaco-menu .actions-container {
-	min-width: 160px;
-}
-
-.monaco-shell .monaco-menu .action-label.check {
-	font-weight: bold;
-}
-
-.monaco-shell .monaco-menu .action-label.uncheck {
-	font-weight: normal;
 }
 
 .monaco-shell input:disabled {
