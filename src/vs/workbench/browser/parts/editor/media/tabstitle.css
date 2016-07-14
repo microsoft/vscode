@@ -205,9 +205,9 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-/* Group Actions */
+/* Editor Actions */
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .group-actions {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
 	flex: initial;
 	padding-left: 4px;
 }
