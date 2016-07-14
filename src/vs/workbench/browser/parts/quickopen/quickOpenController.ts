@@ -292,14 +292,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				let entries = picks.map(e => {
 					let entry = (<IPickOpenEntryItem>e);
 					if (entry.height && entry.render) {
-						return new PickOpenItem(entry.label, entry.description, entry.height, entry.render.bind(entry), () => progress(e), entry.alwaysShow);
+						return new PickOpenItem(entry, () => progress(e));
 					}
 
-					return new PickOpenEntry(entry.label, entry.description, entry.detail, () => progress(e), entry.separator && entry.separator.border, entry.separator && entry.separator.label, entry.alwaysShow);
+					return new PickOpenEntry(entry, () => progress(e));
 				});
 
 				if (picks.length === 0) {
-					entries.push(new PickOpenEntry(nls.localize('emptyPicks', "There are no entries to pick from")));
+					entries.push(new PickOpenEntry({ label: nls.localize('emptyPicks', "There are no entries to pick from") }));
 				}
 
 				model.setEntries(entries);
@@ -890,20 +890,21 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private _shouldRunWithContext: IEntryRunContext;
 	private description: string;
 	private detail: string;
+	private hasSeparator: boolean;
+	private separatorLabel: string;
+	private alwaysShow: boolean;
 
 	constructor(
-		label: string,
-		description?: string,
-		detail?: string,
-		private onPreview?: () => void,
-		private hasSeparator?: boolean,
-		private separatorLabel?: string,
-		private alwaysShow?: boolean
+		item: IPickOpenEntry,
+		private onPreview?: () => void
 	) {
-		super(label);
+		super(item.label);
 
-		this.description = description;
-		this.detail = detail;
+		this.description = item.description;
+		this.detail = item.detail;
+		this.hasSeparator = item.separator && item.separator.border;
+		this.separatorLabel = item.separator && item.separator.label;
+		this.alwaysShow = item.alwaysShow;
 	}
 
 	public get shouldRunWithContext(): IEntryRunContext {
@@ -947,16 +948,23 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 class PickOpenItem extends QuickOpenEntryItem {
 	private _shouldRunWithContext: IEntryRunContext;
+	private label: string;
+	private description: string;
+	private height: number;
+	private renderFn: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
+	private alwaysShow: boolean;
 
 	constructor(
-		private label: string,
-		private description: string,
-		private height: number,
-		private renderFn: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback,
-		private onPreview?: () => void,
-		private alwaysShow?: boolean
+		item: IPickOpenEntryItem,
+		private onPreview?: () => void
 	) {
 		super();
+
+		this.label = item.label;
+		this.description = item.description;
+		this.height = item.height;
+		this.renderFn = item.render.bind(item);
+		this.alwaysShow = item.alwaysShow;
 	}
 
 	public getHeight(): number {

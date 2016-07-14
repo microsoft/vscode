@@ -598,15 +598,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Move editors to new position
 			let editorPos1 = this.visibleEditors[Position.LEFT];
-			editorPos1.getContainer().offDOM().build(this.silos[newLeftPosition].child(0));
+			editorPos1.getContainer().offDOM().build(this.silos[newLeftPosition].child());
 			editorPos1.changePosition(newLeftPosition);
 
 			let editorPos2 = this.visibleEditors[Position.CENTER];
-			editorPos2.getContainer().offDOM().build(this.silos[newCenterPosition].child(0));
+			editorPos2.getContainer().offDOM().build(this.silos[newCenterPosition].child());
 			editorPos2.changePosition(newCenterPosition);
 
 			const editorPos3 = this.visibleEditors[Position.RIGHT];
-			editorPos3.getContainer().offDOM().build(this.silos[newRightPosition].child(0));
+			editorPos3.getContainer().offDOM().build(this.silos[newRightPosition].child());
 			editorPos3.changePosition(newRightPosition);
 
 			// Update last active position accordingly
