@@ -43,7 +43,7 @@ export class TabsTitleControl extends TitleControl {
 	private activeTab: HTMLElement;
 	private scrollbar: ScrollableElement;
 
-	private groupActionsToolbar: ToolBar;
+	private editorActionsToolbar: ToolBar;
 	private tabDisposeables: IDisposable[] = [];
 
 	private currentPrimaryGroupActionIds: string[] = [];
@@ -73,7 +73,7 @@ export class TabsTitleControl extends TitleControl {
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
 
-		this.groupActionsToolbar.context = { group };
+		this.editorActionsToolbar.context = { group };
 	}
 
 	public create(parent: HTMLElement): void {
@@ -160,11 +160,11 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
-		// Group Actions
-		const groupActionsContainer = document.createElement('div');
-		DOM.addClass(groupActionsContainer, 'group-actions');
-		this.titleContainer.appendChild(groupActionsContainer);
-		this.groupActionsToolbar = this.doCreateToolbar(groupActionsContainer);
+		// Editor Actions
+		const editorActionsContainer = document.createElement('div');
+		DOM.addClass(editorActionsContainer, 'editor-actions');
+		this.titleContainer.appendChild(editorActionsContainer);
+		this.editorActionsToolbar = this.doCreateToolbar(editorActionsContainer);
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
@@ -220,7 +220,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 
-		// Update Group Actions Toolbar
+		// Update Editor Actions Toolbar
 		const groupActions = this.getGroupActions(group);
 		const primaryGroupActions = groupActions.primary;
 		const secondaryGroupActions = groupActions.secondary;
@@ -228,7 +228,7 @@ export class TabsTitleControl extends TitleControl {
 		const secondaryGroupActionIds = secondaryGroupActions.map(a => a.id);
 
 		if (!arrays.equals(primaryGroupActionIds, this.currentPrimaryGroupActionIds) || !arrays.equals(secondaryGroupActionIds, this.currentSecondaryGroupActionIds)) {
-			this.groupActionsToolbar.setActions(primaryGroupActions, secondaryGroupActions)();
+			this.editorActionsToolbar.setActions(primaryGroupActions, secondaryGroupActions)();
 			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
 			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
 		}
@@ -243,7 +243,7 @@ export class TabsTitleControl extends TitleControl {
 		if (!editor) {
 			this.clearTabs();
 
-			this.groupActionsToolbar.setActions([], [])();
+			this.editorActionsToolbar.setActions([], [])();
 
 			this.currentPrimaryGroupActionIds = [];
 			this.currentSecondaryGroupActionIds = [];
@@ -555,6 +555,6 @@ export class TabsTitleControl extends TitleControl {
 		super.dispose();
 
 		// Toolbar
-		this.groupActionsToolbar.dispose();
+		this.editorActionsToolbar.dispose();
 	}
 }
