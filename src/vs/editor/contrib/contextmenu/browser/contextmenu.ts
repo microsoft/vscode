@@ -143,14 +143,18 @@ class ContextMenuController implements IEditorContribution {
 			return [];
 		}
 
-		const contributedActions = <OldContextMenuAction[]>this._editor.getActions().filter(action => {
+		const actions: IAction[] = [];
+		fillInActions(this._contextMenu, actions);
+
+		const oldContextMenuActions = <OldContextMenuAction[]>this._editor.getActions().filter(action => {
 			if (OldContextMenuAction.is(action)) {
 				return action.shouldShowInContextMenu() && action.isSupported();
 			}
 		});
+		if (oldContextMenuActions.length > 0) {
+			actions.push(new Separator(), ...ContextMenuController._prepareActions(oldContextMenuActions));
+		}
 
-		const actions = ContextMenuController._prepareActions(contributedActions);
-		fillInActions(this._contextMenu, actions);
 		return actions;
 	}
 
