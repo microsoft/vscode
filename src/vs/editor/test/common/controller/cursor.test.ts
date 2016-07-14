@@ -36,12 +36,28 @@ function move(cursor: Cursor, args: any) {
 	cursorCommand(cursor, H.CursorMove, args);
 }
 
-function moveToFirstCharacterOfLine(cursor: Cursor) {
-	move(cursor, {viewPosition: ViewPosition.FirstCharacterOfLine});
+function moveToLineStart(cursor: Cursor) {
+	move(cursor, {to: ViewPosition.LineStart});
 }
 
-function moveToFirstNonWhiteSpaceCharacterOfLine(cursor: Cursor) {
-	move(cursor, {viewPosition: ViewPosition.FirstNonWhiteSpaceCharacterOfLine});
+function moveToLineFirstNonWhiteSpaceCharacter(cursor: Cursor) {
+	move(cursor, {to: ViewPosition.LineFirstNonWhitespaceCharacter});
+}
+
+function moveToLineCenter(cursor: Cursor) {
+	move(cursor, {to: ViewPosition.LineCenter});
+}
+
+function moveToLineEnd(cursor: Cursor) {
+	move(cursor, {to: ViewPosition.LineEnd});
+}
+
+function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
+	move(cursor, {to: ViewPosition.LineLastNonWhitespaceCharacter});
+}
+
+function moveToPosition(cursor: Cursor, lineNumber: number, column: number) {
+	move(cursor, {to: new Position(lineNumber, column)});
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
@@ -209,38 +225,103 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move to first character of line from middle', () => {
 		moveTo(thisCursor, 1, 8);
-		moveToFirstCharacterOfLine(thisCursor);
+		moveToLineStart(thisCursor);
 		cursorEqual(thisCursor, 1, 1);
 	});
 
 	test('move to first character of line from first non white space character', () => {
 		moveTo(thisCursor, 1, 6);
-		moveToFirstCharacterOfLine(thisCursor);
+		moveToLineStart(thisCursor);
 		cursorEqual(thisCursor, 1, 1);
 	});
 
 	test('move to first character of line from first character', () => {
 		moveTo(thisCursor, 1, 1);
-		moveToFirstCharacterOfLine(thisCursor);
+		moveToLineStart(thisCursor);
 		cursorEqual(thisCursor, 1, 1);
 	});
 
 	test('move to first non white space character of line from middle', () => {
 		moveTo(thisCursor, 1, 8);
-		moveToFirstNonWhiteSpaceCharacterOfLine(thisCursor);
+		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
 		cursorEqual(thisCursor, 1, 6);
 	});
 
 	test('move to first non white space character of line from first non white space character', () => {
 		moveTo(thisCursor, 1, 6);
-		moveToFirstNonWhiteSpaceCharacterOfLine(thisCursor);
+		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
 		cursorEqual(thisCursor, 1, 6);
 	});
 
 	test('move to first non white space character of line from first character', () => {
 		moveTo(thisCursor, 1, 1);
-		moveToFirstNonWhiteSpaceCharacterOfLine(thisCursor);
+		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
 		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to end of line from middle', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToLineEnd(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	test('move to end of line from last non white space character', () => {
+		moveTo(thisCursor, 1, LINE1.length - 1);
+		moveToLineEnd(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	test('move to end of line from line end', () => {
+		moveTo(thisCursor, 1, LINE1.length + 1);
+		moveToLineEnd(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	test('move to last non white space character from middle', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to last non white space character from last non white space character', () => {
+		moveTo(thisCursor, 1, LINE1.length - 1);
+		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to last non white space character from line end', () => {
+		moveTo(thisCursor, 1, LINE1.length + 1);
+		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to center of line not from center', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToLineCenter(thisCursor);
+		cursorEqual(thisCursor, 1, 11);
+	});
+
+	test('move to center of line from center', () => {
+		moveTo(thisCursor, 1, 11);
+		moveToLineCenter(thisCursor);
+		cursorEqual(thisCursor, 1, 11);
+	});
+
+	test('move to center of line from start', () => {
+		moveToLineStart(thisCursor);
+		moveToLineCenter(thisCursor);
+		cursorEqual(thisCursor, 1, 11);
+	});
+
+	test('move to center of line from end', () => {
+		moveToLineEnd(thisCursor);
+		moveToLineCenter(thisCursor);
+		cursorEqual(thisCursor, 1, 11);
+	});
+
+	test('move to position', () => {
+		moveToPosition(thisCursor, 3, 10);
+		cursorEqual(thisCursor, 3, 10);
 	});
 
 	test('move', () => {
