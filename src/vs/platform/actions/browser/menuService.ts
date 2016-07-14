@@ -60,7 +60,7 @@ class Menu implements IMenu {
 
 			for (let item of menuItems) {
 				// group by groupId
-				const groupName = Menu._group(item.group);
+				const groupName = item.group;
 				if (!group || group[0] !== groupName) {
 					group = [groupName, []];
 					this._menuGroups.push(group);
@@ -121,27 +121,41 @@ class Menu implements IMenu {
 	}
 
 	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
-		if (a.group === b.group) {
-			return a.command.title.localeCompare(b.command.title);
-		} else if (!a.group) {
+
+		let aGroup = a.group;
+		let bGroup = b.group;
+
+		// Falsy groups come last
+		if (!aGroup && bGroup) {
 			return 1;
-		} else if (!b.group) {
+		} else if (aGroup && !bGroup) {
 			return -1;
-		} else {
-			return Menu._compareGroupId(a.group, b.group);
 		}
-	}
 
-	private static _compareGroupId(a: string, b: string): number {
-		const a_order = Number(a.substr(a.lastIndexOf('@') + 1)) || 0;
-		const b_order = Number(b.substr(b.lastIndexOf('@') + 1)) || 0;
-		if (a_order !== b_order) {
-			return a_order < b_order ? -1 : 1;
+		// 'navigation' group comes first
+		if (aGroup === 'navigation') {
+			return -1;
+		} else if (bGroup === 'navigation') {
+			return 1;
 		}
-		return a.localeCompare(b);
-	}
 
-	private static _group(a: string): string {
-		return a && (a.substr(0, a.lastIndexOf('@')) || a);
+		// lexical sort for groups
+		if (aGroup < bGroup) {
+			return -1;
+		} else if(aGroup > bGroup) {
+			return 1;
+		}
+
+		// sort on priority - default is 0
+		let aPrio = a.order || 0;
+		let bPrio = b.order || 0;
+		if (aPrio < bPrio) {
+			return -1;
+		} else if (aPrio > bPrio) {
+			return 1;
+		}
+
+		// sort on titles
+		return a.command.title.localeCompare(b.command.title);
 	}
 }

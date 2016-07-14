@@ -32,6 +32,7 @@ export interface IMenuItem {
 	alt?: ICommandAction;
 	when?: KbExpr;
 	group?: string;
+	order?: number;
 }
 
 export enum MenuId {
@@ -83,6 +84,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 			array.push(items);
 		}
 	}
+
 	getMenuItems(loc: MenuId): IMenuItem[] {
 		return this.menuItems[loc] || [];
 	}
