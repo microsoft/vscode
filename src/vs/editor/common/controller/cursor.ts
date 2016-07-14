@@ -944,6 +944,7 @@ export class Cursor extends EventEmitter {
 
 		this._handlers[H.JumpToBracket] =				(ctx) => this._jumpToBracket(ctx);
 
+		this._handlers[H.CursorMove] = 					(ctx) => this._move(false, ctx);
 		this._handlers[H.MoveTo] = 						(ctx) => this._moveTo(false, ctx);
 		this._handlers[H.MoveToSelect] = 				(ctx) => this._moveTo(true, ctx);
 		this._handlers[H.ColumnSelect] = 				(ctx) => this._columnSelectMouse(ctx);
@@ -1092,7 +1093,8 @@ export class Cursor extends EventEmitter {
 				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: false,
-				requestScrollDeltaLines: 0
+				requestScrollDeltaLines: 0,
+				eventData: ctx.eventData
 			};
 
 			result = callable(i, cursors[i], context) || result;
@@ -1124,6 +1126,10 @@ export class Cursor extends EventEmitter {
 	private _moveTo(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		this.cursors.killSecondaryCursors();
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveTo(oneCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx));
+	}
+
+	private _move(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, inSelectionMode, ctx.eventData.viewPosition, ctx.eventSource, oneCtx));
 	}
 
 	private _columnSelectToLineNumber: number = 0;

@@ -6,6 +6,7 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
+import types = require('vs/base/common/types');
 import {ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
 import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
 import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelectionCommand';
@@ -23,6 +24,7 @@ export interface IPostOperationRunnable {
 
 export interface IOneCursorOperationContext {
 	cursorPositionChangeReason: editorCommon.CursorChangeReason;
+	eventData: any;
 	shouldReveal: boolean;
 	shouldRevealVerticalInCenter: boolean;
 	shouldRevealHorizontal: boolean;
@@ -530,9 +532,6 @@ export class OneCursor {
 	public getPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
 		return this.helper.getPositionDown(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
-	public getColumnAtBeginningOfLine(lineNumber:number, column:number): number {
-		return this.helper.getColumnAtBeginningOfLine(this.model, lineNumber, column);
-	}
 	public getColumnAtEndOfLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtEndOfLine(this.model, lineNumber, column);
 	}
@@ -567,6 +566,12 @@ export class OneCursor {
 	}
 	public getColumnAtBeginningOfViewLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtBeginningOfLine(this.viewModelHelper.viewModel, lineNumber, column);
+	}
+	public getViewLineMinColumn(lineNumber:number): number {
+		return this.viewModelHelper.viewModel.getLineMinColumn(lineNumber);
+	}
+	public getViewLineFirstNonWhiteSpaceColumn(lineNumber:number): number {
+		return this.viewModelHelper.viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
 	}
 	public getColumnAtEndOfViewLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtEndOfLine(this.viewModelHelper.viewModel, lineNumber, column);
@@ -613,7 +618,6 @@ export class OneCursorOp {
 	}
 
 	public static moveTo(cursor:OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, viewPosition:editorCommon.IPosition, eventSource: string, ctx: IOneCursorOperationContext): boolean {
-
 		let validatedPosition = cursor.model.validatePosition(position);
 		let validatedViewPosition: editorCommon.IPosition;
 		if (viewPosition) {
@@ -622,6 +626,21 @@ export class OneCursorOp {
 			validatedViewPosition = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
 		}
 
+		return this.move(cursor, inSelectionMode, validatedViewPosition, eventSource, ctx);
+	}
+
+	public static move(cursor:OneCursor, inSelectionMode: boolean, to:editorCommon.IPosition | string, eventSource: string, ctx: IOneCursorOperationContext): boolean {
+		if (types.isString(to)) {
+			switch (to) {
+				case editorCommon.ViewPosition.FirstCharacterOfLine:
+					return this.moveToFirstColumnOfLine(cursor, inSelectionMode, ctx);
+				case editorCommon.ViewPosition.FirstNonWhiteSpaceCharacterOfLine:
+					return this.moveToFirstNonWhiteSpaceColumnOfLine(cursor, inSelectionMode, ctx);
+			}
+			return false;
+		}
+
+		let viewPosition: editorCommon.IPosition= <editorCommon.IPosition>to;
 		let reason = (eventSource === 'mouse' ? editorCommon.CursorChangeReason.Explicit : editorCommon.CursorChangeReason.NotSet);
 		if (eventSource === 'api') {
 			ctx.shouldRevealVerticalInCenter = true;
@@ -630,7 +649,7 @@ export class OneCursorOp {
 		if (reason) {
 			ctx.cursorPositionChangeReason = reason;
 		}
-		cursor.moveViewPosition(inSelectionMode, validatedViewPosition.lineNumber, validatedViewPosition.column, 0, false);
+		cursor.moveViewPosition(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0, false);
 		return true;
 	}
 
@@ -906,6 +925,26 @@ export class OneCursorOp {
 		let viewColumn = validatedViewPosition.column;
 
 		viewColumn = cursor.getColumnAtBeginningOfViewLine(viewLineNumber, viewColumn);
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
+		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
+		return true;
+	}
+
+	public static moveToFirstColumnOfLine(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		let validatedViewPosition = cursor.getValidViewPosition();
+		let viewLineNumber = validatedViewPosition.lineNumber;
+		let viewColumn = cursor.getViewLineMinColumn(viewLineNumber);
+
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
+		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
+		return true;
+	}
+
+	public static moveToFirstNonWhiteSpaceColumnOfLine(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		let validatedViewPosition = cursor.getValidViewPosition();
+		let viewLineNumber = validatedViewPosition.lineNumber;
+		let viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
+
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
 		return true;
