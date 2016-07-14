@@ -81,8 +81,8 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		toDispose.push(textEditor.onConfigurationChanged((opts) => {
 			this._proxy.$acceptOptionsChanged(id, opts);
 		}));
-		toDispose.push(textEditor.onSelectionChanged((selection) => {
-			this._proxy.$acceptSelectionsChanged(id, selection);
+		toDispose.push(textEditor.onSelectionChanged((event) => {
+			this._proxy.$acceptSelectionsChanged(id, event);
 		}));
 		this._proxy.$acceptTextEditorAdd({
 			id: id,

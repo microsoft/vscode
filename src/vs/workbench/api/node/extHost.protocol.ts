@@ -29,7 +29,7 @@ import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 
 import {IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
-import {TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration} from './mainThreadEditorsTracker';
+import {TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent} from './mainThreadEditorsTracker';
 import {EndOfLine} from './extHostTypes';
 
 export interface InstanceSetter<T> {
@@ -230,7 +230,7 @@ export interface ITextEditorPositionData {
 export abstract class ExtHostEditorsShape {
 	$acceptTextEditorAdd(data: ITextEditorAddData): void { throw ni(); }
 	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void { throw ni(); }
-	$acceptSelectionsChanged(id: string, _selections: editorCommon.ISelection[]): void { throw ni(); }
+	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void { throw ni(); }
 	$acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void { throw ni(); }
 	$acceptEditorPositionData(data: ITextEditorPositionData): void { throw ni(); }
 	$acceptTextEditorRemove(id: string): void { throw ni(); }
