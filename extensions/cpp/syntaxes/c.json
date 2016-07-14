@@ -278,9 +278,15 @@
         },
         "2": {
           "name": "variable.other.dot-access.c"
+        },
+        "3": {
+          "name": "variable.other.pointer-access.c"
+        },
+        "4": {
+          "name": "variable.other.member.c"
         }
       },
-      "match": "(\\.)([a-zA-Z_][a-zA-Z_0-9]*)\\b(?!\\s*\\()"
+      "match": "((\\.)|(->))([a-zA-Z_][a-zA-Z_0-9]*)\\b(?!\\s*\\()"
     },
     "block": {
       "patterns": [
