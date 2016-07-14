@@ -31,7 +31,7 @@ export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
 	when?: KbExpr;
-	group?: string;
+	group?: 'navigation' | string;
 	order?: number;
 }
 
