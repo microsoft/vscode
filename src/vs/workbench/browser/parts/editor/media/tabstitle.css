@@ -36,6 +36,7 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs > .monaco-scrollable-element .scrollbar {
 	z-index: 3; /* on top of tabs */
+	cursor: default;
 }
 
 /* Tabs Container */
