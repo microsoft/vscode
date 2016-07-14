@@ -4,7 +4,7 @@
     "c",
     "h"
   ],
-  "firstLineMatch": "-\\*-\\s*([Mm]ode: )?C;?\\s*-\\*-",
+  "firstLineMatch": "(?i)-\\*-[^*]*(Mode:\\s*)?C(\\s*;.*?)?\\s*-\\*-",
   "name": "C",
   "patterns": [
     {
@@ -58,7 +58,7 @@
       "include": "#strings"
     },
     {
-      "begin": "(?x)\n^\\s* ((\\#)\\s*define) \\s+     # define\n((?<id>[a-zA-Z_][a-zA-Z0-9_]*))  # macro name\n(?:\n  (\\()\n    (\n      \\s* \\g<id> \\s*         # first argument\n      ((,) \\s* \\g<id> \\s*)*  # additional arguments\n      (?:\\.\\.\\.)?            # varargs ellipsis?\n    )\n  (\\))\n)?",
+      "begin": "(?x)\n^\\s* ((\\#)\\s*define) \\s+     # define\n((?<id>[a-zA-Z_$][\\w$]*))  # macro name\n(?:\n  (\\()\n    (\n      \\s* \\g<id> \\s*         # first argument\n      ((,) \\s* \\g<id> \\s*)*  # additional arguments\n      (?:\\.\\.\\.)?            # varargs ellipsis?\n    )\n  (\\))\n)?",
       "beginCaptures": {
         "1": {
           "name": "keyword.control.directive.define.c"
@@ -258,7 +258,7 @@
           "include": "#parens"
         },
         {
-          "match": "\\b(const|override|final|noexcept)\\b",
+          "match": "\\b(const)\\b",
           "name": "storage.modifier.c"
         },
         {
@@ -273,14 +273,17 @@
   "repository": {
     "access": {
       "captures": {
-        "1": {
-          "name": "punctuation.separator.variable-access.c"
-        },
         "2": {
-          "name": "variable.other.dot-access.c"
+          "name": "punctuation.separator.dot-access.c"
+        },
+        "3": {
+          "name": "punctuation.separator.pointer-access.c"
+        },
+        "4": {
+          "name": "variable.other.member.c"
         }
       },
-      "match": "(\\.)([a-zA-Z_][a-zA-Z_0-9]*)\\b(?!\\s*\\()"
+      "match": "((\\.)|(->))([a-zA-Z_][a-zA-Z_0-9]*)\\b(?!\\s*\\()"
     },
     "block": {
       "patterns": [
@@ -470,7 +473,7 @@
     "numbers": {
       "patterns": [
         {
-          "match": "\\b((0(x|X)[0-9a-fA-F]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
+          "match": "\\b((0(x|X)[0-9a-fA-F]*)|(0(b|B)[01]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
           "name": "constant.numeric.c"
         }
       ]
