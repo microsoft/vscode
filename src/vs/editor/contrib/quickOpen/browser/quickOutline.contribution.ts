@@ -22,7 +22,8 @@ CommonEditorRegistry.registerEditorAction({
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
 	},
 	menuOpts: {
-		group: 'navigation@13',
+		group: 'navigation',
+		order: 3,
 		kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasDocumentSymbolProvider))
 	}
 });

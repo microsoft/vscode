@@ -498,7 +498,8 @@ CommonEditorRegistry.registerEditorAction({
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
 	},
 	menuOpts: {
-		group: 'navigation@11',
+		group: 'navigation',
+		order: 2,
 		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
 	}
 });
@@ -517,7 +518,8 @@ CommonEditorRegistry.registerEditorAction({
 		primary: goToDeclarationKb
 	},
 	menuOpts: {
-		group: 'navigation@10',
+		group: 'navigation',
+		order: 1,
 		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
 	}
 });

@@ -745,7 +745,8 @@ CommonEditorRegistry.registerEditorAction({
 		primary: KeyMod.CtrlCmd | KeyCode.F2
 	},
 	menuOpts: {
-		group: 'modification@101',
+		group: 'modification',
+		order: 2,
 		kbExpr: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY)
 	}
 });
