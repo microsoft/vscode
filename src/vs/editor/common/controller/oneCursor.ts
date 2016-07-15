@@ -6,7 +6,7 @@
 
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import {ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
 import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
 import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelectionCommand';
@@ -24,7 +24,6 @@ export interface IPostOperationRunnable {
 
 export interface IOneCursorOperationContext {
 	cursorPositionChangeReason: editorCommon.CursorChangeReason;
-	eventData: any;
 	shouldReveal: boolean;
 	shouldRevealVerticalInCenter: boolean;
 	shouldRevealHorizontal: boolean;
@@ -635,16 +634,16 @@ export class OneCursorOp {
 		return this.move(cursor, inSelectionMode, validatedViewPosition, eventSource, ctx);
 	}
 
-	public static move(cursor:OneCursor, inSelectionMode: boolean, to:editorCommon.IPosition | string, eventSource: string, ctx: IOneCursorOperationContext): boolean {
+	public static move(cursor: OneCursor, inSelectionMode: boolean, to: editorCommon.IPosition | string, eventSource: string, ctx: IOneCursorOperationContext): boolean {
 		if (!to) {
 			illegalArgument('to');
 		}
 
 		if (types.isString(to)) {
-			return this._move(cursor, inSelectionMode, to, ctx);
+			return this.moveToLogicalViewPosition(cursor, inSelectionMode, to, ctx);
 		}
 
-		let viewPosition: editorCommon.IPosition= <editorCommon.IPosition>to;
+		let viewPosition: editorCommon.IPosition = <editorCommon.IPosition>to;
 		let reason = (eventSource === 'mouse' ? editorCommon.CursorChangeReason.Explicit : editorCommon.CursorChangeReason.NotSet);
 		if (eventSource === 'api') {
 			ctx.shouldRevealVerticalInCenter = true;
@@ -656,24 +655,24 @@ export class OneCursorOp {
 		return true;
 	}
 
-	private static _move(cursor:OneCursor, inSelectionMode: boolean, viewPosition:string, ctx: IOneCursorOperationContext): boolean {
+	private static moveToLogicalViewPosition(cursor: OneCursor, inSelectionMode: boolean, cursorMoveViewPosition: string, ctx: IOneCursorOperationContext): boolean {
 		let validatedViewPosition = cursor.getValidViewPosition();
 		let viewLineNumber = validatedViewPosition.lineNumber;
 		let viewColumn;
-		switch (viewPosition) {
-			case editorCommon.ViewPosition.LineStart:
+		switch (cursorMoveViewPosition) {
+			case editorCommon.CursorMoveViewPosition.LineStart:
 				viewColumn = cursor.getViewLineMinColumn(viewLineNumber);
 				break;
-			case editorCommon.ViewPosition.LineFirstNonWhitespaceCharacter:
+			case editorCommon.CursorMoveViewPosition.LineFirstNonWhitespaceCharacter:
 				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
 				break;
-			case editorCommon.ViewPosition.LineCenter:
+			case editorCommon.CursorMoveViewPosition.LineColumnCenter:
 				viewColumn = cursor.getViewLineCenterColumn(viewLineNumber);
 				break;
-			case editorCommon.ViewPosition.LineEnd:
+			case editorCommon.CursorMoveViewPosition.LineEnd:
 				viewColumn = cursor.getViewLineMaxColumn(viewLineNumber);
 				break;
-			case editorCommon.ViewPosition.LineLastNonWhitespaceCharacter:
+			case editorCommon.CursorMoveViewPosition.LineLastNonWhitespaceCharacter:
 				viewColumn = cursor.getViewLineLastNonWhiteSpaceColumn(viewLineNumber);
 				break;
 			default:

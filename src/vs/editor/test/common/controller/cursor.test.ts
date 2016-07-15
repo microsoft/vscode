@@ -13,7 +13,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {
 	EndOfLinePreference, EventType, Handler, IPosition, ISelection, IEditorOptions,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData, ViewPosition
+	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData, CursorMoveViewPosition
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode, IndentAction} from 'vs/editor/common/modes';
@@ -37,23 +37,23 @@ function move(cursor: Cursor, args: any) {
 }
 
 function moveToLineStart(cursor: Cursor) {
-	move(cursor, {to: ViewPosition.LineStart});
+	move(cursor, {to: CursorMoveViewPosition.LineStart});
 }
 
 function moveToLineFirstNonWhiteSpaceCharacter(cursor: Cursor) {
-	move(cursor, {to: ViewPosition.LineFirstNonWhitespaceCharacter});
+	move(cursor, {to: CursorMoveViewPosition.LineFirstNonWhitespaceCharacter});
 }
 
 function moveToLineCenter(cursor: Cursor) {
-	move(cursor, {to: ViewPosition.LineCenter});
+	move(cursor, {to: CursorMoveViewPosition.LineColumnCenter});
 }
 
 function moveToLineEnd(cursor: Cursor) {
-	move(cursor, {to: ViewPosition.LineEnd});
+	move(cursor, {to: CursorMoveViewPosition.LineEnd});
 }
 
 function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
-	move(cursor, {to: ViewPosition.LineLastNonWhitespaceCharacter});
+	move(cursor, {to: CursorMoveViewPosition.LineLastNonWhitespaceCharacter});
 }
 
 function moveToPosition(cursor: Cursor, lineNumber: number, column: number) {
