@@ -430,7 +430,7 @@ export class EditorOptions implements IEditorOptions {
 		let options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
-		options.revealIfOpened = settings.revealIfOpened;
+		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -444,7 +444,7 @@ export class EditorOptions implements IEditorOptions {
 	public mixin(other: EditorOptions): void {
 		this.preserveFocus = other.preserveFocus;
 		this.forceOpen = other.forceOpen;
-		this.revealIfOpened = other.revealIfOpened;
+		this.revealIfVisible = other.revealIfVisible;
 		this.pinned = other.pinned;
 		this.index = other.index;
 	}
@@ -463,10 +463,9 @@ export class EditorOptions implements IEditorOptions {
 	public forceOpen: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened in any editor group.
-	 * This prevents duplicates of the same editor input showing up.
+	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
 	 */
-	public revealIfOpened: boolean;
+	public revealIfVisible: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -494,13 +493,13 @@ export class TextEditorOptions extends EditorOptions {
 	protected startColumn: number;
 	protected endLineNumber: number;
 	protected endColumn: number;
-	
+
 	private editorViewState: IEditorViewState;
 
 	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.revealIfOpened || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -513,8 +512,8 @@ export class TextEditorOptions extends EditorOptions {
 				options.forceOpen = true;
 			}
 
-			if (input.options.revealIfOpened) {
-				options.revealIfOpened = true;
+			if (input.options.revealIfVisible) {
+				options.revealIfVisible = true;
 			}
 
 			if (input.options.preserveFocus) {
@@ -544,7 +543,7 @@ export class TextEditorOptions extends EditorOptions {
 		let options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
-		options.revealIfOpened = settings.revealIfOpened;
+		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 
@@ -654,7 +653,7 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
-		options.revealIfOpened = settings.revealIfOpened;
+		options.revealIfVisible = settings.revealIfVisible;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 

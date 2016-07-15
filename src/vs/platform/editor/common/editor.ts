@@ -152,10 +152,9 @@ export interface IEditorOptions {
 	forceOpen?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened in any editor group.
-	 * This prevents duplicates of the same editor input showing up.
+	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
 	 */
-	revealIfOpened?: boolean;
+	revealIfVisible?: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.

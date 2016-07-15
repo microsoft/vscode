@@ -266,7 +266,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				if (lastActiveFileResource && root && root.find(lastActiveFileResource)) {
 					let editorInput = this.instantiationService.createInstance(FileEditorInput, lastActiveFileResource, void 0, void 0);
-					this.editorService.openEditor(editorInput, { revealIfOpened: true }).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(editorInput, { revealIfVisible: true }).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
 				}
@@ -284,7 +284,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
 
-			this.editorService.openEditor(editorInput, { preserveFocus, revealIfOpened: true }).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(editorInput, { preserveFocus, revealIfVisible: true }).done(null, errors.onUnexpectedError);
 		}
 	}
 
