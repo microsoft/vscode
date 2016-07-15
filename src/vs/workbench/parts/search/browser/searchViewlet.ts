@@ -290,7 +290,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
 		this.toUnbind.push(this.searchWidget.onReplaceStateChange((state) => {
-			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceActive= state;
 			this.tree.refresh();
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
@@ -902,7 +902,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return this.viewModel.hasReplaceString() ? this.openReplacePreviewEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ? this.openReplacePreviewEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {

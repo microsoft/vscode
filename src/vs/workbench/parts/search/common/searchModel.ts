@@ -407,6 +407,7 @@ export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
 	private _searchQuery: ISearchQuery= null;
+	private _replaceActive: boolean= false;
 	private _replaceString: string= null;
 	private _replacePattern: ReplacePattern= null;
 
@@ -420,28 +421,20 @@ export class SearchModel extends Disposable {
 		this._searchResult= this.instantiationService.createInstance(SearchResult, this);
 	}
 
-	/**
-	 * Return true if replace is enabled otherwise false
-	 */
 	public isReplaceActive():boolean {
-		return this._replaceString !== null && this._replaceString !== void 0;
+		return this._replaceActive;
 	}
 
-	/**
-	 * Return true if replace is enabled and replace text is not empty, otherwise false.
-	 * This is necessary in cases handling empty replace text when replace is active.
-	 */
-	public hasReplaceString():boolean {
-		return this.isReplaceActive() && !!this._replaceString;
+	public set replaceActive(replaceActive: boolean) {
+		this._replaceActive= replaceActive;
 	}
 
-	/**
-	 * Returns the text to replace.
-	 * Can be null if replace is not enabled. Use replace() before.
-	 * Can be empty.
-	 */
 	public get replacePattern(): ReplacePattern {
 		return this._replacePattern;
+	}
+
+	public get replaceString(): string {
+		return this._replaceString;
 	}
 
 	public set replaceString(replaceString: string) {
