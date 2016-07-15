@@ -94,6 +94,14 @@ suite('URI', () => {
 		assert.equal(URI.parse('scheme:/path').with({ authority: null }).toString(), 'scheme:/path');
 	});
 
+	test('with, validation', () => {
+		let uri = URI.parse('foo:bar/path');
+		assert.throws(() => uri.with({ scheme: 'fai:l' }));
+		assert.throws(() => uri.with({ scheme: 'fäil' }));
+		assert.throws(() => uri.with({ authority: 'fail' }));
+		assert.throws(() => uri.with({ path: '//fail' }));
+	});
+
 	test('parse', () => {
 		var value = URI.parse('http:/api/files/test.me?t=1234');
 		assert.equal(value.scheme, 'http');
@@ -195,6 +203,34 @@ suite('URI', () => {
 		assert.equal(value.path, '');
 		assert.equal(value.query, '');
 		assert.equal(value.fragment, 'd');
+
+		value = URI.parse('f3ile:#d');
+		assert.equal(value.scheme, 'f3ile');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '');
+		assert.equal(value.query, '');
+		assert.equal(value.fragment, 'd');
+
+		value = URI.parse('foo+bar:path');
+		assert.equal(value.scheme, 'foo+bar');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, 'path');
+		assert.equal(value.query, '');
+		assert.equal(value.fragment, '');
+
+		value = URI.parse('foo-bar:path');
+		assert.equal(value.scheme, 'foo-bar');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, 'path');
+		assert.equal(value.query, '');
+		assert.equal(value.fragment, '');
+
+		value = URI.parse('foo.bar:path');
+		assert.equal(value.scheme, 'foo.bar');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, 'path');
+		assert.equal(value.query, '');
+		assert.equal(value.fragment, '');
 	});
 
 	test('parse, disallow //path when no authority', () => {

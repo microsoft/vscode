@@ -16,7 +16,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import product from 'vs/platform/product';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowExtensionRecommendationsAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction } from './extensionsActions';
 import Severity from 'vs/base/common/severity';
 
 export class ExtensionTipsService implements IExtensionTipsService {
@@ -128,7 +128,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							);
 							return Promise.as(true);
 						});
-						const recommendationsAction = this.instantiationService.createInstance(ShowExtensionRecommendationsAction, ShowExtensionRecommendationsAction.ID, localize('showRecommendations', "Show Recommendations"));
+						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 
 						this.messageService.show(Severity.Info, {
 							message,

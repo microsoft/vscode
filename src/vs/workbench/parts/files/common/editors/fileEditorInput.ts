@@ -301,8 +301,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				textModel.dispose();
 
-				let binaryModel = new BinaryEditorModel(this.resource, this.getName());
-				return binaryModel.load();
+				return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 			}
 
 			// Bubble any other error up

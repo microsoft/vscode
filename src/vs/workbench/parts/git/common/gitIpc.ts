@@ -87,6 +87,7 @@ export interface IGitChannel extends IChannel {
 	call(command: 'detectMimetypes', args: [string, string]): TPromise<string[]>;
 	call(command: 'show', args: [string, string]): TPromise<string>;
 	call(command: 'onOutput'): TPromise<void>;
+	call(command: 'getCommitTemplate'): TPromise<string>;
 	call(command: string, args: any): TPromise<any>;
 }
 
@@ -117,6 +118,7 @@ export class GitChannel implements IGitChannel {
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
+			case 'getCommitTemplate': return this.service.then(s => s.getCommitTemplate());
 		}
 	}
 }
@@ -216,6 +218,10 @@ export class GitChannelClient implements IRawGitService {
 
 	show(path: string, treeish?: string): TPromise<string> {
 		return this.channel.call('show', [path, treeish]);
+	}
+
+	getCommitTemplate(): TPromise<string> {
+		return this.channel.call('getCommitTemplate');
 	}
 }
 

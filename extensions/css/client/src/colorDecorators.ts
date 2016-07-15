@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range} from 'vscode';
+import {window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, TextEditor} from 'vscode';
 
 let decorationType: DecorationRenderOptions = {
 	before: {
@@ -28,56 +28,71 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	let colorsDecorationType = window.createTextEditorDecorationType(decorationType);
 	disposables.push(colorsDecorationType);
 
-	let activeEditor = window.activeTextEditor;
-	if (activeEditor) {
-		triggerUpdateDecorations();
-	}
+	let pendingUpdateRequests : { [key:string]:number; } = {};
 
+	// we care about all visible editors
+	window.visibleTextEditors.forEach(editor => {
+		if (editor.document) {
+			triggerUpdateDecorations(editor.document);
+		}
+	});
+	// to get visible one has to become active
 	window.onDidChangeActiveTextEditor(editor => {
-		activeEditor = editor;
-		if (editor && supportedLanguages[activeEditor.document.languageId]) {
-			triggerUpdateDecorations();
+		if (editor) {
+			triggerUpdateDecorations(editor.document);
 		}
 	}, null, disposables);
 
-	workspace.onDidChangeTextDocument(event => {
-		if (activeEditor && event.document === activeEditor.document && supportedLanguages[activeEditor.document.languageId]) {
-			triggerUpdateDecorations();
-		}
-	}, null, disposables);
+	workspace.onDidChangeTextDocument(event => triggerUpdateDecorations(event.document), null, disposables);
+	workspace.onDidOpenTextDocument(triggerUpdateDecorations, null, disposables);
+	workspace.onDidCloseTextDocument(triggerUpdateDecorations, null, disposables);
 
-	let timeout = null;
-	function triggerUpdateDecorations() {
-		if (timeout) {
+	function triggerUpdateDecorations(document: TextDocument) {
+		let triggerUpdate = supportedLanguages[document.languageId];
+		let uri = document.uri.toString();
+		let timeout = pendingUpdateRequests[uri];
+		if (typeof timeout !== 'undefined') {
 			clearTimeout(timeout);
+			triggerUpdate = true; // force update, even if languageId is not supported (anymore)
 		}
-		timeout = setTimeout(updateDecorations, 500);
+		if (triggerUpdate) {
+			pendingUpdateRequests[uri] = setTimeout(() => {
+				updateDecorations(uri);
+				delete pendingUpdateRequests[uri];
+			}, 500);
+		}
 	}
 
-	function updateDecorations() {
-		if (!activeEditor) {
-			return;
-		}
-		let document = activeEditor.document;
-		if (!supportedLanguages[document.languageId]) {
-			return;
-		}
-		let uri = activeEditor.document.uri.toString();
-		decoratorProvider(uri).then(ranges => {
-
-			let decorations = ranges.map(range => {
-				let color = document.getText(range);
-				return <DecorationOptions>{
-					range: range,
-					renderOptions: {
-						before: {
-							backgroundColor: color
-						}
-					}
-				};
-			});
-			activeEditor.setDecorations(colorsDecorationType, decorations);
+	function updateDecorations(uri: string) {
+		window.visibleTextEditors.forEach(editor => {
+			let document = editor.document;
+			if (document && document.uri.toString() === uri) {
+				updateDecorationForEditor(editor);
+			}
 		});
 	}
+
+	function updateDecorationForEditor(editor: TextEditor) {
+		let document = editor.document;
+		if (supportedLanguages[document.languageId]) {
+			decoratorProvider(document.uri.toString()).then(ranges => {
+				let decorations = ranges.map(range => {
+					let color = document.getText(range);
+					return <DecorationOptions>{
+						range: range,
+						renderOptions: {
+							before: {
+								backgroundColor: color
+							}
+						}
+					};
+				});
+				editor.setDecorations(colorsDecorationType, decorations);
+			});
+		} else {
+			editor.setDecorations(colorsDecorationType, []);
+		}
+	}
+
 	return Disposable.from(...disposables);
 }

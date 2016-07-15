@@ -6,11 +6,10 @@
 
 import assert = require('assert');
 import WinJS = require('vs/base/common/winjs.base');
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {DeferredAction} from 'vs/platform/actions/common/actions';
 import Actions = require('vs/base/common/actions');
 import EventEmitter = require('vs/base/common/eventEmitter');
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IEventService} from 'vs/platform/event/common/event';
 
@@ -36,10 +35,11 @@ class TestEventService extends EventEmitter.EventEmitter {
 }
 
 suite('Platform actions', () => {
+
 	test('DeferredAction', (done) => {
 
-		let services = new ServiceCollection([IEventService, <any>{}]);
-		let instantiationService = new InstantiationService(services);
+		let instantiationService: TestInstantiationService= new TestInstantiationService();
+		instantiationService.stub(IEventService);
 
 		let action = new DeferredAction(
 			instantiationService,

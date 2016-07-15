@@ -29,20 +29,7 @@
 	background-image: url('ellipsis.svg');
 }
 
+.hc-black .monaco-toolbar .action-label.toolbar-toggle-more,
 .vs-dark .monaco-toolbar .action-label.toolbar-toggle-more {
 	background-image: url('ellipsis-inverse.svg');
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-toolbar .action-label.toolbar-toggle-more {
-	background: none;
-}
-
-.hc-black .monaco-toolbar .action-label.toolbar-toggle-more:before {
-	content: url('ellipsis-inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
 }

@@ -8,7 +8,7 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';
 import {StatusBarItem, StatusBarAlignment} from 'vscode';
-import {MainContext, MainThreadStatusBarShape} from './extHostProtocol';
+import {MainContext, MainThreadStatusBarShape} from './extHost.protocol';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -89,7 +89,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 
 	public hide(): void {
 		this._visible = false;
-		this._proxy.dispose(this.id);
+		this._proxy.$dispose(this.id);
 	}
 
 	private update(): void {
@@ -106,7 +106,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 			this._timeoutHandle = null;
 
 			// Set to status bar
-			this._proxy.setEntry(this.id, this.text, this.tooltip, this.command, this.color,
+			this._proxy.$setEntry(this.id, this.text, this.tooltip, this.command, this.color,
 				this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
 				this._priority);
 		}, 0);

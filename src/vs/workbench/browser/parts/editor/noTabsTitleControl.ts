@@ -6,13 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/notabstitle';
-import {IAction} from 'vs/base/common/actions';
-import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import errors = require('vs/base/common/errors');
-import arrays = require('vs/base/common/arrays');
-import {IEditorGroup, EditorInput} from 'vs/workbench/common/editor';
+import {IEditorGroup} from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
-import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 
 export class NoTabsTitleControl extends TitleControl {
@@ -21,12 +17,6 @@ export class NoTabsTitleControl extends TitleControl {
 	private titleDecoration: HTMLElement;
 	private titleDescription: HTMLElement;
 
-	private editorActionsToolbar: ToolBar;
-
-	private currentPrimaryEditorActionIds: string[] = [];
-	private currentSecondaryEditorActionIds: string[] = [];
-
-
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
 
@@ -34,21 +24,15 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	public create(parent: HTMLElement): void {
+		super.create(parent);
+
 		this.titleContainer = parent;
 
 		// Pin on double click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e);
-
-			this.onTitleDoubleClick();
-		}));
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, false);
-
-			this.onTitleClick(e);
-		}));
+		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Left Title Decoration
 		this.titleDecoration = document.createElement('div');
@@ -65,21 +49,33 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleDescription = document.createElement('span');
 		labelContainer.appendChild(this.titleDescription);
 
+		// Detect title label & description click
+		this.toDispose.push(DOM.addDisposableListener(this.titleLabel, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.titleDescription, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+
 		this.titleContainer.appendChild(labelContainer);
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
 		DOM.addClass(actionsContainer, 'title-actions');
-
-		this.editorActionsToolbar = this.doCreateToolbar(actionsContainer);
-
 		this.titleContainer.appendChild(actionsContainer);
+
+		// Editor actions toolbar
+		this.createEditorActionsToolBar(actionsContainer);
 
 		// Context Menu
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CONTEXT_MENU, (e: Event) => this.onContextMenu({ group: this.context, editor: this.context.activeEditor }, e, this.titleContainer)));
 	}
 
-	private onTitleDoubleClick(): void {
+	private onTitleLabelClick(e: MouseEvent): void {
+		DOM.EventHelper.stop(e, false);
+		if (!this.dragged) {
+			this.quickOpenService.show();
+		}
+	}
+
+	private onTitleDoubleClick(e: MouseEvent): void {
+		DOM.EventHelper.stop(e);
 		if (!this.context) {
 			return;
 		}
@@ -90,6 +86,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private onTitleClick(e: MouseEvent): void {
+		DOM.EventHelper.stop(e, false);
 		if (!this.context) {
 			return;
 		}
@@ -115,10 +112,7 @@ export class NoTabsTitleControl extends TitleControl {
 			this.titleLabel.innerText = '';
 			this.titleDescription.innerText = '';
 
-			this.editorActionsToolbar.setActions([], [])();
-
-			this.currentPrimaryEditorActionIds = [];
-			this.currentSecondaryEditorActionIds = [];
+			this.clearEditorActionsToolbar();
 
 			return; // return early if we are being closed
 		}
@@ -141,8 +135,8 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Editor Title
-		let name = editor.getName() || '';
-		let description = isActive ? (editor.getDescription() || '') : '';
+		const name = editor.getName() || '';
+		const description = isActive ? (editor.getDescription() || '') : '';
 		let verboseDescription = editor.getDescription(true) || '';
 		if (description === verboseDescription) {
 			verboseDescription = ''; // dont repeat what is already shown
@@ -162,34 +156,6 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// Update Editor Actions Toolbar
-		let primaryEditorActions: IAction[] = [];
-		let secondaryEditorActions: IAction[] = [];
-		if (isActive) {
-			const editorActions = this.getEditorActions({ group, editor });
-			primaryEditorActions = prepareActions(editorActions.primary);
-			if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
-				primaryEditorActions.push(this.splitEditorAction);
-			}
-			secondaryEditorActions = prepareActions(editorActions.secondary);
-		}
-
-		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
-		primaryEditorActionIds.push(this.closeEditorAction.id);
-		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
-
-		if (!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) || !arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds)) {
-			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
-			this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
-
-			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
-			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
-		}
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		// Toolbars
-		this.editorActionsToolbar.dispose();
+		this.updateEditorActionsToolbar();
 	}
 }

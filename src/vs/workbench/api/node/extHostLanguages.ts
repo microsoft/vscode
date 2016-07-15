@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, MainThreadLanguagesShape} from './extHostProtocol';
+import {MainContext, MainThreadLanguagesShape} from './extHost.protocol';
 
 export class ExtHostLanguages {
 
@@ -19,7 +19,7 @@ export class ExtHostLanguages {
 	}
 
 	getLanguages(): TPromise<string[]> {
-		return this._proxy._getLanguages();
+		return this._proxy.$getLanguages();
 	}
 }
 

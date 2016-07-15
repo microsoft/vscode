@@ -7,25 +7,18 @@
 import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchResultsView';
 import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
-
-function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ILineMatch[]): FileMatch {
-	let rawMatch: IFileMatch= {
-		resource: uri.file('C:\\' + path),
-		lineMatches: lineMatches
-	};
-	return new FileMatch(null, searchResult, rawMatch, null, null);
-}
+import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 suite('Search - Viewlet', () => {
-	let instantiation: IInstantiationService;
+	let instantiation: TestInstantiationService;
 
 	setup(() => {
-		instantiation = new InstantiationService(new ServiceCollection());
+		instantiation = new TestInstantiationService();
+		instantiation.stub(IModelService, createMockModelService(instantiation));
 	});
 
 	test('Data Source', function () {
@@ -68,4 +61,12 @@ suite('Search - Viewlet', () => {
 		assert(s.compare(null, lineMatch2, lineMatch1) > 0);
 		assert(s.compare(null, lineMatch2, lineMatch3) === 0);
 	});
+
+	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ILineMatch[]): FileMatch {
+		let rawMatch: IFileMatch= {
+			resource: uri.file('C:\\' + path),
+			lineMatches: lineMatches
+		};
+		return instantiation.createInstance(FileMatch, null, searchResult, rawMatch);
+	}
 });

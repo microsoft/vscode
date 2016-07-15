@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
+import {IFileService} from 'vs/platform/files/common/files';
 
 /**
  * An editor model that just represents a resource and mime for a resource that can be loaded.
@@ -13,8 +15,13 @@ import URI from 'vs/base/common/uri';
 export class BinaryEditorModel extends EditorModel {
 	private name: string;
 	private resource: URI;
+	private size: number;
 
-	constructor(resource: URI, name: string) {
+	constructor(
+		resource: URI,
+		name: string,
+		@IFileService protected fileService: IFileService
+	) {
 		super();
 
 		this.name = name;
@@ -33,5 +40,20 @@ export class BinaryEditorModel extends EditorModel {
 	 */
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	/**
+	 * The size of the binary file if known.
+	 */
+	public getSize(): number {
+		return this.size;
+	}
+
+	public load(): TPromise<EditorModel> {
+		return this.fileService.resolveFile(this.resource).then(stat => {
+			this.size = stat.size;
+
+			return this;
+		});
 	}
 }

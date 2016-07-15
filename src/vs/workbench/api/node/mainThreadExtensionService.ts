@@ -12,7 +12,7 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ExtHostContext, ExtHostExtensionServiceShape} from './extHostProtocol';
+import {ExtHostContext, ExtHostExtensionServiceShape} from './extHost.protocol';
 
 /**
  * Represents a failed extension in the ext host.

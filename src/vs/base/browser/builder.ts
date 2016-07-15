@@ -1625,6 +1625,15 @@ export class Builder implements IDisposable {
 	}
 
 	/**
+	 * Returns a new builder with the child at the given index.
+	 */
+	public child(index = 0): Builder {
+		let children = this.currentElement.children;
+
+		return withElement(<HTMLElement>children.item(index));
+	}
+
+	/**
 	 *  Removes the current HTMLElement from the given builder from this builder if this builders
 	 *  current HTMLElement is the direct parent.
 	 */

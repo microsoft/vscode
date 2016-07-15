@@ -9,5 +9,6 @@
 	"peekView.alternateTitle": "Verweise",
 	"referenceCount": "{0} Verweis",
 	"referencesCount": "{0} Verweise",
+	"referencesFailre": "Fehler beim Auflösen der Datei.",
 	"treeAriaLabel": "Verweise"
 }

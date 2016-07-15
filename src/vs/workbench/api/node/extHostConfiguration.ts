@@ -8,14 +8,16 @@ import {clone} from 'vs/base/common/objects';
 import {illegalState} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
+import {ExtHostConfigurationShape} from './extHost.protocol';
 
-export class ExtHostConfiguration {
+export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
 	private _config: any;
 	private _hasConfig: boolean;
 	private _onDidChangeConfiguration: Emitter<void>;
 
 	constructor() {
+		super();
 		this._onDidChangeConfiguration = new Emitter<void>();
 	}
 

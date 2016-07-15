@@ -21,7 +21,7 @@ import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
-import { UserSettings } from 'vs/workbench/node/userSettings';
+import { UserSettings } from 'vs/base/node/userSettings';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';

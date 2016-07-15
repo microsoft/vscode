@@ -281,7 +281,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements renderer.IActionProvider {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -294,19 +294,26 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Thread;
+		return element instanceof model.Thread || element instanceof model.StackFrame;
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		const actions: actions.Action[] = [];
-		const thread = <model.Thread>element;
-		if (thread.stopped) {
-			actions.push(this.instantiationService.createInstance(debugactions.ContinueAction, debugactions.ContinueAction.ID, debugactions.ContinueAction.LABEL));
-			actions.push(this.instantiationService.createInstance(debugactions.StepOverDebugAction, debugactions.StepOverDebugAction.ID, debugactions.StepOverDebugAction.LABEL));
-			actions.push(this.instantiationService.createInstance(debugactions.StepIntoDebugAction, debugactions.StepIntoDebugAction.ID, debugactions.StepIntoDebugAction.LABEL));
-			actions.push(this.instantiationService.createInstance(debugactions.StepOutDebugAction, debugactions.StepOutDebugAction.ID, debugactions.StepOutDebugAction.LABEL));
-		} else {
-			actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
+		if (element instanceof model.Thread) {
+			const thread = <model.Thread>element;
+			if (thread.stopped) {
+				actions.push(this.instantiationService.createInstance(debugactions.ContinueAction, debugactions.ContinueAction.ID, debugactions.ContinueAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepOverDebugAction, debugactions.StepOverDebugAction.ID, debugactions.StepOverDebugAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepIntoDebugAction, debugactions.StepIntoDebugAction.ID, debugactions.StepIntoDebugAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepOutDebugAction, debugactions.StepOutDebugAction.ID, debugactions.StepOutDebugAction.LABEL));
+			} else {
+				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
+			}
+		} else if (element instanceof model.StackFrame) {
+			const caps = this.debugService.getActiveSession().configuration.capabilities;
+			if (typeof caps.supportsRestartFrame === 'boolean' && caps.supportsRestartFrame) {
+				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
+			}
 		}
 
 		return TPromise.as(actions);

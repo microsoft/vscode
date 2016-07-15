@@ -16,12 +16,10 @@ import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
-import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/markersStatisticsWidget';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
 interface IResourceTemplateData {
 	file: FileLabel;
-	statistics: MarkersStatisticsWidget;
 	count: CountBadge;
 }
 

@@ -6,10 +6,12 @@
 {
 	"DebugTaskNotFound": "找不到 preLaunchTask '{0}'。",
 	"NewLaunchConfig": "請為您的應用程式設定啟動組態檔。",
+	"breakpointAdded": "已新增中斷點，行 {0}，檔案 {1}",
+	"breakpointRemoved": "已移除中斷點，行 {0}，檔案 {1}",
 	"debugAdapterCrash": "偵錯配接器處理序已意外終止",
 	"debugAnyway": "仍要偵錯",
 	"debugSourceNotAvailable": "來源 {0} 無法使用。",
-	"debugTypeMissing": "在 launch.json 中遺漏選取組態的屬性 'type'。",
+	"debugTypeMissing": "遺漏所選啟動設定的屬性 'type'。",
 	"debugTypeNotSupported": "不支援設定的偵錯類型 '{0}'。",
 	"debuggingContinued": "偵錯已繼續。",
 	"debuggingPaused": "偵錯已暫停，原因 {0}，{1} {2}",

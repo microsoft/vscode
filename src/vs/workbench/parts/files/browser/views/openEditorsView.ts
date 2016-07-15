@@ -190,7 +190,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			if (openEditor) {
 				this.tree.setFocus(openEditor);
 				this.tree.setSelection([openEditor]);
-				this.tree.reveal(openEditor).done(null, errors.onUnexpectedError);
+				const relativeTop = this.tree.getRelativeTop(openEditor);
+				if (relativeTop <= 0 || relativeTop >= 1) {
+					// Only reveal the element if it is not visible #8279
+					this.tree.reveal(openEditor).done(null, errors.onUnexpectedError);
+				}
 			}
 		}
 	}

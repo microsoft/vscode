@@ -9,8 +9,9 @@ import {Registry} from 'vs/platform/platform';
 import {IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import {MainThreadOutputServiceShape} from './extHost.protocol';
 
-export class MainThreadOutputService {
+export class MainThreadOutputService extends MainThreadOutputServiceShape {
 
 	private _outputService: IOutputService;
 	private _partService: IPartService;
@@ -20,22 +21,23 @@ export class MainThreadOutputService {
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {
+		super();
 		this._outputService = outputService;
 		this._partService = partService;
 		this._panelService = panelService;
 	}
 
-	public append(channelId: string, label: string, value: string): TPromise<void> {
+	public $append(channelId: string, label: string, value: string): TPromise<void> {
 		this._getChannel(channelId, label).append(value);
 		return undefined;
 	}
 
-	public clear(channelId: string, label: string): TPromise<void> {
+	public $clear(channelId: string, label: string): TPromise<void> {
 		this._getChannel(channelId, label).clear();
 		return undefined;
 	}
 
-	public reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
+	public $reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
 		this._getChannel(channelId, label).show(preserveFocus);
 		return undefined;
 	}
@@ -48,7 +50,7 @@ export class MainThreadOutputService {
 		return this._outputService.getChannel(channelId);
 	}
 
-	public close(channelId: string): TPromise<void> {
+	public $close(channelId: string): TPromise<void> {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id ) {
 			this._partService.setPanelHidden(true);

@@ -27,12 +27,12 @@ export class DecorationToRender {
 
 export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	protected _render(visibleStartLineNumber:number, visibleEndLineNumber:number, decorations:DecorationToRender[]): string[] {
+	protected _render(visibleStartLineNumber:number, visibleEndLineNumber:number, decorations:DecorationToRender[]): string[][] {
 
-		let output: string[] = [];
+		let output: string[][] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			let lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = '';
+			output[lineIndex] = [];
 		}
 
 		if (decorations.length === 0) {
@@ -66,7 +66,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i] += ' ' + prevClassName;
+				output[i].push(prevClassName);
 			}
 		}
 
@@ -189,8 +189,8 @@ export class GlyphMarginOverlay extends DedupOverlay {
 				output[lineIndex] = '';
 			} else {
 				output[lineIndex] = (
-					'<div class="cgmr'
-					+ classNames
+					'<div class="cgmr '
+					+ classNames.join(' ')
 					+ common
 				);
 			}

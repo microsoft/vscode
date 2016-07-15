@@ -195,6 +195,10 @@ export class RawGitService implements IRawGitService {
 			return TPromise.wrapError<string>(e);
 		});
 	}
+
+	getCommitTemplate(): TPromise<string> {
+		return this.repo.getCommitTemplate();
+	}
 }
 
 export class DelayedRawGitService implements IRawGitService {
@@ -220,4 +224,5 @@ export class DelayedRawGitService implements IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage)); }
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> { return this.raw.then(r => r.detectMimetypes(path, treeish)); }
 	show(path: string, treeish?: string): TPromise<string> { return this.raw.then(r => r.show(path, treeish)); }
+	getCommitTemplate(): TPromise<string> { return this.raw.then(r => r.getCommitTemplate()); }
 }

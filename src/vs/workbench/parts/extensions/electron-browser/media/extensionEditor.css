@@ -105,8 +105,6 @@
 	overflow: hidden;
 }
 
-.extension-editor > .body.loading {
-	background-image: url('loading.svg');
-	background-position: center center;
-	background-repeat: no-repeat;
+.extension-editor > .body > p {
+	margin: 20px;
 }

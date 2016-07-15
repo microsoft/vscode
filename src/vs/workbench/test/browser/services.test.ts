@@ -6,6 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
@@ -17,8 +18,6 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IFileService} from 'vs/platform/files/common/files';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import PartService = require('vs/workbench/services/part/common/partService');
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -28,7 +27,7 @@ import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/common/servicesTestUtils';
+import {createMockModelService, TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/test/utils/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -39,7 +38,6 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -269,32 +267,29 @@ suite('Workbench UI Services', () => {
 
 			return null;
 		});
-		let telemetryService = NullTelemetryService;
 
-		let services = new ServiceCollection();
-		let inst = new InstantiationService(services);
-		services.set(IEventService, eventService);
-		services.set(IWorkspaceContextService, contextService);
-		services.set(IRequestService, requestService);
-		services.set(ITelemetryService, telemetryService);
-		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(IUntitledEditorService, inst.createInstance(UntitledEditorService));
-		services.set(IStorageService, new TestStorageService());
-		services.set(IWorkbenchEditorService, editorService);
-		services.set(PartService.IPartService, new TestPartService());
-		services.set(IModeService, createMockModeService());
-		services.set(IModelService, createMockModelService());
-		services.set(ILifecycleService, NullLifecycleService);
-		services.set(IFileService, <any> TestFileService);
+		let instantiationService= new TestInstantiationService();
+		instantiationService.stub(IEventService, eventService);
+		instantiationService.stub(IWorkspaceContextService, contextService);
+		instantiationService.stub(IRequestService, requestService);
+		instantiationService.stub(ITelemetryService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IWorkbenchEditorService, editorService);
+		instantiationService.stub(PartService.IPartService, new TestPartService());
+		instantiationService.stub(IModeService);
+		instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService.stub(ILifecycleService, NullLifecycleService);
+		instantiationService.stub(IFileService, <any> TestFileService);
 
-		services.set(ITextFileService, <ITextFileService>inst.createInstance(<any>TestTextFileService));
-		services['instantiationService'] = inst;
+		instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(<any>TestTextFileService));
 
-		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
-		let service: WorkbenchEditorService = <any>inst.createInstance(<any>WorkbenchEditorService, testEditorPart);
+		let service: WorkbenchEditorService = <any>instantiationService.createInstance(<any>WorkbenchEditorService, testEditorPart);
 
 		assert.strictEqual(service.getActiveEditor(), activeEditor);
 		assert.strictEqual(service.getActiveEditorInput(), activeInput);
@@ -331,7 +326,7 @@ suite('Workbench UI Services', () => {
 		});
 
 		// Resolve Editor Model (Typed EditorInput)
-		let input = inst.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
+		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
 		service.resolveEditorModel(input, true).then((model: StringEditorModel) => {
 			assert(model instanceof StringEditorModel);
 
@@ -357,25 +352,24 @@ suite('Workbench UI Services', () => {
 		let requestService = new TestRequestService();
 		let telemetryService = NullTelemetryService;
 
-		let services = new ServiceCollection();
-		let inst = new InstantiationService(services);
-		services.set(IEventService, eventService);
-		services.set(IWorkspaceContextService, contextService);
-		services.set(IRequestService, requestService);
-		services.set(ITelemetryService, telemetryService);
-		services.set(IStorageService, new TestStorageService());
-		services.set(IUntitledEditorService, inst.createInstance(UntitledEditorService));
-		services.set(IWorkbenchEditorService, editorService);
-		services.set(PartService.IPartService, new TestPartService());
-		services.set(ILifecycleService, NullLifecycleService);
-		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(ITextFileService, <ITextFileService> inst.createInstance(<any>TestTextFileService));
-		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
+		let instantiationService = new TestInstantiationService();
+		instantiationService.stub(IEventService, eventService);
+		instantiationService.stub(IRequestService, requestService);
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+		instantiationService.stub(IWorkbenchEditorService, editorService);
+		instantiationService.stub(PartService.IPartService, new TestPartService());
+		instantiationService.stub(ILifecycleService, NullLifecycleService);
+		instantiationService.stub(IWorkspaceContextService, contextService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any>TestTextFileService));
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
 
-		inst.createInstance(<any>WorkbenchEditorService, testEditorPart);
+		instantiationService.createInstance(<any>WorkbenchEditorService, testEditorPart);
 		class MyEditor extends BaseEditor {
 
 			constructor(id: string) {
@@ -394,10 +388,10 @@ suite('Workbench UI Services', () => {
 
 			}
 		}
-		let ed = inst.createInstance(MyEditor, 'my.editor');
+		let ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		let inp = inst.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		let delegate: any = inst.createInstance(<any>DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+		let inp = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
+		let delegate: any = instantiationService.createInstance(<any>DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
 			assert.strictEqual(input, inp);
 
 			return TPromise.as(ed);

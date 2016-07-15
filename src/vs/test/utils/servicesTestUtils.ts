@@ -6,6 +6,7 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
@@ -17,6 +18,7 @@ import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
 import http = require('vs/base/common/http');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
@@ -29,7 +31,6 @@ import {IMessageService, IConfirmation} from 'vs/platform/message/common/message
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -38,6 +39,7 @@ import {TextFileService} from 'vs/workbench/parts/files/common/textFileServices'
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {RawText} from 'vs/editor/common/model/textModel';
 
@@ -52,34 +54,6 @@ export const TestWorkspace: IWorkspace = {
 export const TestConfiguration: IConfiguration = {
 	env: Object.create(null)
 };
-
-export class TestHistoryService implements IHistoryService {
-	public _serviceBrand: any;
-
-	public forward(): void {
-
-	}
-
-	public back(): void {
-
-	}
-
-	public clear(): void {
-
-	}
-
-	public remove(input: IEditorInput): void {
-
-	}
-
-	public popLastClosedEditor(): IEditorInput {
-		return null;
-	}
-
-	public getHistory(): IEditorInput[] {
-		return [];
-	}
-}
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public _serviceBrand: any;
@@ -620,6 +594,29 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	private configuration = Object.create(null);
 
+	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
+		return TPromise.as(resources.map((resource) => {
+			return {
+				resource: resource,
+				value: ''
+			};
+		}));
+	}
+
+	protected resolveContent(resource: URI): TPromise<IContent> {
+		return TPromise.as({
+			resource: resource,
+			value: ''
+		});
+	}
+
+	protected resolveStat(resource: URI): TPromise<IStat> {
+		return TPromise.as({
+			resource: resource,
+			isDirectory: false
+		});
+	}
+
 	public loadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());
 	}
@@ -632,14 +629,13 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 		return false;
 	}
 
-	public onDidUpdateConfiguration() {
-		return { dispose() { } };
-	}
-
 	public setUserConfiguration(key: any, value: any): Thenable<void> {
 		this.configuration[key] = value;
-
 		return TPromise.as(null);
+	}
+
+	public onDidUpdateConfiguration() {
+		return { dispose() { } };
 	}
 }
 
@@ -664,4 +660,9 @@ export class TestLifecycleService implements ILifecycleService {
 	public get onShutdown(): Event<void> {
 		return this._onShutdown.event;
 	}
+}
+
+export function createMockModelService(instantiationService: TestInstantiationService): IModelService {
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	return instantiationService.createInstance(ModelServiceImpl);
 }

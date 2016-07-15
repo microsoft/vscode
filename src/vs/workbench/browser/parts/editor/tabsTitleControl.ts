@@ -7,19 +7,15 @@
 
 import 'vs/css!./media/tabstitle';
 import nls = require('vs/nls');
-import {IAction} from 'vs/base/common/actions';
-import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
-import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
-import {ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
+import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -31,6 +27,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
@@ -41,12 +38,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabsContainer: HTMLElement;
 	private activeTab: HTMLElement;
 	private scrollbar: ScrollableElement;
-
-	private groupActionsToolbar: ToolBar;
 	private tabDisposeables: IDisposable[] = [];
-
-	private currentPrimaryGroupActionIds: string[] = [];
-	private currentSecondaryGroupActionIds: string[] = [];
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -58,12 +50,10 @@ export class TabsTitleControl extends TitleControl {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService);
-
-		this.currentPrimaryGroupActionIds = [];
-		this.currentSecondaryGroupActionIds = [];
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
 	}
@@ -71,10 +61,12 @@ export class TabsTitleControl extends TitleControl {
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
 
-		this.groupActionsToolbar.context = { group };
+		this.editorActionsToolbar.context = { group };
 	}
 
 	public create(parent: HTMLElement): void {
+		super.create(parent);
+
 		this.titleContainer = parent;
 
 		// Tabs Container
@@ -151,37 +143,18 @@ export class TabsTitleControl extends TitleControl {
 					const targetPosition = this.stacks.positionOfGroup(group);
 					const targetIndex = group.count;
 
-					// Local DND
-					const draggedEditor = TitleControl.getDraggedEditor();
-					if (draggedEditor) {
-						DOM.EventHelper.stop(e, true);
-
-						// Move editor to target position and index
-						if (this.isMoveOperation(e, draggedEditor.group, group)) {
-							this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
-						}
-
-						// Copy: just open editor at target index
-						else {
-							this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
-						}
-
-						this.onEditorDragEnd();
-					}
-
-					// External DND
-					else {
-						this.handleExternalDrop(e, targetPosition, targetIndex);
-					}
+					this.onDrop(e, group, targetPosition, targetIndex);
 				}
 			}
 		}));
 
-		// Group Actions
-		const groupActionsContainer = document.createElement('div');
-		DOM.addClass(groupActionsContainer, 'group-actions');
-		this.titleContainer.appendChild(groupActionsContainer);
-		this.groupActionsToolbar = this.doCreateToolbar(groupActionsContainer);
+		// Editor Actions Container
+		const editorActionsContainer = document.createElement('div');
+		DOM.addClass(editorActionsContainer, 'editor-actions');
+		this.titleContainer.appendChild(editorActionsContainer);
+
+		// Editor Actions Toolbar
+		this.createEditorActionsToolBar(editorActionsContainer);
 	}
 
 	public allowDragging(element: HTMLElement): boolean {
@@ -237,6 +210,9 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 
+		// Update Editor Actions Toolbar
+		this.updateEditorActionsToolbar();
+
 		// Ensure the active tab is always revealed
 		this.layout();
 	}
@@ -247,25 +223,9 @@ export class TabsTitleControl extends TitleControl {
 		if (!editor) {
 			this.clearTabs();
 
-			this.groupActionsToolbar.setActions([], [])();
-
-			this.currentPrimaryGroupActionIds = [];
-			this.currentSecondaryGroupActionIds = [];
+			this.clearEditorActionsToolbar();
 
 			return; // return early if we are being closed
-		}
-
-		// Refresh Group Actions Toolbar
-		const groupActions = this.getGroupActions(group);
-		const primaryGroupActions = groupActions.primary;
-		const secondaryGroupActions = groupActions.secondary;
-		const primaryGroupActionIds = primaryGroupActions.map(a => a.id);
-		const secondaryGroupActionIds = secondaryGroupActions.map(a => a.id);
-
-		if (!arrays.equals(primaryGroupActionIds, this.currentPrimaryGroupActionIds) || !arrays.equals(secondaryGroupActionIds, this.currentSecondaryGroupActionIds)) {
-			this.groupActionsToolbar.setActions(primaryGroupActions, secondaryGroupActions)();
-			this.currentPrimaryGroupActionIds = primaryGroupActionIds;
-			this.currentSecondaryGroupActionIds = secondaryGroupActionIds;
 		}
 
 		// Refresh Tabs
@@ -363,10 +323,6 @@ export class TabsTitleControl extends TitleControl {
 				scrollLeft: this.activeTab.offsetLeft
 			});
 		}
-
-		// Update enablement of certain actions that depend on overflow
-		const isOverflowing = (totalContainerWidth > visibleContainerWidth);
-		this.showEditorsInGroupAction.enabled = isOverflowing;
 	}
 
 	private hookTabListeners(tab: HTMLElement, identifier: IEditorIdentifier): void {
@@ -461,10 +417,12 @@ export class TabsTitleControl extends TitleControl {
 			this.onEditorDragStart({ editor, group });
 			e.dataTransfer.effectAllowed = 'copyMove';
 
-			// Enable support to drag a file to desktop
+			// Insert transfer accordingly
 			const fileInput = asFileEditorInput(editor, true);
 			if (fileInput) {
-				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), fileInput.getResource().toString()].join(':'));
+				const resource = fileInput.getResource().toString();
+				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
+				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
 			}
 		}));
 
@@ -492,29 +450,34 @@ export class TabsTitleControl extends TitleControl {
 			const targetPosition = this.stacks.positionOfGroup(group);
 			const targetIndex = group.indexOf(editor);
 
-			// Local DND
-			const draggedEditor = TabsTitleControl.getDraggedEditor();
-			if (draggedEditor) {
-				DOM.EventHelper.stop(e, true);
-
-				// Move editor to target position and index
-				if (this.isMoveOperation(e, draggedEditor.group, group)) {
-					this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
-				}
-
-				// Copy: just open editor at target index
-				else {
-					this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
-				}
-
-				this.onEditorDragEnd();
-			}
-
-			// External DND
-			else {
-				this.handleExternalDrop(e, targetPosition, targetIndex);
-			}
+			this.onDrop(e, group, targetPosition, targetIndex);
 		}));
+	}
+
+	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+
+		// Local DND
+		const draggedEditor = TabsTitleControl.getDraggedEditor();
+		if (draggedEditor) {
+			DOM.EventHelper.stop(e, true);
+
+			// Move editor to target position and index
+			if (this.isMoveOperation(e, draggedEditor.group, group)) {
+				this.editorGroupService.moveEditor(draggedEditor.editor, draggedEditor.group, group, targetIndex);
+			}
+
+			// Copy: just open editor at target index
+			else {
+				this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
+			}
+
+			this.onEditorDragEnd();
+		}
+
+		// External DND
+		else {
+			this.handleExternalDrop(e, targetPosition, targetIndex);
+		}
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
@@ -540,31 +503,5 @@ export class TabsTitleControl extends TitleControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return !isCopy || source.id === target.id;
-	}
-
-	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
-		const actions = super.getContextMenuActions(identifier);
-		const {editor, group} = identifier;
-
-		// Actions: For active editor
-		if (group.isActive(editor)) {
-			const editorActions = this.getEditorActions(identifier);
-			if (editorActions.primary.length) {
-				actions.push(new Separator(), ...prepareActions(editorActions.primary));
-			}
-
-			if (editorActions.secondary.length) {
-				actions.push(new Separator(), ...prepareActions(editorActions.secondary));
-			}
-		}
-
-		return actions;
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		// Toolbar
-		this.groupActionsToolbar.dispose();
 	}
 }

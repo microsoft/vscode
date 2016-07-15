@@ -491,11 +491,19 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		return this.session.setVarialbe({
+		return this.session.setVariable({
 			name: variable.name,
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
-		}).then(response => variable.value = response.body.value, err => (<model.Variable>variable).errorMessage = err.message);
+		}).then(response => {
+			variable.value = response.body.value;
+			// Evaluate all watch expressions again since changing variable value might have changed some #8118.
+			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
+		}, err => {
+			(<model.Variable>variable).errorMessage = err.message;
+			// On error still show bad value so the user can fix it #8055
+			(<model.Variable>variable).value = value;
+		});
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -589,7 +597,7 @@ export class DebugService implements debug.IDebugService {
 						timeout: 1000 * 60 * 5,
 						args: [`${ publisher }.${ type }`, JSON.stringify(data), aiKey],
 						env: {
-							ELECTRON_RUN_AS_NODE: 1,
+							ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
 							PIPE_LOGGING: 'true',
 							AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
 						}
@@ -918,6 +926,14 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.pause({ threadId });
+	}
+
+	public restartFrame(frameId: number): TPromise<any> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.restartFrame({ frameId });
 	}
 
 	private lazyTransitionToRunningState(threadId?: number): void {

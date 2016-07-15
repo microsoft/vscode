@@ -199,8 +199,9 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 				output = merger(output, cur);
 				clearTimeout(handle);
 				handle = setTimeout(() => {
-					emitter.fire(output);
+					let _output = output;
 					output = undefined;
+					emitter.fire(_output);
 				}, delay);
 			});
 		},

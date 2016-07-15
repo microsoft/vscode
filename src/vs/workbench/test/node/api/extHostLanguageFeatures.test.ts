@@ -6,6 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
@@ -14,9 +15,6 @@ import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {TestThreadService} from './testThreadService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -38,7 +36,7 @@ import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/para
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
 import {asWinJsPromise} from 'vs/base/common/async';
-import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHostProtocol';
+import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 
 const defaultSelector = { scheme: 'far' };
@@ -62,18 +60,17 @@ suite('ExtHostLanguageFeatures', function() {
 
 	suiteSetup(() => {
 
-		let services = new ServiceCollection();
-		let instantiationService = new InstantiationService(services);
 		threadService = new TestThreadService();
-		services.set(IMarkerService, new MarkerService());
-		services.set(IThreadService, threadService);
+		let instantiationService= new TestInstantiationService();
+		instantiationService.stub(IThreadService, threadService);
+		instantiationService.stub(IMarkerService);
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
 		const extHostDocuments = new ExtHostDocuments(threadService);
 		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
-		extHostDocuments._acceptModelAdd({
+		extHostDocuments.$acceptModelAdd({
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
@@ -102,7 +99,7 @@ suite('ExtHostLanguageFeatures', function() {
 		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
+		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
 	});
 
 	suiteTeardown(() => {

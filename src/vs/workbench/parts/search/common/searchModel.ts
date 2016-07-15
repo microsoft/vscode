@@ -16,6 +16,7 @@ import { ArraySet } from 'vs/base/common/set';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as Search from 'vs/platform/search/common/search';
 import { ISearchProgressItem, ISearchComplete, ISearchQuery } from 'vs/platform/search/common/search';
+import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -66,6 +67,10 @@ export class Match {
 			after,
 		};
 	}
+
+	public get replaceString(): string {
+		return this.parent().parent().searchModel.replacePattern.getReplaceString(this.preview().inside);
+	}
 }
 
 export class FileMatch extends Disposable {
@@ -108,7 +113,7 @@ export class FileMatch extends Disposable {
 	}
 
 	private createMatches(): void {
-		let model = this.modelService ? this.modelService.getModel(this._resource) : null;
+		let model = this.modelService.getModel(this._resource);
 		if (model) {
 			this.bindModel(model);
 			this.updateMatches();
@@ -116,20 +121,18 @@ export class FileMatch extends Disposable {
 			this.rawMatch.lineMatches.forEach((rawLineMatch) => {
 				rawLineMatch.offsetAndLengths.forEach(offsetAndLength => {
 					let match = new Match(this, rawLineMatch.preview, rawLineMatch.lineNumber, offsetAndLength[0], offsetAndLength[1]);
-					this._matches.set(match.id(), match);
+					this.add(match);
 				});
 			});
 		}
 	}
 
 	private registerListeners(): void {
-		if (this.modelService) {
-			this._register(this.modelService.onModelAdded((model: IModel) => {
-				if (model.uri.toString() === this._resource.toString()) {
-					this.bindModel(model);
-				}
-			}));
-		}
+		this._register(this.modelService.onModelAdded((model: IModel) => {
+			if (model.uri.toString() === this._resource.toString()) {
+				this.bindModel(model);
+			}
+		}));
 	}
 
 	private bindModel(model: IModel): void {
@@ -169,7 +172,7 @@ export class FileMatch extends Disposable {
 		matches.forEach(range => {
 			let match= new Match(this, this._model.getLineContent(range.startLineNumber), range.startLineNumber - 1, range.startColumn - 1, range.endColumn - range.startColumn);
 			if (!this._removedMatches.contains(match.id())) {
-				this._matches.set(match.id(), match);
+				this.add(match);
 			}
 		});
 
@@ -210,8 +213,8 @@ export class FileMatch extends Disposable {
 		this._onChange.fire(false);
 	}
 
-	public replace(match: Match, replaceText: string): TPromise<any> {
-		return this.replaceService.replace(match, replaceText).then(() => {
+	public replace(match: Match): TPromise<any> {
+		return this.replaceService.replace(match).then(() => {
 			this._matches.delete(match.id());
 			this._onChange.fire(false);
 		});
@@ -233,6 +236,13 @@ export class FileMatch extends Disposable {
 		this.unbindModel();
 		this._onDispose.fire();
 		super.dispose();
+	}
+
+	public add(match: Match, trigger?: boolean) {
+		this._matches.set(match.id(), match);
+		if (trigger) {
+			this._onChange.fire(true);
+		}
 	}
 }
 
@@ -292,19 +302,18 @@ export class SearchResult extends Disposable {
 
 	public remove(match: FileMatch): void {
 		this.doRemove(match);
-		this._onChange.fire({elements: [match], removed: true});
 	}
 
-	public replace(match: FileMatch, replaceText: string): TPromise<any> {
-		return this.replaceService.replace([match], replaceText).then(() => {
-			this.doRemove(match, false);
+	public replace(match: FileMatch): TPromise<any> {
+		return this.replaceService.replace([match]).then(() => {
+			this.doRemove(match, false, true);
 		});
 	}
 
-	public replaceAll(replaceText: string, progressRunner: IProgressRunner): TPromise<any> {
+	public replaceAll(progressRunner: IProgressRunner): TPromise<any> {
 		this._replacingAll= true;
 		let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
-		return this.replaceService.replace(this.matches(), replaceText, progressRunner).then(() => {
+		return this.replaceService.replace(this.matches(), progressRunner).then(() => {
 			replaceAllTimer.stop();
 			this._replacingAll= false;
 			this.clear();
@@ -352,7 +361,7 @@ export class SearchResult extends Disposable {
 			added= true;
 		}
 		if (fileMatch.count() === 0) {
-			this.doRemove(fileMatch, false);
+			this.doRemove(fileMatch, false, false);
 			added= false;
 			removed= true;
 		}
@@ -368,12 +377,16 @@ export class SearchResult extends Disposable {
 		}
 	}
 
-	private doRemove(fileMatch: FileMatch, dispose:boolean= true): void {
+	private doRemove(fileMatch: FileMatch, dispose:boolean= true, trigger: boolean= true): void {
 		this._fileMatches.delete(fileMatch.resource());
 		if (dispose) {
 			fileMatch.dispose();
 		} else {
 			this._unDisposedFileMatches.set(fileMatch.resource(), fileMatch);
+		}
+
+		if (trigger) {
+			this._onChange.fire({elements: [fileMatch], removed: true});
 		}
 	}
 
@@ -394,7 +407,8 @@ export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
 	private _searchQuery: ISearchQuery= null;
-	private _replaceText: string= null;
+	private _replaceString: string= null;
+	private _replacePattern: ReplacePattern= null;
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 	private progressTimer: timer.ITimerEvent;
@@ -410,7 +424,15 @@ export class SearchModel extends Disposable {
 	 * Return true if replace is enabled otherwise false
 	 */
 	public isReplaceActive():boolean {
-		return this.replaceText !== null && this.replaceText !== void 0;
+		return this._replaceString !== null && this._replaceString !== void 0;
+	}
+
+	/**
+	 * Return true if replace is enabled and replace text is not empty, otherwise false.
+	 * This is necessary in cases handling empty replace text when replace is active.
+	 */
+	public hasReplaceString():boolean {
+		return this.isReplaceActive() && !!this._replaceString;
 	}
 
 	/**
@@ -418,24 +440,19 @@ export class SearchModel extends Disposable {
 	 * Can be null if replace is not enabled. Use replace() before.
 	 * Can be empty.
 	 */
-	public get replaceText(): string {
-		return this._replaceText;
+	public get replacePattern(): ReplacePattern {
+		return this._replacePattern;
 	}
 
-	public set replaceText(replace: string) {
-		this._replaceText= replace;
+	public set replaceString(replaceString: string) {
+		this._replaceString= replaceString;
+		if (this._searchQuery) {
+			this._replacePattern= new ReplacePattern(replaceString, this._searchQuery.contentPattern);
+		}
 	}
 
 	public get searchResult():SearchResult {
 		return this._searchResult;
-	}
-
-	/**
-	 * Return true if replace is enabled and replace text is not empty, otherwise false.
-	 * This is necessary in cases handling empty replace text when replace is active.
-	 */
-	public hasReplaceText():boolean {
-		return this.isReplaceActive() && !!this.replaceText;
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
@@ -444,11 +461,13 @@ export class SearchModel extends Disposable {
 
 		this._searchQuery= query;
 		this._searchResult.query= this._searchQuery.contentPattern;
+		this._replacePattern= new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
+
 		this.progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
 		this.doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
 		this.timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
-		this.currentRequest = this.searchService.search(this._searchQuery);
 
+		this.currentRequest = this.searchService.search(this._searchQuery);
 		this.currentRequest.then(value => this.onSearchCompleted(value),
 									e => this.onSearchError(e),
 									p => this.onSearchProgress(p));
@@ -457,12 +476,13 @@ export class SearchModel extends Disposable {
 	}
 
 	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
+		this.progressTimer.stop();
 		this.timerEvent.stop();
-		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
 		this.doneTimer.stop();
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}
+		this.telemetryService.publicLog('searchResultsShown', { count: this._searchResult.count(), fileCount: this._searchResult.fileCount() });
 		return completed;
 	}
 
@@ -472,6 +492,7 @@ export class SearchModel extends Disposable {
 		} else {
 			this.progressTimer.stop();
 			this.doneTimer.stop();
+			this.timerEvent.stop();
 		}
 	}
 

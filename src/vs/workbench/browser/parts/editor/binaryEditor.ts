@@ -75,8 +75,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			}
 
 			// Render Input
-			let binaryResourceModel = <BinaryEditorModel>resolvedModel;
-			ResourceViewer.show(binaryResourceModel.getName(), binaryResourceModel.getResource(), this.binaryContainer, this.scrollbar);
+			let model = <BinaryEditorModel>resolvedModel;
+			ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize() }, this.binaryContainer, this.scrollbar);
 
 			return TPromise.as<void>(null);
 		});

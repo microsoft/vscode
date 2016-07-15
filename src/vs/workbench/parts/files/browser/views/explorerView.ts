@@ -23,7 +23,6 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {IEditor} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
@@ -267,7 +266,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				if (lastActiveFileResource && root && root.find(lastActiveFileResource)) {
 					let editorInput = this.instantiationService.createInstance(FileEditorInput, lastActiveFileResource, void 0, void 0);
-					this.activateOrOpenEditor(editorInput).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor(editorInput, { revealIfOpened: true }).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
 				}
@@ -280,34 +279,13 @@ export class ExplorerView extends CollapsibleViewletView {
 		});
 	}
 
-	private openFocusedElement(keepFocus?: boolean): void {
+	private openFocusedElement(preserveFocus?: boolean): void {
 		let stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
 
-			this.activateOrOpenEditor(editorInput, keepFocus).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(editorInput, { preserveFocus, revealIfOpened: true }).done(null, errors.onUnexpectedError);
 		}
-	}
-
-	private activateOrOpenEditor(input: FileEditorInput, keepFocus?: boolean): TPromise<IEditor> {
-
-		// First try to find if input already visible
-		let editors = this.editorService.getVisibleEditors();
-		if (editors) {
-			for (let i = 0; i < editors.length; i++) {
-				let editor = editors[i];
-				if (input.matches(editor.input)) {
-					if (!keepFocus) {
-						this.editorGroupService.focusGroup(editor.position);
-					}
-
-					return TPromise.as(editor);
-				}
-			}
-		}
-
-		// Otherwise open in active slot
-		return this.editorService.openEditor(input, keepFocus ? { preserveFocus: true } : void 0);
 	}
 
 	private getActiveEditorInputResource(): URI {
@@ -343,9 +321,9 @@ export class ExplorerView extends CollapsibleViewletView {
 			dnd: dnd,
 			accessibilityProvider: accessibility
 		}, {
-			autoExpandSingleChildren: true,
-			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
-		});
+				autoExpandSingleChildren: true,
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+			});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 

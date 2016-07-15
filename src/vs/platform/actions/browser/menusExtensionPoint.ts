@@ -11,9 +11,8 @@ import {IdGenerator} from 'vs/base/common/idGenerator';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {forEach} from 'vs/base/common/collections';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {MenuRegistry} from './menuService';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {MenuId} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
@@ -278,10 +277,23 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					collector.info(localize('nosupport.altCommand', "Sorry, but currently only the 'navigation' group of the 'editor/title' menu supports alt-commands"));
 				}
 
+				let group: string;
+				let order: number;
+				if (item.group) {
+					const idx = item.group.lastIndexOf('@');
+					if (idx > 0) {
+						group = item.group.substr(0, idx);
+						order = Number(item.group.substr(idx + 1)) || undefined;
+					} else {
+						group = item.group;
+					}
+				}
+
 				MenuRegistry.appendMenuItem(menu, {
 					command,
 					alt,
-					group: item.group || undefined,
+					group,
+					order,
 					when: KbExpr.deserialize(item.when)
 				});
 			}

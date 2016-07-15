@@ -169,22 +169,20 @@ function updateConfiguration() {
 		}
 	}
 	if (jsonConfigurationSettings) {
-		jsonConfigurationSettings.forEach((schema) => {
-			if (schema.fileMatch) {
-				let uri = schema.url;
-				if (!uri && schema.schema) {
-					uri = schema.schema.id;
-					if (!uri) {
-						uri = 'vscode://schemas/custom/' + encodeURIComponent(schema.fileMatch.join('&'));
-					}
-				}
-				if (Strings.startsWith(uri, '.') && workspaceRoot) {
+		jsonConfigurationSettings.forEach(schema => {
+			let uri = schema.url;
+			if (!uri && schema.schema) {
+				uri = schema.schema.id;
+			}
+			if (!uri && schema.fileMatch) {
+				uri = 'vscode://schemas/custom/' + encodeURIComponent(schema.fileMatch.join('&'));
+			}
+			if (uri) {
+				if (uri[0] === '.' && workspaceRoot) {
 					// workspace relative path
 					uri = URI.file(path.normalize(path.join(workspaceRoot.fsPath, uri))).toString();
 				}
-				if (uri) {
-					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
-				}
+				languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
 			}
 		});
 	}

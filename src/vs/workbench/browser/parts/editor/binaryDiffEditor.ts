@@ -109,15 +109,15 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 
 			// Render original
 			let original = <BinaryEditorModel>resolvedModel.originalModel;
-			this.renderInput(original.getName(), original.getResource(), true);
+			this.renderInput(original.getName(), original.getResource(), original.getSize(), true);
 
 			// Render modified
 			let modified = <BinaryEditorModel>resolvedModel.modifiedModel;
-			this.renderInput(modified.getName(), modified.getResource(), false);
+			this.renderInput(modified.getName(), modified.getResource(), modified.getSize(),  false);
 		});
 	}
 
-	private renderInput(name: string, resource: URI, isOriginal: boolean): void {
+	private renderInput(name: string, resource: URI, size: number, isOriginal: boolean): void {
 
 		// Reset Sash to default 50/50 ratio if needed
 		if (this.leftContainerWidth && this.dimension && this.leftContainerWidth !== this.dimension.width / 2) {
@@ -130,7 +130,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		let container = isOriginal ? this.leftBinaryContainer : this.rightBinaryContainer;
 		let scrollbar = isOriginal ? this.leftScrollbar : this.rightScrollbar;
 
-		ResourceViewer.show(name, resource, container, scrollbar);
+		ResourceViewer.show({ name, resource, size }, container, scrollbar);
 	}
 
 	public clearInput(): void {

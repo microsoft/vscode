@@ -116,7 +116,6 @@ export class ExtensionEditor extends BaseEditor {
 	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
 		this.transientDisposables = dispose(this.transientDisposables);
 
-		let promise = TPromise.as(null);
 		const extension = input.extension;
 
 		this.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
@@ -138,24 +137,30 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		}
 
-		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, extension, {});
+		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, { extension });
 		this.transientDisposables.push(install);
 
-		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, extension, {});
+		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
 		this.transientDisposables.push(ratings);
 
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
-		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
-		const enableAction = this.instantiationService.createInstance(EnableAction, extension);
+		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const updateAction = this.instantiationService.createInstance(UpdateAction);
+		const enableAction = this.instantiationService.createInstance(EnableAction);
+
+		installAction.extension = extension;
+		updateAction.extension = extension;
+		enableAction.extension = extension;
+
 		this.actionBar.clear();
 		this.actionBar.push([enableAction, updateAction, installAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, installAction);
 
 		this.body.innerHTML = '';
-		addClass(this.body, 'loading');
+		let promise: TPromise<any> = super.setInput(input, options);
 
 		if (extension.readmeUrl) {
-			promise = super.setInput(input, options)
+			promise = promise
+				.then(() => addClass(this.body, 'loading'))
 				.then(() => this.requestService.makeRequest({ url: extension.readmeUrl }))
 				.then(response => response.responseText)
 				.then(marked.parse)
@@ -174,6 +179,10 @@ export class ExtensionEditor extends BaseEditor {
 				})
 				.then(null, () => null)
 				.then(() => removeClass(this.body, 'loading'));
+		} else {
+			promise = promise
+				.then(() => append(this.body, $('p')))
+				.then(p => p.textContent = localize('noReadme', "No README available."));
 		}
 
 		this.transientDisposables.push(toDisposable(() => promise.cancel()));

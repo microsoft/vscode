@@ -17,8 +17,6 @@ var util = require('./lib/util');
 var i18n = require('./lib/i18n');
 var gulpUtil = require('gulp-util');
 
-var quiet = !!process.env['VSCODE_BUILD_QUIET'];
-
 function log(prefix, message) {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
@@ -26,24 +24,16 @@ function log(prefix, message) {
 var root = path.dirname(__dirname);
 var commit = util.getVersion(root);
 
-var tsOptions = {
-	target: 'ES5',
-	module: 'amd',
-	verbose: !quiet,
-	preserveConstEnums: true,
-	experimentalDecorators: true,
-	sourceMap: true,
-	rootDir: path.join(path.dirname(__dirname), 'src')
-};
-
 exports.loaderConfig = function (emptyPaths) {
 	var result = {
 		paths: {
 			'vs': 'out-build/vs',
 			'vscode': 'empty:'
 		},
-		nodeModules: emptyPaths||[]
+		nodeModules: emptyPaths||[],
 	};
+
+	result['vs/css'] = { inlineResources: true };
 
 	return result;
 };
@@ -73,7 +63,7 @@ function loader(bundledFileHeader) {
 		.pipe(util.loadSourcemaps())
 		.pipe(concat('vs/loader.js'))
 		.pipe(es.mapSync(function (f) {
-			f.sourceMap.sourceRoot = util.toFileUri(tsOptions.rootDir);
+			f.sourceMap.sourceRoot = util.toFileUri(path.join(path.dirname(__dirname), 'src'));
 			return f;
 		}));
 }

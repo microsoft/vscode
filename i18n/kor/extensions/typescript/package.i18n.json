@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "JavaScript 유효성 검사 사용/사용 안 함",
 	"typescript.reloadProjects.title": "TypeScript 프로젝트 다시 로드",
 	"typescript.tsdk.desc": "사용할 tsserver 및 lib*.d.ts 파일이 들어 있는 폴더 경로를 지정합니다.",
+	"typescript.tsserver.experimentalAutoBuild": "실험적 자동 빌드를 사용하도록 설정합니다. 1.9 dev 또는 2.x tsserver 버전이 필요하며 변경 후에는 VS Code를 다시 시작해야 합니다.",
 	"typescript.tsserver.trace": "TS 서버에 보내는 메시지를 추적하도록 설정합니다.",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "매개 변수 서명으로 함수를 완료하세요.",
 	"typescript.validate.enable": "TypeScript 유효성 검사 사용/사용 안 함"

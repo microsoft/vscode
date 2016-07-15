@@ -10,6 +10,7 @@
 	"debugCategory": "调试",
 	"debugEvaluate": "调试: 评估",
 	"debugPanel": "调试控制台",
+	"launchConfigDoesNotExist": "启动配置“{0}”不存在。",
 	"runToCursor": "调试: 运行到光标",
 	"showDebugHover": "调试: 显示悬停",
 	"toggleBreakpointAction": "调试: 切换断点",

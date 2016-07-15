@@ -290,11 +290,11 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
 		this.toUnbind.push(this.searchWidget.onReplaceStateChange((state) => {
-			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
 			this.tree.refresh();
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
-			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
 			this.refreshInputs();
 			this.tree.refresh();
 		}));
@@ -344,7 +344,7 @@ export class SearchViewlet extends Viewlet {
 
 	private refreshInputs(): void {
 		this.viewModel.searchResult.matches().forEach((fileMatch) => {
-			this.replaceService.refreshInput(fileMatch, this.viewModel.replaceText);
+			this.replaceService.refreshInput(fileMatch);
 		});
 	}
 
@@ -370,7 +370,7 @@ export class SearchViewlet extends Viewlet {
 
 		if (this.messageService.confirm(confirmation)) {
 			this.searchWidget.setReplaceAllActionState(false);
-			this.viewModel.searchResult.replaceAll(replaceValue, progressRunner).then(() => {
+			this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
 				progressRunner.done();
 				this.showMessage(afterReplaceAllMessage);
 			}, (error) => {
@@ -731,7 +731,7 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			this.onSearchResultsChanged().then(() => autoExpand(true));
-			this.viewModel.replaceText= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
 			this.loading = false;
@@ -902,7 +902,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.telemetryService.publicLog('searchResultChosen');
 
-		return this.viewModel.hasReplaceText() ? this.openReplacePreviewEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
+		return this.viewModel.hasReplaceString() ? this.openReplacePreviewEditor(lineMatch, preserveFocus, sideBySide, pinned) : this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
@@ -911,17 +911,17 @@ export class SearchViewlet extends Viewlet {
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
-				preserveFocus: preserveFocus,
-				pinned: pinned,
-				selection: selection
+				preserveFocus,
+				pinned,
+				selection
 			}
 		}, sideBySide);
 	}
 
 	private openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		this.telemetryService.publicLog('replace.open.previewEditor');
-		return this.replaceService.getInput(element instanceof Match ? element.parent() : element, this.viewModel.replaceText).then((editorInput) => {
-			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned: pinned}).then((editor) => {
+		return this.replaceService.getInput(element instanceof Match ? element.parent() : element).then((editorInput) => {
+			this.editorService.openEditor(editorInput, {preserveFocus: preserveFocus, pinned}).then((editor) => {
 				let editorControl= (<IDiffEditor>editor.getControl());
 				if (element instanceof Match) {
 					editorControl.revealLineInCenter(element.range().startLineNumber);
@@ -941,12 +941,12 @@ export class SearchViewlet extends Viewlet {
 		if (match) {
 			let range= match.range();
 			if (this.viewModel.isReplaceActive()) {
-				let replaceText= this.viewModel.replaceText;
+				let replaceString= match.replaceString;
 				return {
 					startLineNumber: range.startLineNumber,
-					startColumn: range.startColumn + replaceText.length,
+					startColumn: range.startColumn + replaceString.length,
 					endLineNumber: range.startLineNumber,
-					endColumn: range.startColumn + replaceText.length
+					endColumn: range.startColumn + replaceString.length
 				};
 			}
 			return range;

@@ -7,9 +7,11 @@
 	"allFiles": "Tutti i file",
 	"cancel": "Annulla",
 	"dontSave": "&&Non salvare",
+	"moreFile": "...1 altro file non visualizzato",
+	"moreFiles": "...{0} altri file non visualizzati",
 	"save": "&&Salva",
 	"saveAll": "&&Salva tutto",
 	"saveChangesDetail": "Le modifiche apportate andranno perse se non vengono salvate.",
 	"saveChangesMessage": "Salvare le modifiche apportate a {0}?",
-	"saveChangesMessages": "Salvare le modifiche apportate ai file seguenti?"
+	"saveChangesMessages": "Salvare le modifiche apportate ai file seguenti di {0}?"
 }

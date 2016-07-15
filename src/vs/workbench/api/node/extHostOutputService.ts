@@ -5,7 +5,7 @@
 'use strict';
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, MainThreadOutputServiceShape} from './extHostProtocol';
+import {MainContext, MainThreadOutputServiceShape} from './extHost.protocol';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
@@ -28,14 +28,14 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._proxy.clear(this._id, this._name).then(() => {
+			this._proxy.$clear(this._id, this._name).then(() => {
 				this._disposed = true;
 			});
 		}
 	}
 
 	append(value: string): void {
-		this._proxy.append(this._id, this._name, value);
+		this._proxy.$append(this._id, this._name, value);
 	}
 
 	appendLine(value: string): void {
@@ -43,7 +43,7 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 	}
 
 	clear(): void {
-		this._proxy.clear(this._id, this._name);
+		this._proxy.$clear(this._id, this._name);
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -51,11 +51,11 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 			preserveFocus = columnOrPreserveFocus;
 		}
 
-		this._proxy.reveal(this._id, this._name, preserveFocus);
+		this._proxy.$reveal(this._id, this._name, preserveFocus);
 	}
 
 	hide(): void {
-		this._proxy.close(this._id);
+		this._proxy.$close(this._id);
 	}
 }
 

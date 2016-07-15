@@ -7,6 +7,7 @@
 
 import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {Throttler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
@@ -38,7 +39,7 @@ import {optional} from 'vs/platform/instantiation/common/instantiation';
 export class DefinitionActionConfig {
 
 	constructor(
-		public condition = Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange,
+		public condition = Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange,
 		public openToSide = false,
 		public openInPeek = false,
 		public filterCurrent = true
@@ -57,10 +58,6 @@ export class DefinitionAction extends EditorAction {
 		private _configuration: DefinitionActionConfig
 	) {
 		super(descriptor, editor, _configuration.condition);
-	}
-
-	public getGroupId(): string {
-		return '1_goto/2_visitDefinition';
 	}
 
 	public isSupported(): boolean {
@@ -135,7 +132,13 @@ export class DefinitionAction extends EditorAction {
 
 	private _openReference(reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
 		let {uri, range} = reference;
-		return this._editorService.openEditor({ resource:uri, options: { selection: range } }, sideBySide).then(editor => {
+		return this._editorService.openEditor({
+			resource: uri,
+			options: {
+				selection: range,
+				revealIfOpened: !sideBySide
+			}
+		}, sideBySide).then(editor => {
 			return <editorCommon.IEditor> editor.getControl();
 		});
 	}
@@ -371,23 +374,23 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			return;
 		}
 
-		let htmlMessage: MarkedString = void 0;;
+		let hoverMessage: MarkedString = void 0;
 		if (text && text.trim().length > 0) {
 			if (isCode) {
-				htmlMessage = {
+				hoverMessage = {
 					language: model.getMode().getId(),
 					value: text
 				};
 			} else {
-				htmlMessage = textToMarkedString(text);
+				hoverMessage = textToMarkedString(text);
 			}
 		}
 
-		let newDecorations = {
+		let newDecorations : editorCommon.IModelDeltaDecoration = {
 			range: range,
 			options: {
 				inlineClassName: 'goto-definition-link',
-				htmlMessage: [htmlMessage]
+				hoverMessage
 			}
 		};
 
@@ -483,23 +486,43 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PeekDefinitionAction, PeekDefinitionAction.ID, nls.localize('actions.previewDecl.label', "Peek Definition"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyCode.F12,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
-}, 'Peek Definition'));
 
-let goToDeclarationKb: number;
-if (platform.isWeb) {
-	goToDeclarationKb = KeyMod.CtrlCmd | KeyCode.F12;
-} else {
-	goToDeclarationKb = KeyCode.F12;
-}
+CommonEditorRegistry.registerEditorAction({
+	id: PeekDefinitionAction.ID,
+	ctor: PeekDefinitionAction,
+	label: nls.localize('actions.previewDecl.label', "Peek Definition"),
+	alias: 'Peek Definition',
+	kbOpts: {
+		context: ContextKey.EditorTextFocus,
+		primary: KeyMod.Alt | KeyCode.F12,
+		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
+	},
+	menuOpts: {
+		group: 'navigation',
+		order: 2,
+		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
+	}
+});
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToDefinitionAction, GoToDefinitionAction.ID, nls.localize('actions.goToDecl.label', "Go to Definition"), {
-	context: ContextKey.EditorTextFocus,
-	primary: goToDeclarationKb
-}, 'Go to Definition'));
+const goToDeclarationKb = platform.isWeb
+	? KeyMod.CtrlCmd | KeyCode.F12
+	: KeyCode.F12;
+
+CommonEditorRegistry.registerEditorAction({
+	ctor: GoToDefinitionAction,
+	id: GoToDefinitionAction.ID,
+	label: nls.localize('actions.goToDecl.label', "Go to Definition"),
+	alias: 'Go to Definition',
+	kbOpts: {
+		context: ContextKey.EditorTextFocus,
+		primary: goToDeclarationKb
+	},
+	menuOpts: {
+		group: 'navigation',
+		order: 1,
+		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
+	}
+});
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OpenDefinitionToSideAction, OpenDefinitionToSideAction.ID, nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"), {
 	context: ContextKey.EditorTextFocus,
