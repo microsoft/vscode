@@ -720,20 +720,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void;
 	public moveEditor(input: EditorInput, arg2: any, arg3: any, index?: number): void {
 		const fromGroup = (typeof arg2 === 'number') ? this.stacks.groupAt(arg2) : arg2;
-		const toGroup = (typeof arg3 === 'number') ? this.stacks.groupAt(arg3) : arg3;
-
-		if (!fromGroup || !toGroup) {
+		if (!fromGroup) {
 			return;
 		}
 
 		// Move within group
-		if (fromGroup === toGroup) {
+		if (arg2 === arg3) {
 			this.doMoveEditorInsideGroups(input, fromGroup, index);
 		}
 
 		// Move across groups
 		else {
-			this.doMoveEditorAcrossGroups(input, fromGroup, toGroup, index);
+			const toPosition = (typeof arg3 === 'number') ? arg3 : this.stacks.positionOfGroup(arg3);
+
+			this.doMoveEditorAcrossGroups(input, fromGroup, toPosition, index);
 		}
 	}
 
@@ -752,13 +752,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		group.pin(input);
 	}
 
-	private doMoveEditorAcrossGroups(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number): void {
+	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number): void {
 
 		// A move to another group is an open first...
-		this.openEditor(input, EditorOptions.create({ pinned: true, index }), this.stacks.positionOfGroup(to)).done(null, errors.onUnexpectedError);
+		this.openEditor(input, EditorOptions.create({ pinned: true, index }), to).done(null, errors.onUnexpectedError);
 
 		// and a close afterwards...
-		this.doCloseEditor(from, input, false /* do not activate next one behind if any */);
+		this.doCloseEditor(fromGroup, input, false /* do not activate next one behind if any */);
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
