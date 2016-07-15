@@ -26,9 +26,11 @@ export interface ISuggestionItem {
 	support: ISuggestSupport;
 }
 
+export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none' | 'only';
+
 export interface ISuggestOptions {
 	groups?: ISuggestSupport[][];
-	snippetConfig?: 'top' | 'bottom' | 'inline' | 'none' | 'only';
+	snippetConfig?: SnippetConfig;
 }
 
 export function provideSuggestionItems(model: IReadOnlyModel, position: Position, options: ISuggestOptions = {}): TPromise<ISuggestionItem[]> {
