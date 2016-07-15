@@ -21,8 +21,8 @@ import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybind
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
-import { CompletionItem, CompletionModel } from './completionModel';
-import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from './suggestModel';
+import { CompletionItem, CompletionModel } from '../common/completionModel';
+import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from '../common/suggestModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface ISuggestionTemplateData {

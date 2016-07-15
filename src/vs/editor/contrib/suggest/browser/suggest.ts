@@ -21,7 +21,7 @@ import { getSnippetController } from 'vs/editor/contrib/snippet/common/snippet';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { withCodeEditorFromCommandHandler } from 'vs/editor/common/config/config';
-import { SuggestModel } from './suggestModel';
+import { SuggestModel } from '../common/suggestModel';
 import { SuggestWidget } from './suggestWidget';
 
 export class SuggestController implements IEditorContribution {
