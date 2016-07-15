@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -4167,12 +4167,12 @@ export var EventType = {
 };
 
 /**
- * Positions on the view
+ * Logical positions in the view for cursor move command.
  */
-export const ViewPosition = {
+export const CursorMoveViewPosition = {
 	LineStart: 'lineStart',
 	LineFirstNonWhitespaceCharacter: 'lineFirstNonWhitespaceCharacter',
-	LineCenter: 'lineCenter',
+	LineColumnCenter: 'lineColumnCenter',
 	LineEnd: 'lineEnd',
 	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter'
 };
@@ -4185,9 +4185,9 @@ export var CommandDescription= {
 		description: nls.localize('editorCommand.cursorMove.description', "Move cursor to a logical position in the view"),
 		args: [
 			{
-				name: 'Logical position argument',
-				description: nls.localize('editorCommand.cursorMove.arg.description', "A logical position in the view"),
-				constraint: (arg) => types.isObject(arg) && types.isString(arg.to)
+				name: nls.localize('editorCommand.cursorMove.arg.name', "Cursor move argument"),
+				description: nls.localize('editorCommand.cursorMove.arg.description', "Argument containing mandatory 'to' value and an optional 'inSelectionMode' value. Value of 'to' has to be a defined value in `CursorMoveViewPosition`."),
+				constraint: (arg) => types.isObject(arg) && types.isString(arg.to) && (types.isUndefined(arg.inSelectionMode) || types.isBoolean(arg.inSelectionMode))
 			}
 		]
 	}

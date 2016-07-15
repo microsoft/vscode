@@ -433,8 +433,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType,
+		CursorMoveViewPosition: editorCommon.CursorMoveViewPosition,
 		Handler: editorCommon.Handler,
-		ViewPosition: editorCommon.ViewPosition,
 
 		// consts
 		KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS,

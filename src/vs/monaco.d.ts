@@ -3185,12 +3185,12 @@ declare module monaco.editor {
     };
 
     /**
-     * Positions on the view
+     * Logical positions in the view for cursor move command.
      */
-    export const ViewPosition: {
+    export const CursorMoveViewPosition: {
         LineStart: string;
         LineFirstNonWhitespaceCharacter: string;
-        LineCenter: string;
+        LineColumnCenter: string;
         LineEnd: string;
         LineLastNonWhitespaceCharacter: string;
     };
