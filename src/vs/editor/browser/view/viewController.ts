@@ -56,6 +56,14 @@ export class ViewController implements IViewController {
 		});
 	}
 
+	public compositionStart(source: string): void {
+		this.commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
+	}
+
+	public compositionEnd(source: string): void {
+		this.commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
+	}
+
 	public cut(source:string): void {
 		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
 	}

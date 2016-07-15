@@ -3245,6 +3245,8 @@ declare module monaco.editor {
         JumpToBracket: string;
         Type: string;
         ReplacePreviousChar: string;
+        CompositionStart: string;
+        CompositionEnd: string;
         Paste: string;
         Tab: string;
         Indent: string;

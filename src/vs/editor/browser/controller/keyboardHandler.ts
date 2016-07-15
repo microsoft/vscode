@@ -272,6 +272,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			// Show the textarea
 			StyleMutator.setHeight(this.textArea.actual, this._context.configuration.editor.lineHeight);
 			dom.addClass(this.viewHelper.viewDomNode, 'ime-input');
+
+			this.viewController.compositionStart('keyboard');
 		}));
 
 		this._toDispose.push(this.textAreaHandler.onCompositionUpdate((e) => {
@@ -291,6 +293,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			dom.removeClass(this.viewHelper.viewDomNode, 'ime-input');
 
 			this.visibleRange = null;
+
+			this.viewController.compositionEnd('keyboard');
 		}));
 		this._toDispose.push(GlobalScreenReaderNVDA.onChange((value) => {
 			this.textAreaHandler.setStrategy(this._getStrategy());
