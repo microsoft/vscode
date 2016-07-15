@@ -33,7 +33,7 @@ import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
+import {provideSuggestionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
@@ -760,11 +760,9 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
-				assert.ok(value.length >= 1); // check for min because snippets and others contribute
-				let [first] = value;
-				assert.equal(first.suggestions.length, 1);
-				assert.equal(first.suggestions[0].codeSnippet, 'testing2');
+			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0].suggestion.codeSnippet, 'testing2');
 			});
 		});
 	});
@@ -784,11 +782,9 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
-				assert.ok(value.length >= 1);
-				let [first] = value;
-				assert.equal(first.suggestions.length, 1);
-				assert.equal(first.suggestions[0].codeSnippet, 'weak-selector');
+			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0].suggestion.codeSnippet, 'weak-selector');
 			});
 		});
 	});
@@ -808,12 +804,10 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
-				assert.ok(value.length >= 2);
-				let [first, second] = value;
-				assert.equal(first.suggestions.length, 1);
-				assert.equal(first.suggestions[0].codeSnippet, 'strong-2'); // last wins
-				assert.equal(second.suggestions[0].codeSnippet, 'strong-1');
+			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+				assert.equal(value.length, 2);
+				assert.equal(value[0].suggestion.codeSnippet, 'strong-1'); // sort by label
+				assert.equal(value[1].suggestion.codeSnippet, 'strong-2');
 			});
 		});
 	});
@@ -835,8 +829,8 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value[0].incomplete, undefined);
+			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+				assert.equal(value[0].container.incomplete, undefined);
 			});
 		});
 	});
@@ -851,8 +845,8 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value[0].incomplete, true);
+			provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+				assert.equal(value[0].container.incomplete, true);
 			});
 		});
 	});
