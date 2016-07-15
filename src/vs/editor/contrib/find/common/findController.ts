@@ -111,7 +111,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public closeFindWidget(): void {
-		this._state.change({ isRevealed: false }, false);
+		this._state.change({
+			isRevealed: false,
+			searchScope: null
+		}, false);
 		this._editor.focus();
 	}
 
