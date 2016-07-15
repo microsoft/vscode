@@ -391,11 +391,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable snippet suggestions. Default to 'true'.
 	 */
-	snippetSuggestions?: boolean;
-	/**
-	 * Snippet sort order. Defaults to 'normal'.
-	 */
-	snippetOrder?: 'top' | 'bottom' | 'normal';
+	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -805,8 +801,7 @@ export class EditorContribOptions {
 	formatOnType:boolean;
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
-	snippetSuggestions: boolean;
-	snippetOrder: 'top' | 'bottom' | 'normal';
+	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	selectionHighlight:boolean;
 	referenceInfos: boolean;
 	folding: boolean;
@@ -825,8 +820,7 @@ export class EditorContribOptions {
 		formatOnType:boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
-		snippetSuggestions: boolean;
-		snippetOrder: 'top' | 'bottom' | 'normal';
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		selectionHighlight:boolean;
 		referenceInfos: boolean;
 		folding: boolean;
@@ -841,8 +835,7 @@ export class EditorContribOptions {
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
-		this.snippetSuggestions = Boolean(source.snippetSuggestions);
-		this.snippetOrder = (source.snippetOrder || 'normal');
+		this.snippetSuggestions = source.snippetSuggestions;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.referenceInfos = Boolean(source.referenceInfos);
 		this.folding = Boolean(source.folding);
@@ -864,7 +857,6 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
-			&& this.snippetOrder === other.snippetOrder
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.referenceInfos === other.referenceInfos
 			&& this.folding === other.folding
