@@ -397,6 +397,7 @@ function selectAll(accessor: ServicesAccessor, args: any): void {
 	// Redirecting to last active editor
 	let activeEditor = getActiveEditor(accessor);
 	if (activeEditor) {
+		activeEditor.focus();
 		activeEditor.trigger('keyboard', HANDLER, args);
 		return;
 	}
