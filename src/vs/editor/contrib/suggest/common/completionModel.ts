@@ -21,6 +21,14 @@ export interface CompletionItemComparator {
 
 export namespace CompletionItemComparator {
 
+	export function fromConfig(order: 'top' | 'bottom' | string): CompletionItemComparator {
+		return order === 'top'
+			? CompletionItemComparator.snippetUpComparator
+			: order === 'bottom'
+				? CompletionItemComparator.snippetDownComparator
+				: CompletionItemComparator.defaultComparator;
+	}
+
 	export function defaultComparator(item: CompletionItem, otherItem: CompletionItem): number {
 		const suggestion = item.suggestion;
 		const otherSuggestion = otherItem.suggestion;

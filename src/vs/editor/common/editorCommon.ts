@@ -389,6 +389,10 @@ export interface IEditorOptions {
 	 */
 	acceptSuggestionOnEnter?: boolean;
 	/**
+	 * Enable snippet suggestions. Default to 'true'.
+	 */
+	snippetSuggestions?: boolean;
+	/**
 	 * Snippet sort order. Defaults to 'normal'.
 	 */
 	snippetOrder?: 'top' | 'bottom' | 'normal';
@@ -801,6 +805,7 @@ export class EditorContribOptions {
 	formatOnType:boolean;
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
+	snippetSuggestions: boolean;
 	snippetOrder: 'top' | 'bottom' | 'normal';
 	selectionHighlight:boolean;
 	referenceInfos: boolean;
@@ -820,6 +825,7 @@ export class EditorContribOptions {
 		formatOnType:boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
+		snippetSuggestions: boolean;
 		snippetOrder: 'top' | 'bottom' | 'normal';
 		selectionHighlight:boolean;
 		referenceInfos: boolean;
@@ -835,6 +841,7 @@ export class EditorContribOptions {
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.snippetSuggestions = Boolean(source.snippetSuggestions);
 		this.snippetOrder = (source.snippetOrder || 'normal');
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.referenceInfos = Boolean(source.referenceInfos);
@@ -856,6 +863,7 @@ export class EditorContribOptions {
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.snippetOrder === other.snippetOrder
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.referenceInfos === other.referenceInfos
