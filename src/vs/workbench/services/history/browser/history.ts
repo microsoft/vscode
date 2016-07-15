@@ -313,9 +313,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		let options = state.options;
 		if (options) {
-			options.revealIfOpened = true;
+			options.revealIfVisible = true;
 		} else {
-			options = { revealIfOpened: true };
+			options = { revealIfVisible: true };
 		}
 
 		this.blockStackChanges = true;

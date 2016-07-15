@@ -1146,10 +1146,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return Position.LEFT; // can only be LEFT
 		}
 
-		// Respect option to reveal an editor if it is already opened
-		if (options && options.revealIfOpened) {
-
-			// First check over active and visible editors from left to right
+		// Respect option to reveal an editor if it is already visible
+		if (options && options.revealIfVisible) {
 			const editorsToCheck: BaseEditor[] = [];
 			if (activeEditor) { editorsToCheck.push(activeEditor); }
 			visibleEditors.forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e); }});
@@ -1157,17 +1155,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				const editorToCheck = editorsToCheck[i];
 				if (input.matches(editorToCheck.input)) {
 					return editorToCheck.position;
-				}
-			}
-
-			// Then check over active and visible groups from left to right
-			const groupsToCheck: EditorGroup[] = [];
-			if (this.stacks.activeGroup) { groupsToCheck.push(this.stacks.activeGroup); }
-			this.stacks.groups.forEach(g => { if (g !== this.stacks.activeGroup) { groupsToCheck.push(g); }});
-			for (let i = 0; i < groupsToCheck.length; i++) {
-				const groupToCheck = groupsToCheck[i];
-				if (groupToCheck.contains(input)) {
-					return this.stacks.positionOfGroup(groupToCheck);
 				}
 			}
 		}

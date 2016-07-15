@@ -136,7 +136,7 @@ export class DefinitionAction extends EditorAction {
 			resource: uri,
 			options: {
 				selection: range,
-				revealIfOpened: !sideBySide
+				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
 			return <editorCommon.IEditor> editor.getControl();
