@@ -154,7 +154,7 @@ export class FocusFirstGroupAction extends Action {
 
 		// Find left editor and focus it
 		let editors = this.editorService.getVisibleEditors();
-		for (var editor of editors) {
+		for (let editor of editors) {
 			if (editor.position === Position.LEFT) {
 				this.editorGroupService.focusGroup(Position.LEFT);
 
@@ -164,7 +164,7 @@ export class FocusFirstGroupAction extends Action {
 
 		// Since no editor is currently opened, try to open last history entry to the target side
 		let history = this.historyService.getHistory();
-		for (var input of history) {
+		for (let input of history) {
 
 			// For now only support to open resources from history to the side
 			if (!!getUntitledOrFileResource(input)) {
@@ -232,7 +232,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		// Otherwise try to find a history entry to open to the target editor side
 		else if (referenceEditor) {
 			let history = this.historyService.getHistory();
-			for (var input of history) {
+			for (let input of history) {
 
 				// For now only support to open files from history to the side
 				if (!!getUntitledOrFileResource(input)) {

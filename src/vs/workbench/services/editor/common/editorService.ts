@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 
-export var IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
+export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
 /**
  * The editor service allows to open editors and work on the active

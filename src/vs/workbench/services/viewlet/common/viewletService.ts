@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IViewletService = createDecorator<IViewletService>('viewletService');
+export const IViewletService = createDecorator<IViewletService>('viewletService');
 
 export interface IViewletService {
 	_serviceBrand : ServiceIdentifier<any>;

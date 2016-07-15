@@ -6,7 +6,7 @@
 
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
-export var ITerminalService = createDecorator<ITerminalService>('nativeTerminalService');
+export const ITerminalService = createDecorator<ITerminalService>('nativeTerminalService');
 
 export interface ITerminalService {
 	_serviceBrand: any;

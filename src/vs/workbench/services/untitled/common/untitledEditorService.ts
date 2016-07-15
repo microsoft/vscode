@@ -10,7 +10,7 @@ import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 
-export var IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
+export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
 export interface IUntitledEditorService {
 

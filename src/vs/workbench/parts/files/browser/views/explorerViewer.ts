@@ -286,6 +286,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		if (!editableData) {
 			let label = $('.explorer-item-label').appendTo(item);
 			$('a.plain').text(stat.name).appendTo(label);
+
 			return null;
 		}
 
@@ -318,7 +319,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			}, 0);
 		});
 
-		var toDispose = [
+		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(CommonKeybindings.ENTER)) {

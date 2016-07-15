@@ -33,7 +33,7 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 
 // debuggers extension point
 
-export var debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
+export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ type: '', extensions: [] }] }],
@@ -126,7 +126,7 @@ export var debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExt
 
 // debug general schema
 
-export var schemaId = 'vscode://schemas/launch';
+export const schemaId = 'vscode://schemas/launch';
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',

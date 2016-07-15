@@ -392,7 +392,7 @@ function _settingsToStatements(settings: ThemeSettingStyle): string {
 	let statements: string[] = [];
 
 	for (let settingName in settings) {
-		var value = settings[settingName];
+		const value = settings[settingName];
 		switch (settingName) {
 			case 'foreground':
 				let foreground = new Color(value);

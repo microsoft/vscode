@@ -249,7 +249,7 @@ export interface IFileEditorDescriptor extends IEditorDescriptor {
 	getMimeTypes(): string[];
 }
 
-export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
+export const ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface IRawTextContent extends IBaseStat {
 

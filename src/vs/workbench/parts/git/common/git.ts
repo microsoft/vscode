@@ -85,7 +85,7 @@ export enum Status {
 
 // Model events
 
-export var ModelEvents = {
+export const ModelEvents = {
 	MODEL_UPDATED: 'ModelUpdated',
 	STATUS_MODEL_UPDATED: 'StatusModelUpdated',
 	HEAD_UPDATED: 'HEADUpdated',
@@ -166,7 +166,7 @@ export enum RawServiceState {
 	Disabled
 }
 
-export var GitErrorCodes = {
+export const GitErrorCodes = {
 	BadConfigFile: 'BadConfigFile',
 	AuthenticationFailed: 'AuthenticationFailed',
 	NoUserNameConfigured: 'NoUserNameConfigured',
@@ -195,7 +195,7 @@ export enum AutoFetcherState {
 
 // Service events
 
-export var ServiceEvents = {
+export const ServiceEvents = {
 	STATE_CHANGED: 'stateChanged',
 	REPO_CHANGED: 'repoChanged',
 	OPERATION_START: 'operationStart',
@@ -207,7 +207,7 @@ export var ServiceEvents = {
 
 // Service operations
 
-export var ServiceOperations = {
+export const ServiceOperations = {
 	STATUS: 'status',
 	INIT: 'init',
 	ADD: 'add',
@@ -289,9 +289,9 @@ export interface IRawGitService {
 	getCommitTemplate(): TPromise<string>;
 }
 
-export var GIT_SERVICE_ID = 'gitService';
+export const GIT_SERVICE_ID = 'gitService';
 
-export var IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
+export const IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
 
 export interface IGitService extends IEventEmitter {
 	_serviceBrand: any;

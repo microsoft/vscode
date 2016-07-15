@@ -46,7 +46,7 @@ export interface IOutputEvent {
 	channelId?: string;
 }
 
-export var IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
+export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 
 /**
  * The output service to manage output from the various processes running.

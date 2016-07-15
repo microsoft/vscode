@@ -146,9 +146,9 @@ declare module 'emmet' {
 	 */
 	export function run(action: string, editor: Editor, arg?: string): boolean;
 
-	export var preferences: Preferences;
+	export const preferences: Preferences;
 
-	export var profile: Profiles;
+	export const profile: Profiles;
 
 	export function loadProfiles(profiles: any);
 }

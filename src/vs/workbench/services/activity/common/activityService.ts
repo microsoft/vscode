@@ -56,7 +56,7 @@ export class IconBadge extends BaseBadge {
 export class ProgressBadge extends BaseBadge {
 }
 
-export var IActivityService = createDecorator<IActivityService>('activityService');
+export const IActivityService = createDecorator<IActivityService>('activityService');
 
 export interface IActivityService {
 	_serviceBrand: any;

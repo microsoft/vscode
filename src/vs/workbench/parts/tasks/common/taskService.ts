@@ -13,7 +13,7 @@ import { ITaskSummary, TaskDescription, TaskEvent, TaskType } from 'vs/workbench
 
 export { ITaskSummary, TaskDescription, TaskEvent, TaskType };
 
-export var ITaskService = createDecorator<ITaskService>('taskService');
+export const ITaskService = createDecorator<ITaskService>('taskService');
 
 export namespace TaskServiceEvents {
 	export let Active: string = 'active';

@@ -431,7 +431,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 	}
 }
 
-export var VIEWLET_ID = 'workbench.view.git';
+export const VIEWLET_ID = 'workbench.view.git';
 
 class OpenGitViewletAction extends viewlet.ToggleViewletAction {
 	public static ID = VIEWLET_ID;

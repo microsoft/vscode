@@ -412,7 +412,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
 			getActionsContext: () => identifier,
 			getKeyBinding: (action) => {
-				var opts = this.keybindingService.lookupKeybindings(action.id);
+				const opts = this.keybindingService.lookupKeybindings(action.id);
 				if (opts.length > 0) {
 					return opts[0]; // only take the first one
 				}

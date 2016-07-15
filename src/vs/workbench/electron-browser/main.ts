@@ -31,7 +31,7 @@ const timers = (<any>window).MonacoEnvironment.timers;
 
 function domContentLoaded(): winjs.Promise {
 	return new winjs.Promise((c, e) => {
-		var readyState = document.readyState;
+		const readyState = document.readyState;
 		if (readyState === 'complete' || (document && document.body !== null)) {
 			window.setImmediate(c);
 		} else {

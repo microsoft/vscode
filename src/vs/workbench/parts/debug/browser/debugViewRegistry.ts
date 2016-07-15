@@ -34,4 +34,4 @@ class DebugViewRegistryImpl implements IDebugViewRegistry {
 	}
 }
 
-export var DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();
+export const DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();

@@ -265,7 +265,7 @@ export interface IConfigurationManager {
 	onDidConfigurationChange: Event<string>;
 }
 
-export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
+export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
 export interface IDebugService {
 	_serviceBrand: any;
