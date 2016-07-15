@@ -89,8 +89,8 @@ export class SearchWidget extends Widget {
 	private _onReplaceToggled = this._register(new Emitter<void>());
 	public onReplaceToggled: Event<void> = this._onReplaceToggled.event;
 
-	private _onReplaceStateChange = this._register(new Emitter<void>());
-	public onReplaceStateChange: Event<void> = this._onReplaceStateChange.event;
+	private _onReplaceStateChange = this._register(new Emitter<boolean>());
+	public onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
 
 	private _onReplaceValueChanged = this._register(new Emitter<string>());
 	public onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
@@ -143,7 +143,7 @@ export class SearchWidget extends Widget {
 	}
 
 	public getReplaceValue():string {
-		return this.isReplaceActive() ? this.replaceInput.value : null;
+		return this.replaceInput.value;
 	}
 
 	public toggleReplace(show?:boolean): void {
@@ -229,8 +229,8 @@ export class SearchWidget extends Widget {
 		let currentState= this.isReplaceActive();
 		let newState= this.isReplaceShown() && this.replaceAllAction.enabled;
 		if (currentState !== newState) {
-			this.replaceActive.set(this.isReplaceShown() && this.replaceAllAction.enabled);
-			this._onReplaceStateChange.fire();
+			this.replaceActive.set(newState);
+			this._onReplaceStateChange.fire(newState);
 		}
 	}
 

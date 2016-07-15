@@ -19,7 +19,7 @@ import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/l
 import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { Match, SearchResult, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -167,8 +167,9 @@ export class SearchRenderer extends ActionsRenderer {
 
 			elements.push('<span>');
 			elements.push(strings.escape(preview.before));
+			let searchModel: SearchModel= (<SearchResult>tree.getInput()).searchModel;
 
-			let showReplaceText= (<SearchResult>tree.getInput()).searchModel.hasReplaceString();
+			let showReplaceText= searchModel.isReplaceActive() && !!searchModel.replaceString;
 			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
 			elements.push(strings.escape(preview.inside));
 			if (showReplaceText) {
