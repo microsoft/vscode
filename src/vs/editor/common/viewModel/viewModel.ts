@@ -33,6 +33,10 @@ export interface IViewModel extends IEventEmitter {
 	getLineTokens(lineNumber:number): ViewLineTokens;
 	getDecorationsViewportData(startLineNumber:number, endLineNumber:number): IDecorationsViewportData;
 	getLineRenderLineNumber(lineNumber:number): string;
+	/**
+	 * Get the maximum line number that will appear next to a line
+	 */
+	getMaxLineNumber(): number;
 	getAllDecorations(): IModelDecoration[];
 	getEOL(): string;
 	getValueInRange(range:IRange, eol:EndOfLinePreference): string;

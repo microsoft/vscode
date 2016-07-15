@@ -18,7 +18,7 @@ export interface IEditorLayoutProviderOpts {
 	lineDecorationsWidth:number;
 	maxDigitWidth:number;
 
-	lineCount: number;
+	maxLineNumber: number;
 
 	verticalScrollbarWidth:number;
 	verticalScrollbarHasArrows:boolean;
@@ -36,7 +36,7 @@ export class EditorLayoutProvider {
 		const lineNumbersMinChars = _opts.lineNumbersMinChars|0;
 		const lineDecorationsWidth = _opts.lineDecorationsWidth|0;
 		const maxDigitWidth = Number(_opts.maxDigitWidth);
-		const lineCount = _opts.lineCount|0;
+		const maxLineNumber = _opts.maxLineNumber|0;
 		const verticalScrollbarWidth = _opts.verticalScrollbarWidth|0;
 		const verticalScrollbarHasArrows = Boolean(_opts.verticalScrollbarHasArrows);
 		const scrollbarArrowSize = _opts.scrollbarArrowSize|0;
@@ -44,7 +44,7 @@ export class EditorLayoutProvider {
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
-			let digitCount = Math.max(this.digitCount(lineCount), lineNumbersMinChars);
+			let digitCount = Math.max(this.digitCount(maxLineNumber), lineNumbersMinChars);
 			lineNumbersWidth = Math.round(digitCount * maxDigitWidth);
 		}
 
