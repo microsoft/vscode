@@ -140,7 +140,11 @@ export class FindModelBoundToEditorModel {
 		let findMatches = this._findMatches(findScope, MATCHES_LIMIT);
 		this._decorations.set(findMatches, findScope);
 
-		this._state.changeMatchInfo(this._decorations.getCurrentMatchesPosition(this._editor.getSelection()), this._decorations.getCount());
+		this._state.changeMatchInfo(
+			this._decorations.getCurrentMatchesPosition(this._editor.getSelection()),
+			this._decorations.getCount(),
+			undefined
+		);
 
 		if (moveCursor) {
 			this._moveToNextMatch(this._decorations.getStartPosition());
@@ -161,6 +165,18 @@ export class FindModelBoundToEditorModel {
 			return true;
 		}
 		return false;
+	}
+
+	private _setCurrentFindMatch(match:Range): void {
+		let matchesPosition = this._decorations.setCurrentFindMatch(match);
+		this._state.changeMatchInfo(
+			matchesPosition,
+			this._decorations.getCount(),
+			match
+		);
+
+		this._editor.setSelection(match);
+		this._editor.revealRangeInCenterIfOutsideViewport(match);
 	}
 
 	private _moveToPrevMatch(before:Position, isRecursed:boolean = false): void {
@@ -220,10 +236,7 @@ export class FindModelBoundToEditorModel {
 			return this._moveToPrevMatch(prevMatch.getStartPosition(), true);
 		}
 
-		let matchesPosition = this._decorations.setCurrentFindMatch(prevMatch);
-		this._state.changeMatchInfo(matchesPosition, this._decorations.getCount());
-		this._editor.setSelection(prevMatch);
-		this._editor.revealRangeInCenterIfOutsideViewport(prevMatch);
+		this._setCurrentFindMatch(prevMatch);
 	}
 
 	public moveToPrevMatch(): void {
@@ -287,10 +300,7 @@ export class FindModelBoundToEditorModel {
 			return this._moveToNextMatch(nextMatch.getEndPosition(), true);
 		}
 
-		let matchesPosition = this._decorations.setCurrentFindMatch(nextMatch);
-		this._state.changeMatchInfo(matchesPosition, this._decorations.getCount());
-		this._editor.setSelection(nextMatch);
-		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		this._setCurrentFindMatch(nextMatch);
 	}
 
 	public moveToNextMatch(): void {

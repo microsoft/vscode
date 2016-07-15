@@ -21,6 +21,7 @@ import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent} from 'vs/editor/contrib/find/common/findState';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface IFindController {
 	replace(): void;
@@ -71,6 +72,8 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 
+	private _focusTracker: dom.IFocusTracker;
+
 	constructor(
 		codeEditor: ICodeEditor,
 		controller: IFindController,
@@ -107,6 +110,17 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				this._updateToggleSelectionFindButton();
 			}
 		}));
+		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
+		this._focusTracker.addFocusListener(() => {
+			let selection = this._codeEditor.getSelection();
+			let currentMatch = this._state.currentMatch;
+			if (selection.startLineNumber !== selection.endLineNumber) {
+				if (!Range.equalsRange(selection, currentMatch)) {
+					// Reseed find scope
+					this._state.change({ searchScope: selection }, true);
+				}
+			}
+		});
 
 		this._codeEditor.addOverlayWidget(this);
 	}
