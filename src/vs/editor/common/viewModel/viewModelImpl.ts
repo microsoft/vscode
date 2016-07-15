@@ -428,6 +428,11 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return modelLineNumber.toString();
 	}
 
+	public getMaxLineNumber(): number {
+		// The largest value for a line number will be that of the model line count
+		return this.model.getLineCount();
+	}
+
 	public getDecorationsViewportData(startLineNumber:number, endLineNumber:number): IDecorationsViewportData {
 		return this.decorations.getDecorationsViewportData(startLineNumber, endLineNumber);
 	}

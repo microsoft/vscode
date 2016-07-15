@@ -3192,7 +3192,7 @@ export interface IConfiguration {
 
 	editor:InternalEditorOptions;
 
-	setLineCount(lineCount:number): void;
+	setMaxLineNumber(maxLineNumber:number): void;
 }
 
 // --- view

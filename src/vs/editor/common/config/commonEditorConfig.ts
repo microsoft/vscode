@@ -144,7 +144,7 @@ class InternalEditorOptionsHelper {
 		fontInfo: editorCommon.FontInfo,
 		editorClassName:string,
 		isDominatedByLongLines:boolean,
-		lineCount: number,
+		maxLineNumber: number,
 		canUseTranslate3d: boolean
 	): editorCommon.InternalEditorOptions {
 
@@ -178,7 +178,7 @@ class InternalEditorOptionsHelper {
 			lineNumbersMinChars: lineNumbersMinChars,
 			lineDecorationsWidth: lineDecorationsWidth,
 			maxDigitWidth: fontInfo.maxDigitWidth,
-			lineCount: lineCount,
+			maxLineNumber: maxLineNumber,
 			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
 			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
 			scrollbarArrowSize: scrollbar.arrowSize,
@@ -425,7 +425,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected _configWithDefaults:ConfigurationWithDefaults;
 	protected _elementSizeObserver: IElementSizeObserver;
 	private _isDominatedByLongLines:boolean;
-	private _lineCount:number;
+	private _maxLineNumber:number;
 
 	private _onDidChange = this._register(new Emitter<editorCommon.IConfigurationChangedEvent>());
 	public onDidChange: Event<editorCommon.IConfigurationChangedEvent> = this._onDidChange.event;
@@ -435,7 +435,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._configWithDefaults = new ConfigurationWithDefaults(options);
 		this._elementSizeObserver = elementSizeObserver;
 		this._isDominatedByLongLines = false;
-		this._lineCount = 1;
+		this._maxLineNumber = 1;
 		this.editor = this._computeInternalOptions();
 		this.editorClone = this.editor.clone();
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
@@ -497,7 +497,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			})),
 			editorClassName,
 			this._isDominatedByLongLines,
-			this._lineCount,
+			this._maxLineNumber,
 			canUseTranslate3d
 		);
 	}
@@ -512,8 +512,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._recomputeOptions();
 	}
 
-	public setLineCount(lineCount:number): void {
-		this._lineCount = lineCount;
+	public setMaxLineNumber(maxLineNumber:number): void {
+		this._maxLineNumber = maxLineNumber;
 		this._recomputeOptions();
 	}
 
