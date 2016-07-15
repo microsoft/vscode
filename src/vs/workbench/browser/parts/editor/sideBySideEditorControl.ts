@@ -24,6 +24,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {IEventService} from 'vs/platform/event/common/event';
+import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -35,7 +36,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {extractResources} from 'vs/base/browser/dnd';
 
@@ -812,6 +813,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			DOM.removeClass(node, 'dragged-over');
 		}
 
+		function optionsFromDraggedEditor(identifier: IEditorIdentifier): EditorOptions {
+
+			// When moving an editor, try to preserve as much view state as possible by checking
+			// for th editor to be a text editor and creating the options accordingly if so
+			let options = EditorOptions.create({ pinned: true });
+			const activeEditor = $this.editorService.getActiveEditor();
+			if (activeEditor instanceof BaseTextEditor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
+				options = TextEditorOptions.create({ pinned: true });
+				(<TextEditorOptions>options).viewState(activeEditor.getControl().saveViewState());
+			}
+
+			return options;
+		}
+
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
 			const droppedResources = draggedResources;
 			DOM.removeClass(node, 'dropfeedback');
@@ -831,13 +846,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Copy editor to new location
 				if (isCopy) {
 					if (splitEditor) {
-						editorService.openEditor(draggedEditor.editor, { pinned: true }, freeGroup).then(() => {
+						editorService.openEditor(draggedEditor.editor, optionsFromDraggedEditor(draggedEditor), freeGroup).then(() => {
 							if (splitTo !== freeGroup) {
 								groupService.moveGroup(freeGroup, splitTo);
 							}
 						}).done(null, errors.onUnexpectedError);
 					} else {
-						editorService.openEditor(draggedEditor.editor, { pinned: true }, position).done(null, errors.onUnexpectedError);
+						editorService.openEditor(draggedEditor.editor, optionsFromDraggedEditor(draggedEditor), position).done(null, errors.onUnexpectedError);
 					}
 				}
 
@@ -848,7 +863,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						if (draggedEditor.group.count === 1) {
 							groupService.moveGroup(sourcePosition, splitTo);
 						} else {
-							editorService.openEditor(draggedEditor.editor, { pinned: true }, freeGroup).then(() => {
+							editorService.openEditor(draggedEditor.editor, optionsFromDraggedEditor(draggedEditor), freeGroup).then(() => {
 								if (splitTo !== freeGroup) {
 									groupService.moveGroup(freeGroup, splitTo);
 								}
