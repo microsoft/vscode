@@ -405,6 +405,6 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.selectAll',
 	handler: selectAll,
 	weight: KeybindingsRegistry.WEIGHT.editorCore(),
-	when: null,
+	when: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 });
