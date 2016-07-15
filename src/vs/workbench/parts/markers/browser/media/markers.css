@@ -101,7 +101,7 @@
 	background: url('status-error.svg') center center no-repeat;
 }
 
-.markers-panel .icon.info:before {
+.markers-panel .icon.info {
 	background: url('status-info.svg') center center no-repeat;
 }
 
@@ -113,6 +113,6 @@
 	background: url('status-error-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel .icon.info:before {
+.vs-dark .markers-panel .icon.info {
 	background: url('status-info-inverse.svg') center center no-repeat;
 }
