@@ -389,6 +389,10 @@ export interface IEditorOptions {
 	 */
 	acceptSuggestionOnEnter?: boolean;
 	/**
+	 * Snippet sort order. Defaults to 'normal'.
+	 */
+	snippetOrder?: 'top' | 'bottom' | 'normal';
+	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
 	 */
@@ -797,6 +801,7 @@ export class EditorContribOptions {
 	formatOnType:boolean;
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
+	snippetOrder: 'top' | 'bottom' | 'normal';
 	selectionHighlight:boolean;
 	referenceInfos: boolean;
 	folding: boolean;
@@ -815,6 +820,7 @@ export class EditorContribOptions {
 		formatOnType:boolean;
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
+		snippetOrder: 'top' | 'bottom' | 'normal';
 		selectionHighlight:boolean;
 		referenceInfos: boolean;
 		folding: boolean;
@@ -829,6 +835,7 @@ export class EditorContribOptions {
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.snippetOrder = (source.snippetOrder || 'normal');
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.referenceInfos = Boolean(source.referenceInfos);
 		this.folding = Boolean(source.folding);
@@ -849,6 +856,7 @@ export class EditorContribOptions {
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.snippetOrder === other.snippetOrder
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.referenceInfos === other.referenceInfos
 			&& this.folding === other.folding

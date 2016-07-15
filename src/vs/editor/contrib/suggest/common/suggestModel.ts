@@ -379,7 +379,14 @@ export class SuggestModel implements IDisposable {
 					isFrozen = true;
 				}
 			} else {
-				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore, CompletionItemComparator.defaultComparator, false);
+				const sortOrder = this.editor.getConfiguration().contribInfo.snippetOrder;
+				const comparator = sortOrder === 'top'
+					? CompletionItemComparator.snippetUpComparator
+					: sortOrder === 'bottom'
+						? CompletionItemComparator.snippetDownComparator
+						: CompletionItemComparator.defaultComparator;
+
+				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore, comparator, false);
 			}
 
 			this._onDidSuggest.fire({

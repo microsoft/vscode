@@ -1243,6 +1243,10 @@ declare module monaco.editor {
          */
         acceptSuggestionOnEnter?: boolean;
         /**
+         * Snippet sort order. Defaults to 'normal'.
+         */
+        snippetOrder?: 'top' | 'bottom' | 'normal';
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
@@ -1404,6 +1408,7 @@ declare module monaco.editor {
         formatOnType: boolean;
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
+        snippetOrder: 'top' | 'bottom' | 'normal';
         selectionHighlight: boolean;
         referenceInfos: boolean;
         folding: boolean;
