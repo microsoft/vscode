@@ -285,7 +285,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		let editableData: IEditableData = this.state.getEditableData(stat);
 		if (!editableData) {
 			let label = $('.explorer-item-label').appendTo(item);
-			$('a.plain').text(stat.name).appendTo(label);
+			$('a.plain').text(stat.name).title(stat.resource.fsPath).appendTo(label);
 
 			return null;
 		}
