@@ -111,6 +111,10 @@ class SortLinesAction extends EditorAction {
 
 	public run():TPromise<boolean> {
 
+		if (!SortLinesCommand.canRun(this.editor.getModel(), this.editor.getSelection(), this.descending)) {
+			return TPromise.as(false);
+		}
+
 		var command = new SortLinesCommand(this.editor.getSelection(), this.descending);
 
 		this.editor.executeCommands(this.id, [command]);
