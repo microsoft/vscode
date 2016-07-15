@@ -15,6 +15,51 @@ import {ISuggestResult2} from '../common/suggest';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
 
+export interface CompletionItemComparator {
+	(a: CompletionItem, b: CompletionItem): number;
+}
+
+export namespace CompletionItemComparator {
+
+	export function defaultComparator(item: CompletionItem, otherItem: CompletionItem): number {
+		const suggestion = item.suggestion;
+		const otherSuggestion = otherItem.suggestion;
+
+		if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
+			const one = suggestion.sortText.toLowerCase();
+			const other = otherSuggestion.sortText.toLowerCase();
+
+			if (one < other) {
+				return -1;
+			} else if (one > other) {
+				return 1;
+			}
+		}
+
+		return suggestion.label.toLowerCase() < otherSuggestion.label.toLowerCase() ? -1 : 1;
+	}
+
+	export function snippetUpComparator(a: CompletionItem, b: CompletionItem): number {
+		if (a.suggestion.type === 'snippet') {
+			return -1;
+		} else if (b.suggestion.type === 'snippet') {
+			return 1;
+		} else {
+			return defaultComparator(a, b);
+		}
+	}
+
+	export function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
+		if (a.suggestion.type === 'snippet') {
+			return 1;
+		} else if (b.suggestion.type === 'snippet') {
+			return -1;
+		} else {
+			return defaultComparator(a, b);
+		}
+	}
+}
+
 export class CompletionItem {
 
 	suggestion: ISuggestion;
@@ -44,24 +89,6 @@ export class CompletionItem {
 	updateDetails(value: ISuggestion): void {
 		this.suggestion = assign(this.suggestion, value);
 	}
-
-	static compare(item: CompletionItem, otherItem: CompletionItem): number {
-		const suggestion = item.suggestion;
-		const otherSuggestion = otherItem.suggestion;
-
-		if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
-			const one = suggestion.sortText.toLowerCase();
-			const other = otherSuggestion.sortText.toLowerCase();
-
-			if (one < other) {
-				return -1;
-			} else if (one > other) {
-				return 1;
-			}
-		}
-
-		return suggestion.label.toLowerCase() < otherSuggestion.label.toLowerCase() ? -1 : 1;
-	}
 }
 
 export class LineContext {
@@ -71,18 +98,22 @@ export class LineContext {
 
 export class CompletionModel {
 
+	public raw: ISuggestResult2[];
+
 	private _lineContext: LineContext;
 	private _items: CompletionItem[] = [];
 	private _filteredItems: CompletionItem[] = undefined;
 
-	constructor(public raw: ISuggestResult2[], leadingLineContent:string) {
+	constructor(raw: ISuggestResult2[], leadingLineContent: string, comparator: CompletionItemComparator, ignoreSnippets: boolean) {
 		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
 		for (let container of raw) {
 			for (let suggestion of container.suggestions) {
-				this._items.push(new CompletionItem(suggestion, container));
+				if (!ignoreSnippets || suggestion.type !== 'snippet') {
+					this._items.push(new CompletionItem(suggestion, container));
+				}
 			}
 		}
-		this._items.sort(CompletionItem.compare);
+		this._items.sort(comparator);
 	}
 
 	get lineContext(): LineContext {

@@ -13,7 +13,7 @@ import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IMo
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
-import {CompletionModel} from './completionModel';
+import {CompletionModel, CompletionItemComparator} from './completionModel';
 import {Position} from 'vs/editor/common/core/position';
 
 export interface ICancelEvent {
@@ -379,7 +379,7 @@ export class SuggestModel implements IDisposable {
 					isFrozen = true;
 				}
 			} else {
-				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore);
+				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore, CompletionItemComparator.defaultComparator, false);
 			}
 
 			this._onDidSuggest.fire({
