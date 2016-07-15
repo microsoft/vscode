@@ -174,4 +174,32 @@ suite('FindController', () => {
 			selectHighlightsAction.dispose();
 		});
 	});
+
+	test('issue #9043: Clear search scope when find widget is hidden', () => {
+		withMockCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], {}, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false
+			});
+
+			assert.equal(findController.getState().searchScope, null);
+
+			findController.getState().change({
+				searchScope: new Range(1, 1, 1, 5)
+			}, false);
+
+			assert.deepEqual(findController.getState().searchScope, new Range(1, 1, 1, 5));
+
+			findController.closeFindWidget();
+			assert.equal(findController.getState().searchScope, null);
+		});
+	});
 });

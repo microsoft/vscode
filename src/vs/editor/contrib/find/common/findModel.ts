@@ -48,11 +48,13 @@ export class FindModelBoundToEditorModel {
 	private _ignoreModelContentChanged:boolean;
 
 	private _updateDecorationsScheduler:RunOnceScheduler;
+	private _isDisposed: boolean;
 
 	constructor(editor:editorCommon.ICommonCodeEditor, state:FindReplaceState) {
 		this._editor = editor;
 		this._state = state;
 		this._toDispose = [];
+		this._isDisposed = false;
 
 		this._decorations = new FindDecorations(editor);
 		this._toDispose.push(this._decorations);
@@ -89,10 +91,15 @@ export class FindModelBoundToEditorModel {
 	}
 
 	public dispose(): void {
+		this._isDisposed = true;
 		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _onStateChanged(e:FindReplaceStateChangedEvent): void {
+		if (this._isDisposed) {
+			// The find model is disposed during a find state changed event
+			return;
+		}
 		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
 			if (e.searchScope) {
 				this.research(e.moveCursor, this._state.searchScope);
