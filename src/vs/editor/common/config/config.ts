@@ -11,6 +11,7 @@ import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {ICommandHandler} from 'vs/platform/commands/common/commands';
 
 const H = editorCommon.Handler;
 
@@ -69,10 +70,10 @@ function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number
 	KeybindingsRegistry.registerCommandDesc(desc);
 }
 
-function registerCoreDispatchCommand2(handlerId: string) {
+function registerOverwritableCommand(handlerId:string, handler:ICommandHandler): void {
 	let desc: ICommandDescriptor = {
 		id: handlerId,
-		handler: triggerEditorHandler.bind(null, handlerId),
+		handler: handler,
 		weight: KeybindingsRegistry.WEIGHT.editorCore(),
 		when: null,
 		primary: 0
@@ -81,21 +82,24 @@ function registerCoreDispatchCommand2(handlerId: string) {
 
 	let desc2: ICommandDescriptor = {
 		id: 'default:' + handlerId,
-		handler: (accessor: ServicesAccessor, args: any) => {
-			withCodeEditorFromCommandHandler(handlerId, accessor, (editor) => {
-				editor.trigger('keyboard', handlerId, args);
-			});
-		},
+		handler: handler,
 		weight: KeybindingsRegistry.WEIGHT.editorCore(),
 		when: null,
 		primary: 0
 	};
 	KeybindingsRegistry.registerCommandDesc(desc2);
 }
-registerCoreDispatchCommand2(H.Type);
-registerCoreDispatchCommand2(H.ReplacePreviousChar);
-registerCoreDispatchCommand2(H.Paste);
-registerCoreDispatchCommand2(H.Cut);
+
+function registerCoreDispatchCommand(handlerId: string): void {
+	registerOverwritableCommand(handlerId, triggerEditorHandler.bind(null, handlerId));
+}
+registerCoreDispatchCommand(H.Type);
+registerCoreDispatchCommand(H.ReplacePreviousChar);
+registerCoreDispatchCommand(H.Paste);
+registerCoreDispatchCommand(H.Cut);
+
+registerOverwritableCommand(H.CompositionStart, () => {});
+registerOverwritableCommand(H.CompositionEnd, () => {});
 
 function getMacWordNavigationKB(shift:boolean, key:KeyCode): number {
 	// For macs, word navigation is based on the alt modifier

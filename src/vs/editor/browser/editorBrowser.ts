@@ -122,6 +122,8 @@ export interface IViewController {
 	paste(source:string, text:string, pasteOnNewLine:boolean): void;
 	type(source: string, text: string): void;
 	replacePreviousChar(source: string, text: string, replaceCharCnt:number): void;
+	compositionStart(source: string): void;
+	compositionEnd(source: string): void;
 	cut(source:string): void;
 
 	emitKeyDown(e:IKeyboardEvent): void;

@@ -4243,6 +4243,8 @@ export var Handler = {
 
 	Type:						'type',
 	ReplacePreviousChar:		'replacePreviousChar',
+	CompositionStart:			'compositionStart',
+	CompositionEnd:				'compositionEnd',
 	Paste:						'paste',
 
 	Tab:						'tab',
