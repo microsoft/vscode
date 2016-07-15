@@ -10,6 +10,7 @@
 	"app.launch.json.version": "此檔案格式的版本。",
 	"debugNoType": "偵錯配接器 'type' 不能省略且必須屬於 'string' 類型。",
 	"duplicateDebuggerType": "偵錯類型 '{0}' 已註冊並具有屬性 '{1}'，即將略過屬性 '{1}'。",
+	"interactiveVariableNotFound": "配接器 {0} 未參與在啟動設定中指定的變數 {1}。",
 	"selectDebug": "選取環境",
 	"vscode.extension.contributes.debuggers": "提供偵錯配接器。",
 	"vscode.extension.contributes.debuggers.args": "要傳遞至配接器的選擇性引數。",
@@ -26,6 +27,7 @@
 	"vscode.extension.contributes.debuggers.runtime": "程式屬性不是可執行檔但需要執行階段時的選擇性執行階段。",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "選擇性執行階段引數。",
 	"vscode.extension.contributes.debuggers.type": "此偵錯配接器的唯一識別碼。",
+	"vscode.extension.contributes.debuggers.variables": "從 `launch.json` 中的互動式變數 (例如 ${action.pickProcess}) 對應到命令。",
 	"vscode.extension.contributes.debuggers.windows": "Windows 特定設定。",
 	"vscode.extension.contributes.debuggers.windows.runtime": "用於 Windows 的執行階段。"
 }

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set ELECTRON_RUN_AS_NODE=1
+set ATOM_SHELL_INTERNAL_RUN_AS_NODE=1
 
 rem TFS Builds
 if not "%BUILD_BUILDID%" == "" (

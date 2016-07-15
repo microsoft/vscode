@@ -28,6 +28,19 @@ interface IPosition {
 	y: number;
 }
 
+interface OldContextMenuAction extends IAction {
+	getGroupId(): string;
+	shouldShowInContextMenu(): boolean;
+	isSupported(): boolean;
+}
+
+namespace OldContextMenuAction {
+	export function is(thing: any): thing is OldContextMenuAction {
+		return typeof (<OldContextMenuAction>thing).getGroupId === 'function'
+			&& typeof (<OldContextMenuAction>thing).shouldShowInContextMenu === 'function';
+	}
+}
+
 class ContextMenuController implements IEditorContribution {
 
 	public static ID = 'editor.contrib.contextmenu';
@@ -130,18 +143,22 @@ class ContextMenuController implements IEditorContribution {
 			return [];
 		}
 
-		const contributedActions = <EditorAction[]>this._editor.getActions().filter(action => {
-			if (action instanceof EditorAction) {
+		const actions: IAction[] = [];
+		fillInActions(this._contextMenu, actions);
+
+		const oldContextMenuActions = <OldContextMenuAction[]>this._editor.getActions().filter(action => {
+			if (OldContextMenuAction.is(action)) {
 				return action.shouldShowInContextMenu() && action.isSupported();
 			}
 		});
+		if (oldContextMenuActions.length > 0) {
+			actions.push(new Separator(), ...ContextMenuController._prepareActions(oldContextMenuActions));
+		}
 
-		const actions = ContextMenuController._prepareActions(contributedActions);
-		fillInActions(this._contextMenu, actions);
 		return actions;
 	}
 
-	private static _prepareActions(actions: EditorAction[]): IAction[] {
+	private static _prepareActions(actions: OldContextMenuAction[]): IAction[] {
 
 		const data = actions.map(action => {
 			const groupId = action.getGroupId();

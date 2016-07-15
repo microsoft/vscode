@@ -256,19 +256,32 @@ export default class URI {
 		return new URI().with(components);
 	}
 
-	private static _validate(ret: URI): void {
+	private static _schemePattern = /^\w[\w\d+.-]*$/;
+	private static _singleSlashStart = /^\//;
+	private static _doubleSlashStart = /^\/\//;
 
-		// validation
+	private static _validate(ret: URI): void {
+		// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
+		// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+		if (ret.scheme && !URI._schemePattern.test(ret.scheme)) {
+			throw new Error('[UriError]: Scheme contains illegal characters.');
+		}
+
 		// path, http://tools.ietf.org/html/rfc3986#section-3.3
 		// If a URI contains an authority component, then the path component
 		// must either be empty or begin with a slash ("/") character.  If a URI
 		// does not contain an authority component, then the path cannot begin
 		// with two slash characters ("//").
-		if (ret.authority && ret.path && ret.path[0] !== '/') {
-			throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
-		}
-		if (!ret.authority && ret.path.indexOf('//') === 0) {
-			throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
+		if (ret.path) {
+			if (ret.authority) {
+				if (!URI._singleSlashStart.test(ret.path)) {
+					throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
+				}
+			} else {
+				if (URI._doubleSlashStart.test(ret.path)) {
+					throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
+				}
+			}
 		}
 	}
 

@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "启用/禁用 JavaScript 验证",
 	"typescript.reloadProjects.title": "重新加载 TypeScript 项目",
 	"typescript.tsdk.desc": "指定包含要使用的 tsserver 和 lib*.d.ts 文件的文件夹路径。",
+	"typescript.tsserver.experimentalAutoBuild": "启用实验性自动生成。要求安装 1.9 dev 或 2.x tsserver 版本并在更改后重启 VS Code。",
 	"typescript.tsserver.trace": "启用对发送到 TS 服务器的消息进行跟踪",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "完成函数的参数签名。",
 	"typescript.validate.enable": "启用/禁用 TypeScript 验证"

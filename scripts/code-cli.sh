@@ -26,7 +26,7 @@ function code() {
 
 	CLI="$ROOT/out/cli.js"
 
-	ELECTRON_RUN_AS_NODE=1 \
+	ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \

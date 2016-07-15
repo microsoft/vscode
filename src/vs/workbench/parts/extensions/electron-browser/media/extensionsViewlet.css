@@ -36,20 +36,16 @@
 	display: flex;
 }
 
-.extensions-viewlet > .extensions .extension.loading {
-	background-image: url('loading.svg');
-	background-position: center center;
-	background-repeat: no-repeat;
-}
-
 .extensions-viewlet > .extensions .extension > .icon {
 	width: 42px;
 	height: 42px;
 	padding: 10px 14px 10px 0;
 	flex-shrink: 0;
-	background-repeat: no-repeat;
-	background-size: 42px;
-	background-position: left center;
+	object-fit: contain;
+}
+
+.extensions-viewlet.narrow > .extensions .extension > .icon {
+	display: none;
 }
 
 .extensions-viewlet > .extensions .extension.loading > .icon {
@@ -65,6 +61,9 @@
 .extensions-viewlet > .extensions .extension > .details > .header {
 	display: flex;
 	align-items: baseline;
+	flex-wrap: wrap;
+	height: 19px;
+	overflow: hidden;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .name {
@@ -77,6 +76,7 @@
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;
+	min-width: fit-content;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header > .install-count:not(:empty) {
@@ -91,6 +91,11 @@
 
 .extensions-viewlet > .extensions .extension > .details > .header > .ratings {
 	text-align: right;
+}
+
+.extensions-viewlet.narrow > .extensions .extension > .details > .header > .ratings,
+.extensions-viewlet.narrow > .extensions .extension > .details > .header > .install-count {
+	display: none;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer {
@@ -133,9 +138,3 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 }
-
-/*.show-extension-recommendations.octicon {
-	font-size: 16px;
-	line-height: 35px;
-	text-align: center;
-}*/

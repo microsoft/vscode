@@ -15,7 +15,7 @@ import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/v
 import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
 import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 
-export class ViewOverlays extends ViewLayer {
+export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
 	private _dynamicOverlays:DynamicViewOverlay[];
 	private _isFocused:boolean;
@@ -74,7 +74,7 @@ export class ViewOverlays extends ViewLayer {
 
 	// ----- end event handlers
 
-	_createLine(): IVisibleLineData {
+	_createLine(): ViewOverlayLine {
 		var r = new ViewOverlayLine(this._context, this._dynamicOverlays);
 		return r;
 	}
@@ -104,7 +104,7 @@ export class ViewOverlays extends ViewLayer {
 	}
 }
 
-class ViewOverlayLine implements IVisibleLineData {
+export class ViewOverlayLine implements IVisibleLineData {
 
 	private _context:ViewContext;
 	private _dynamicOverlays:DynamicViewOverlay[];

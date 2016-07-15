@@ -164,7 +164,6 @@ export class SnippetsRegistry {
 		let currentFullWord = SnippetsRegistry.getNonWhitespacePrefix(model, position).toLowerCase();
 		let result : modes.ISuggestResult = {
 			currentWord: currentWord,
-			incomplete: currentWord.length === 0,
 			suggestions: []
 		};
 
@@ -193,6 +192,7 @@ export class SnippetsRegistry {
 				} else if (currentFullWord.length > currentWord.length && strings.startsWith(label, currentFullWord)) {
 					p = objects.clone(p);
 					p.overwriteBefore = currentFullWord.length;
+					p.filterText = label;
 				} else {
 					return;
 				}

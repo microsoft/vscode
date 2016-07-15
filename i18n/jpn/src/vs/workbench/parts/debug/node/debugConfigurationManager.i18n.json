@@ -10,6 +10,7 @@
 	"app.launch.json.version": "このファイル形式のバージョン。",
 	"debugNoType": "デバッグ アダプター 'type' は省略不可で、型 'string' でなければなりません。",
 	"duplicateDebuggerType": "デバッグの種類 '{0}' は既に登録されており、属性 '{1}' があります、属性 '{1}' は無視されます。",
+	"interactiveVariableNotFound": "アダプター {0} は、起動構成で指定されている変数 {1} を反映していません。",
 	"selectDebug": "環境の選択",
 	"vscode.extension.contributes.debuggers": "デバッグ アダプターを提供します。",
 	"vscode.extension.contributes.debuggers.args": "アダプターに渡すオプションの引数。",
@@ -26,6 +27,7 @@
 	"vscode.extension.contributes.debuggers.runtime": "プログラム属性が実行可能でなく、ランタイムが必要な場合のオプション ランタイム。",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "オプションのランタイム引数。",
 	"vscode.extension.contributes.debuggers.type": "このデバッグ アダプターの一意識別子。",
+	"vscode.extension.contributes.debuggers.variables": "`launch.json` 内の対話型の変数 (例: ${action.pickProcess}) からコマンドへマッピングしています。",
 	"vscode.extension.contributes.debuggers.windows": "Windows 固有の設定。",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Windows で使用されるランタイム。"
 }

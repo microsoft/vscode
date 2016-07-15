@@ -7,21 +7,7 @@
 	background: url('clear_output.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .output-action.clear-output {
-	background: url('clear_output_inverse.svg') center center no-repeat;
-}
-
-/* High Contrast Theming */
-
+.vs-dark .monaco-workbench .output-action.clear-output,
 .hc-black .monaco-workbench .output-action.clear-output {
-	background: none;
-}
-
-.hc-black .monaco-workbench .output-action.clear-output:before {
-	content: url('clear_output_inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
+	background: url('clear_output_inverse.svg') center center no-repeat;
 }

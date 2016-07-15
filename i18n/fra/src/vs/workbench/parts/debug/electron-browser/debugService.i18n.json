@@ -6,10 +6,12 @@
 {
 	"DebugTaskNotFound": "preLaunchTask '{0}' introuvable.",
 	"NewLaunchConfig": "Paramétrez le fichier de configuration de lancement pour votre application.",
+	"breakpointAdded": "Point d'arrêt ajouté, ligne {0}, fichier {1}",
+	"breakpointRemoved": "Point d'arrêt supprimé, ligne {0}, fichier {1}",
 	"debugAdapterCrash": "Le processus de l'adaptateur de débogage s'est terminé de manière inattendue",
 	"debugAnyway": "Déboguer quand même",
 	"debugSourceNotAvailable": "La source {0} n'est pas disponible.",
-	"debugTypeMissing": "Propriété 'type' manquante pour la configuration sélectionnée dans launch.json.",
+	"debugTypeMissing": "Propriété 'type' manquante pour la configuration de lancement choisie.",
 	"debugTypeNotSupported": "Le type de débogage '{0}' configuré n'est pas pris en charge.",
 	"debuggingContinued": "Le débogage s'est poursuivi.",
 	"debuggingPaused": "Débogage en pause. Raison : {0}, {1} {2}",

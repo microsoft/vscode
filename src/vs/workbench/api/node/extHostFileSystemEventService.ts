@@ -8,7 +8,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from './extHostTypes';
 import {match} from 'vs/base/common/glob';
 import {Uri, FileSystemWatcher as _FileSystemWatcher} from 'vscode';
-import {FileSystemEvents} from './extHostProtocol';
+import {FileSystemEvents, ExtHostFileSystemEventServiceShape} from './extHost.protocol';
 
 export class FileSystemWatcher implements _FileSystemWatcher {
 
@@ -87,18 +87,19 @@ export class FileSystemWatcher implements _FileSystemWatcher {
 	}
 }
 
-export class ExtHostFileSystemEventService {
+export class ExtHostFileSystemEventService extends ExtHostFileSystemEventServiceShape {
 
 	private _emitter = new Emitter<FileSystemEvents>();
 
 	constructor() {
+		super();
 	}
 
 	public createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {
 		return new FileSystemWatcher(this._emitter.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 
-	_onFileEvent(events: FileSystemEvents) {
+	$onFileEvent(events: FileSystemEvents) {
 		this._emitter.fire(events);
 	}
 }

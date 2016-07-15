@@ -10,6 +10,7 @@
 	"app.launch.json.version": "此文件格式的版本。",
 	"debugNoType": "不可省略调试适配器“类型”，其类型必须是“字符串”。",
 	"duplicateDebuggerType": "调试类型“{0}”已注册，且具有属性“{1}”，正在忽略属性“{1}”。",
+	"interactiveVariableNotFound": "适配器 {0} 不提供启动配置中指定的变量 {1}。",
 	"selectDebug": "选择环境",
 	"vscode.extension.contributes.debuggers": "用于调试适配器。",
 	"vscode.extension.contributes.debuggers.args": "要传递给适配器的可选参数。",
@@ -26,6 +27,7 @@
 	"vscode.extension.contributes.debuggers.runtime": "可选运行时，以防程序属性不可执行，但需要运行时。",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "可选运行时参数。",
 	"vscode.extension.contributes.debuggers.type": "此调试适配器的唯一标识符。",
+	"vscode.extension.contributes.debuggers.variables": "将 \"launch.json\" 中的交互式变量(例如 ${action.pickProcess})映射到命令中。",
 	"vscode.extension.contributes.debuggers.windows": "Windows 特定的设置。",
 	"vscode.extension.contributes.debuggers.windows.runtime": "用于 Windows 的运行时。"
 }

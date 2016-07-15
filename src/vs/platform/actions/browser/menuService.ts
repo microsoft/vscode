@@ -11,48 +11,10 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {values} from 'vs/base/common/collections';
 import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {MenuId, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuRegistry, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
-
-
-export interface IMenuRegistry {
-	addCommand(userCommand: ICommandAction): boolean;
-	getCommand(id: string): ICommandAction;
-	appendMenuItem(menu: MenuId, item: IMenuItem): void;
-}
-
-const _registry = new class {
-
-	commands: { [id: string]: ICommandAction } = Object.create(null);
-
-	menuItems: { [loc: number]: IMenuItem[] } = Object.create(null);
-
-	addCommand(command: ICommandAction): boolean {
-		const old = this.commands[command.id];
-		this.commands[command.id] = command;
-		return old !== void 0;
-	}
-
-	getCommand(id: string): ICommandAction {
-		return this.commands[id];
-	}
-
-	appendMenuItem(loc: MenuId, items: IMenuItem): void {
-		let array = this.menuItems[loc];
-		if (!array) {
-			this.menuItems[loc] = [items];
-		} else {
-			array.push(items);
-		}
-	}
-	getMenuItems(loc: MenuId): IMenuItem[] {
-		return this.menuItems[loc] || [];
-	}
-};
-
-export const MenuRegistry: IMenuRegistry = _registry;
 
 export class MenuService implements IMenuService {
 
@@ -70,7 +32,7 @@ export class MenuService implements IMenuService {
 	}
 
 	getCommandActions(): ICommandAction[] {
-		return values(_registry.commands);
+		return values(MenuRegistry.commands);
 	}
 }
 
@@ -90,7 +52,7 @@ class Menu implements IMenu {
 	) {
 		this._extensionService.onReady().then(_ => {
 
-			const menuItems = _registry.getMenuItems(id);
+			const menuItems = MenuRegistry.getMenuItems(id);
 			const keysFilter: { [key: string]: boolean } = Object.create(null);
 
 			let group: MenuItemGroup;
@@ -98,7 +60,7 @@ class Menu implements IMenu {
 
 			for (let item of menuItems) {
 				// group by groupId
-				const groupName = Menu._group(item.group);
+				const groupName = item.group;
 				if (!group || group[0] !== groupName) {
 					group = [groupName, []];
 					this._menuGroups.push(group);
@@ -143,7 +105,7 @@ class Menu implements IMenu {
 					activeActions.push(action);
 				}
 			}
-			if (actions.length > 0) {
+			if (activeActions.length > 0) {
 				result.push([id, activeActions]);
 			}
 		}
@@ -159,27 +121,41 @@ class Menu implements IMenu {
 	}
 
 	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
-		if (a.group === b.group) {
-			return a.command.title.localeCompare(b.command.title);
-		} else if (!a.group) {
+
+		let aGroup = a.group;
+		let bGroup = b.group;
+
+		// Falsy groups come last
+		if (!aGroup && bGroup) {
 			return 1;
-		} else if (!b.group) {
+		} else if (aGroup && !bGroup) {
 			return -1;
-		} else {
-			return Menu._compareGroupId(a.group, b.group);
 		}
-	}
 
-	private static _compareGroupId(a: string, b: string): number {
-		const a_order = Number(a.substr(a.lastIndexOf('@') + 1)) || 0;
-		const b_order = Number(b.substr(b.lastIndexOf('@') + 1)) || 0;
-		if (a_order !== b_order) {
-			return a_order < b_order ? -1 : 1;
+		// 'navigation' group comes first
+		if (aGroup === 'navigation') {
+			return -1;
+		} else if (bGroup === 'navigation') {
+			return 1;
 		}
-		return a.localeCompare(b);
-	}
 
-	private static _group(a: string): string {
-		return a && (a.substr(0, a.lastIndexOf('@')) || a);
+		// lexical sort for groups
+		if (aGroup < bGroup) {
+			return -1;
+		} else if(aGroup > bGroup) {
+			return 1;
+		}
+
+		// sort on priority - default is 0
+		let aPrio = a.order || 0;
+		let bPrio = b.order || 0;
+		if (aPrio < bPrio) {
+			return -1;
+		} else if (aPrio > bPrio) {
+			return 1;
+		}
+
+		// sort on titles
+		return a.command.title.localeCompare(b.command.title);
 	}
 }

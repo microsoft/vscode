@@ -749,7 +749,7 @@
 	},
 	{
 		"c": ".",
-		"t": "block.c.function.meta.punctuation.separator.variable-access",
+		"t": "block.c.dot-access.function.meta.punctuation.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -760,7 +760,7 @@
 	},
 	{
 		"c": "x",
-		"t": "block.c.dot-access.function.meta.other.variable",
+		"t": "block.c.function.member.meta.other.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",

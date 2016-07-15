@@ -9,8 +9,10 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as os from 'os';
 import * as path from 'path';
+import { mkdirp } from 'vs/base/node/pfs';
 import { parseArgs } from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class EnvironmentService implements IEnvironmentService {
 
@@ -18,6 +20,9 @@ export class EnvironmentService implements IEnvironmentService {
 
 	private _appRoot: string;
 	get appRoot(): string { return this._appRoot; }
+
+	private _userHome: string;
+	get userHome(): string { return this._userHome; }
 
 	private _userDataPath: string;
 	get userDataPath(): string { return this._userDataPath; }
@@ -36,10 +41,17 @@ export class EnvironmentService implements IEnvironmentService {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, process.argv);
 
-		const userHome = path.join(os.homedir(), product.dataFolderName);
-		this._extensionsPath = argv.extensionHomePath || path.join(userHome, 'extensions');
+		this._userHome = path.join(os.homedir(), product.dataFolderName);
+		this._extensionsPath = argv.extensionHomePath || path.join(this._userHome, 'extensions');
 		this._extensionsPath = path.normalize(this._extensionsPath);
 
 		this._extensionDevelopmentPath = argv.extensionDevelopmentPath;
+	}
+
+	createPaths(): TPromise<void> {
+		const promises = [this.userHome, this.extensionsPath]
+			.map(p => mkdirp(p));
+
+		return TPromise.join(promises) as TPromise<any>;
 	}
 }

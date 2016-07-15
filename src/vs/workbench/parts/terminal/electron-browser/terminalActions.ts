@@ -45,6 +45,27 @@ export class KillTerminalAction extends Action {
 	}
 }
 
+/**
+ * Copies the terminal selection. Note that since the command palette takes focus from the terminal,
+ * this can only be triggered via a keybinding.
+ */
+export class CopyTerminalSelectionAction extends Action {
+
+	public static ID = 'workbench.action.terminal.copySelection';
+	public static LABEL = nls.localize('workbench.action.terminal.copySelection', "Terminal: Copy Selection");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.copySelection();
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
@@ -112,6 +133,22 @@ export class FocusPreviousTerminalAction extends Action {
 
 	public run(event?: any): TPromise<any> {
 		return this.terminalService.focusPrevious();
+	}
+}
+export class TerminalPasteAction extends Action {
+
+	public static ID = 'workbench.action.terminal.paste';
+	public static LABEL = nls.localize('workbench.action.terminal.paste', "Terminal: Paste into Active Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.paste();
 	}
 }
 

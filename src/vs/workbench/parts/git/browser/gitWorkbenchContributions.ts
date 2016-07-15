@@ -523,6 +523,11 @@ export function registerContributions(): void {
 				description: nls.localize('gitPath', "Path to the git executable"),
 				default: null
 			},
+			'git.autorefresh': {
+				type: 'boolean',
+				description: nls.localize('gitAutoRefresh', "Whether auto refreshing is enabled"),
+				default: true
+			},
 			'git.autofetch': {
 				type: 'boolean',
 				description: nls.localize('gitAutoFetch', "Whether auto fetching is enabled."),
@@ -536,6 +541,11 @@ export function registerContributions(): void {
 			'git.allowLargeRepositories': {
 				type: 'boolean',
 				description: nls.localize('gitLargeRepos', "Always allow large repositories to be managed by Code."),
+				default: false
+			},
+			'git.confirmSync': {
+				type: 'boolean',
+				description: nls.localize('confirmSync', "Confirm before synchronizing git repositories."),
 				default: false
 			}
 		}

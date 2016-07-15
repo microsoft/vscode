@@ -6,6 +6,7 @@
 {
 	"commitMessage": "Mensaje (presione {0} para confirmar)",
 	"commitMessageAriaLabel": "GIT: Escriba un mensaje de confirmación y presione {0} para confirmar",
+	"longCommit": "Se recomienda mantener la primera línea de la confirmación por debajo de 50 caracteres. Puede usar más líneas para información adicional.",
 	"needMessage": "Especifique un mensaje de confirmación. Siempre puede presionar **{0}** para confirmar los cambios. Si hay cambios almacenados provisionalmente, solo se confirmarán dichos cambios; de lo contrario, se confirmarán todos los cambios.",
 	"nothingToCommit": "Cuando haya cambios para confirmar, escriba el mensaje de confirmación y presione **{0}** para confirmarlos. Si hay cambios almacenados provisionalmente, solo se confirmarán estos cambios; de lo contrario, se confirmarán todos los cambios.",
 	"showOutput": "Mostrar salida de GIT",

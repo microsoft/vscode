@@ -69,10 +69,6 @@
 	padding: 0 20px 0 20px;
 }
 
-.explorer-viewlet .action-close-all-files {
-	background: url("closeall.svg") center center no-repeat;
-}
-
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
@@ -97,6 +93,12 @@
 	cursor: default;
 }
 
+/* Bold font style does not go well with CJK fonts */
+.explorer-viewlet:lang(zh-Hans) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
+.explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
+.explorer-viewlet:lang(ja) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group,
+.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group { font-weight: normal; }
+
 /* Disable tree twistie */
 .explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
 .explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
@@ -111,15 +113,6 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
 	font-style: italic;
-}
-
-.monaco-workbench.mac .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
-	font-weight: 300; /* makes the italic font appear the same as normal */
-}
-
-/* Theming */
-.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("closeall_inverse.svg") center center no-repeat;
 }
 
 /* High Contrast Theming */

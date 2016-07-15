@@ -31,7 +31,8 @@ export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
 	when?: KbExpr;
-	group?: string;
+	group?: 'navigation' | string;
+	order?: number;
 }
 
 export enum MenuId {
@@ -50,6 +51,45 @@ export interface IMenuService {
 
 	getCommandActions(): ICommandAction[];
 }
+
+export interface IMenuRegistry {
+	commands: { [id: string]: ICommandAction };
+	addCommand(userCommand: ICommandAction): boolean;
+	getCommand(id: string): ICommandAction;
+	appendMenuItem(menu: MenuId, item: IMenuItem): void;
+	getMenuItems(loc: MenuId): IMenuItem[];
+}
+
+export const MenuRegistry: IMenuRegistry = new class {
+
+	commands: { [id: string]: ICommandAction } = Object.create(null);
+
+	menuItems: { [loc: number]: IMenuItem[] } = Object.create(null);
+
+	addCommand(command: ICommandAction): boolean {
+		const old = this.commands[command.id];
+		this.commands[command.id] = command;
+		return old !== void 0;
+	}
+
+	getCommand(id: string): ICommandAction {
+		return this.commands[id];
+	}
+
+	appendMenuItem(loc: MenuId, items: IMenuItem): void {
+		let array = this.menuItems[loc];
+		if (!array) {
+			this.menuItems[loc] = [items];
+		} else {
+			array.push(items);
+		}
+	}
+
+	getMenuItems(loc: MenuId): IMenuItem[] {
+		return this.menuItems[loc] || [];
+	}
+};
+
 
 export class MenuItemAction extends Actions.Action {
 

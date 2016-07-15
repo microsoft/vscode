@@ -6,7 +6,3 @@
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry.editor-preview {
 	font-style: italic;
 }
-
-.monaco-workbench.mac .quick-open-widget .quick-open-tree .quick-open-entry.editor-preview {
-	font-weight: 300; /* makes the italic font appear the same as normal */
-}

@@ -6,40 +6,31 @@
 .monaco-editor .margin-view-overlays .folding {
 	margin-left: 5px;
 	cursor: pointer;
-}
-
-.monaco-editor .margin-view-overlays .folding::after {
 	background-repeat: no-repeat;
 	background-origin: border-box;
 	background-position: 3px center;
 	background-size: 15px;
-	position: absolute;
-	top: 0;
-	left:0;
-	right: 0;
-	bottom: 0;
-	content: "";
 	opacity: 0;
 	transition: opacity 0.5s;
 }
 
-.monaco-editor .margin-view-overlays:hover .folding::after {
+.monaco-editor .margin-view-overlays:hover .folding {
 	background-image: url('arrow-expand.svg');
 	opacity: 1;
 }
 
-.monaco-editor .margin-view-overlays .folding.collapsed::after {
+.monaco-editor .margin-view-overlays .folding.collapsed {
 	background-image: url('arrow-collapse.svg');
 	opacity: 1;
 }
 
-.monaco-editor.hc-black .margin-view-overlays:hover .folding::after,
-.monaco-editor.vs-dark .margin-view-overlays:hover .folding::after {
+.monaco-editor.hc-black .margin-view-overlays:hover .folding,
+.monaco-editor.vs-dark .margin-view-overlays:hover .folding {
 	background-image: url('arrow-expand-dark.svg');
 }
 
-.monaco-editor.hc-black .margin-view-overlays .folding.collapsed::after,
-.monaco-editor.vs-dark .margin-view-overlays .folding.collapsed::after {
+.monaco-editor.hc-black .margin-view-overlays .folding.collapsed,
+.monaco-editor.vs-dark .margin-view-overlays .folding.collapsed {
 	background-image: url('arrow-collapse-dark.svg');
 }
 

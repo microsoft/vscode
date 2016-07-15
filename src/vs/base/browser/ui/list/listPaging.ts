@@ -94,6 +94,10 @@ export class PagedList<T> {
 		return this.list.scrollTop;
 	}
 
+	set scrollTop(scrollTop: number) {
+		this.list.scrollTop = scrollTop;
+	}
+
 	focusNext(n?: number, loop?: boolean): void {
 		this.list.focusNext(n, loop);
 	}
@@ -110,6 +114,14 @@ export class PagedList<T> {
 		this.list.selectPrevious(n, loop);
 	}
 
+	focusNextPage(): void {
+		this.list.focusNextPage();
+	}
+
+	focusPreviousPage(): void {
+		this.list.focusPreviousPage();
+	}
+
 	getFocus(): number[] {
 		return this.list.getFocus();
 	}
@@ -120,5 +132,9 @@ export class PagedList<T> {
 
 	layout(height?: number): void {
 		this.list.layout(height);
+	}
+
+	reveal(index: number, relativeTop?: number): void {
+		this.list.reveal(index, relativeTop);
 	}
 }

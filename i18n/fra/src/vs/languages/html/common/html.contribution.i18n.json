@@ -10,7 +10,7 @@
 	"format.indentInnerHtml": "Mettez en retrait les sections <head> et <body>.",
 	"format.maxPreserveNewLines": "Nombre maximal de sauts de ligne à conserver dans un bloc. Utilisez 'null' pour indiquer une valeur illimitée.",
 	"format.preserveNewLines": "Spécifie si les sauts de ligne existants qui précèdent les éléments doivent être conservés. Fonctionne uniquement devant les éléments, pas dans les balises, ni pour du texte.",
-	"format.unformatted": "Liste des balises, séparées par des virgules, qui ne doivent pas être remises en forme. 'null' correspond par défaut à toutes les balises intralignes.",
+	"format.unformatted": "Liste des balises, séparées par des virgules, qui ne doivent pas être remises en forme. 'null' correspond par défaut à toutes les balises répertoriées à l'adresse https://www.w3.org/TR/html5/dom.html#phrasing-content.",
 	"format.wrapLineLength": "Nombre maximal de caractères par ligne (0 = désactiver).",
 	"htmlConfigurationTitle": "Configuration HTML"
 }

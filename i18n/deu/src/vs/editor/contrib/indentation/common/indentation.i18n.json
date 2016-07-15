@@ -11,5 +11,6 @@
 	"indentationToSpaces": "Einzug in Leerzeichen konvertieren",
 	"indentationToTabs": "Einzug in Tabstopps konvertieren",
 	"selectTabWidth": "Tabulatorgröße für aktuelle Datei auswählen",
+	"toggleRenderControlCharacters": "Steuerzeichen umschalten",
 	"toggleRenderWhitespace": "Rendern von Leerzeichen umschalten"
 }

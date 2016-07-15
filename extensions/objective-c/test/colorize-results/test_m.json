@@ -2245,7 +2245,7 @@
 	},
 	{
 		"c": ".",
-		"t": "block.c.function-with-body.implementation.meta.objc.punctuation.scope.separator.variable-access",
+		"t": "block.c.dot-access.function-with-body.implementation.meta.objc.punctuation.scope.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -2256,7 +2256,7 @@
 	},
 	{
 		"c": "gestureRecognizers",
-		"t": "block.c.dot-access.function-with-body.implementation.meta.objc.other.scope.variable",
+		"t": "block.c.function-with-body.implementation.member.meta.objc.other.scope.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",

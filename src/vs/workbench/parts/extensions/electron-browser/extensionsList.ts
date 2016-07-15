@@ -16,16 +16,14 @@ import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsA
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 
 export interface ITemplateData {
-	extension: IExtension;
 	element: HTMLElement;
-	icon: HTMLElement;
+	icon: HTMLImageElement;
 	name: HTMLElement;
-	version: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
-	actionbar: ActionBar;
+	extension: IExtension;
 	disposables: IDisposable[];
 }
 
@@ -44,68 +42,73 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderTemplate(root: HTMLElement): ITemplateData {
 		const element = append(root, $('.extension'));
-		const icon = append(element, $('.icon'));
+		const icon = append(element, $<HTMLImageElement>('img.icon'));
 		const details = append(element, $('.details'));
 		const header = append(details, $('.header'));
 		const name = append(header, $('span.name'));
-		const version = append(header, $('span.version.ellipsis'));
+		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, { animated: false });
-		const disposables = [];
+
+		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
+		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
+		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
+
+		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const updateAction = this.instantiationService.createInstance(UpdateAction);
+		const restartAction = this.instantiationService.createInstance(EnableAction);
+
+		actionbar.push([restartAction, updateAction, installAction], actionOptions);
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, installAction, updateAction, restartAction, actionbar];
 
 		return {
-			extension: null, element, icon, name, version,
-			installCount, ratings, author, description,
-			actionbar, disposables
+			element, icon, name, installCount, ratings, author, description, disposables,
+			set extension(extension: IExtension) {
+				versionWidget.extension = extension;
+				installCountWidget.extension = extension;
+				ratingsWidget.extension = extension;
+				installAction.extension = extension;
+				updateAction.extension = extension;
+				restartAction.extension = extension;
+			}
 		};
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
-		data.disposables = dispose(data.disposables);
-
 		addClass(data.element, 'loading');
-		data.extension = null;
-		data.icon.style.backgroundImage = '';
+		data.icon.src = '';
 		data.name.textContent = '';
-		data.version.textContent = '';
-		data.installCount.style.display = 'none';
-		data.ratings.style.display = 'none';
 		data.author.textContent = '';
 		data.description.textContent = '';
-		data.actionbar.clear();
+		data.installCount.style.display = 'none';
+		data.ratings.style.display = 'none';
+		data.extension = null;
 	}
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
-		data.disposables = dispose(data.disposables);
-
 		removeClass(data.element, 'loading');
-		data.extension = extension;
-		data.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
+		data.icon.src = extension.iconUrl;
+
+		if (!data.icon.complete) {
+			data.icon.style.visibility = 'hidden';
+			data.icon.onload = () => data.icon.style.visibility = 'inherit';
+		} else {
+			data.icon.style.visibility = 'inherit';
+		}
+
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
-		data.installCount.style.display = 'initial';
-		data.ratings.style.display = 'initial';
-
-		const version = this.instantiationService.createInstance(Label, data.version, extension, e => e.version);
-		const installCount = this.instantiationService.createInstance(InstallWidget, data.installCount, extension, { small: true });
-		const ratings = this.instantiationService.createInstance(RatingsWidget, data.ratings, extension, { small: true });
-
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction, extension);
-		const updateAction = this.instantiationService.createInstance(UpdateAction, extension);
-		const restartAction = this.instantiationService.createInstance(EnableAction, extension);
-
-		data.actionbar.clear();
-		data.actionbar.push([restartAction, updateAction, installAction], actionOptions);
-
-		data.disposables.push(version, installCount, ratings, installAction, updateAction, restartAction);
+		data.installCount.style.display = '';
+		data.ratings.style.display = '';
+		data.extension = extension;
 	}
 
 	disposeTemplate(data: ITemplateData): void {
-		data.actionbar = dispose(data.actionbar);
+		data.disposables = dispose(data.disposables);
 	}
 }

@@ -9,8 +9,8 @@
 	"openFilesInNewWindow": "Se abilitata, apre i file in una nuova finestra invece di riutilizzare un'istanza esistente.",
 	"reopenFolders": "Controlla la modalità di riapertura delle cartelle dopo un riavvio. Selezionare 'none' per non riaprire mai una cartella, 'one' per riaprire l'ultima cartella usata oppure 'all' per riaprire tutte le cartelle dell'ultima sessione.",
 	"updateChannel": "Consente di configurare il canale di aggiornamento da cui ricevere gli aggiornamenti. Richiede un riavvio dopo la modifica.",
-	"updateConfigurationTitle": "Configurazione aggiornamenti",
+	"updateConfigurationTitle": "Aggiorna",
 	"view": "Visualizza",
-	"windowConfigurationTitle": "Configurazione finestre",
+	"windowConfigurationTitle": "Finestra",
 	"zoomLevel": "Consente di modificare il livello di zoom della finestra. Il valore originale è 0 e ogni incremento superiore (ad esempio 1) o inferiore (ad esempio -1) rappresenta un aumento o una diminuzione del 20% della percentuale di zoom. È anche possibile immettere valori decimali per modificare il livello di zoom con maggiore granularità."
 }

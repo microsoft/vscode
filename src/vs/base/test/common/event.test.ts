@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, {Emitter, fromEventEmitter, EventBufferer} from 'vs/base/common/event';
+import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
@@ -176,6 +176,37 @@ suite('Event',function(){
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
+	});
+
+	test('Debounce Event', function (done: () => void) {
+		let doc = new Samples.Document3();
+
+		let onDocDidChange = debounceEvent(doc.onDidChange, (prev: string[], cur) => {
+			if (!prev) {
+				prev = [cur];
+			} else if (prev.indexOf(cur) < 0) {
+				prev.push(cur);
+			}
+			return prev;
+		}, 10);
+
+		let count = 0;
+
+		onDocDidChange(keys => {
+			count++;
+			assert.ok(keys, 'was not expecting keys.');
+			if (count === 1) {
+				doc.setText('4');
+				assert.deepEqual(keys, ['1', '2', '3']);
+			} else if (count === 2){
+				assert.deepEqual(keys, ['4']);
+				done();
+			}
+		});
+
+		doc.setText('1');
+		doc.setText('2');
+		doc.setText('3');
 	});
 });
 

@@ -11,22 +11,28 @@ import { IExtension, IExtensionsWorkbenchService } from './extensions';
 import { append, emmet as $, addClass } from 'vs/base/browser/dom';
 
 export interface IOptions {
+	extension?: IExtension;
 	small?: boolean;
 }
 
 export class Label implements IDisposable {
 
 	private listener: IDisposable;
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.render(); }
 
 	constructor(
-		element: HTMLElement,
-		extension: IExtension,
-		fn: (extension: IExtension) => string,
+		private element: HTMLElement,
+		private fn: (extension: IExtension) => string,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		const render = () => element.textContent = fn(extension);
-		render();
-		this.listener = extensionsWorkbenchService.onChange(render);
+		this.render();
+		this.listener = extensionsWorkbenchService.onChange(this.render, this);
+	}
+
+	private render(): void {
+		this.element.textContent = this.extension ? this.fn(this.extension) : '';
 	}
 
 	dispose(): void {
@@ -37,21 +43,29 @@ export class Label implements IDisposable {
 export class InstallWidget implements IDisposable {
 
 	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.render(); }
 
 	constructor(
 		private container: HTMLElement,
-		private extension: IExtension,
 		private options: IOptions,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
+		this._extension = options.extension;
 		this.disposables.push(extensionsWorkbenchService.onChange(() => this.render()));
 		addClass(container, 'extension-install-count');
 		this.render();
 	}
 
 	private render(): void {
-		const installCount = this.extension.installCount;
 		this.container.innerHTML = '';
+
+		if (!this.extension) {
+			return;
+		}
+
+		const installCount = this.extension.installCount;
 
 		if (installCount === null) {
 			return;
@@ -80,13 +94,16 @@ export class InstallWidget implements IDisposable {
 export class RatingsWidget implements IDisposable {
 
 	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.render(); }
 
 	constructor(
 		private container: HTMLElement,
-		private extension: IExtension,
 		private options: IOptions,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
+		this._extension = options.extension;
 		this.disposables.push(extensionsWorkbenchService.onChange(() => this.render()));
 		addClass(container, 'extension-ratings');
 
@@ -98,27 +115,38 @@ export class RatingsWidget implements IDisposable {
 	}
 
 	private render(): void {
-		const rating = Math.round(this.extension.rating * 2) / 2;
 		this.container.innerHTML = '';
 
-		if (rating === null) {
+		if (!this.extension) {
 			return;
 		}
 
-		for (let i = 1; i <= 5; i++) {
-			if (rating >= i) {
-				append(this.container, $('span.full.star'));
-			} else if (rating >= i - 0.5) {
-				append(this.container, $('span.half.star'));
-			} else {
-				append(this.container, $('span.empty.star'));
+		const rating = Math.round(this.extension.rating * 2) / 2;
+
+		if (this.extension.rating === null) {
+			return;
+		}
+
+		if (this.options.small && this.extension.ratingCount === 0) {
+			return;
+		}
+
+		if (this.options.small) {
+			append(this.container, $('span.full.star'));
+		} else {
+			for (let i = 1; i <= 5; i++) {
+				if (rating >= i) {
+					append(this.container, $('span.full.star'));
+				} else if (rating >= i - 0.5) {
+					append(this.container, $('span.half.star'));
+				} else {
+					append(this.container, $('span.empty.star'));
+				}
 			}
 		}
 
-		if (!this.options.small) {
-			const count = append(this.container, $('span.count'));
-			count.textContent = String(this.extension.ratingCount);
-		}
+		const count = append(this.container, $('span.count'));
+		count.textContent = String(this.options.small ? rating : this.extension.ratingCount);
 	}
 
 	dispose(): void {

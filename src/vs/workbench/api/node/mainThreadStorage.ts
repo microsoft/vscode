@@ -6,16 +6,18 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {MainThreadStorageShape} from './extHost.protocol';
 
-export class MainThreadStorage {
+export class MainThreadStorage extends MainThreadStorageShape {
 
 	private _storageService: IStorageService;
 
 	constructor( @IStorageService storageService: IStorageService) {
+		super();
 		this._storageService = storageService;
 	}
 
-	getValue<T>(shared: boolean, key: string): TPromise<T> {
+	$getValue<T>(shared: boolean, key: string): TPromise<T> {
 		let jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		if (!jsonValue) {
 			return TPromise.as(undefined);
@@ -29,7 +31,7 @@ export class MainThreadStorage {
 		}
 	}
 
-	setValue(shared: boolean, key: string, value: any): TPromise<any> {
+	$setValue(shared: boolean, key: string, value: any): TPromise<any> {
 		let jsonValue: any;
 		try {
 			jsonValue = JSON.stringify(value);

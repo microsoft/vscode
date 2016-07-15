@@ -38,7 +38,7 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import vscode = require('vscode');
 import * as paths from 'vs/base/common/paths';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {MainContext, ExtHostContext, InstanceCollection} from './extHostProtocol';
+import {MainContext, ExtHostContext, InstanceCollection} from './extHost.protocol';
 
 /**
  * This class implements the API described in vscode.d.ts,

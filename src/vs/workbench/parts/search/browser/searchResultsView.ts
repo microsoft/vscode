@@ -161,20 +161,19 @@ export class SearchRenderer extends ActionsRenderer {
 		// Match
 		else if (element instanceof Match) {
 			dom.addClass(domElement, 'linematch');
-
+			let match= <Match>element;
 			let elements: string[] = [];
-			let preview = element.preview();
+			let preview = match.preview();
 
 			elements.push('<span>');
 			elements.push(strings.escape(preview.before));
 
-			let input= <SearchResult>tree.getInput();
-			let showReplaceText= input.searchModel.hasReplaceText();
+			let showReplaceText= (<SearchResult>tree.getInput()).searchModel.hasReplaceString();
 			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
 			elements.push(strings.escape(preview.inside));
 			if (showReplaceText) {
 				elements.push('</span><span class="replaceMatch">');
-				elements.push(strings.escape(input.searchModel.replaceText));
+				elements.push(strings.escape(match.replaceString));
 			}
 			elements.push('</span><span>');
 			elements.push(strings.escape(preview.after));
@@ -182,7 +181,7 @@ export class SearchRenderer extends ActionsRenderer {
 
 			$('a.plain')
 				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + (input.searchModel.isReplaceActive() ? input.searchModel.replaceText : preview.inside) + preview.after).trim().substr(0, 999))
+				.title((preview.before + (showReplaceText ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999))
 				.appendTo(domElement);
 		}
 
@@ -203,12 +202,13 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof Match) {
+			let match= <Match> element;
 			let input= <SearchResult>tree.getInput();
 			if (input.searchModel.isReplaceActive()) {
-				let preview = element.preview();
-				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + input.searchModel.replaceText + preview.after);
+				let preview = match.preview();
+				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + match.replaceString + preview.after);
 			}
-			return nls.localize('searchResultAria', "{0}, Search result", element.text());
+			return nls.localize('searchResultAria', "{0}, Search result", match.text());
 		}
 	}
 }

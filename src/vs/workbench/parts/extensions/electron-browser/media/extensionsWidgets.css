@@ -7,6 +7,10 @@
 	display: inline-block;
 }
 
+.extension-ratings.small {
+	font-size: 80%;
+}
+
 .extension-ratings > .star {
 	display: inline-block;
 	width: 16px;
@@ -25,17 +29,21 @@
 }
 
 .extension-ratings > .full {
-	background-image: url('./FullStarLight.svg');
+	background-image: url('FullStarLight.svg');
 }
 
 .extension-ratings > .half {
-	background-image: url('./HalfStarLight.svg');
+	background-image: url('HalfStarLight.svg');
 }
 
 .extension-ratings > .empty {
-	background-image: url('./EmptyStar.svg');
+	background-image: url('EmptyStar.svg');
 }
 
 .extension-ratings > .count {
 	margin-left: 6px;
+}
+
+.extension-ratings.small > .count {
+	margin-left: 2px;
 }

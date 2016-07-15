@@ -15,7 +15,7 @@ import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
-import {Position, IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
+import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -311,30 +311,20 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private navigate(): void {
 		let state = this.stack[this.index];
 
+		let options = state.options;
+		if (options) {
+			options.revealIfOpened = true;
+		} else {
+			options = { revealIfOpened: true };
+		}
+
 		this.blockStackChanges = true;
-		this.editorService.openEditor(state.input, state.options, this.findVisibleEditorPosition(state.input)).done(() => {
+		this.editorService.openEditor(state.input, options).done(() => {
 			this.blockStackChanges = false;
 		}, (error) => {
 			this.blockStackChanges = false;
 			errors.onUnexpectedError(error);
 		});
-	}
-
-	private findVisibleEditorPosition(input: IEditorInput): Position {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && input.matches(activeEditor.input)) {
-			return activeEditor.position;
-		}
-
-		let editors = this.editorService.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-			if (editor !== activeEditor && input.matches(editor.input)) {
-				return editor.position;
-			}
-		}
-
-		return null;
 	}
 
 	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor): void {

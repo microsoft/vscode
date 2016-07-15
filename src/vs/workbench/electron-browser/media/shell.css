@@ -16,11 +16,11 @@
 
 /* Font Families (with CJK support) */
 
-.monaco-shell { font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; }
-.monaco-shell:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-shell:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
-.monaco-shell:lang(ja) { font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
-.monaco-shell:lang(ko) { font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+.monaco-shell { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif; }
+.monaco-shell:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.monaco-shell:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
+.monaco-shell:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
+.monaco-shell:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 @-webkit-keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -196,10 +196,6 @@
 	text-decoration: underline;
 }
 
-.monaco-shell a.strong {
-	font-weight: bold;
-}
-
 a:active {
 	color: inherit;
 	background-color: inherit;
@@ -233,25 +229,12 @@ a:active {
 	border-bottom: 5px solid white;
 }
 
-.monaco-shell .context-view .monaco-menu .actions-container {
-	min-width: 160px;
-}
-
-.monaco-shell .monaco-menu .action-label.check {
-	font-weight: bold;
-}
-
-.monaco-shell .monaco-menu .action-label.uncheck {
-	font-weight: normal;
-}
-
 .monaco-shell input:disabled {
 	background-color: #E1E1E1;
 }
 
-/**
- * Dark Theme
- */
+/* ---------- Dark Theme ---------- */
+
 .monaco-shell.vs-dark {
 	color: #BBB;
 	background-color: #1E1E1E;
@@ -278,9 +261,8 @@ a:active {
 	background-color: #333;
 }
 
-/**
- * High Contrast Theme
- */
+/* ---------- High Contrast Theme ---------- */
+
 .monaco-shell.hc-black { color: #fff; background-color: #000; }
 
 .monaco-shell.hc-black .context-view .tooltip {
