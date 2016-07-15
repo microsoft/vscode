@@ -1274,3 +1274,51 @@ export class FocusLastEditorInStackAction extends Action {
 		return TPromise.as(true);
 	}
 }
+
+export class MoveEditorToLeftGroupAction extends Action {
+
+	public static ID = 'workbench.action.moveEditorToLeftGroup';
+	public static LABEL = nls.localize('moveEditorToLeftGroup', "Move Editor into Group to the Left");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== Position.LEFT) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position - 1);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToRightGroupAction extends Action {
+
+	public static ID = 'workbench.action.moveEditorToRightGroup';
+	public static LABEL = nls.localize('moveEditorToRightGroup', "Move Editor into Group to the Right");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== Position.RIGHT) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position + 1);
+		}
+
+		return TPromise.as(true);
+	}
+}
