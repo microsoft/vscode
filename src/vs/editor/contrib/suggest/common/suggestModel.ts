@@ -330,7 +330,7 @@ export class SuggestModel implements IDisposable {
 
 		const position = this.editor.getPosition();
 
-		this.requestPromise = provideSuggestionItems(model, position, groups).then(all => {
+		this.requestPromise = provideSuggestionItems(model, position, { groups, snippetConfig: this.editor.getConfiguration().contribInfo.snippetSuggestions }).then(all => {
 			this.requestPromise = null;
 
 			if (this.state === State.Idle) {

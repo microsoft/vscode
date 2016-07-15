@@ -261,7 +261,6 @@ class InternalEditorOptionsHelper {
 			formatOnType: toBoolean(opts.formatOnType),
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
-			snippetOrder: opts.snippetOrder,
 			snippetSuggestions: opts.snippetSuggestions,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			referenceInfos: toBoolean(opts.referenceInfos),
@@ -710,15 +709,10 @@ let editorConfiguration:IConfigurationNode = {
 			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions.")
 		},
 		'editor.snippetSuggestions': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions.")
-		},
-		'editor.snippetOrder': {
 			'type': 'string',
-			'enum': ['top', 'bottom', 'normal'],
-			'default': 'normal',
-			'description': nls.localize('snippetOrder', "Controls how snippets are sorted when shown with other suggestions.")
+			'enum': ['top', 'bottom', 'inline', 'none'],
+			'default': DefaultConfig.editor.snippetSuggestions,
+			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		},
 		'editor.selectionHighlight' : {
 			'type': 'boolean',
