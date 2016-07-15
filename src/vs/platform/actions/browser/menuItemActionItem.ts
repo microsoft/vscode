@@ -24,18 +24,21 @@ export function fillInActions(menu: IMenu, target: IAction[] | { primary: IActio
 	}
 
 	for (let tuple of actions) {
-		let [group, actions] = tuple;
+		let [group, tupleActions] = tuple;
+		if (tupleActions.length === 0) {
+			continue;
+		}
 		if (group === 'navigation') {
 			if (Array.isArray<IAction>(target)) {
-				target.unshift(...actions);
+				target.unshift(...tupleActions);
 			} else {
-				target.primary.unshift(...actions);
+				target.primary.unshift(...tupleActions);
 			}
 		} else {
 			if (Array.isArray<IAction>(target)) {
-				target.push(new Separator(), ...actions);
+				target.push(new Separator(), ...tupleActions);
 			} else {
-				target.secondary.push(new Separator(), ...actions);
+				target.secondary.push(new Separator(), ...tupleActions);
 			}
 		}
 	}
