@@ -40,20 +40,24 @@ export namespace CompletionItemComparator {
 	}
 
 	export function snippetUpComparator(a: CompletionItem, b: CompletionItem): number {
-		if (a.suggestion.type === 'snippet') {
-			return -1;
-		} else if (b.suggestion.type === 'snippet') {
-			return 1;
+		if (a.suggestion.type !== b.suggestion.type) {
+			if (a.suggestion.type === 'snippet') {
+				return -1;
+			} else if (b.suggestion.type === 'snippet') {
+				return 1;
+			}
 		} else {
 			return defaultComparator(a, b);
 		}
 	}
 
 	export function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
-		if (a.suggestion.type === 'snippet') {
-			return 1;
-		} else if (b.suggestion.type === 'snippet') {
-			return -1;
+		if (a.suggestion.type !== b.suggestion.type) {
+			if (a.suggestion.type === 'snippet') {
+				return 1;
+			} else if (b.suggestion.type === 'snippet') {
+				return -1;
+			}
 		} else {
 			return defaultComparator(a, b);
 		}
