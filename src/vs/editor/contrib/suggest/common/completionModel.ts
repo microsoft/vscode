@@ -11,66 +11,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
-import {ISuggestResult2} from './suggest';
+import {ISuggestionItem} from './suggest';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
-
-export interface CompletionItemComparator {
-	(a: CompletionItem, b: CompletionItem): number;
-}
-
-export namespace CompletionItemComparator {
-
-	export function fromConfig(order: 'top' | 'bottom' | string): CompletionItemComparator {
-		return order === 'top'
-			? CompletionItemComparator.snippetUpComparator
-			: order === 'bottom'
-				? CompletionItemComparator.snippetDownComparator
-				: CompletionItemComparator.defaultComparator;
-	}
-
-	export function defaultComparator(item: CompletionItem, otherItem: CompletionItem): number {
-		const suggestion = item.suggestion;
-		const otherSuggestion = otherItem.suggestion;
-
-		if (typeof suggestion.sortText === 'string' && typeof otherSuggestion.sortText === 'string') {
-			const one = suggestion.sortText.toLowerCase();
-			const other = otherSuggestion.sortText.toLowerCase();
-
-			if (one < other) {
-				return -1;
-			} else if (one > other) {
-				return 1;
-			}
-		}
-
-		return suggestion.label.toLowerCase() < otherSuggestion.label.toLowerCase() ? -1 : 1;
-	}
-
-	export function snippetUpComparator(a: CompletionItem, b: CompletionItem): number {
-		if (a.suggestion.type !== b.suggestion.type) {
-			if (a.suggestion.type === 'snippet') {
-				return -1;
-			} else if (b.suggestion.type === 'snippet') {
-				return 1;
-			}
-		} else {
-			return defaultComparator(a, b);
-		}
-	}
-
-	export function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
-		if (a.suggestion.type !== b.suggestion.type) {
-			if (a.suggestion.type === 'snippet') {
-				return 1;
-			} else if (b.suggestion.type === 'snippet') {
-				return -1;
-			}
-		} else {
-			return defaultComparator(a, b);
-		}
-	}
-}
 
 export class CompletionItem {
 
@@ -81,11 +24,11 @@ export class CompletionItem {
 
 	private _support: ISuggestSupport;
 
-	constructor(suggestion: ISuggestion, container: ISuggestResult2) {
-		this._support = container.support;
-		this.suggestion = suggestion;
-		this.container = container;
-		this.filter = container.support && container.support.filter || fuzzyContiguousFilter;
+	constructor(item: ISuggestionItem) {
+		this.suggestion = item.suggestion;
+		this.container = item.container;
+		this.filter = item.support && item.support.filter || fuzzyContiguousFilter;
+		this._support = item.support;
 	}
 
 	resolveDetails(model:IReadOnlyModel, position:Position): TPromise<ISuggestion> {
@@ -110,22 +53,18 @@ export class LineContext {
 
 export class CompletionModel {
 
-	public raw: ISuggestResult2[];
+	public raw: ISuggestionItem[];
 
 	private _lineContext: LineContext;
 	private _items: CompletionItem[] = [];
 	private _filteredItems: CompletionItem[] = undefined;
 
-	constructor(raw: ISuggestResult2[], leadingLineContent: string, comparator: CompletionItemComparator, ignoreSnippets: boolean) {
+	constructor(raw: ISuggestionItem[], leadingLineContent: string) {
+		this.raw = raw;
 		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
-		for (let container of raw) {
-			for (let suggestion of container.suggestions) {
-				if (!ignoreSnippets || suggestion.type !== 'snippet') {
-					this._items.push(new CompletionItem(suggestion, container));
-				}
-			}
+		for (const item of raw) {
+			this._items.push(new CompletionItem(item));
 		}
-		this._items.sort(comparator);
 	}
 
 	get lineContext(): LineContext {

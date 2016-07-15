@@ -12,8 +12,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {ISuggestResult2, provideCompletionItems} from './suggest';
-import {CompletionModel, CompletionItemComparator} from './completionModel';
+import {ISuggestionItem, provideSuggestionItems} from './suggest';
+import {CompletionModel} from './completionModel';
 import {Position} from 'vs/editor/common/core/position';
 
 export interface ICancelEvent {
@@ -168,7 +168,7 @@ export class SuggestModel implements IDisposable {
 	private requestPromise: TPromise<void>;
 	private context: Context;
 
-	private raw: ISuggestResult2[];
+	private raw: ISuggestionItem[];
 	private completionModel: CompletionModel;
 	private incomplete: boolean;
 
@@ -330,7 +330,7 @@ export class SuggestModel implements IDisposable {
 
 		const position = this.editor.getPosition();
 
-		this.requestPromise = provideCompletionItems(model, position, groups).then(all => {
+		this.requestPromise = provideSuggestionItems(model, position, groups).then(all => {
 			this.requestPromise = null;
 
 			if (this.state === State.Idle) {
@@ -338,7 +338,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			this.raw = all;
-			this.incomplete = all.some(result => result.incomplete);
+			this.incomplete = all.some(result => result.container.incomplete);
 
 			const model = this.editor.getModel();
 
@@ -379,10 +379,7 @@ export class SuggestModel implements IDisposable {
 					isFrozen = true;
 				}
 			} else {
-				const {contribInfo} = this.editor.getConfiguration();
-				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore,
-					CompletionItemComparator.fromConfig(contribInfo.snippetOrder),
-					!contribInfo.snippetSuggestions);
+				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore);
 			}
 
 			this._onDidSuggest.fire({
