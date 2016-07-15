@@ -13,7 +13,7 @@ File a single issue per problem and feature request, do not file combo issues.
 
 The more information you can provide, the more likely someone will be successful reproducing the issue and finding a fix. Therefore:
 
-* Provide reproducable steps, what the result of the steps was, and what you would have expected.
+* Provide reproducible steps, what the result of the steps was, and what you would have expected.
 * Description of what you expect to happen
 * Animated GIFs
 * Code that demonstrates the issue
