@@ -430,6 +430,8 @@ export class TextFileService extends AbstractTextFileService {
 		// - https://github.com/electron/electron/issues/3556
 		// - https://github.com/Microsoft/vscode/issues/451
 		// - Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
+		// - Bug on Windows: Cannot save file without extension
+		// - Bug on Windows: Untitled files get just the first extension of the list
 		// Until these issues are resolved, we disable the dialog file extension filtering.
 		let disable = true; // Simply using if (true) flags the code afterwards as not reachable.
 		if (disable) {
