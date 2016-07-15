@@ -83,6 +83,7 @@ class ConfigClass implements IConfiguration {
 			formatOnType: false,
 			suggestOnTriggerCharacters: true,
 			acceptSuggestionOnEnter: true,
+			snippetOrder: 'normal',
 			selectionHighlight: true,
 			referenceInfos: true,
 			folding: true,
