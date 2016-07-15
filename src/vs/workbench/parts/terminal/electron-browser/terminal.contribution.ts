@@ -53,7 +53,7 @@ configurationRegistry.registerConfiguration({
 			'default': []
 		},
 		'terminal.integrated.shell.windows': {
-			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows."),
+			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu), prefer C:\\Windows\\sysnative over C:\\Windows\\System32 to use the 64-bit versions."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		},
