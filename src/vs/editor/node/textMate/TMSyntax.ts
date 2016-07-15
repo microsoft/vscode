@@ -12,7 +12,7 @@ import {ILineTokens, IMode, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
 import {LineTokens, Token} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IGrammar, Registry} from 'vscode-textmate';
+import {IGrammar, Registry, StackElement} from 'vscode-textmate';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
@@ -239,6 +239,15 @@ export class TMTokenDecodeData {
 	}
 }
 
+function depth(stackElement: StackElement): number {
+	let result = 0;
+	while (stackElement) {
+		result++;
+		stackElement = stackElement._parent;
+	}
+	return result;
+}
+
 class Tokenizer {
 	private _grammar: IGrammar;
 	private _modeId: string;
@@ -251,7 +260,9 @@ class Tokenizer {
 	}
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
-		if (line.length >= 20000) {
+		// Do not attempt to tokenize if a line has over 20k
+		// or if the rule stack contains more than 30 rules (indicator of broken grammar that forgets to pop rules)
+		if (line.length >= 20000 || depth(state.getRuleStack()) > 30) {
 			return new LineTokens(
 				[new Token(offsetDelta, '')],
 				[new ModeTransition(offsetDelta, state.getMode())],
