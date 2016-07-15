@@ -12,7 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
+import {ISuggestResult2, provideCompletionItems} from './suggest';
 import {CompletionModel, CompletionItemComparator} from './completionModel';
 import {Position} from 'vs/editor/common/core/position';
 

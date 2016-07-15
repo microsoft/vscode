@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
-import {ISuggestResult2} from '../common/suggest';
+import {ISuggestResult2} from './suggest';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
 
