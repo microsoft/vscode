@@ -25,7 +25,7 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
  */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = 'terminalFocus';
 
-export var ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
+export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export interface ITerminalConfiguration {
 	terminal: {

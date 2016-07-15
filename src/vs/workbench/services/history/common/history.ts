@@ -7,7 +7,7 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
 
-export var IHistoryService = createDecorator<IHistoryService>('historyService');
+export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
 export interface IHistoryService {
 

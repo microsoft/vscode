@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { EditorInput } from 'vs/workbench/common/editor';
 
-export var IReplaceService = createDecorator<IReplaceService>('replaceService');
+export const IReplaceService = createDecorator<IReplaceService>('replaceService');
 
 export interface IReplaceService {
 

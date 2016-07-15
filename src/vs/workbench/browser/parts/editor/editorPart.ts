@@ -1114,8 +1114,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 
 		// Pass to instantiated editors
-		for (var i = 0; i < this.instantiatedEditors.length; i++) {
-			for (var j = 0; j < this.instantiatedEditors[i].length; j++) {
+		for (let i = 0; i < this.instantiatedEditors.length; i++) {
+			for (let j = 0; j < this.instantiatedEditors[i].length; j++) {
 				if (this.visibleEditors.some(editor => editor === this.instantiatedEditors[i][j])) {
 					continue;
 				}

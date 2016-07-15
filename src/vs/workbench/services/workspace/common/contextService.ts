@@ -11,7 +11,7 @@ import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspace, IConfiguration, IWorkspaceContextService as IBaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 
-export var IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
+export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService extends IBaseWorkspaceContextService {
 	_serviceBrand: any;

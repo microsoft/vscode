@@ -16,7 +16,7 @@ export enum GroupArrangement {
 	EVEN_WIDTH
 }
 
-export var IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
+export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
 /**
  * The editor service allows to open editors and work on the active

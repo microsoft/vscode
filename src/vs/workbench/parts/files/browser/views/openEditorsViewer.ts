@@ -279,7 +279,7 @@ export class Controller extends treedefaults.DefaultController {
 	}
 
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-		var element = tree.getFocus();
+		const element = tree.getFocus();
 
 		// Editor groups should never get selected nor expanded/collapsed
 		if (element instanceof EditorGroup) {
