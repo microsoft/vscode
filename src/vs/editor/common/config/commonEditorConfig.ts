@@ -601,7 +601,7 @@ let editorConfiguration:IConfigurationNode = {
 		'editor.lineHeight' : {
 			'type': 'number',
 			'default': DefaultConfig.editor.lineHeight,
-			'description': nls.localize('lineHeight', "Controls the line height.")
+			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
 		},
 		'editor.lineNumbers' : {
 			'type': 'boolean',
