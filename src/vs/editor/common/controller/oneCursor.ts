@@ -1511,6 +1511,25 @@ export class OneCursorOp {
 		return result;
 	}
 
+	private static _replaceJumpToNextIndent(cursor:OneCursor, selection:Selection): ReplaceCommand {
+		let typeText = '';
+
+		let position = selection.getStartPosition();
+		let modelOpts = cursor.model.getOptions();
+		if (modelOpts.insertSpaces) {
+			let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
+			let tabSize = modelOpts.tabSize;
+			let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
+			for (let i = 0; i < spacesCnt; i++) {
+				typeText += ' ';
+			}
+		} else {
+			typeText = '\t';
+		}
+
+		return new ReplaceCommand(selection, typeText);
+	}
+
 	public static tab(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 		let selection = cursor.getSelection();
 
@@ -1529,28 +1548,14 @@ export class OneCursorOp {
 				}
 			}
 
-			let typeText = '';
-			let position = cursor.getPosition();
-			let modelOpts = cursor.model.getOptions();
-			if (modelOpts.insertSpaces) {
-				let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
-				let tabSize = modelOpts.tabSize;
-				let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
-				for (let i = 0; i < spacesCnt; i++) {
-					typeText += ' ';
-				}
-			} else {
-				typeText = '\t';
-			}
-
-			ctx.executeCommand = new ReplaceCommand(selection, typeText);
+			ctx.executeCommand = this._replaceJumpToNextIndent(cursor, selection);
 			return true;
 		} else {
 			if (selection.startLineNumber === selection.endLineNumber) {
 				let lineMaxColumn = cursor.model.getLineMaxColumn(selection.startLineNumber);
 				if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
 					// This is a single line selection that is not the entire line
-					ctx.executeCommand = new ReplaceCommand(selection, '\t');
+					ctx.executeCommand = this._replaceJumpToNextIndent(cursor, selection);
 					return true;
 				}
 			}
