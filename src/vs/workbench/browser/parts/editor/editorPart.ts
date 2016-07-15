@@ -20,7 +20,7 @@ import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
+import {IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions} from 'vs/workbench/common/editor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {GroupArrangement} from 'vs/workbench/services/group/common/groupService';
@@ -36,6 +36,7 @@ import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IProgressService} from 'vs/platform/progress/common/progress';
+import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorStacksModel, EditorGroup, EditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -754,8 +755,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number): void {
 
+		// When moving an editor, try to preserve as much view state as possible by checking
+		// for th editor to be a text editor and creating the options accordingly if so
+		let options = EditorOptions.create({ pinned: true, index });
+		const activeEditor = this.getActiveEditor();
+		if (activeEditor instanceof BaseTextEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
+			options = TextEditorOptions.create({ pinned: true, index });
+			(<TextEditorOptions>options).viewState(activeEditor.getControl().saveViewState());
+		}
+
 		// A move to another group is an open first...
-		this.openEditor(input, EditorOptions.create({ pinned: true, index }), to).done(null, errors.onUnexpectedError);
+		this.openEditor(input, options, to).done(null, errors.onUnexpectedError);
 
 		// and a close afterwards...
 		this.doCloseEditor(fromGroup, input, false /* do not activate next one behind if any */);
@@ -1150,7 +1160,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (options && options.revealIfVisible) {
 			const editorsToCheck: BaseEditor[] = [];
 			if (activeEditor) { editorsToCheck.push(activeEditor); }
-			visibleEditors.forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e); }});
+			visibleEditors.forEach(e => { if (e !== activeEditor) { editorsToCheck.push(e); } });
 			for (let i = 0; i < editorsToCheck.length; i++) {
 				const editorToCheck = editorsToCheck[i];
 				if (input.matches(editorToCheck.input)) {
