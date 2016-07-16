@@ -246,7 +246,7 @@ export class ExtensionHostMain {
 
 		return TPromise.join(
 			Object.keys(desiredFilesMap).map(
-				(fileName) => pfs.fileExistsWithResult(paths.join(folderPath, fileName), fileName)
+				(fileName) => pfs.existsWithResult(paths.join(folderPath, fileName), fileName)
 			)
 		).then((fileNames: string[]) => {
 			fileNames.forEach((existingFileName) => {
