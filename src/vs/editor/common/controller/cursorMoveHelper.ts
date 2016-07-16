@@ -193,6 +193,14 @@ export class CursorMoveHelper {
 		};
 	}
 
+	public getColumnAtBeginningOfVisualLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return model.getLineFirstNonWhitespaceColumn(lineNumber) || 1;
+	}
+
+	public getColumnAtBeginningOfLogicalLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return model.getLineMinColumn(lineNumber);
+	}
+
 	public getColumnAtBeginningOfLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
 		var firstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(lineNumber) || 1;
 		var minColumn = model.getLineMinColumn(lineNumber);
@@ -204,6 +212,15 @@ export class CursorMoveHelper {
 		}
 
 		return column;
+	}
+
+	public getColumnAtEndOfVisualLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		var maxColumn = model.getLineMaxColumn(lineNumber);
+		return model.getLineLastNonWhitespaceColumn(lineNumber) || maxColumn;
+	}
+
+	public getColumnAtEndOfLogicalLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return model.getLineMaxColumn(lineNumber);
 	}
 
 	public getColumnAtEndOfLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {

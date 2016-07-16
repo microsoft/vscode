@@ -78,12 +78,36 @@ function moveUp(cursor: Cursor, linesCount: number, inSelectionMode: boolean = f
 	}
 }
 
-function moveToBeginningOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorHomeSelect : H.CursorHome);
+function moveToBeginningOfLineVisualThenLogical(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorHomeVisualThenLogicalSelect : H.CursorHomeVisualThenLogical);
 }
 
-function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ?  H.CursorEndSelect : H.CursorEnd);
+function moveToBeginningOfLineLogicalThenVisual(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorHomeLogicalThenVisualSelect : H.CursorHomeLogicalThenVisual);
+}
+
+function moveToBeginningOfLineVisualOnly(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorHomeVisualOnlySelect : H.CursorHomeVisualOnly);
+}
+
+function moveToBeginningOfLineLogicalOnly(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorHomeLogicalOnlySelect : H.CursorHomeLogicalOnly);
+}
+
+function moveToEndOfLineVisualThenLogical(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorEndVisualThenLogicalSelect : H.CursorEndVisualThenLogical);
+}
+
+function moveToEndOfLineLogicalThenVisual(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorEndLogicalThenVisualSelect : H.CursorEndLogicalThenVisual);
+}
+
+function moveToEndOfLineVisualOnly(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorEndVisualOnlySelect : H.CursorEndVisualOnly);
+}
+
+function moveToEndOfLineLogicalOnly(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorEndLogicalOnlySelect : H.CursorEndLogicalOnly);
 }
 
 function moveToBeginningOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
@@ -458,9 +482,9 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('move up and down with end of lines starting from a long one', () => {
-		moveToEndOfLine(thisCursor);
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length - 1);
-		moveToEndOfLine(thisCursor);
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length + 1);
 		moveDown(thisCursor, 1);
 		cursorEqual(thisCursor, 2, LINE2.length + 1);
@@ -476,67 +500,253 @@ suite('Editor Controller - Cursor', () => {
 
 	// --------- move to beginning of line
 
-	test('move to beginning of line', () => {
-		moveToBeginningOfLine(thisCursor);
+	test('move to beginning of line (visual then logical)', () => {
+		moveToBeginningOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, 6);
-		moveToBeginningOfLine(thisCursor);
+		moveToBeginningOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, 1);
 	});
 
-	test('move to beginning of line from within line', () => {
+	test('move to beginning of line (logical then visual)', () => {
+		moveToBeginningOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+		moveToBeginningOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move to beginning of line (visual only)', () => {
+		moveToBeginningOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+		moveToBeginningOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to beginning of line (logical only)', () => {
+		moveToBeginningOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+		moveToBeginningOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move to beginning of line from within line (visual then logical)', () => {
 		moveTo(thisCursor, 1, 8);
-		moveToBeginningOfLine(thisCursor);
+		moveToBeginningOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, 6);
-		moveToBeginningOfLine(thisCursor);
+		moveToBeginningOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, 1);
 	});
 
-	test('move to beginning of line from whitespace at beginning of line', () => {
+	test('move to beginning of line from within line (logical then visual)', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToBeginningOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+		moveToBeginningOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to beginning of line from within line (visual only)', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToBeginningOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+		moveToBeginningOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to beginning of line from within line (logical only)', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToBeginningOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+		moveToBeginningOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move to beginning of line from whitespace at beginning of line (visual then logical)', () => {
 		moveTo(thisCursor, 1, 2);
-		moveToBeginningOfLine(thisCursor);
+		moveToBeginningOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, 1);
-		moveToBeginningOfLine(thisCursor);
+		moveToBeginningOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, 6);
 	});
 
-	test('move to beginning of line from within line selection', () => {
+	test('move to beginning of line from whitespace at beginning of line (logical then visual)', () => {
+		moveTo(thisCursor, 1, 2);
+		moveToBeginningOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+		moveToBeginningOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to beginning of line from whitespace at beginning of line (visual only)', () => {
+		moveTo(thisCursor, 1, 2);
+		moveToBeginningOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+		moveToBeginningOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move to beginning of line from whitespace at beginning of line (logical only)', () => {
+		moveTo(thisCursor, 1, 2);
+		moveToBeginningOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+		moveToBeginningOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move to beginning of line from within line selection (visual then logical)', () => {
 		moveTo(thisCursor, 1, 8);
-		moveToBeginningOfLine(thisCursor, true);
+		moveToBeginningOfLineVisualThenLogical(thisCursor, true);
 		cursorEqual(thisCursor, 1, 6, 1, 8);
-		moveToBeginningOfLine(thisCursor, true);
+		moveToBeginningOfLineVisualThenLogical(thisCursor, true);
+		cursorEqual(thisCursor, 1, 1, 1, 8);
+	});
+
+	test('move to beginning of line from within line selection (logical then visual)', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToBeginningOfLineLogicalThenVisual(thisCursor, true);
+		cursorEqual(thisCursor, 1, 1, 1, 8);
+		moveToBeginningOfLineLogicalThenVisual(thisCursor, true);
+		cursorEqual(thisCursor, 1, 6, 1, 8);
+	});
+
+	test('move to beginning of line from within line selection (visual only)', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToBeginningOfLineVisualOnly(thisCursor, true);
+		cursorEqual(thisCursor, 1, 6, 1, 8);
+		moveToBeginningOfLineVisualOnly(thisCursor, true);
+		cursorEqual(thisCursor, 1, 6, 1, 8);
+	});
+
+	test('move to beginning of line from within line selection (logical only)', () => {
+		moveTo(thisCursor, 1, 8);
+		moveToBeginningOfLineLogicalOnly(thisCursor, true);
+		cursorEqual(thisCursor, 1, 1, 1, 8);
+		moveToBeginningOfLineLogicalOnly(thisCursor, true);
 		cursorEqual(thisCursor, 1, 1, 1, 8);
 	});
 
 	// --------- move to end of line
 
-	test('move to end of line', () => {
-		moveToEndOfLine(thisCursor);
+	test('move to end of line (visual then logical)', () => {
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length - 1);
-		moveToEndOfLine(thisCursor);
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length + 1);
 	});
 
-	test('move to end of line from within line', () => {
+	test('move to end of line (logical then visual)', () => {
+		moveToEndOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		moveToEndOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to end of line (visual only)', () => {
+		moveToEndOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		moveToEndOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to end of line (logical only)', () => {
+		moveToEndOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		moveToEndOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	test('move to end of line from within line (visual then logical)', () => {
 		moveTo(thisCursor, 1, 6);
-		moveToEndOfLine(thisCursor);
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length - 1);
-		moveToEndOfLine(thisCursor);
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length + 1);
 	});
 
-	test('move to end of line from whitespace at end of line', () => {
+	test('move to end of line from within line (logical then visual)', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToEndOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		moveToEndOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to end of line from within line (visual only)', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToEndOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		moveToEndOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to end of line from within line (logical only)', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToEndOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		moveToEndOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	test('move to end of line from whitespace at end of line (visual then logical)', () => {
 		moveTo(thisCursor, 1, 20);
-		moveToEndOfLine(thisCursor);
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length + 1);
-		moveToEndOfLine(thisCursor);
+		moveToEndOfLineVisualThenLogical(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length - 1);
 	});
 
-	test('move to end of line from within line selection', () => {
+	test('move to end of line from whitespace at end of line (logical then visual)', () => {
+		moveTo(thisCursor, 1, 20);
+		moveToEndOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		moveToEndOfLineLogicalThenVisual(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to end of line from whitespace at end of line (visual only)', () => {
+		moveTo(thisCursor, 1, 20);
+		moveToEndOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+		moveToEndOfLineVisualOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+	});
+
+	test('move to end of line from whitespace at end of line (logical only)', () => {
+		moveTo(thisCursor, 1, 20);
+		moveToEndOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+		moveToEndOfLineLogicalOnly(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	test('move to end of line from within line selection (visual then logical)', () => {
 		moveTo(thisCursor, 1, 6);
-		moveToEndOfLine(thisCursor, true);
+		moveToEndOfLineVisualThenLogical(thisCursor, true);
 		cursorEqual(thisCursor, 1, LINE1.length - 1, 1, 6);
-		moveToEndOfLine(thisCursor, true);
+		moveToEndOfLineVisualThenLogical(thisCursor, true);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 6);
+	});
+
+	test('move to end of line from within line selection (logical then visual)', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToEndOfLineLogicalThenVisual(thisCursor, true);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 6);
+		moveToEndOfLineLogicalThenVisual(thisCursor, true);
+		cursorEqual(thisCursor, 1, LINE1.length - 1, 1, 6);
+	});
+
+	test('move to end of line from within line selection (visual only)', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToEndOfLineVisualOnly(thisCursor, true);
+		cursorEqual(thisCursor, 1, LINE1.length - 1, 1, 6);
+		moveToEndOfLineVisualOnly(thisCursor, true);
+		cursorEqual(thisCursor, 1, LINE1.length - 1, 1, 6);
+	});
+
+	test('move to end of line from within line selection (logical only)', () => {
+		moveTo(thisCursor, 1, 6);
+		moveToEndOfLineLogicalOnly(thisCursor, true);
+		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 6);
+		moveToEndOfLineLogicalOnly(thisCursor, true);
 		cursorEqual(thisCursor, 1, LINE1.length + 1, 1, 6);
 	});
 

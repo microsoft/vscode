@@ -3219,10 +3219,33 @@ declare module monaco.editor {
         CursorPageUpSelect: string;
         CursorPageDown: string;
         CursorPageDownSelect: string;
+
         CursorHome: string;
         CursorHomeSelect: string;
+
+        CursorHomeVisualThenLogical: string; // more descriptive alias for 'CursorHome'
+        CursorHomeLogicalThenVisual: string;
+        CursorHomeVisualOnly: string;
+        CursorHomeLogicalOnly: string;
+
+        CursorHomeVisualThenLogicalSelect: string; // more descriptive alias for 'CursorHomeSelect'
+        CursorHomeLogicalThenVisualSelect: string;
+        CursorHomeVisualOnlySelect: string;
+        CursorHomeLogicalOnlySelect: string;
+
         CursorEnd: string;
         CursorEndSelect: string;
+
+        CursorEndVisualThenLogical: string; // more descriptive alias for 'CursorEnd'
+        CursorEndLogicalThenVisual: string;
+        CursorEndVisualOnly: string;
+        CursorEndLogicalOnly: string;
+
+        CursorEndVisualThenLogicalSelect: string; // more descriptive alias for 'CursorEndSelect'
+        CursorEndLogicalThenVisualSelect: string;
+        CursorEndVisualOnlySelect: string;
+        CursorEndLogicalOnlySelect: string;
+
         ExpandLineSelection: string;
         CursorTop: string;
         CursorTopSelect: string;

@@ -209,18 +209,38 @@ registerCoreCommand(H.CursorHome, {
 	primary: KeyCode.Home,
 	mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow, KeyMod.WinCtrl | KeyCode.KEY_A] }
 });
+registerCoreDispatchCommand2(H.CursorHomeVisualThenLogical);
+registerCoreDispatchCommand2(H.CursorHomeLogicalThenVisual);
+registerCoreDispatchCommand2(H.CursorHomeVisualOnly);
+registerCoreDispatchCommand2(H.CursorHomeLogicalOnly);
+
 registerCoreCommand(H.CursorHomeSelect, {
 	primary: KeyMod.Shift | KeyCode.Home,
 	mac: { primary: KeyMod.Shift | KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow] }
 });
+registerCoreDispatchCommand2(H.CursorHomeVisualThenLogicalSelect);
+registerCoreDispatchCommand2(H.CursorHomeLogicalThenVisualSelect);
+registerCoreDispatchCommand2(H.CursorHomeVisualOnlySelect);
+registerCoreDispatchCommand2(H.CursorHomeLogicalOnlySelect);
+
 registerCoreCommand(H.CursorEnd, {
 	primary: KeyCode.End,
 	mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow, KeyMod.WinCtrl | KeyCode.KEY_E] }
 });
+registerCoreDispatchCommand2(H.CursorEndVisualThenLogical);
+registerCoreDispatchCommand2(H.CursorEndLogicalThenVisual);
+registerCoreDispatchCommand2(H.CursorEndVisualOnly);
+registerCoreDispatchCommand2(H.CursorEndLogicalOnly);
+
 registerCoreCommand(H.CursorEndSelect, {
 	primary: KeyMod.Shift | KeyCode.End,
 	mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 });
+registerCoreDispatchCommand2(H.CursorEndVisualThenLogicalSelect);
+registerCoreDispatchCommand2(H.CursorEndLogicalThenVisualSelect);
+registerCoreDispatchCommand2(H.CursorEndVisualOnlySelect);
+registerCoreDispatchCommand2(H.CursorEndLogicalOnlySelect);
+
 registerCoreCommand(H.ExpandLineSelection, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_I
 });

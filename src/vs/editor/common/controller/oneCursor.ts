@@ -108,6 +108,38 @@ export enum WordNavigationType {
 	WordEnd = 1
 }
 
+/**
+ * Navigation mode when jumping to the beginning or at the end of a line.
+ * Remark: This is usually what happens when you press the 'Home' or the 'End' key.
+ * Terminology:
+ * - logical beginning/end of line: boundaries of a line, including the white-spaces.
+ * - visual beginning/end of line: boundaries of a line, excluding the white-spaces.
+ * Example:
+ * "        alice and bob alice and bob       "
+ *  |       |                         |      |
+ *  ^-------|-- logical boundaries ---|------^
+ *          |                         |
+ *          ^--- visual boundaries ---^
+ */
+export enum LineNavigationType {
+	/**
+	 * First jumps to the visual boundary, then to the logical one, and so forth.
+	 */
+	VisualThenLogical = 0,
+	/**
+	 * First jumps to the logical boundary, then to the visual one, and so forth.
+	 */
+	LogicalThenVisual = 1,
+	/**
+	 * Always jumps to the visual boundary.
+	 */
+	VisualOnly = 2,
+	/**
+	 * Always jumps to the logical boundary.
+	 */
+	LogicalOnly = 3
+}
+
 const CH_REGULAR = CharacterClass.Regular;
 const CH_WHITESPACE = CharacterClass.Whitespace;
 const CH_WORD_SEPARATOR = CharacterClass.WordSeparator;
@@ -530,8 +562,20 @@ export class OneCursor {
 	public getPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
 		return this.helper.getPositionDown(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
+	public getColumnAtBeginningOfVisualLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtBeginningOfVisualLine(this.model, lineNumber, column);
+	}
+	public getColumnAtBeginningOfLogicalLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtBeginningOfLogicalLine(this.model, lineNumber, column);
+	}
 	public getColumnAtBeginningOfLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtBeginningOfLine(this.model, lineNumber, column);
+	}
+	public getColumnAtEndOfVisualLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtEndOfVisualLine(this.model, lineNumber, column);
+	}
+	public getColumnAtEndOfLogicalLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtEndOfLogicalLine(this.model, lineNumber, column);
 	}
 	public getColumnAtEndOfLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtEndOfLine(this.model, lineNumber, column);
@@ -565,8 +609,20 @@ export class OneCursor {
 	public getViewPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
 		return this.helper.getPositionDown(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
+	public getColumnAtBeginningOfVisualViewLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtBeginningOfVisualLine(this.viewModelHelper.viewModel, lineNumber, column);
+	}
+	public getColumnAtBeginningOfLogicalViewLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtBeginningOfLogicalLine(this.viewModelHelper.viewModel, lineNumber, column);
+	}
 	public getColumnAtBeginningOfViewLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtBeginningOfLine(this.viewModelHelper.viewModel, lineNumber, column);
+	}
+	public getColumnAtEndOfVisualViewLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtEndOfVisualLine(this.viewModelHelper.viewModel, lineNumber, column);
+	}
+	public getColumnAtEndOfLogicalViewLine(lineNumber:number, column:number): number {
+		return this.helper.getColumnAtEndOfLogicalLine(this.viewModelHelper.viewModel, lineNumber, column);
 	}
 	public getColumnAtEndOfViewLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtEndOfLine(this.viewModelHelper.viewModel, lineNumber, column);
@@ -900,23 +956,64 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveToBeginningOfLine(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+	public static moveToBeginningOfLine(cursor:OneCursor, inSelectionMode: boolean, lineNavigationType: LineNavigationType, ctx: IOneCursorOperationContext): boolean {
 		let validatedViewPosition = cursor.getValidViewPosition();
 		let viewLineNumber = validatedViewPosition.lineNumber;
 		let viewColumn = validatedViewPosition.column;
 
-		viewColumn = cursor.getColumnAtBeginningOfViewLine(viewLineNumber, viewColumn);
+		var firstNonBlankColumn = cursor.getColumnAtBeginningOfVisualViewLine(viewLineNumber, viewColumn);
+		var minColumn = cursor.getColumnAtBeginningOfLogicalViewLine(viewLineNumber, viewColumn);
+
+		if (lineNavigationType === LineNavigationType.VisualThenLogical) {
+			if (viewColumn !== minColumn && viewColumn <= firstNonBlankColumn) {
+				viewColumn = minColumn;
+			} else {
+				viewColumn = firstNonBlankColumn;
+			}
+		} else if (lineNavigationType === LineNavigationType.LogicalThenVisual) {
+			if (viewColumn !== minColumn) {
+				viewColumn = minColumn;
+			} else {
+				viewColumn = firstNonBlankColumn;
+			}
+		} else if (lineNavigationType === LineNavigationType.LogicalOnly) {
+			viewColumn = minColumn;
+		} else if (lineNavigationType === LineNavigationType.VisualOnly) {
+			viewColumn = firstNonBlankColumn;
+		}
+
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
 		return true;
 	}
 
-	public static moveToEndOfLine(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+	public static moveToEndOfLine(cursor:OneCursor, inSelectionMode: boolean, lineNavigationType: LineNavigationType, ctx: IOneCursorOperationContext): boolean {
 		let validatedViewPosition = cursor.getValidViewPosition();
 		let viewLineNumber = validatedViewPosition.lineNumber;
 		let viewColumn = validatedViewPosition.column;
 
-		viewColumn = cursor.getColumnAtEndOfViewLine(viewLineNumber, viewColumn);
+		let maxColumn = cursor.getColumnAtEndOfLogicalViewLine(viewLineNumber, viewColumn);
+		let lastNonBlankColumn = cursor.getColumnAtEndOfVisualViewLine(viewLineNumber, viewColumn);
+
+		if (lineNavigationType === LineNavigationType.VisualThenLogical) {
+
+			if (viewColumn !== maxColumn && viewColumn >= lastNonBlankColumn) {
+				viewColumn = maxColumn;
+			} else {
+				viewColumn = lastNonBlankColumn;
+			}
+		} else if (lineNavigationType === LineNavigationType.LogicalThenVisual) {
+			if (viewColumn !== maxColumn) {
+				viewColumn = maxColumn;
+			} else {
+				viewColumn = lastNonBlankColumn;
+			}
+		} else if (lineNavigationType === LineNavigationType.LogicalOnly) {
+			viewColumn = maxColumn;
+		} else if (lineNavigationType === LineNavigationType.VisualOnly) {
+			viewColumn = lastNonBlankColumn;
+		}
+
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, viewLineNumber, viewColumn, 0, true);
 		return true;
@@ -2033,8 +2130,24 @@ class CursorHelper {
 		return this.moveHelper.getPositionDown(model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 
+	public getColumnAtBeginningOfVisualLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return this.moveHelper.getColumnAtBeginningOfVisualLine(model, lineNumber, column);
+	}
+
+	public getColumnAtBeginningOfLogicalLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return this.moveHelper.getColumnAtBeginningOfLogicalLine(model, lineNumber, column);
+	}
+
 	public getColumnAtBeginningOfLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
 		return this.moveHelper.getColumnAtBeginningOfLine(model, lineNumber, column);
+	}
+
+	public getColumnAtEndOfVisualLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return this.moveHelper.getColumnAtEndOfVisualLine(model, lineNumber, column);
+	}
+
+	public getColumnAtEndOfLogicalLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return this.moveHelper.getColumnAtEndOfLogicalLine(model, lineNumber, column);
 	}
 
 	public getColumnAtEndOfLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
