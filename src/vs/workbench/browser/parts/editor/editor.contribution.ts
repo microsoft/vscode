@@ -424,7 +424,7 @@ Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
 			const commandService = accessor.get(ICommandService);
 
 			messageService.show(Severity.Warning, {
-				message: nls.localize('commandDeprecated', "Command **{0}** is now deprecated. You can use **{1}** instead", deprecatedCommandId, newCommandId),
+				message: nls.localize('commandDeprecated', "Command **{0}** has been removed. You can use **{1}** instead", deprecatedCommandId, newCommandId),
 				actions: [
 					CloseAction,
 					new Action('openKeybindings', nls.localize('openKeybindings', "Configure Keyboard Shortcuts"), null, true, () => {
