@@ -90,8 +90,29 @@ export class UserSettings {
 	}
 
 	private registerWatchers(): void {
-		this.watcher = fs.watch(path.dirname(this.appSettingsPath));
-		this.watcher.on('change', (eventType: string, fileName: string) => this.onSettingsFileChange(eventType, fileName));
+		let self = this;
+		function attachSettingsChangeWatcher(watchPath: string): void {
+			self.watcher = fs.watch(watchPath);
+			self.watcher.on('change', (eventType: string, fileName: string) => self.onSettingsFileChange(eventType, fileName));
+		}
+
+		let settingsDir = path.dirname(this.appSettingsPath);
+		let settingsPath = path.join(settingsDir, 'settings.json');
+		fs.lstat(settingsPath, function(err, stats) {
+			if (err) {
+				// Attach to the directory if the file doesn't exist
+				attachSettingsChangeWatcher(settingsDir);
+			} else if (stats.isSymbolicLink()) {
+				fs.readlink(self.appSettingsPath, function(err, realPath) {
+					if (err) {
+						attachSettingsChangeWatcher(self.appSettingsPath);
+					}
+					attachSettingsChangeWatcher(realPath);
+				});
+			} else {
+				attachSettingsChangeWatcher(self.appSettingsPath);
+			}
+		});
 	}
 
 	private onSettingsFileChange(eventType: string, fileName: string): void {
