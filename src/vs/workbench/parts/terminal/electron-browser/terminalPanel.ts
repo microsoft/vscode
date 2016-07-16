@@ -21,7 +21,7 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Panel} from 'vs/workbench/browser/panel';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {ITerminalFont, TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 
 export class TerminalPanel extends Panel {
@@ -34,6 +34,8 @@ export class TerminalPanel extends Panel {
 	private terminalContainer: HTMLElement;
 	private currentBaseThemeId: string;
 	private themeStyleElement: HTMLElement;
+	private fontStyleElement: HTMLElement;
+	private font: ITerminalFont;
 	private configurationHelper: TerminalConfigHelper;
 
 	constructor(
@@ -88,10 +90,12 @@ export class TerminalPanel extends Panel {
 		this.terminalService.initConfigHelper(parent);
 		DOM.addClass(this.parentDomElement, 'integrated-terminal');
 		this.themeStyleElement = document.createElement('style');
+		this.fontStyleElement = document.createElement('style');
 
 		this.terminalContainer = document.createElement('div');
 		DOM.addClass(this.terminalContainer, 'terminal-outer-container');
 		this.parentDomElement.appendChild(this.themeStyleElement);
+		this.parentDomElement.appendChild(this.fontStyleElement);
 		this.parentDomElement.appendChild(this.terminalContainer);
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
@@ -210,9 +214,26 @@ export class TerminalPanel extends Panel {
 		if (this.terminalInstances.length === 0) {
 			return;
 		}
-		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].setFont(this.configurationHelper.getFont());
+		let newFont = this.configurationHelper.getFont();
 		DOM.toggleClass(this.parentDomElement, 'enable-ligatures', this.configurationHelper.getFontLigaturesEnabled());
+		if (!this.font || this.fontsDiffer(this.font, newFont)) {
+			this.fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
+				`font-family: ${newFont.fontFamily};` +
+				`font-size: ${newFont.fontSize};` +
+				`line-height: ${newFont.lineHeight};` +
+				'}';
+			this.font = newFont;
+		}
+		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].setFont(newFont);
 		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
+	}
+
+	private fontsDiffer(a: ITerminalFont, b: ITerminalFont): boolean {
+		return a.charHeight !== b.charHeight ||
+			a.charWidth !== b.charWidth ||
+			a.fontFamily !== b.fontFamily ||
+			a.fontSize !== b.fontSize ||
+			a.lineHeight !== b.lineHeight;
 	}
 
 	private updateCursorBlink(): void {

@@ -130,9 +130,6 @@ export class TerminalInstance {
 
 	public setFont(font: ITerminalFont): void {
 		this.font = font;
-		this.terminalDomElement.style.fontFamily = this.font.fontFamily;
-		this.terminalDomElement.style.lineHeight = this.font.lineHeight;
-		this.terminalDomElement.style.fontSize = this.font.fontSize;
 	}
 
 	public setCursorBlink(blink: boolean): void {
