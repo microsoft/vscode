@@ -102,7 +102,8 @@ export interface IPointerHandlerHelper {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData;
-	shouldSuppressMouseDownOnViewZone(viewZoneId:number): boolean;
+	shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
+	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**
 	 * Decode an Editor.IPosition from a rendered dom node
@@ -302,7 +303,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 				this._mouseDownOperation.start(t.type, e);
 				e.preventDefault();
 			}
-		} else if (targetIsWidget && (<string>t.detail).indexOf('codeLensWidget') === 0) {
+		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>t.detail)) {
 			focus();
 			e.preventDefault();
 		}
