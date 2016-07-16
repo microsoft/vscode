@@ -22,7 +22,7 @@ export const DEFAULT_TERMINAL_LINUX = defaultTerminalLinux;
 
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
-export const DEFAULT_TERMINAL_WINDOWS = 'cmd';
+export const DEFAULT_TERMINAL_WINDOWS = '%COMSPEC%';
 
 export interface ITerminalConfiguration {
 	terminal: {
