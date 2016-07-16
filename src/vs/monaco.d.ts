@@ -3434,6 +3434,7 @@ declare module monaco.editor {
          * Render this content widget in a location where it could overflow the editor's view dom node.
          */
         allowEditorOverflow?: boolean;
+        suppressMouseDown?: boolean;
         /**
          * Get a unique identifier of the content widget.
          */
