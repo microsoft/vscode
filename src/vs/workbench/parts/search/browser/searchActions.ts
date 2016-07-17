@@ -23,6 +23,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { getPathLabel } from 'vs/base/common/labels';
+import { clipboard } from 'electron';
 
 export function isSearchViewletFocussed(viewletService: IViewletService):boolean {
 	let activeViewlet= viewletService.getActiveViewlet();
@@ -209,6 +211,23 @@ export class ReplaceAction extends Action {
 		return this.element.parent().replace(this.element).then(() => {
 			this.viewlet.open(this.element);
 		});
+	}
+}
+
+export class CopySearchResultPathAction extends Action {
+	private resource: URI;
+	constructor(resource: URI) {
+		super('copySearchResultPath', nls.localize('copyPath', "Copy Path"));
+
+		this.resource = resource;
+
+		this.order = 140;
+	}
+
+	public run(): TPromise<any> {
+		clipboard.writeText(getPathLabel(this.resource));
+
+		return TPromise.as(true);
 	}
 }
 

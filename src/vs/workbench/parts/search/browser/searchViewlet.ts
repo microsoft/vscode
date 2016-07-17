@@ -50,7 +50,7 @@ import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter, SearchActionProvider } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -84,6 +84,7 @@ export class SearchViewlet extends Viewlet {
 	private inputPatternGlobalExclusionsContainer: Builder;
 	private inputPatternIncludes: PatternInputWidget;
 	private results: Builder;
+	private _searchActionProvider: SearchActionProvider;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -109,7 +110,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
-
+		this._searchActionProvider = instantiationService.createInstance(SearchActionProvider, this);
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e) => this.onUntitledFileSaved(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
@@ -390,14 +391,14 @@ export class SearchViewlet extends Viewlet {
 			this.results = div;
 
 			let dataSource = new SearchDataSource();
-			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
-
+			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this, this._searchActionProvider);
+			let controller = this.instantiationService.createInstance(SearchController, this);
 			this.tree = new Tree(div.getHTMLElement(), {
 				dataSource: dataSource,
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
-				controller: new SearchController(this, this.instantiationService),
+				controller: controller,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
@@ -452,6 +453,10 @@ export class SearchViewlet extends Viewlet {
 				}
 			}
 		}
+	}
+
+	public get searchActionProvider() {
+		return this._searchActionProvider;
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
