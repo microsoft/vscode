@@ -16,41 +16,59 @@
 	position: relative;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm:focus {
+.monaco-workbench .panel.integrated-terminal .xterm.focus {
 	outline: none;
 }
 
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus {
 	outline: 2px solid #f38518;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
+	position: absolute;
+	top: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helper-textarea {
+	position: absolute;
+	/*
+	 * HACK: to fix IE's blinking cursor
+	 * Move textarea out of the screen to the far left, so that the cursor is not visible.
+	 */
+	left: -9999em;
+	opacity: 0;
+	width: 0;
+	height: 0;
+	z-index: -10;
 }
 
 .monaco-workbench .panel.integrated-terminal .reverse-video { color: #1e1e1e; }
 .vs-dark .monaco-workbench .panel.integrated-terminal .reverse-video { color: #CCC; }
 .hc-black .monaco-workbench .panel.integrated-terminal .reverse-video { color: #FFF; }
 
-.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #333; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #FFF; }
+.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor { background-color: #333; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor { background-color: #CCC; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor { background-color: #FFF; }
 
-.monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
+.monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #333;
 	outline-offset: -1px;
 }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #CCC;
 	outline-offset: -1px;
 }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #FFF;
 	outline-offset: -1px;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
+.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
 
 @keyframes blink-cursor {
 	0% {
@@ -99,6 +117,20 @@
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-hidden {
 	visibility: hidden;
+}
+
+/* Composition view */
+
+.terminal .composition-view {
+	background: #000;
+	color: #FFF;
+	display: none;
+	position: absolute;
+	white-space: nowrap;
+}
+
+.terminal .composition-view.active {
+	display: block;
 }
 
 /* Base selection colors */
