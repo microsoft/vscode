@@ -40,6 +40,5 @@ export interface ISerializedFileMatch {
 	lineMatches?: ILineMatch[];
 }
 
-export interface ISerializedSearchProgressItem extends ISerializedFileMatch, IProgress {
-	// Marker interface to indicate the possible values for progress calls from the engine
-}
+// Type of the possible values for progress calls from the engine
+export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress;

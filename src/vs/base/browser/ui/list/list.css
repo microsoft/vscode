@@ -48,6 +48,7 @@
 .hc-black .monaco-list-row:hover { outline: 1px dashed #f38518; background: transparent; }
 
 /* Focus */
+.monaco-list.element-focused { outline: 0 !important; }
 .monaco-list-row.focused { background-color: #DCEBFC; }
 .vs-dark .monaco-list-row.focused { background-color: #073655; }
 .hc-black .monaco-list-row.focused { outline: 1px dotted #f38518; background: transparent }

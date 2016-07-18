@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -19,6 +21,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
+import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 
 /**
  * @internal
@@ -4172,6 +4175,33 @@ export var EventType = {
 };
 
 /**
+ * Logical positions in the view for cursor move command.
+ */
+export const CursorMoveViewPosition = {
+	LineStart: 'lineStart',
+	LineFirstNonWhitespaceCharacter: 'lineFirstNonWhitespaceCharacter',
+	LineColumnCenter: 'lineColumnCenter',
+	LineEnd: 'lineEnd',
+	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter'
+};
+
+/**
+ * @internal
+ */
+export var CommandDescription = {
+	CursorMove: <ICommandHandlerDescription>{
+		description: nls.localize('editorCommand.cursorMove.description', "Move cursor to a logical position in the view"),
+		args: [
+			{
+				name: nls.localize('editorCommand.cursorMove.arg.name', "Cursor move argument"),
+				description: nls.localize('editorCommand.cursorMove.arg.description', "Argument containing mandatory 'to' value and an optional 'inSelectionMode' value. Value of 'to' has to be a defined value in `CursorMoveViewPosition`."),
+				constraint: (arg) => types.isObject(arg) && types.isString(arg.to) && (types.isUndefined(arg.inSelectionMode) || types.isBoolean(arg.inSelectionMode))
+			}
+		]
+	}
+};
+
+/**
  * Built-in commands.
  */
 export var Handler = {
@@ -4229,6 +4259,8 @@ export var Handler = {
 	CursorColumnSelectPageUp:	'cursorColumnSelectPageUp',
 	CursorColumnSelectDown:		'cursorColumnSelectDown',
 	CursorColumnSelectPageDown:	'cursorColumnSelectPageDown',
+
+	CursorMove:					'cursorMove',
 
 	AddCursorDown:				'addCursorDown',
 	AddCursorUp:				'addCursorUp',

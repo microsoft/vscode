@@ -18,10 +18,12 @@ import {IRawSearchService, IRawSearch, ISerializedSearchProgressItem, ISerialize
 
 export class SearchService implements IRawSearchService {
 
+	private static BATCH_SIZE = 500;
+
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		let engine = new FileSearchEngine(config);
 
-		return this.doSearch(engine);
+		return this.doSearch(engine, SearchService.BATCH_SIZE);
 	}
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
@@ -34,18 +36,30 @@ export class SearchService implements IRawSearchService {
 			maxFilesize: MAX_FILE_SIZE
 		}));
 
-		return this.doSearch(engine);
+		return this.doSearch(engine, SearchService.BATCH_SIZE);
 	}
 
-	private doSearch(engine: ISearchEngine): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
+	public doSearch(engine: ISearchEngine, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
+			let batch = [];
 			engine.search((match) => {
 				if (match) {
-					p(match);
+					if (batchSize) {
+						batch.push(match);
+						if (batchSize > 0 && batch.length >= batchSize) {
+							p(batch);
+							batch = [];
+						}
+					} else {
+						p(match);
+					}
 				}
 			}, (progress) => {
 				p(progress);
 			}, (error, isLimitHit) => {
+				if (batch.length) {
+					p(batch);
+				}
 				if (error) {
 					e(error);
 				} else {
