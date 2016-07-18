@@ -24,7 +24,7 @@ export class Controller extends treedefaults.DefaultController {
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		let currentFoucssed= tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
-			if (this.openFileAtElement(element, event.detail !== 2, event.ctrlKey, event.detail === 2)) {
+			if (this.openFileAtElement(element, event.detail !== 2, event.ctrlKey || event.metaKey, event.detail === 2)) {
 				return true;
 			}
 			if (element instanceof MarkersModel) {
@@ -41,9 +41,18 @@ export class Controller extends treedefaults.DefaultController {
 
 	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
 		if (super.onEnter(tree, event)) {
-			return this.openFileAtElement(tree.getFocus(), false, false, false);
+			return this.openFileAtElement(tree.getFocus(), false, event.ctrlKey || event.metaKey, true);
 		}
 		return false;
+	}
+
+	protected onSpace(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
+		let element= tree.getFocus();
+		if (element instanceof Marker) {
+			tree.setSelection([element]);
+			return this.openFileAtElement(tree.getFocus(), true, false, false);
+		}
+		return super.onSpace(tree, event);
 	}
 
 	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
@@ -60,7 +69,8 @@ export class Controller extends treedefaults.DefaultController {
 						endColumn: marker.endColumn
 					},
 					preserveFocus,
-					pinned
+					pinned,
+					revealIfVisible: true
 				},
 			}, sideByside).done(null, errors.onUnexpectedError);
 			return true;

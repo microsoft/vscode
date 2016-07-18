@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
@@ -18,7 +19,9 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class EditorInputCache {
 
@@ -27,6 +30,10 @@ class EditorInputCache {
 	constructor(private replaceService: ReplaceService, private editorService: IWorkbenchEditorService,
 					private modelService: IModelService) {
 		this.cache= new Map.SimpleMap<URI, TPromise<DiffEditorInput>>();
+	}
+
+	public hasInput(fileMatch: FileMatch): boolean {
+		return this.cache.has(fileMatch.resource());
 	}
 
 	public getInput(fileMatch: FileMatch): TPromise<DiffEditorInput> {
@@ -68,8 +75,8 @@ class EditorInputCache {
 			let editorInputPromise= this.cache.get(resourceUri);
 			if (editorInputPromise) {
 				editorInputPromise.done((diffInput) => {
-					this.disposeReplaceInput(this.getReplaceResource(resourceUri), diffInput);
-					this.cache.delete(resourceUri);
+					this.cleanInput(resourceUri);
+					diffInput.dispose();
 				});
 			}
 		}
@@ -84,6 +91,7 @@ class EditorInputCache {
 							this.createRightInput(fileMatch)]).then(inputs => {
 			const [left, right] = inputs;
 			let editorInput= new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
+			editorInput.addListener2('dispose', () => this.cleanInput(fileMatch.resource()));
 			return editorInput;
 		});
 	}
@@ -103,9 +111,9 @@ class EditorInputCache {
 		});
 	}
 
-	private disposeReplaceInput(replaceUri: URI, diffInput: EditorInput):void {
-		diffInput.dispose();
-		this.modelService.destroyModel(replaceUri);
+	private cleanInput(resourceUri: URI):void {
+		this.modelService.destroyModel(this.getReplaceResource(resourceUri));
+		this.cache.delete(resourceUri);
 	}
 
 	private getReplaceResource(resource: URI): URI {
@@ -119,7 +127,7 @@ export class ReplaceService implements IReplaceService {
 
 	private cache: EditorInputCache;
 
-	constructor(@IEventService private eventService: IEventService, @IEditorService private editorService, @IModelService private modelService: IModelService) {
+	constructor(@ITelemetryService private telemetryService: ITelemetryService, @IEventService private eventService: IEventService, @IEditorService private editorService, @IModelService private modelService: IModelService) {
 		this.cache= new EditorInputCache(this, editorService, modelService);
 	}
 
@@ -164,6 +172,22 @@ export class ReplaceService implements IReplaceService {
 
 	public disposeAllInputs(): void {
 		this.cache.disposeAll();
+	}
+
+	public openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		this.telemetryService.publicLog('replace.open.previewEditor');
+		return this.getInput(element instanceof Match ? element.parent() : element).then((editorInput) => {
+			this.editorService.openEditor(editorInput, {preserveFocus, pinned, revealIfVisible: true}).then((editor) => {
+				let editorControl= (<IDiffEditor>editor.getControl());
+				if (element instanceof Match) {
+					editorControl.revealLineInCenter(element.range().startLineNumber);
+				}
+			}, errors.onUnexpectedError);
+		}, errors.onUnexpectedError);
+	}
+
+	public isReplacePreviewEditorOpened(element: FileMatchOrMatch): boolean {
+		return this.cache.hasInput(element instanceof Match ? element.parent() : element);
 	}
 
 	private createEdit(match: Match, text: string, resource: URI= null): IResourceEdit {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Match, FileMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { EditorInput } from 'vs/workbench/common/editor';
@@ -36,6 +36,16 @@ export interface IReplaceService {
 	 * Otherwise undo the last changes and refreshes with new text.
 	 */
 	refreshInput(element: FileMatch, reload?: boolean): void;
+
+	/**
+	 * Opens the replace preview editor for given element
+	 */
+	openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any>;
+
+	/**
+	 * Return true if preview is already opened otherwise false
+	 */
+	isReplacePreviewEditorOpened(element: FileMatchOrMatch): boolean;
 
 	/**
 	 * Disposes all Inputs
