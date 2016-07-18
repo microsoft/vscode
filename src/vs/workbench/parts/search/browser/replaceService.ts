@@ -177,7 +177,7 @@ export class ReplaceService implements IReplaceService {
 	public openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		this.telemetryService.publicLog('replace.open.previewEditor');
 		return this.getInput(element instanceof Match ? element.parent() : element).then((editorInput) => {
-			this.editorService.openEditor(editorInput, {preserveFocus, pinned}).then((editor) => {
+			this.editorService.openEditor(editorInput, {preserveFocus, pinned, revealIfVisible: true}).then((editor) => {
 				let editorControl= (<IDiffEditor>editor.getControl());
 				if (element instanceof Match) {
 					editorControl.revealLineInCenter(element.range().startLineNumber);
