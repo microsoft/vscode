@@ -23,6 +23,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
 export function isSearchViewletFocussed(viewletService: IViewletService):boolean {
 	let activeViewlet= viewletService.getActiveViewlet();
@@ -125,20 +126,44 @@ export class ClearSearchResultsAction extends Action {
 	}
 }
 
-export class RemoveAction extends Action {
+export abstract class AbstractSearchAndReplaceAction extends Action {
+
+	protected getNextFocusElement(viewer: ITree, element: FileMatchOrMatch):FileMatchOrMatch {
+		if (element === viewer.getFocus()) {
+			let navigator= viewer.getNavigator();
+			// navigate to current element
+			while (navigator.current() !== element && !!navigator.next()) {};
+
+			let previousElement= navigator.previous();
+			if (previousElement) {
+				navigator.next();
+			} else {
+				navigator.first();
+			}
+
+			let nextElement;
+			if (element instanceof FileMatch) {
+				while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) {};
+				nextElement= navigator.current();
+			} else {
+				nextElement= navigator.next();
+			}
+			return nextElement ? nextElement : previousElement;
+		}
+		return null;
+	}
+}
+
+export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private element: FileMatchOrMatch) {
 		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
 	}
 
 	public run(): TPromise<any> {
-		if (this.element === this.viewer.getFocus()) {
-			let nextFocusElement= this.getNextFocusElement();
-			if (nextFocusElement) {
-				this.viewer.setFocus(nextFocusElement);
-			} else {
-				this.viewer.focusPrevious();
-			}
+		let nextFocusElement= this.getNextFocusElement(this.viewer, this.element);
+		if (nextFocusElement) {
+			this.viewer.setFocus(nextFocusElement);
 		}
 
 		let elementToRefresh: any;
@@ -152,25 +177,13 @@ export class RemoveAction extends Action {
 			elementToRefresh= parent.count() === 0 ? parent.parent() : parent;
 		}
 
-		if (this.viewer.getFocus()) {
-			this.viewer.DOMFocus();
-		}
+		this.viewer.DOMFocus();
 		return this.viewer.refresh(elementToRefresh);
 	}
 
-	private getNextFocusElement():FileMatchOrMatch {
-		let navigator= this.viewer.getNavigator();
-		while (navigator.current() !== this.element && !!navigator.next()) {};
-		if (this.element instanceof FileMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) {};
-			return navigator.current();
-		} else {
-			return navigator.next();
-		}
-	}
 }
 
-export class ReplaceAllAction extends Action {
+export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	public static get KEY_BINDING(): number {
 		return KeyMod.Shift | CommonKeybindings.CTRLCMD_ENTER;
@@ -185,13 +198,18 @@ export class ReplaceAllAction extends Action {
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replaceAll.action.selected');
+		let nextFocusElement= this.getNextFocusElement(this.viewer, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
-			this.viewlet.open(this.fileMatch);
+			if (nextFocusElement) {
+				this.viewer.setFocus(nextFocusElement);
+			}
+			this.viewer.DOMFocus();
+			this.viewlet.open(this.fileMatch, true);
 		});
 	}
 }
 
-export class ReplaceAction extends Action {
+export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	public static get KEY_BINDING(): number {
 		return KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1;
@@ -200,15 +218,35 @@ export class ReplaceAction extends Action {
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
 				@IReplaceService private replaceService: IReplaceService,
 				@IKeybindingService keyBindingService: IKeybindingService,
+				@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 				@ITelemetryService private telemetryService: ITelemetryService) {
 		super('action-replace', appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), ReplaceAction.KEY_BINDING, keyBindingService), 'action-replace');
 	}
 
 	public run(): TPromise<any> {
 		this.telemetryService.publicLog('replace.action.selected');
+		let nextFocusElement= this.getNextFocusElement(this.viewer, this.element);
+		let elementToOpen= nextFocusElement && nextFocusElement instanceof Match ? nextFocusElement : this.element.parent();
+
 		return this.element.parent().replace(this.element).then(() => {
-			this.viewlet.open(this.element);
+			if (nextFocusElement) {
+				this.viewer.setFocus(nextFocusElement);
+			}
+			this.viewer.DOMFocus();
+			if (this.isFileActive(this.element.parent())) {
+				this.viewlet.open(elementToOpen, true);
+			} else {
+				this.replaceService.openReplacePreviewEditor(elementToOpen, true);
+			}
 		});
+	}
+
+	private isFileActive(fileMatch: FileMatch): boolean {
+		let activeInput = this.editorService.getActiveEditorInput();
+		if (activeInput instanceof FileEditorInput) {
+			return activeInput.getResource().fsPath === fileMatch.resource().fsPath;
+		}
+		return false;
 	}
 }
 

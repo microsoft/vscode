@@ -10,6 +10,8 @@ import {ITerminalConfiguration} from 'vs/workbench/parts/terminal/electron-brows
 import {Builder} from 'vs/base/browser/builder';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
+const DEFAULT_LINE_HEIGHT = 1.2;
+
 const DEFAULT_ANSI_COLORS = {
 	'hc-black': [
 		'#000000', // black
@@ -70,7 +72,7 @@ const DEFAULT_ANSI_COLORS = {
 export interface ITerminalFont {
 	fontFamily: string;
 	fontSize: string;
-	lineHeight: string;
+	lineHeight: number;
 	charWidth: number;
 	charHeight: number;
 }
@@ -97,16 +99,16 @@ export class TerminalConfigHelper {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
-	private measureFont(fontFamily: string, fontSize: string, lineHeight: string): ITerminalFont {
+	private measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this.charMeasureElement || !this.charMeasureElement.parentElement) {
 			this.charMeasureElement = this.panelContainer.div().getHTMLElement();
 		}
 		let style = this.charMeasureElement.style;
-		style.display = 'inline';
+		style.display = 'block';
 		style.fontFamily = fontFamily;
-		style.fontSize = fontSize;
-		style.lineHeight = lineHeight;
+		style.fontSize = fontSize + 'px';
+		style.height = Math.floor(lineHeight * fontSize) + 'px';
 		this.charMeasureElement.innerText = 'X';
 		let rect = this.charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
@@ -114,7 +116,7 @@ export class TerminalConfigHelper {
 		let charHeight = Math.ceil(rect.height);
 		return {
 			fontFamily,
-			fontSize,
+			fontSize: fontSize + 'px',
 			lineHeight,
 			charWidth,
 			charHeight
@@ -134,9 +136,9 @@ export class TerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}
-		let lineHeight = this.toInteger(terminalConfig.lineHeight, 0);
+		let lineHeight = this.toInteger(terminalConfig.lineHeight, DEFAULT_LINE_HEIGHT);
 
-		return this.measureFont(fontFamily, fontSize + 'px', lineHeight === 0 ? 'normal' : lineHeight + 'px');
+		return this.measureFont(fontFamily, fontSize, lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : lineHeight);
 	}
 
 	public getFontLigaturesEnabled(): boolean {

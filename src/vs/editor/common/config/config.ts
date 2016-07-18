@@ -9,11 +9,13 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
 
 const H = editorCommon.Handler;
+const D = editorCommon.CommandDescription;
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
 	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
@@ -55,17 +57,18 @@ function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, arg
 	});
 }
 
-function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number = KeybindingsRegistry.WEIGHT.editorCore(), when?: KbExpr): void {
+function registerCoreCommand(handlerId: string, kb: IKeybindings, weight?: number, when?: KbExpr, description?: ICommandHandlerDescription): void {
 	let desc: ICommandDescriptor = {
 		id: handlerId,
 		handler: triggerEditorHandler.bind(null, handlerId),
-		weight: weight,
+		weight: weight ? weight : KeybindingsRegistry.WEIGHT.editorCore(),
 		when: (when ? when : KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
 		primary: kb.primary,
 		secondary: kb.secondary,
 		win: kb.win,
 		mac: kb.mac,
-		linux: kb.linux
+		linux: kb.linux,
+		description: description
 	};
 	KeybindingsRegistry.registerCommandDesc(desc);
 }
@@ -157,6 +160,9 @@ function getWordNavigationKB(shift:boolean, key:KeyCode): number {
 // Control+l => show_at_center
 // Control+Command+d => noop
 // Control+Command+shift+d => noop
+
+// Register cursor commands
+registerCoreCommand(H.CursorMove, { primary: null }, null, null, D.CursorMove);
 
 registerCoreCommand(H.CursorLeft, {
 	primary: KeyCode.LeftArrow,

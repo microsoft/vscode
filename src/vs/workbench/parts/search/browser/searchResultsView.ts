@@ -283,6 +283,14 @@ export class SearchController extends DefaultController {
 		}
 		return super.onUp(tree, event);
 	}
+
+	protected onSpace(tree:ITree, event:IKeyboardEvent):boolean {
+		let element = tree.getFocus();
+		if (element instanceof Match) {
+			return this.onEnter(tree, event);
+		}
+		super.onSpace(tree, event);
+	}
 }
 
 export class SearchFilter implements IFilter {
