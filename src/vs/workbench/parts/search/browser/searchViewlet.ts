@@ -422,7 +422,7 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = keyboard || doubleClick;
+				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
 
 				this.onFocus(element, !focusEditor, sideBySide, doubleClick);
 			}));
