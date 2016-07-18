@@ -38,8 +38,12 @@ export interface ITelemetryService {
 
 export const NullTelemetryService: ITelemetryService = {
 	_serviceBrand: undefined,
-	timedPublicLog(name: string, data?: any) { return nullEvent; },
-	publicLog(eventName: string, data?: any) { return TPromise.as<void>(null); },
+	timedPublicLog(name: string, data?: any) {
+		return nullEvent;
+	},
+	publicLog(eventName: string, data?: any) {
+		return TPromise.as<void>(null);
+	},
 	isOptedIn: true,
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
