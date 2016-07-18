@@ -19,7 +19,7 @@ function onStart() {
 	}
 
 	startTime = new Date().getTime();
-	util.log(util.colors.green('Starting compilation'));
+	util.log(`Starting ${ util.colors.green('compilation') }...`);
 }
 
 function onEnd() {
@@ -30,7 +30,7 @@ function onEnd() {
 	var errors = _.flatten(allErrors);
 	errors.map(err => util.log(`${ util.colors.red('Error') }: ${ err }`));
 
-	util.log(`${ util.colors.green('Finished compilation') } with ${ util.colors.red(errors.length + ' errors') } in ${ util.colors.blue((new Date().getTime() - startTime) + 'ms') }.`);
+	util.log(`Finished ${ util.colors.green('compilation') } with ${ errors.length } errors after ${ util.colors.magenta((new Date().getTime() - startTime) + ' ms') }`);
 }
 
 module.exports = function () {
