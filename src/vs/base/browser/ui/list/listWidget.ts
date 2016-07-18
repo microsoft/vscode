@@ -212,6 +212,7 @@ export class List<T> implements IDisposable {
 	private eventBufferer: EventBufferer;
 	private view: ListView<T>;
 	private controller: Controller<T>;
+	private disposables: IDisposable[];
 
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
 		return this.eventBufferer.wrapEvent(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
@@ -244,8 +245,10 @@ export class List<T> implements IDisposable {
 		this.view.domNode.setAttribute('role', 'listbox');
 		this.view.domNode.tabIndex = 0;
 		this.controller = new Controller(this, this.view);
+		this.disposables = [this.focus, this.selection, this.view, this.controller];
 
 		this._onDOMFocus = domEvent(this.view.domNode, 'focus');
+		this.onFocusChange(this._onFocusChange, this, this.disposables);
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
@@ -411,9 +414,11 @@ export class List<T> implements IDisposable {
 		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
 
+	private _onFocusChange(): void {
+		DOM.toggleClass(this.view.domNode, 'element-focused', this.focus.get().length > 0);
+	}
+
 	dispose(): void {
-		this.view = dispose(this.view);
-		this.focus = dispose(this.focus);
-		this.selection = dispose(this.selection);
+		this.disposables = dispose(this.disposables);
 	}
 }
