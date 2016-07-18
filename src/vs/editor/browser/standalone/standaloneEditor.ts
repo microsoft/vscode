@@ -433,6 +433,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType,
+		CursorMoveViewPosition: editorCommon.CursorMoveViewPosition,
 		Handler: editorCommon.Handler,
 
 		// consts
