@@ -429,8 +429,8 @@
     },
     "xterm": {
       "version": "0.33.0",
-      "from": "git+https://github.com/sourcelair/xterm.js.git#8790a94",
-      "resolved": "git+https://github.com/sourcelair/xterm.js.git#8790a94a56cd68a7188eef9ec47c05d2fd69cc41"
+      "from": "git://github.com/Tyriar/xterm.js#124_add_textarea_back",
+      "resolved": "git://github.com/Tyriar/xterm.js#124_add_textarea_back"
     },
     "yauzl": {
       "version": "2.3.1",
