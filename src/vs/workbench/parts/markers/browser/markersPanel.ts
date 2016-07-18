@@ -68,7 +68,7 @@ export class MarkersPanel extends Panel {
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
 		this.toDispose = [];
-		this.delayedRefresh = new Delayer<void>(1000);
+		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set.ArraySet<string>();
 	}
 
@@ -184,9 +184,10 @@ export class MarkersPanel extends Panel {
 
 	private onMarkerChanged(changedResources: URI[]) {
 		this.updateResources(changedResources);
-		// this.delayedRefresh.trigger(() => {this.refreshPanel(true);});
-		this.refreshPanel(true);
-		this.autoReveal();
+		this.delayedRefresh.trigger(() => {
+			this.refreshPanel(true);
+			this.autoReveal();
+		});
 	}
 
 	private onEditorsChanged(): void {
