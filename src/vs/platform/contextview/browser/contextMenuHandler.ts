@@ -44,7 +44,7 @@ export class ContextMenuHandler {
 
 		this.toDispose.push(this.actionRunner.addListener2(EventType.BEFORE_RUN, (e: any) => {
 			if (this.telemetryService) {
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, From: 'contextMenu' });
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 			}
 
 			hideViewOnRun = !!e.retainActionItem;

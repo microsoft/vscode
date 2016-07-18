@@ -103,7 +103,9 @@ registerSingleton(ITerminalService, TerminalService);
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), KillTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
+	// Don't apply to Mac since cmd+c works
+	mac: { primary: null }
 }, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
@@ -113,7 +115,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAct
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), KillTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), KillTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V,
+	// Don't apply to Mac since cmd+v works
+	mac: { primary: null }
 }, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), RunSelectedTextInTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {

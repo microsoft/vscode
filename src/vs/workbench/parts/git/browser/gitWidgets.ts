@@ -7,11 +7,13 @@ import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { Delayer } from 'vs/base/common/async';
 import { emmet as $, append, show, hide, toggleClass } from 'vs/base/browser/dom';
+import { IAction } from 'vs/base/common/actions';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IGitService, ServiceState, IBranch, ServiceOperations, IRemote } from 'vs/workbench/parts/git/common/git';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SyncAction, PublishAction } from './gitActions';
 import Severity from 'vs/base/common/severity';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -49,7 +51,8 @@ export class GitStatusbarItem implements IStatusbarItem {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IGitService gitService: IGitService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.instantiationService = instantiationService;
 		this.gitService = gitService;
@@ -186,20 +189,21 @@ export class GitStatusbarItem implements IStatusbarItem {
 	}
 
 	private onPublishClick(): void {
-		if (!this.publishAction.enabled) {
-			return;
-		}
-
-		this.publishAction.run()
-			.done(null, err => this.messageService.show(Severity.Error, err));
+		this.runAction(this.publishAction);
 	}
 
 	private onSyncClick(): void {
-		if (!this.syncAction.enabled) {
+		this.runAction(this.syncAction);
+	}
+
+	private runAction(action: IAction): void {
+		if (!action.enabled) {
 			return;
 		}
 
-		this.syncAction.run()
+		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
+
+		action.run()
 			.done(null, err => this.messageService.show(Severity.Error, err));
 	}
 }

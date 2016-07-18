@@ -144,7 +144,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().lineHeight, '2px', 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
+		assert.equal(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -159,7 +159,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().lineHeight, 'normal', 'editor.lineHeight should be "normal" when terminal.integrated.lineHeight not set');
+		assert.equal(configHelper.getFont().lineHeight, 1.2, 'editor.lineHeight should be 1.2 when terminal.integrated.lineHeight not set');
 	});
 
 	test('TerminalConfigHelper - getShell', function () {

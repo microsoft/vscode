@@ -4,7 +4,8 @@
 		"es6": true
 	},
 	"rules": {
-		"no-console": 0
+		"no-console": 0,
+		"no-cond-assign": 0
 	},
 	"extends": "eslint:recommended"
 }
