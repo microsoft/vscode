@@ -68,8 +68,8 @@ class EditorInputCache {
 			let editorInputPromise= this.cache.get(resourceUri);
 			if (editorInputPromise) {
 				editorInputPromise.done((diffInput) => {
-					this.disposeReplaceInput(this.getReplaceResource(resourceUri), diffInput);
-					this.cache.delete(resourceUri);
+					this.cleanInput(resourceUri);
+					diffInput.dispose();
 				});
 			}
 		}
@@ -84,6 +84,7 @@ class EditorInputCache {
 							this.createRightInput(fileMatch)]).then(inputs => {
 			const [left, right] = inputs;
 			let editorInput= new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
+			editorInput.addListener2('dispose', () => this.cleanInput(fileMatch.resource()));
 			return editorInput;
 		});
 	}
@@ -103,9 +104,9 @@ class EditorInputCache {
 		});
 	}
 
-	private disposeReplaceInput(replaceUri: URI, diffInput: EditorInput):void {
-		diffInput.dispose();
-		this.modelService.destroyModel(replaceUri);
+	private cleanInput(resourceUri: URI):void {
+		this.modelService.destroyModel(this.getReplaceResource(resourceUri));
+		this.cache.delete(resourceUri);
 	}
 
 	private getReplaceResource(resource: URI): URI {
