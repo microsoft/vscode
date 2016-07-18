@@ -4188,7 +4188,7 @@ export const CursorMoveViewPosition = {
 /**
  * @internal
  */
-export var CommandDescription= {
+export var CommandDescription = {
 	CursorMove: <ICommandHandlerDescription>{
 		description: nls.localize('editorCommand.cursorMove.description', "Move cursor to a logical position in the view"),
 		args: [
