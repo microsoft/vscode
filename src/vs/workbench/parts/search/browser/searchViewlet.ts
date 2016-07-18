@@ -912,7 +912,8 @@ export class SearchViewlet extends Viewlet {
 			options: {
 				preserveFocus,
 				pinned,
-				selection
+				selection,
+				revealIfVisible: true
 			}
 		}, sideBySide);
 	}

@@ -69,7 +69,8 @@ export class Controller extends treedefaults.DefaultController {
 						endColumn: marker.endColumn
 					},
 					preserveFocus,
-					pinned
+					pinned,
+					revealIfVisible: true
 				},
 			}, sideByside).done(null, errors.onUnexpectedError);
 			return true;
