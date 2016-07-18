@@ -27,23 +27,23 @@ function onEnd() {
 		return ;
 	}
 
-	var errors = _.flatten(allErrors);
+	const errors = _.flatten(allErrors);
 	errors.map(err => util.log(`${ util.colors.red('Error') }: ${ err }`));
 
 	util.log(`Finished ${ util.colors.green('compilation') } with ${ errors.length } errors after ${ util.colors.magenta((new Date().getTime() - startTime) + ' ms') }`);
 }
 
-module.exports = function () {
-	var errors = [];
+module.exports = () => {
+	const errors = [];
 	allErrors.push(errors);
 
-	var result = function (err) {
-		errors.push(err);
-	};
+	const result = err => errors.push(err);
+	result.hasErrors = () => errors.length > 0;
 
-	result.end = function (emitError) {
+	result.end = emitError => {
 		errors.length = 0;
 		onStart();
+
 		return es.through(null, function () {
 			onEnd();
 
@@ -54,10 +54,6 @@ module.exports = function () {
 			}
 		});
 	};
-
-	result.hasErrors = function() {
-		return errors.length > 0;
-	}
 
 	return result;
 };
