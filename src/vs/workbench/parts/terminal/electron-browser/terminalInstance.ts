@@ -7,21 +7,15 @@ import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import os = require('os');
-import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension} from 'vs/base/browser/builder';
-import {IAction} from 'vs/base/common/actions';
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {CopyTerminalSelectionAction, TerminalPasteAction, CreateNewTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 
 export class TerminalInstance {
 
@@ -76,60 +70,6 @@ export class TerminalInstance {
 				this.onExitCallback(this);
 			}
 		});
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mousedown', (event: MouseEvent) => {
-			if (event.which === 2 && platform.isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				this.focus(true);
-			} else if (event.which === 3) {
-				// Trigger the context menu on right click
-				let anchor: HTMLElement | { x: number, y: number } = this.parentDomElement;
-				if (event instanceof MouseEvent) {
-					const standardEvent = new StandardMouseEvent(event);
-					anchor = { x: standardEvent.posx, y: standardEvent.posy };
-				}
-
-				// TODO: Move these into panel and pass them in so they're shared between instances
-				let newTerminalAction = this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New terminal"));
-				let copyAction = this.instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy"));
-				let pasteAction = this.instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste"));
-
-				const actions: IAction[] = [
-					newTerminalAction,
-					new Separator(),
-					copyAction,
-					pasteAction
-				];
-
-				contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => TPromise.as(actions),
-					getActionsContext: () => this.parentDomElement,
-					getKeyBinding: (action) => {
-						const opts = this.keybindingService.lookupKeybindings(action.id);
-						if (opts.length > 0) {
-							return opts[0]; // only take the first one
-						}
-						return null;
-					}
-				});
-			}
-			// TODO: This  and all parentDomElement handlers should be handled in the panel!
-			// Currently this line is stopping the other terminal instances from reacting to the
-			// event.
-			event.stopImmediatePropagation();
-		}));
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mouseup', (event) => {
-			if (event.which !== 3) {
-				this.focus();
-			}
-		}));
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'keyup', (event: KeyboardEvent) => {
-			// Keep terminal open on escape
-			if (event.keyCode === 27) {
-				event.stopPropagation();
-			}
-		}));
 
 		this.xterm.open(this.terminalDomElement);
 
