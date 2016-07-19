@@ -56,6 +56,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
+	private _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
 	private _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
 	private _onDidExitAdapter: Emitter<SessionExitedEvent>;
 	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
@@ -78,6 +79,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
+		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
 		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
 		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
@@ -92,6 +94,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public get onDidStop(): Event<DebugProtocol.StoppedEvent> {
 		return this._onDidStop.event;
+	}
+
+	public get onDidContinued(): Event<DebugProtocol.ContinuedEvent> {
+		return this._onDidContinued.event;
 	}
 
 	public get onDidTerminateDebugee(): Event<SessionTerminatedEvent> {
@@ -184,6 +190,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		} else if (event.event === 'stopped') {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
+		} else if (event.event === 'continued') {
+			this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
 		} else if (event.event === 'thread') {
 			this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
 		} else if (event.event === 'output') {
