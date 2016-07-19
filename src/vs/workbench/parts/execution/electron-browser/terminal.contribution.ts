@@ -107,7 +107,7 @@ class FileViewerActionContributor extends ActionBarContributor {
 
 	public hasSecondaryActions(context: any): boolean {
 		const element = context.element;
-		return !!asFileResource(element) || (element && element.getResource());
+		return !!asFileResource(element) || (element && element.getResource && element.getResource());
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
