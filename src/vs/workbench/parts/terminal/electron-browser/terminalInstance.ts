@@ -7,10 +7,11 @@ import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import os = require('os');
-import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
-import {IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
@@ -31,7 +32,10 @@ export class TerminalInstance {
 	public constructor(
 		private terminalProcess: ITerminalProcess,
 		private parentDomElement: HTMLElement,
+		private contextMenuService: IContextMenuService,
 		private contextService: IWorkspaceContextService,
+		private instantiationService: IInstantiationService,
+		private keybindingService: IKeybindingService,
 		private terminalService: ITerminalService,
 		private messageService: IMessageService,
 		private terminalFocusContextKey: IKeybindingContextKey<boolean>,
@@ -66,24 +70,6 @@ export class TerminalInstance {
 				this.onExitCallback(this);
 			}
 		});
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mousedown', (event) => {
-			// Drop selection and focus terminal on Linux to enable middle button paste when click
-			// occurs on the selection itself.
-			if (event.which === 2 && platform.isLinux) {
-				this.focus(true);
-			}
-		}));
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mouseup', (event) => {
-			if (event.which !== 3) {
-				this.focus();
-			}
-		}));
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'keyup', (event: KeyboardEvent) => {
-			// Keep terminal open on escape
-			if (event.keyCode === 27) {
-				event.stopPropagation();
-			}
-		}));
 
 		this.xterm.open(this.terminalDomElement);
 
