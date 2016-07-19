@@ -91,6 +91,7 @@ suite('ConfigVariables tests', () => {
 });
 
 class MockConfigurationService implements IConfigurationService {
+	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public loadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
