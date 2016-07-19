@@ -310,8 +310,8 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
 		} else if (element instanceof model.StackFrame) {
-			const caps = this.debugService.getActiveSession().configuration.capabilities;
-			if (typeof caps.supportsRestartFrame === 'boolean' && caps.supportsRestartFrame) {
+			const capabilities = this.debugService.getActiveSession().configuration.capabilities;
+			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
 			}
 		}
