@@ -291,6 +291,10 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
+		this.toDisposeOnSessionEnd.push(this.session.onDidContinued(event => {
+			this.lazyTransitionToRunningState(event.body.allThreadsContinued ? undefined : event.body.threadId);
+		}));
+
 		this.toDisposeOnSessionEnd.push(this.session.onDidOutput(event => {
 			if (event.body && event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
