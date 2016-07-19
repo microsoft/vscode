@@ -56,8 +56,12 @@ function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
 	move(cursor, {to: CursorMoveViewPosition.LineLastNonWhitespaceCharacter});
 }
 
-function moveToPosition(cursor: Cursor, lineNumber: number, column: number) {
-	move(cursor, {to: new Position(lineNumber, column)});
+function moveUpByCursorMoveCommand(cursor: Cursor, noOfLines: number= 1, inSelectionMode?: boolean) {
+	move(cursor, {to: CursorMoveViewPosition.LineUp, noOfLines: noOfLines, inSelectionMode: inSelectionMode});
+}
+
+function moveDownByCursorMoveCommand(cursor: Cursor, noOfLines: number= 1, inSelectionMode?: boolean) {
+	move(cursor, {to: CursorMoveViewPosition.LineDown, noOfLines: noOfLines, inSelectionMode: inSelectionMode});
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
@@ -221,7 +225,7 @@ suite('Editor Controller - Cursor', () => {
 		cursorEqual(thisCursor, 1, 1);
 	});
 
-	// --------- move to first character of line
+	// --------- cursor move command
 
 	test('move to first character of line from middle', () => {
 		moveTo(thisCursor, 1, 8);
@@ -319,10 +323,69 @@ suite('Editor Controller - Cursor', () => {
 		cursorEqual(thisCursor, 1, 11);
 	});
 
-	test('move to position', () => {
-		moveToPosition(thisCursor, 3, 10);
-		cursorEqual(thisCursor, 3, 10);
+	test('move up by cursor move command', () => {
+		moveTo(thisCursor, 3, 5);
+		cursorEqual(thisCursor, 3, 5);
+
+		moveUpByCursorMoveCommand(thisCursor, 2);
+		cursorEqual(thisCursor, 1, 5);
+
+		moveUpByCursorMoveCommand(thisCursor, 1);
+		cursorEqual(thisCursor, 1, 1);
 	});
+
+	test('move up with selection by cursor move command', () => {
+		moveTo(thisCursor, 3, 5);
+		cursorEqual(thisCursor, 3, 5);
+
+		moveUpByCursorMoveCommand(thisCursor, 1, true);
+		cursorEqual(thisCursor, 2, 2, 3, 5);
+
+		moveUp(thisCursor, 1, true);
+		cursorEqual(thisCursor, 1, 5, 3, 5);
+	});
+
+	test('move up and down with tabs by cursor move command', () => {
+		moveTo(thisCursor, 1, 5);
+		cursorEqual(thisCursor, 1, 5);
+
+		moveDownByCursorMoveCommand(thisCursor, 4);
+		cursorEqual(thisCursor, 5, 2);
+
+		moveUpByCursorMoveCommand(thisCursor, 1);
+		cursorEqual(thisCursor, 4, 1);
+
+		moveUpByCursorMoveCommand(thisCursor, 1);
+		cursorEqual(thisCursor, 3, 5);
+
+		moveUpByCursorMoveCommand(thisCursor, 1);
+		cursorEqual(thisCursor, 2, 2);
+
+		moveUpByCursorMoveCommand(thisCursor, 1);
+		cursorEqual(thisCursor, 1, 5);
+	});
+
+	test('move up and down with end of lines starting from a long one by cursor move command', () => {
+		moveToEndOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length - 1);
+
+		moveToEndOfLine(thisCursor);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+
+		moveDownByCursorMoveCommand(thisCursor, 2);
+		cursorEqual(thisCursor, 3, LINE3.length + 1);
+
+		moveDownByCursorMoveCommand(thisCursor, 1);
+		cursorEqual(thisCursor, 4, LINE4.length + 1);
+
+		moveDownByCursorMoveCommand(thisCursor, 1);
+		cursorEqual(thisCursor, 5, LINE5.length + 1);
+
+		moveUpByCursorMoveCommand(thisCursor, 4);
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	// --- end of cursor move command tests
 
 	test('move', () => {
 		moveTo(thisCursor, 1, 2);
