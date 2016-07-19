@@ -52,7 +52,7 @@ interface IEntryPointMap {
 	[moduleId:string]: IEntryPoint;
 }
 
-interface IGraph {
+export interface IGraph {
 	[node:string]: string[];
 }
 
