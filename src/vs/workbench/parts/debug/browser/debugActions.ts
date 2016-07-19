@@ -661,7 +661,7 @@ export class SelectionToReplAction extends EditorAction {
 		@IDebugService private debugService: IDebugService,
 		@IPanelService private panelService: IPanelService
 	) {
-		super(descriptor, editor, Behaviour.TextFocus);
+		super(descriptor, editor, Behaviour.UpdateOnCursorPositionChange);
 	}
 
 	public run(): TPromise<any> {
@@ -670,13 +670,17 @@ export class SelectionToReplAction extends EditorAction {
 			.then(() => this.panelService.openPanel(debug.REPL_ID, true));
 	}
 
+	public isSupported(): boolean {
+		const selection = this.editor.getSelection();
+		return !!selection && !selection.isEmpty() && this.debugService.state === debug.State.Stopped;
+	}
+
 	public getGroupId(): string {
 		return '5_debug/2_selection_to_repl';
 	}
 
 	public shouldShowInContextMenu(): boolean {
-		const selection = this.editor.getSelection();
-		return !!selection && !selection.isEmpty() && this.debugService.state === debug.State.Stopped;
+		return this.isSupported();
 	}
 }
 
