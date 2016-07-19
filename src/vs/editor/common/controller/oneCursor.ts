@@ -6,7 +6,6 @@
 
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import * as types from 'vs/base/common/types';
 import {ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
 import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
 import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelectionCommand';
@@ -631,19 +630,6 @@ export class OneCursorOp {
 			validatedViewPosition = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
 		}
 
-		return this.move(cursor, inSelectionMode, validatedViewPosition, eventSource, ctx);
-	}
-
-	public static move(cursor: OneCursor, inSelectionMode: boolean, to: editorCommon.IPosition | string, eventSource: string, ctx: IOneCursorOperationContext): boolean {
-		if (!to) {
-			illegalArgument('to');
-		}
-
-		if (types.isString(to)) {
-			return this.moveToLogicalViewPosition(cursor, inSelectionMode, to, ctx);
-		}
-
-		let viewPosition: editorCommon.IPosition = <editorCommon.IPosition>to;
 		let reason = (eventSource === 'mouse' ? editorCommon.CursorChangeReason.Explicit : editorCommon.CursorChangeReason.NotSet);
 		if (eventSource === 'api') {
 			ctx.shouldRevealVerticalInCenter = true;
@@ -651,15 +637,21 @@ export class OneCursorOp {
 		if (reason) {
 			ctx.cursorPositionChangeReason = reason;
 		}
-		cursor.moveViewPosition(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0, false);
+		cursor.moveViewPosition(inSelectionMode, validatedViewPosition.lineNumber, validatedViewPosition.column, 0, false);
 		return true;
 	}
 
-	private static moveToLogicalViewPosition(cursor: OneCursor, inSelectionMode: boolean, cursorMoveViewPosition: string, ctx: IOneCursorOperationContext): boolean {
+	public static move(cursor: OneCursor, moveParams: editorCommon.CursorMoveArguments, eventSource: string, ctx: IOneCursorOperationContext): boolean {
+		if (!moveParams.to) {
+			illegalArgument('to');
+		}
+
+		let inSelectionMode = !!moveParams.inSelectionMode;
 		let validatedViewPosition = cursor.getValidViewPosition();
 		let viewLineNumber = validatedViewPosition.lineNumber;
+		let noOfLines = moveParams.isPaged ? (moveParams.pageSize || cursor.getPageSize()) : moveParams.noOfLines;
 		let viewColumn;
-		switch (cursorMoveViewPosition) {
+		switch (moveParams.to) {
 			case editorCommon.CursorMoveViewPosition.LineStart:
 				viewColumn = cursor.getViewLineMinColumn(viewLineNumber);
 				break;
@@ -675,6 +667,10 @@ export class OneCursorOp {
 			case editorCommon.CursorMoveViewPosition.LineLastNonWhitespaceCharacter:
 				viewColumn = cursor.getViewLineLastNonWhiteSpaceColumn(viewLineNumber);
 				break;
+			case editorCommon.CursorMoveViewPosition.LineUp:
+				return this.moveUp(cursor, inSelectionMode, noOfLines, ctx);
+			case editorCommon.CursorMoveViewPosition.LineDown:
+				return this.moveDown(cursor, inSelectionMode, noOfLines, ctx);
 			default:
 				return false;
 		}
@@ -866,8 +862,8 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveDown(cursor:OneCursor, inSelectionMode: boolean, isPaged: boolean, usePageSize: number, ctx: IOneCursorOperationContext): boolean {
-		let linesCount = isPaged ? (usePageSize || cursor.getPageSize()) : 1;
+	public static moveDown(cursor:OneCursor, inSelectionMode: boolean, noOfLines: number, ctx: IOneCursorOperationContext): boolean {
+		let linesCount = noOfLines > 0 ? noOfLines : 1;
 
 		let viewLineNumber:number,
 			viewColumn:number;
@@ -907,8 +903,8 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveUp(cursor:OneCursor, inSelectionMode: boolean, isPaged: boolean, usePageSize: number, ctx: IOneCursorOperationContext): boolean {
-		let linesCount = isPaged ? (usePageSize || cursor.getPageSize()) : 1;
+	public static moveUp(cursor:OneCursor, inSelectionMode: boolean, noOfLines: number, ctx: IOneCursorOperationContext): boolean {
+		let linesCount = noOfLines > 0 ? noOfLines : 1;
 
 		let viewLineNumber:number,
 			viewColumn:number;

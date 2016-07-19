@@ -4175,14 +4175,58 @@ export var EventType = {
 };
 
 /**
- * Logical positions in the view for cursor move command.
+ * Positions in the view for cursor move command.
  */
 export const CursorMoveViewPosition = {
 	LineStart: 'lineStart',
 	LineFirstNonWhitespaceCharacter: 'lineFirstNonWhitespaceCharacter',
 	LineColumnCenter: 'lineColumnCenter',
 	LineEnd: 'lineEnd',
-	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter'
+	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter',
+	LineUp: 'lineUp',
+	LineDown: 'lineDown'
+};
+
+/**
+ * Arguments for Cursor move command
+ */
+export interface CursorMoveArguments {
+	to: string;
+	inSelectionMode?: boolean;
+	noOfLines?: number;
+	isPaged?: boolean;
+	pageSize?: number;
+};
+
+/**
+ * @internal
+ */
+let isCursorMoveArgs= function(arg): boolean  {
+	if (!types.isObject(arg)) {
+		return false;
+	}
+
+	if (!types.isString(arg.to)) {
+		return false;
+	}
+
+	if (!types.isUndefined(arg.inSelectionMode) && !types.isBoolean(arg.inSelectionMode)) {
+		return false;
+	}
+
+	if (!types.isUndefined(arg.noOfLines) && !types.isNumber(arg.noOfLines)) {
+		return false;
+	}
+
+	if (!types.isUndefined(arg.isPaged) && !types.isBoolean(arg.isPaged)) {
+		return false;
+	}
+
+	if (!types.isUndefined(arg.pageSize) && !types.isNumber(arg.pageSize)) {
+		return false;
+	}
+
+	return true;
 };
 
 /**
@@ -4195,7 +4239,7 @@ export var CommandDescription = {
 			{
 				name: nls.localize('editorCommand.cursorMove.arg.name', "Cursor move argument"),
 				description: nls.localize('editorCommand.cursorMove.arg.description', "Argument containing mandatory 'to' value and an optional 'inSelectionMode' value. Value of 'to' has to be a defined value in `CursorMoveViewPosition`."),
-				constraint: (arg) => types.isObject(arg) && types.isString(arg.to) && (types.isUndefined(arg.inSelectionMode) || types.isBoolean(arg.inSelectionMode))
+				constraint: isCursorMoveArgs
 			}
 		]
 	}

@@ -1128,7 +1128,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _cursorMove(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, !!ctx.eventData.inSelectionMode, ctx.eventData.to, ctx.eventSource, oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, ctx.eventData, ctx.eventSource, oneCtx));
 	}
 
 	private _columnSelectToLineNumber: number = 0;
@@ -1294,11 +1294,21 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveDown(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveDown(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMoveViewPosition.LineDown;
+		ctx.eventData.inSelectionMode= inSelectionMode;
+		ctx.eventData.isPaged= isPaged;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveUp(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveUp(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMoveViewPosition.LineUp;
+		ctx.eventData.inSelectionMode= inSelectionMode;
+		ctx.eventData.isPaged= isPaged;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveToBeginningOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {

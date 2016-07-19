@@ -3190,7 +3190,7 @@ declare module monaco.editor {
     };
 
     /**
-     * Logical positions in the view for cursor move command.
+     * Positions in the view for cursor move command.
      */
     export const CursorMoveViewPosition: {
         LineStart: string;
@@ -3198,7 +3198,20 @@ declare module monaco.editor {
         LineColumnCenter: string;
         LineEnd: string;
         LineLastNonWhitespaceCharacter: string;
+        LineUp: string;
+        LineDown: string;
     };
+
+    /**
+     * Arguments for Cursor move command
+     */
+    export interface CursorMoveArguments {
+        to: string;
+        inSelectionMode?: boolean;
+        noOfLines?: number;
+        isPaged?: boolean;
+        pageSize?: number;
+    }
 
     /**
      * Built-in commands.
