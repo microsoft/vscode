@@ -8,7 +8,7 @@ import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
+import { ISystemVariables } from 'vs/base/common/parsers';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class Adapter {
@@ -25,7 +25,7 @@ export class Adapter {
 	public enableBreakpointsFor: { languageIds: string[] };
 	public aiKey: string;
 
-	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, public extensionDescription: IExtensionDescription) {
+	constructor(rawAdapter: debug.IRawAdapter, systemVariables: ISystemVariables, public extensionDescription: IExtensionDescription) {
 		if (rawAdapter.windows) {
 			rawAdapter.win = rawAdapter.windows;
 		}

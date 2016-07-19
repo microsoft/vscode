@@ -25,12 +25,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-
+import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
+import { ISystemVariables } from 'vs/base/common/parsers';
 // debuggers extension point
 
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
@@ -152,9 +152,8 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platfor
 jsonRegistry.registerSchema(schemaId, schema);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
-
 	public configuration: debug.IConfig;
-	private systemVariables: SystemVariables;
+	private systemVariables: ISystemVariables;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
 	private _onDidConfigurationChange: Emitter<string>;
@@ -169,8 +168,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@ICommandService private commandService: ICommandService
 	) {
+		this.systemVariables = this.contextService.getWorkspace() ? new ConfigVariables(this.configurationService, this.editorService, this.contextService) : null;
 		this._onDidConfigurationChange = new Emitter<string>();
-		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
 		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();
