@@ -32,7 +32,7 @@ class FileViewerActionContributor extends ActionBarContributor {
 		let element = context.element;
 
 		// Contribute only on Files (File Explorer and Open Files Viewer)
-		return !!asFileResource(element) || (element && element.getResource());
+		return !!asFileResource(element) || (element && element.getResource && element.getResource());
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
