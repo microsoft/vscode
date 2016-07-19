@@ -241,7 +241,19 @@ exports.loadSourcemaps = () => {
 	return es.duplex(input, output);
 };
 
-exports.rimraf = dir => cb => rimraf(dir, { maxBusyTries: 1 }, cb);
+exports.rimraf = dir => {
+	let retries = 0;
+
+	const retry = cb => {
+		rimraf(dir, { maxBusyTries: 1 }, err => {
+			if (!err) return cb();
+			if (err.code === 'ENOTEMPTY' && ++retries < 5) return setTimeout(() => retry(cb), 10);
+			else return cb(err);
+		});
+	};
+
+	return cb => retry(cb);
+};
 
 exports.getVersion = root => {
 	let version = process.env['BUILD_SOURCEVERSION'];
