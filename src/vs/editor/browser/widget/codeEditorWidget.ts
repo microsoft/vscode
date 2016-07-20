@@ -159,6 +159,13 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		return this._view.getCenteredRangeInViewport();
 	}
 
+	public getVisibleRangeInViewport(): Range {
+		if (!this.hasView) {
+			return null;
+		}
+		return this._view.getVisibleRangeInViewport();
+	}
+
 	public getScrollWidth(): number {
 		if (!this.hasView) {
 			return -1;

@@ -13,7 +13,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {
 	EndOfLinePreference, EventType, Handler, IPosition, ISelection, IEditorOptions,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData, CursorMoveViewPosition
+	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode, IndentAction} from 'vs/editor/common/modes';
@@ -21,6 +21,7 @@ import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConf
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {BracketMode} from 'vs/editor/test/common/testModes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
 
 let H = Handler;
 
@@ -28,40 +29,6 @@ let H = Handler;
 
 function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwriteSource?: string) {
 	cursor.trigger(overwriteSource || 'tests', command, extraData);
-}
-
-// Move command
-
-function move(cursor: Cursor, args: any) {
-	cursorCommand(cursor, H.CursorMove, args);
-}
-
-function moveToLineStart(cursor: Cursor) {
-	move(cursor, {to: CursorMoveViewPosition.LineStart});
-}
-
-function moveToLineFirstNonWhiteSpaceCharacter(cursor: Cursor) {
-	move(cursor, {to: CursorMoveViewPosition.LineFirstNonWhitespaceCharacter});
-}
-
-function moveToLineCenter(cursor: Cursor) {
-	move(cursor, {to: CursorMoveViewPosition.LineColumnCenter});
-}
-
-function moveToLineEnd(cursor: Cursor) {
-	move(cursor, {to: CursorMoveViewPosition.LineEnd});
-}
-
-function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
-	move(cursor, {to: CursorMoveViewPosition.LineLastNonWhitespaceCharacter});
-}
-
-function moveUpByCursorMoveCommand(cursor: Cursor, noOfLines: number= 1, inSelectionMode?: boolean) {
-	move(cursor, {to: CursorMoveViewPosition.LineUp, noOfLines: noOfLines, inSelectionMode: inSelectionMode});
-}
-
-function moveDownByCursorMoveCommand(cursor: Cursor, noOfLines: number= 1, inSelectionMode?: boolean) {
-	move(cursor, {to: CursorMoveViewPosition.LineDown, noOfLines: noOfLines, inSelectionMode: inSelectionMode});
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
@@ -205,7 +172,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new MockConfiguration(null);
-		thisCursor = new Cursor(1, thisConfiguration, thisModel, null, false);
+		thisCursor = new Cursor(1, thisConfiguration, thisModel, viewModelHelper(thisModel), false);
 	});
 
 	teardown(() => {
@@ -224,168 +191,6 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 1, 1);
 		cursorEqual(thisCursor, 1, 1);
 	});
-
-	// --------- cursor move command
-
-	test('move to first character of line from middle', () => {
-		moveTo(thisCursor, 1, 8);
-		moveToLineStart(thisCursor);
-		cursorEqual(thisCursor, 1, 1);
-	});
-
-	test('move to first character of line from first non white space character', () => {
-		moveTo(thisCursor, 1, 6);
-		moveToLineStart(thisCursor);
-		cursorEqual(thisCursor, 1, 1);
-	});
-
-	test('move to first character of line from first character', () => {
-		moveTo(thisCursor, 1, 1);
-		moveToLineStart(thisCursor);
-		cursorEqual(thisCursor, 1, 1);
-	});
-
-	test('move to first non white space character of line from middle', () => {
-		moveTo(thisCursor, 1, 8);
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
-		cursorEqual(thisCursor, 1, 6);
-	});
-
-	test('move to first non white space character of line from first non white space character', () => {
-		moveTo(thisCursor, 1, 6);
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
-		cursorEqual(thisCursor, 1, 6);
-	});
-
-	test('move to first non white space character of line from first character', () => {
-		moveTo(thisCursor, 1, 1);
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
-		cursorEqual(thisCursor, 1, 6);
-	});
-
-	test('move to end of line from middle', () => {
-		moveTo(thisCursor, 1, 8);
-		moveToLineEnd(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
-	});
-
-	test('move to end of line from last non white space character', () => {
-		moveTo(thisCursor, 1, LINE1.length - 1);
-		moveToLineEnd(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
-	});
-
-	test('move to end of line from line end', () => {
-		moveTo(thisCursor, 1, LINE1.length + 1);
-		moveToLineEnd(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
-	});
-
-	test('move to last non white space character from middle', () => {
-		moveTo(thisCursor, 1, 8);
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
-	});
-
-	test('move to last non white space character from last non white space character', () => {
-		moveTo(thisCursor, 1, LINE1.length - 1);
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
-	});
-
-	test('move to last non white space character from line end', () => {
-		moveTo(thisCursor, 1, LINE1.length + 1);
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
-	});
-
-	test('move to center of line not from center', () => {
-		moveTo(thisCursor, 1, 8);
-		moveToLineCenter(thisCursor);
-		cursorEqual(thisCursor, 1, 11);
-	});
-
-	test('move to center of line from center', () => {
-		moveTo(thisCursor, 1, 11);
-		moveToLineCenter(thisCursor);
-		cursorEqual(thisCursor, 1, 11);
-	});
-
-	test('move to center of line from start', () => {
-		moveToLineStart(thisCursor);
-		moveToLineCenter(thisCursor);
-		cursorEqual(thisCursor, 1, 11);
-	});
-
-	test('move to center of line from end', () => {
-		moveToLineEnd(thisCursor);
-		moveToLineCenter(thisCursor);
-		cursorEqual(thisCursor, 1, 11);
-	});
-
-	test('move up by cursor move command', () => {
-		moveTo(thisCursor, 3, 5);
-		cursorEqual(thisCursor, 3, 5);
-
-		moveUpByCursorMoveCommand(thisCursor, 2);
-		cursorEqual(thisCursor, 1, 5);
-
-		moveUpByCursorMoveCommand(thisCursor, 1);
-		cursorEqual(thisCursor, 1, 1);
-	});
-
-	test('move up with selection by cursor move command', () => {
-		moveTo(thisCursor, 3, 5);
-		cursorEqual(thisCursor, 3, 5);
-
-		moveUpByCursorMoveCommand(thisCursor, 1, true);
-		cursorEqual(thisCursor, 2, 2, 3, 5);
-
-		moveUp(thisCursor, 1, true);
-		cursorEqual(thisCursor, 1, 5, 3, 5);
-	});
-
-	test('move up and down with tabs by cursor move command', () => {
-		moveTo(thisCursor, 1, 5);
-		cursorEqual(thisCursor, 1, 5);
-
-		moveDownByCursorMoveCommand(thisCursor, 4);
-		cursorEqual(thisCursor, 5, 2);
-
-		moveUpByCursorMoveCommand(thisCursor, 1);
-		cursorEqual(thisCursor, 4, 1);
-
-		moveUpByCursorMoveCommand(thisCursor, 1);
-		cursorEqual(thisCursor, 3, 5);
-
-		moveUpByCursorMoveCommand(thisCursor, 1);
-		cursorEqual(thisCursor, 2, 2);
-
-		moveUpByCursorMoveCommand(thisCursor, 1);
-		cursorEqual(thisCursor, 1, 5);
-	});
-
-	test('move up and down with end of lines starting from a long one by cursor move command', () => {
-		moveToEndOfLine(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length - 1);
-
-		moveToEndOfLine(thisCursor);
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
-
-		moveDownByCursorMoveCommand(thisCursor, 2);
-		cursorEqual(thisCursor, 3, LINE3.length + 1);
-
-		moveDownByCursorMoveCommand(thisCursor, 1);
-		cursorEqual(thisCursor, 4, LINE4.length + 1);
-
-		moveDownByCursorMoveCommand(thisCursor, 1);
-		cursorEqual(thisCursor, 5, LINE5.length + 1);
-
-		moveUpByCursorMoveCommand(thisCursor, 4);
-		cursorEqual(thisCursor, 1, LINE1.length + 1);
-	});
-
-	// --- end of cursor move command tests
 
 	test('move', () => {
 		moveTo(thisCursor, 1, 2);
@@ -992,7 +797,7 @@ suite('Editor Controller - Cursor', () => {
 			'\t\t}',
 			'\t}'
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 7, false);
 		cursorEqual(cursor, 1, 7);
@@ -1026,7 +831,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		cursorEqual(cursor, 1, 4);
@@ -1058,7 +863,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		cursorEqual(cursor, 1, 4);
@@ -1595,7 +1400,7 @@ suite('Editor Controller - Regression tests', () => {
 			'qwerty'
 		];
 		let model = Model.createFromString(text.join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -1613,7 +1418,7 @@ suite('Editor Controller - Regression tests', () => {
 			''
 		];
 		model = Model.createFromString(text.join('\n'));
-		cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -2798,7 +2603,7 @@ interface ICursorOpts {
 function usingCursor(opts:ICursorOpts, callback:(model:Model, cursor:Cursor)=>void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.mode);
 	let config = new MockConfiguration(opts.editorOpts);
-	let cursor = new Cursor(1, config, model, null, false);
+	let cursor = new Cursor(1, config, model, viewModelHelper(model), false);
 
 	callback(model, cursor);
 
