@@ -133,12 +133,7 @@ export function ignoreBracketsInToken(tokenType:string): boolean {
 //       and turn this into a real registry
 export class SnippetsRegistry {
 
-	private static _defaultSnippets: { [modeId: string]: modes.ISuggestion[] } = Object.create(null);
 	private static _snippets: { [modeId: string]: { [path: string]: modes.ISuggestion[] } } = Object.create(null);
-
-	public static registerDefaultSnippets(modeId: string, snippets: modes.ISuggestion[]): void {
-		this._defaultSnippets[modeId] = (this._defaultSnippets[modeId] || []).concat(snippets);
-	}
 
 	public static registerSnippets(modeId: string, path: string, snippets: modes.ISuggestion[]): void {
 		let snippetsByMode = this._snippets[modeId];
@@ -175,10 +170,7 @@ export class SnippetsRegistry {
 				snippets = snippets.concat(snipppetsByMode[s]);
 			}
 		}
-		let defaultSnippets = this._defaultSnippets[modeId];
-		if (defaultSnippets) {
-			snippets = snippets.concat(defaultSnippets);
-		}
+
 		// to avoid that snippets are too prominent in the intellisense proposals:
 		// enforce that current word is matched or the position is after a whitespace
 		snippets.forEach(p => {
@@ -224,7 +216,6 @@ export class SnippetsRegistry {
 		}
 		const prefix = match[0];
 		const result: modes.ISuggestion[] = [];
-		SnippetsRegistry._fillInSuggestion(this._defaultSnippets[model.getModeId()], prefix, result);
 		let snipppetsByMode = this._snippets[model.getModeId()];
 		if (snipppetsByMode) {
 			for (let path in snipppetsByMode) {
