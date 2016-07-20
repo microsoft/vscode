@@ -219,10 +219,10 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 							this.addCached(res.id, res.version, res.description);
 							if (res.id === pack) {
 								if (res.description) {
-									htmlContent.push(res.description);
+									htmlContent.push({ language: 'string', value: res.description });
 								}
 								if (res.version) {
-									htmlContent.push(localize('json.nugget.version.hover', 'Latest version: {0}', res.version));
+									htmlContent.push({ language: 'string', value: localize('json.nugget.version.hover', 'Latest version: {0}', res.version)});
 								}
 								break;
 							}
