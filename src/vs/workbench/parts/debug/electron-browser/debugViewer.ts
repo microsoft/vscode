@@ -491,7 +491,7 @@ export class CallStackRenderer implements tree.IRenderer {
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
-		if (stackFrame.source.available && stackFrame.lineNumber !== undefined) {
+		if (stackFrame.lineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.lineNumber}`;
 			dom.removeClass(data.lineNumber, 'unavailable');
 		} else {
