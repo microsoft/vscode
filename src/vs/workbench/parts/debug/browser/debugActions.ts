@@ -672,7 +672,7 @@ export class SelectionToReplAction extends EditorAction {
 
 	public isSupported(): boolean {
 		const selection = this.editor.getSelection();
-		return !!selection && !selection.isEmpty() && this.debugService.state === debug.State.Stopped;
+		return !!selection && !selection.isEmpty() && this.debugService.state !== debug.State.Disabled;
 	}
 
 	public getGroupId(): string {
