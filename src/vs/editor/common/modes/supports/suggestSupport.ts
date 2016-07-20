@@ -9,28 +9,11 @@ import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
 import {IFilter, matchesPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {Registry} from 'vs/platform/platform';
-import {localize} from 'vs/nls';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
 
 export class TextualSuggestSupport implements ISuggestSupport {
-
-	/* tslint:disable */
-	private static _c = Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-		type: 'object',
-		order: 5.1,
-		properties: {
-			'editor.wordBasedSuggestions': {
-				'type': 'boolean',
-				'description': localize('editor.wordBasedSuggestions', "Enable word based suggestions."),
-				'default': true
-			}
-		}
-	});
-	/* tslint:enable */
 
 	public get triggerCharacters(): string[] {
 		return [];

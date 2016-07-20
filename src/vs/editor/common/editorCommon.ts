@@ -396,6 +396,10 @@ export interface IEditorOptions {
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
+	 * Enable word based suggestions. Defaults to 'true'
+	 */
+	wordBasedSuggestions?: boolean;
+	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
 	 */
@@ -805,6 +809,7 @@ export class EditorContribOptions {
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
 	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	wordBasedSuggestions: boolean;
 	selectionHighlight:boolean;
 	referenceInfos: boolean;
 	folding: boolean;
@@ -824,6 +829,7 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+		wordBasedSuggestions: boolean;
 		selectionHighlight:boolean;
 		referenceInfos: boolean;
 		folding: boolean;
@@ -839,6 +845,7 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
+		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.referenceInfos = Boolean(source.referenceInfos);
 		this.folding = Boolean(source.folding);
@@ -860,6 +867,7 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
+			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.referenceInfos === other.referenceInfos
 			&& this.folding === other.folding
