@@ -14,14 +14,12 @@ import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {IQueryOptions, ISearchService} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
@@ -91,13 +89,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private queryBuilder: QueryBuilder;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextFileService private textFileService: ITextFileService,
 		@ISearchService private searchService: ISearchService
 	) {
 		super();
