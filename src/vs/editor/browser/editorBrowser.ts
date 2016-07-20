@@ -58,6 +58,7 @@ export interface IView extends IDisposable {
 	getCodeEditorHelper(): ICodeEditorHelper;
 
 	getCenteredRangeInViewport(): Range;
+	getVisibleRangeInViewport(): Range;
 
 	change(callback:(changeAccessor:IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
