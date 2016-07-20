@@ -31,7 +31,7 @@ declare var __dirname: string;
 // Checkout sources to run against:
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
-// Run from repository root folder with: ./scripts/test.sh --grep QuickOpen.performance --timeout 120000 --testWorkspace <path>
+// Run from repository root folder with (test.bat on Windows): ./scripts/test.sh --grep QuickOpen.performance --timeout 120000 --testWorkspace <path>
 suite('QuickOpen performance', () => {
 
 	test('Measure', () => {
@@ -76,7 +76,9 @@ suite('QuickOpen performance', () => {
 						assert.strictEqual(events.length, 1);
 						assert.strictEqual(events[0].name, 'openAnything');
 						assert.ok(!events[0].data.fromCache);
-						console.log(JSON.stringify(events[0].data) + ',');
+						if (testWorkspaceArg) {
+							console.log(JSON.stringify(events[0].data) + ',');
+						}
 						events.length = 0;
 						return measure();
 					});
