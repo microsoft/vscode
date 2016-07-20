@@ -33,6 +33,7 @@ import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/smartSelect/common/smartSelect';
 import 'vs/editor/contrib/smartSelect/common/jumpToBracket';
 import 'vs/editor/contrib/snippet/common/snippet';
+import 'vs/editor/contrib/snippet/common/tabCompletion';
 import 'vs/editor/contrib/snippet/browser/snippet';
 import 'vs/editor/contrib/suggest/browser/suggest';
 import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
