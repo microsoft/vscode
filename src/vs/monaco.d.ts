@@ -1247,6 +1247,10 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Enable word based suggestions. Defaults to 'true'
+         */
+        wordBasedSuggestions?: boolean;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
@@ -1409,6 +1413,7 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        wordBasedSuggestions: boolean;
         selectionHighlight: boolean;
         referenceInfos: boolean;
         folding: boolean;
