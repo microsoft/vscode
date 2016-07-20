@@ -237,6 +237,10 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
+export interface IRawBreakpointContribution {
+	language: string;
+}
+
 export interface IRawDebugSession {
 	configuration: { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites };
 
