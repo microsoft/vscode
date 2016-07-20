@@ -239,7 +239,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>(?i:\b(values|use|exec|openquery)\b)</string>
+			<string>(?i:\b(values|use|go|into|exec|openquery)\b)</string>
 			<key>name</key>
 			<string>keyword.other.DML.II.sql</string>
 		</dict>
