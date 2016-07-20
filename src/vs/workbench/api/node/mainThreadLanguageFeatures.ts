@@ -176,7 +176,6 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			triggerCharacters: triggerCharacters,
-			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position));
 			},

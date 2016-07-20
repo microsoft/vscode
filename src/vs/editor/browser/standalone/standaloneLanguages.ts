@@ -197,7 +197,6 @@ export function registerCompletionItemProvider(languageId:string, provider:Compl
 	let adapter = new SuggestAdapter(provider);
 	return modes.SuggestRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		shouldAutotriggerSuggest: true,
 		provideCompletionItems: (model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
 			return adapter.provideCompletionItems(model, position, token);
 		},

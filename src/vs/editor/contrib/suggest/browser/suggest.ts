@@ -119,19 +119,9 @@ export class SuggestController implements IEditorContribution {
 
 		Object.keys(triggerCharacters).forEach(ch => {
 			this.triggerCharacterListeners.push(this.editor.addTypingListener(ch, () => {
-				this.triggerCharacterHandler(ch, triggerCharacters[ch]);
+				this.triggerSuggest(ch, triggerCharacters[ch]).done(null, onUnexpectedError);
 			}));
 		});
-	}
-
-	private triggerCharacterHandler(character: string, groups: ISuggestSupport[][]): void {
-		groups = groups.map(supports => {
-			return supports.filter(support => support.shouldAutotriggerSuggest);
-		});
-
-		if (groups.length > 0) {
-			this.triggerSuggest(character, groups).done(null, onUnexpectedError);
-		}
 	}
 
 	triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): TPromise<boolean> {
