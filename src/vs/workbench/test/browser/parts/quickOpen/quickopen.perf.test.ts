@@ -31,7 +31,7 @@ declare var __dirname: string;
 // Checkout sources to run against:
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
-// Run from repository root folder with (test.bat on Windows): ./scripts/test.sh --grep QuickOpen.performance --timeout 120000 --testWorkspace <path>
+// Run from repository root folder with (test.bat on Windows): ./scripts/test.sh --grep QuickOpen.performance --timeout 180000 --testWorkspace <path>
 suite('QuickOpen performance', () => {
 
 	test('Measure', () => {
@@ -64,26 +64,37 @@ suite('QuickOpen performance', () => {
 		const descriptors = registry.getDefaultQuickOpenHandlers();
 		assert.strictEqual(descriptors.length, 1);
 
-		let i = n;
-		return (function measure() {
-			if (!i--) {
-				return;
-			}
+		function measure() {
 			return instantiationService.createInstance(descriptors[0])
 				.then((handler: QuickOpenHandler) => {
 					return handler.getResults('a').then(result => {
 						const events = telemetryService.events;
 						assert.strictEqual(events.length, 1);
-						assert.strictEqual(events[0].name, 'openAnything');
-						assert.ok(!events[0].data.fromCache);
-						if (testWorkspaceArg) {
-							console.log(JSON.stringify(events[0].data) + ',');
-						}
+						const event = events[0];
 						events.length = 0;
-						return measure();
+						assert.strictEqual(event.name, 'openAnything');
+						assert.ok(!event.data.fromCache);
+						return event;
 					});
 				});
-		})();
+		}
+
+		return measure() // Warm-up first
+			.then(() => {
+				if (testWorkspaceArg) { // Don't measure by default
+					let i = n;
+					return (function iterate() {
+						if (!i--) {
+							return;
+						}
+						return measure()
+							.then(event => {
+								console.log(JSON.stringify(event.data) + ',');
+								return iterate();
+							});
+					})();
+				}
+			});
 	});
 });
 
