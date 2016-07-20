@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import {Cursor} from 'vs/editor/common/controller/cursor';
-import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
