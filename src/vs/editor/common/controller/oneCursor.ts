@@ -57,6 +57,9 @@ export interface IViewModelHelper {
 
 	viewModel:ICursorMoveHelperModel;
 
+	getCurrentVisibleRange(): Range;
+	getCurrentCenteredRange(): Range;
+
 	convertModelPositionToViewPosition(lineNumber:number, column:number): Position;
 	convertModelRangeToViewRange(modelRange:Range): Range;
 
@@ -547,6 +550,20 @@ export class OneCursor {
 	public getViewLineCount(): number {
 		return this.viewModelHelper.viewModel.getLineCount();
 	}
+	public getViewTopLine(lineFromTop: number): number {
+		let visibleRange = this.viewModelHelper.getCurrentVisibleRange();
+		let lineNumber = visibleRange.startLineNumber + lineFromTop - 1;
+		return lineNumber > visibleRange.endLineNumber ? visibleRange.endLineNumber : lineNumber;
+	}
+	public getViewCenterLine(): number {
+		let centeredRange = this.viewModelHelper.getCurrentCenteredRange();
+		return centeredRange.startLineNumber;
+	}
+	public getViewBottomLine(lineFromBottom: number): number {
+		let visibleRange = this.viewModelHelper.getCurrentVisibleRange();
+		let lineNumber = visibleRange.endLineNumber - lineFromBottom + 1;
+		return lineNumber > visibleRange.startLineNumber ? lineNumber : visibleRange.startLineNumber;
+	}
 	public getViewLineMaxColumn(lineNumber:number): number {
 		return this.viewModelHelper.viewModel.getLineMaxColumn(lineNumber);
 	}
@@ -671,6 +688,18 @@ export class OneCursorOp {
 				return this.moveUp(cursor, inSelectionMode, noOfLines, ctx);
 			case editorCommon.CursorMoveViewPosition.LineDown:
 				return this.moveDown(cursor, inSelectionMode, noOfLines, ctx);
+			case editorCommon.CursorMoveViewPosition.LineViewTop:
+				viewLineNumber= cursor.getViewTopLine(moveParams.noOfLines || 1);
+				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
+				break;
+			case editorCommon.CursorMoveViewPosition.LineViewBottom:
+				viewLineNumber= cursor.getViewBottomLine(moveParams.noOfLines || 1);
+				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
+				break;
+			case editorCommon.CursorMoveViewPosition.LineViewCenter:
+				viewLineNumber= cursor.getViewCenterLine();
+				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
+				break;
 			default:
 				return false;
 		}

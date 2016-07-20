@@ -102,31 +102,6 @@ export class Cursor extends EventEmitter {
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
-		if (!this.viewModelHelper) {
-			this.viewModelHelper = {
-				viewModel: this.model,
-				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertModelRangeToViewRange: (modelRange: Range) => {
-					return modelRange;
-				},
-				convertViewToModelPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertViewSelectionToModelSelection: (viewSelection:Selection) => {
-					return viewSelection;
-				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
-					return modelPosition;
-				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range) => {
-					return modelRange;
-				}
-
-			};
-		}
-
 		this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
 		this.cursorUndoStack = [];
 

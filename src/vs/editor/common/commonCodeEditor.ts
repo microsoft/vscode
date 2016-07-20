@@ -287,6 +287,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public abstract getCenteredRangeInViewport(): Range;
 
+	public abstract getVisibleRangeInViewport(): Range;
+
 	public getVisibleColumnFromPosition(rawPosition:editorCommon.IPosition): number {
 		if (!this.model) {
 			return rawPosition.column;
@@ -788,6 +790,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			var viewModelHelper:IViewModelHelper = {
 				viewModel: this.viewModel,
+				getCurrentVisibleRange: () => {
+					return this.viewModel.convertModelRangeToViewRange(this.getVisibleRangeInViewport());
+				},
+				getCurrentCenteredRange: () => {
+					return this.viewModel.convertModelRangeToViewRange(this.getCenteredRangeInViewport());
+				},
 				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
 					return this.viewModel.convertModelPositionToViewPosition(lineNumber, column);
 				},

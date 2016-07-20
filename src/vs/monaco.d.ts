@@ -3200,6 +3200,9 @@ declare module monaco.editor {
         LineLastNonWhitespaceCharacter: string;
         LineUp: string;
         LineDown: string;
+        LineViewTop: string;
+        LineViewCenter: string;
+        LineViewBottom: string;
     };
 
     /**

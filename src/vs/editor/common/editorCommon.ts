@@ -4184,7 +4184,10 @@ export const CursorMoveViewPosition = {
 	LineEnd: 'lineEnd',
 	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter',
 	LineUp: 'lineUp',
-	LineDown: 'lineDown'
+	LineDown: 'lineDown',
+	LineViewTop: 'lineViewTop',
+	LineViewCenter: 'lineViewCenter',
+	LineViewBottom: 'lineViewBottom'
 };
 
 /**
