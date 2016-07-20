@@ -217,5 +217,31 @@ export class SnippetsRegistry {
 
 	}
 
+	public static getSnippetsStrict(model: IReadOnlyModel, position: IPosition): modes.ISuggestion[] {
+		const match = model.getLineContent(position.lineNumber).substr(0, position.column - 1).match(/[^\s]+$/);
+		if (!match) {
+			return [];
+		}
+		const prefix = match[0];
+		const result: modes.ISuggestion[] = [];
+		SnippetsRegistry._fillInSuggestion(this._defaultSnippets[model.getModeId()], prefix, result);
+		let snipppetsByMode = this._snippets[model.getModeId()];
+		if (snipppetsByMode) {
+			for (let path in snipppetsByMode) {
+				SnippetsRegistry._fillInSuggestion(snipppetsByMode[path], prefix, result);
+			}
+		}
+		return result;
+	}
 
+	private static _fillInSuggestion(suggestions: modes.ISuggestion[], prefix: string, bucket: modes.ISuggestion[]): void {
+		if (!suggestions) {
+			return;
+		}
+		for (const suggestion of suggestions) {
+			if (strings.endsWith(prefix, suggestion.label)) {
+				bucket.push(suggestion);
+			}
+		}
+	}
 }
