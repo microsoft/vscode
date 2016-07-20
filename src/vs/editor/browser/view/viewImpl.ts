@@ -929,10 +929,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this._context.privateViewEventBus.emit(editorCommon.EventType.ViewFocusChanged, this.hasFocus);
 		}
 	}
-
-	public getLinesViewportData(): ViewLinesViewportData {
-		return this.layoutProvider.getLinesViewportData();
-	}
 }
 
 function safeInvokeNoArg(func:Function): any {
