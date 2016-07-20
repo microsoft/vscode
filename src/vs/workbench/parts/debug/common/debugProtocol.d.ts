@@ -194,6 +194,8 @@ declare module DebugProtocol {
 
 		/** Client supports the optional type attribute for variables. */
 		supportsVariableType?: boolean;
+		/** Client supports the paging of variables. */
+		supportsVariablePaging?: boolean;
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
@@ -360,8 +362,12 @@ declare module DebugProtocol {
 	}
 
 	/** StepIn request; value of command field is "stepIn".
-		The request starts the debuggee to run again for one step.
+		The request starts the debuggee to step into a function/method if possible.
+		If it cannot step into a target, "stepIn" behaves like "next".
 		The debug adapter first sends the StepInResponse and then a StoppedEvent (event type 'step') after the step has completed.
+		If there are multiple function/method calls (or other targets) on the source line,
+		the optional argument 'targetId' can be used to control into which target the "stepIn" should occur.
+		The list of possible targets for a given source line can be retrieved via the "stepInTargets" request.
 	*/
 	export interface StepInRequest extends Request {
 		arguments: StepInArguments;
@@ -370,6 +376,8 @@ declare module DebugProtocol {
 	export interface StepInArguments {
 		/** Continue execution for this thread. */
 		threadId: number;
+		/** Optional id of the target to step into. */
+		targetId?: number;
 	}
 	/** Response to "stepIn" request. This is just an acknowledgement, so no body field is required. */
 	export interface StepInResponse extends Response {
@@ -485,7 +493,7 @@ declare module DebugProtocol {
 	}
 
 	/** Variables request; value of command field is "variables".
-		Retrieves all children for the given variable reference.
+		Retrieves all variables (or a range thereof) for the given variable reference.
 	*/
 	export interface VariablesRequest extends Request {
 		arguments: VariablesArguments;
@@ -494,11 +502,15 @@ declare module DebugProtocol {
 	export interface VariablesArguments {
 		/** The Variable reference. */
 		variablesReference: number;
+		/** The index of the first variable to return; if omitted children start at 0. */
+		start?: number;
+		/** The number of variables to return. If count is missing or 0, all variables are returned. */
+		count?: number;
 	}
 	/** Response to "variables" request. */
 	export interface VariablesResponse extends Response {
 		body: {
-			/** All children for the given variable reference */
+			/** All (or a selected range) of variables for the given variable reference. */
 			variables: Variable[];
 		};
 	}
@@ -608,6 +620,31 @@ declare module DebugProtocol {
 			type?: string;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest */
 			variablesReference: number;
+			/** The total number of child variables.
+				If this number is large, the number should be returned via the optional 'totalCount' attribute.
+				The client can use this information to present the variables in a paged UI and fetch them in chunks. */
+			totalCount?: number;
+		};
+	}
+
+	/** StepInTargets request; value of command field is "stepInTargets".
+		This request retrieves the possible stepIn targets for the specified stack frame.
+		These targets can be used in the "stepIn" request.
+		The StepInTargets may only be called if the "supportsStepInTargetsRequest" capability exists and is true.
+	 */
+	export interface StepInTargetsRequest extends Request {
+		arguments: StepInTargetsArguments;
+	}
+	/** Arguments for "stepInTargets" request. */
+	export interface StepInTargetsArguments {
+		/** The stack frame for which to retrieve the possible stepIn targets. */
+		frameId: number;
+	}
+	/** Response to "stepInTargets" request. */
+	export interface StepInTargetsResponse extends Response {
+		body: {
+			/** The possible stepIn targets of the specified source location. */
+			targets: StepInTarget[];
 		};
 	}
 
@@ -631,6 +668,8 @@ declare module DebugProtocol {
 		supportsSetVariable?: boolean;
 		/** The debug adapter supports restarting a frame. */
 		supportsRestartFrame?: boolean;
+		/** The debug adapter supports stepInTargetsRequest. */
+		supportsStepInTargetsRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -746,7 +785,7 @@ declare module DebugProtocol {
 
 	/** A Stackframe contains the source location. */
 	export interface StackFrame {
-		/** An identifier for the stack frame. This id can be used to retrieve the scopes of the frame with the 'scopesRequest' or to restart the execution of a stackframe. */
+		/** An identifier for the stack frame. It must be unique across all threads. This id can be used to retrieve the scopes of the frame with the 'scopesRequest' or to restart the execution of a stackframe. */
 		id: number;
 		/** The name of the stack frame, typically a method name */
 		name: string;
@@ -768,6 +807,9 @@ declare module DebugProtocol {
 		name: string;
 		/** The variables of this scope can be retrieved by passing the value of variablesReference to the VariablesRequest. */
 		variablesReference: number;
+		/** The total number of variables in this scope.
+			The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
+		totalCount?: number;
 		/** If true, the number of variables in this scope is large or expensive to retrieve. */
 		expensive: boolean;
 	}
@@ -776,6 +818,8 @@ declare module DebugProtocol {
 		Optionally a variable can have a 'type' that is shown if space permits or when hovering over the variable's name.
 		An optional 'kind' is used to render additional properties of the variable, e.g. different icons can be used to indicate that a variable is public or private.
 		If the value is structured (has children), a handle is provided to retrieve the children with the VariablesRequest.
+		If the number of children is large, the number should be returned via the optional 'totalCount' attribute.
+		The client can use this optional information to present the children in a paged UI and fetch them in chunks.
 	*/
 	export interface Variable {
 		/** The variable's name. */
@@ -786,6 +830,8 @@ declare module DebugProtocol {
 		value: string;
 		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 		variablesReference: number;
+		/** The total number of child variables. */
+		totalCount?: number;
 		/** Properties of a variable that can be used to determine how to render the variable in the UI. Format of the string value: TBD. */
 		kind?: string;
 	}
@@ -829,5 +875,15 @@ declare module DebugProtocol {
 		endLine?: number;
 		/**  An optional end column of the actual range covered by the breakpoint. If no end line is given, then the end column is assumed to be in the start line. */
 		endColumn?: number;
+	}
+
+	/** A StepInTarget can be used in the 'stepIn' request and determines into
+	 *  which single target the stepIn request should step.
+	 */
+	export interface StepInTarget {
+		/** Unique identifier for a stepIn target. */
+		id: number;
+		/** The name of the stepIn target (shown in the UI). */
+ 		label: string;
 	}
 }
