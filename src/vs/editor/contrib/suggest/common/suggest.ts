@@ -122,9 +122,8 @@ function createSuggesionComparator(options: ISuggestOptions): (a: ISuggestionIte
 			} else if (b.suggestion.type === 'snippet') {
 				return 1;
 			}
-		} else {
-			return defaultComparator(a, b);
 		}
+		return defaultComparator(a, b);
 	}
 
 	function snippetDownComparator(a: ISuggestionItem, b: ISuggestionItem): number {
@@ -134,9 +133,8 @@ function createSuggesionComparator(options: ISuggestOptions): (a: ISuggestionIte
 			} else if (b.suggestion.type === 'snippet') {
 				return -1;
 			}
-		} else {
-			return defaultComparator(a, b);
 		}
+		return defaultComparator(a, b);
 	}
 
 	if (options.snippetConfig === 'top') {
