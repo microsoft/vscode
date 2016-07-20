@@ -31,8 +31,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
 import { ISystemVariables } from 'vs/base/common/parsers';
-// debuggers extension point
 
+// debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 	type: 'array',
@@ -120,6 +120,23 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					}
 				}
 			}
+		}
+	}
+});
+
+// breakpoints extension point #9037
+export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawBreakpointContribution[]>('breakpoints', {
+	description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
+	type: 'array',
+	defaultSnippets: [{ body: [{ language: '' }] }],
+	items: {
+		type: 'object',
+		defaultSnippets: [{ body: { language: '' } }],
+		properties: {
+			language: {
+				description: nls.localize('vscode.extension.contributes.breakpoints.language', "Allow breakpoints for this language."),
+				type: 'string'
+			},
 		}
 	}
 });
@@ -220,6 +237,14 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				if (schemaAttributes) {
 					(<IJSONSchema> schema.properties['configurations'].items).oneOf.push(...schemaAttributes);
 				}
+			});
+		});
+
+		breakpointsExtPoint.setHandler(extensions => {
+			extensions.forEach(ext => {
+				ext.value.forEach(breakpoints => {
+					this.allModeIdsForBreakpoints[breakpoints.language] = true;
+				});
 			});
 		});
 	}
