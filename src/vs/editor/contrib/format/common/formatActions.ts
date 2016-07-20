@@ -78,7 +78,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			canceled = false;
 
 		// install a listener that checks if edits happens before the
-		// position on which we format right now. Iff so, we won't
+		// position on which we format right now. If so, we won't
 		// apply the format edits
 		var unbind = this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
 			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
