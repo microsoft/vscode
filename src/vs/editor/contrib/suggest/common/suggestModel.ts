@@ -45,7 +45,6 @@ class Context {
 	column: number;
 	isInEditableRange: boolean;
 
-	private isAutoTriggerEnabled: boolean;
 	lineContentBefore: string;
 	lineContentAfter: string;
 
@@ -78,16 +77,9 @@ class Context {
 				this.isInEditableRange = false;
 			}
 		}
-
-		const supports = SuggestRegistry.all(model);
-		this.isAutoTriggerEnabled = supports.some(s => s.shouldAutotriggerSuggest);
 	}
 
 	shouldAutoTrigger(): boolean {
-		if (!this.isAutoTriggerEnabled) {
-			// Support disallows it
-			return false;
-		}
 
 		if (this.wordBefore.length === 0) {
 			// Word before position is empty
