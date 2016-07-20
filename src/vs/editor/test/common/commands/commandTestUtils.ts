@@ -6,12 +6,14 @@
 
 import * as assert from 'assert';
 import {Cursor} from 'vs/editor/common/controller/cursor';
+import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode} from 'vs/editor/common/modes';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
+import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
 
 export function testCommand(
 	lines: string[],
@@ -24,7 +26,7 @@ export function testCommand(
 
 	let model = Model.createFromString(lines.join('\n'), undefined, mode);
 	let config = new MockConfiguration(null);
-	let cursor = new Cursor(0, config, model, null, false);
+	let cursor = new Cursor(0, config, model, viewModelHelper(model), false);
 
 	cursor.setSelections('tests', [selection]);
 

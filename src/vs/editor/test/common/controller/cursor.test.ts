@@ -21,6 +21,7 @@ import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConf
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {BracketMode} from 'vs/editor/test/common/testModes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
 
 let H = Handler;
 
@@ -205,7 +206,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new MockConfiguration(null);
-		thisCursor = new Cursor(1, thisConfiguration, thisModel, null, false);
+		thisCursor = new Cursor(1, thisConfiguration, thisModel, viewModelHelper(thisModel), false);
 	});
 
 	teardown(() => {
@@ -992,7 +993,7 @@ suite('Editor Controller - Cursor', () => {
 			'\t\t}',
 			'\t}'
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 7, false);
 		cursorEqual(cursor, 1, 7);
@@ -1026,7 +1027,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		cursorEqual(cursor, 1, 4);
@@ -1058,7 +1059,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		cursorEqual(cursor, 1, 4);
@@ -1595,7 +1596,7 @@ suite('Editor Controller - Regression tests', () => {
 			'qwerty'
 		];
 		let model = Model.createFromString(text.join('\n'));
-		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -1613,7 +1614,7 @@ suite('Editor Controller - Regression tests', () => {
 			''
 		];
 		model = Model.createFromString(text.join('\n'));
-		cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+		cursor = new Cursor(1, new MockConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -2798,7 +2799,7 @@ interface ICursorOpts {
 function usingCursor(opts:ICursorOpts, callback:(model:Model, cursor:Cursor)=>void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.mode);
 	let config = new MockConfiguration(opts.editorOpts);
-	let cursor = new Cursor(1, config, model, null, false);
+	let cursor = new Cursor(1, config, model, viewModelHelper(model), false);
 
 	callback(model, cursor);
 
