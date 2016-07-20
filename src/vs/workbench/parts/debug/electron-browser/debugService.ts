@@ -831,7 +831,7 @@ export class DebugService implements debug.IDebugService {
 
 		if (source.inMemory) {
 			// internal module
-			if (source.reference !== 0 && this.session) {
+			if (source.reference !== 0 && this.session && source.available) {
 				return this.session.source({ sourceReference: source.reference }).then(response => {
 					const mime = response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
 					return this.getDebugStringEditorInput(source, response.body.content, mime);
