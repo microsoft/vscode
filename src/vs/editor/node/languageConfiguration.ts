@@ -11,6 +11,9 @@ import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfiguratio
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IAutoClosingPair, IAutoClosingPairConditional} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import {Registry} from 'vs/platform/platform';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 type CharacterPair = [string, string];
 
@@ -101,3 +104,126 @@ export class LanguageConfigurationFileHandler {
 		});
 	}
 }
+
+const schemaId = 'vscode://schemas/language-configuration';
+const schema: IJSONSchema = {
+	default: {
+		comments: {
+			blockComment: ['/*', '*/'],
+			lineComment: '//'
+		},
+		brackets: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
+		autoClosingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
+		surroundingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
+	},
+	definitions: {
+		openBracket: {
+			type: 'string',
+			description: nls.localize('schema.openBracket', 'The opening bracket character or string sequence.')
+		},
+		closeBracket: {
+			type: 'string',
+			description: nls.localize('schema.closeBracket', 'The closing bracket character or string sequence.')
+		},
+		bracketPair: {
+			type: 'array',
+			items: [{
+				$ref: '#definitions/openBracket'
+			},{
+				$ref: '#definitions/closeBracket'
+			}]
+		}
+	},
+	properties: {
+		comments: {
+			default: {
+				comments: {
+					blockComment: ['/*', '*/'],
+					lineComment: '//'
+				}
+			},
+			description: nls.localize('schema.comments', 'Defines the comment symbols'),
+			type: 'object',
+			properties: {
+				blockComment: {
+					type: 'array',
+					description: nls.localize('schema.blockComments', 'Defines how block comments are marked.'),
+					items: [{
+						type: 'string',
+						description: nls.localize('schema.blockComment.begin', 'The character sequence that starts a block comment.')
+					},{
+						type: 'string',
+						description: nls.localize('schema.blockComment.end', 'The character sequence that ends a block comment.')
+					}]
+				},
+				lineComment: {
+					type: 'string',
+					description: nls.localize('schema.lineComment', 'The character sequence that starts a line comment.')
+				}
+			}
+		},
+		brackets: {
+			default: {
+				brackets: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
+			},
+			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
+			type: 'array',
+			items: {
+				$ref: '#definitions/bracketPair'
+			}
+		},
+		autoClosingPairs: {
+			default: {
+				autoClosingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
+			},
+			description: nls.localize('schema.autoClosingPairs', 'Defines the bracket pairs. When a opening bracket is entered, the closing bracket is inserted automatically.'),
+			type: 'array',
+			items: {
+				oneOf: [{
+					$ref: '#definitions/bracketPair'
+				},{
+					type: 'object',
+					properties: {
+						open: {
+							$ref: '#definitions/openBracket'
+						},
+						close: {
+							$ref: '#definitions/closeBracket'
+						},
+						notIn: {
+							type: 'array',
+							description: nls.localize('schema.autoClosingPairs.notIn', 'Defines a list of scopes where the auto pairs are disabled.'),
+							items: {
+								enum: ['string', 'comment']
+							}
+						}
+					}
+				}]
+			}
+		},
+		surroundingPairs: {
+			default: {
+				surroundingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
+			},
+			description: nls.localize('schema.surroundingPairs', 'Defines the bracket pairs that can be used to surround a selected string.'),
+			type: 'array',
+			items: {
+				oneOf: [{
+					$ref: '#definitions/bracketPair'
+				},{
+					type: 'object',
+					properties: {
+						open: {
+							$ref: '#definitions/openBracket'
+						},
+						close: {
+							$ref: '#definitions/closeBracket'
+						}
+					}
+				}]
+			}
+		},
+	}
+};
+let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+schemaRegistry.registerSchema(schemaId, schema);
