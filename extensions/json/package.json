@@ -35,7 +35,7 @@
 					"application/json",
 					"application/manifest+json"
 				],
-				"configuration": "./json.configuration.json"
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [
