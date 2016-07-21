@@ -55,7 +55,7 @@
 				"url": "vscode://schemas/vscode-extensions"
 			},
 			{
-				"fileMatch": "language-configuration.json",
+				"fileMatch": "*language-configuration.json",
 				"url": "vscode://schemas/language-configuration"
 			},
 			{
