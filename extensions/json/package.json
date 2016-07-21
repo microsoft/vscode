@@ -55,6 +55,10 @@
 				"url": "vscode://schemas/vscode-extensions"
 			},
 			{
+				"fileMatch": "language-configuration.json",
+				"url": "vscode://schemas/language-configuration"
+			},
+			{
 				"fileMatch": "vscode://defaultsettings/keybindings.json",
 				"url": "vscode://schemas/keybindings"
 			},
