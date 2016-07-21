@@ -1253,15 +1253,23 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveLeft(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveLeft(oneCursor, inSelectionMode, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Left;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordLeft(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordLeft(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
 	}
 
-	private _moveRight(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveRight(oneCursor, inSelectionMode, oneCtx));
+	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Right;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordRight(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
@@ -1272,7 +1280,7 @@ export class Cursor extends EventEmitter {
 		ctx.eventData= ctx.eventData || {};
 		ctx.eventData.to= editorCommon.CursorMovePosition.Down;
 		ctx.eventData.select = inSelectionMode;
-		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLines;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
 		ctx.eventData.isPaged= isPaged;
 
 		return this._cursorMove(ctx);
@@ -1282,7 +1290,7 @@ export class Cursor extends EventEmitter {
 		ctx.eventData= ctx.eventData || {};
 		ctx.eventData.to= editorCommon.CursorMovePosition.Up;
 		ctx.eventData.select= inSelectionMode;
-		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLines;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
 		ctx.eventData.isPaged= isPaged;
 
 		return this._cursorMove(ctx);
