@@ -196,13 +196,13 @@ export class SnippetsRegistry {
 
 	}
 
-	public static getSnippetsStrict(model: IReadOnlyModel, position: IPosition): modes.ISuggestion[] {
+	public static fillInSnippets(bucket: modes.ISuggestion[], model: IReadOnlyModel, position: IPosition): void {
 		const match = model.getLineContent(position.lineNumber).substr(0, position.column - 1).match(/[^\s]+$/);
 		if (!match) {
-			return [];
+			return;
 		}
+		let idx = 0;
 		const prefix = match[0];
-		const result: modes.ISuggestion[] = [];
 		let snipppetsByMode = this._snippets[model.getModeId()];
 		if (snipppetsByMode) {
 			for (let path in snipppetsByMode) {
@@ -210,12 +210,12 @@ export class SnippetsRegistry {
 				if (suggestions) {
 					for (const suggestion of suggestions) {
 						if (strings.endsWith(prefix, suggestion.label)) {
-							result.push(suggestion);
+							bucket[idx++] = suggestion;
 						}
 					}
 				}
 			}
 		}
-		return result;
+		bucket.length = idx;
 	}
 }

@@ -31,8 +31,7 @@ class TabCompletionController implements editor.IEditorContribution {
 		this._snippetController = getSnippetController(editor);
 		const hasSnippets = keybindingService.createKey(TabCompletionController.ContextKey, undefined);
 		this._cursorChangeSubscription = editor.onDidChangeCursorPosition(e => {
-			this._currentCompletions.length = 0;
-			this._currentCompletions = SnippetsRegistry.getSnippetsStrict(editor.getModel(), editor.getPosition());
+			SnippetsRegistry.fillInSnippets(this._currentCompletions, editor.getModel(), editor.getPosition());
 			hasSnippets.set(this._currentCompletions.length === 1); //todo@joh make it work with N
 		});
 	}
