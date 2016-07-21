@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import editorcommon = require('vs/editor/common/editorCommon');
-import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
+import { CommonEditorRegistry, ContextKey, EditorActionDescriptor, defaultEditorActionKeybindingOptions } from 'vs/editor/common/editorCommonExtensions';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
@@ -61,8 +61,28 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowDebugHo
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 }, 'Debug: Show Hover'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(EditorConditionalBreakpointAction, EditorConditionalBreakpointAction.ID, nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint"), void 0, 'Debug: Conditional Breakpoint'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectionToReplAction, SelectionToReplAction.ID, nls.localize('debugEvaluate', "Debug: Evaluate"), void 0, 'Debug: Evaluate'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RunToCursorAction, RunToCursorAction.ID, nls.localize('runToCursor', "Debug: Run to Cursor"), void 0, 'Debug: Run to Cursor'));
+CommonEditorRegistry.registerEditorAction({
+	ctor: SelectionToReplAction,
+	id: SelectionToReplAction.ID,
+	label: nls.localize('debugEvaluate', "Debug: Evaluate"),
+	alias: 'Debug: Evaluate',
+	kbOpts: defaultEditorActionKeybindingOptions,
+	menuOpts: {
+		kbExpr: KbExpr.and(KbExpr.has(editorcommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION), KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)),
+		group: 'debug'
+	}
+});
+CommonEditorRegistry.registerEditorAction({
+	ctor: RunToCursorAction,
+	id: RunToCursorAction.ID,
+	label: nls.localize('runToCursor', "Debug: Run to Cursor"),
+	alias: 'Debug: Run to Cursor',
+	kbOpts: defaultEditorActionKeybindingOptions,
+	menuOpts: {
+		kbExpr: KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE),
+		group: 'debug'
+	}
+});
 
 // register viewlet
 (<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
