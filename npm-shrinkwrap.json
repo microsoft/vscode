@@ -428,9 +428,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "0.33.0",
-      "from": "git+https://github.com/sourcelair/xterm.js.git#8790a94",
-      "resolved": "git+https://github.com/sourcelair/xterm.js.git#8790a94a56cd68a7188eef9ec47c05d2fd69cc41"
+      "version": "1.0.0",
+      "from": "git+https://github.com/sourcelair/xterm.js.git#55fb5db",
+      "resolved": "git+https://github.com/sourcelair/xterm.js.git#55fb5dbcb5353d6fb2a00617be4b1c5de84c6c80"
     },
     "yauzl": {
       "version": "2.3.1",
