@@ -192,19 +192,6 @@ export class SnippetsRegistry {
 			result.suggestions.push(p);
 		});
 
-		// if (result.suggestions.length > 0) {
-		// 	if (word) {
-		// 		// Push also the current word as first suggestion, to avoid unexpected snippet acceptance on Enter.
-		// 		result.suggestions = result.suggestions.slice(0);
-		// 		result.suggestions.unshift({
-		// 			codeSnippet: word.word,
-		// 			label: word.word,
-		// 			type: 'text'
-		// 		});
-		// 	}
-		// 	result.incomplete = true;
-		// }
-
 		return result;
 
 	}
@@ -219,20 +206,16 @@ export class SnippetsRegistry {
 		let snipppetsByMode = this._snippets[model.getModeId()];
 		if (snipppetsByMode) {
 			for (let path in snipppetsByMode) {
-				SnippetsRegistry._fillInSuggestion(snipppetsByMode[path], prefix, result);
+				const suggestions = snipppetsByMode[path];
+				if (suggestions) {
+					for (const suggestion of suggestions) {
+						if (strings.endsWith(prefix, suggestion.label)) {
+							result.push(suggestion);
+						}
+					}
+				}
 			}
 		}
 		return result;
-	}
-
-	private static _fillInSuggestion(suggestions: modes.ISuggestion[], prefix: string, bucket: modes.ISuggestion[]): void {
-		if (!suggestions) {
-			return;
-		}
-		for (const suggestion of suggestions) {
-			if (strings.endsWith(prefix, suggestion.label)) {
-				bucket.push(suggestion);
-			}
-		}
 	}
 }
