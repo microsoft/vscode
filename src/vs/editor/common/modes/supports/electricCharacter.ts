@@ -36,7 +36,7 @@ export class BracketElectricCharacterSupport implements modes.IRichEditElectricC
 		this._registry = registry;
 		this._modeId = modeId;
 		this.contribution = contribution || {};
-		this.brackets = new Brackets(modeId, brackets, autoClosePairs, contribution.docComment);
+		this.brackets = new Brackets(modeId, brackets, autoClosePairs, this.contribution.docComment);
 	}
 
 	public getElectricCharacters(): string[]{
@@ -74,7 +74,7 @@ export class Brackets {
 		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close);
 		if (docComment) {
 			// IDocComment is legacy, only partially supported
-			this._complexAutoClosePairs.push({ open:docComment.open, close: docComment.close });
+			this._complexAutoClosePairs.push({ open: docComment.open, close: docComment.close });
 		}
 	}
 
