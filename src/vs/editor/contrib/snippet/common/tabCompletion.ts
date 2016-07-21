@@ -58,7 +58,7 @@ class TabCompletionController implements editor.IEditorContribution {
 
 CommonEditorRegistry.registerEditorContribution(TabCompletionController);
 CommonEditorRegistry.registerEditorCommand(
-	'tabCompletion',
+	'insertSnippet',
 	KeybindingsRegistry.WEIGHT.editorContrib(),
 	{ primary: KeyCode.Tab },
 	true,
