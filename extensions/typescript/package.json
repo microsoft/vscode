@@ -205,22 +205,12 @@
 				"title": "%javascript.reloadProjects.title%"
 			}
 		],
-		"debuggers": [
+		"breakpoints": [
 			{
-				"type": "node",
-				"enableBreakpointsFor": {
-					"languageIds": [
-						"typescript", "typescriptreact"
-					]
-				}
+				"language": "typescript"
 			},
 			{
-				"type": "extensionHost",
-				"enableBreakpointsFor": {
-					"languageIds": [
-						"typescript"
-					]
-				}
+				"language": "typescriptreact"
 			}
 		],
 		"snippets": [
