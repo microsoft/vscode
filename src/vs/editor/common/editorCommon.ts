@@ -4206,9 +4206,10 @@ export const CursorMovePosition = {
  * Units for Cursor move 'by' argument
  */
 export const CursorMoveByUnit = {
-	Lines: 'lines',
-	WrappedLines: 'wrappedLines',
-	Characters: 'characters'
+	Line: 'line',
+	WrappedLine: 'wrappedLine',
+	Character: 'character',
+	HalfLine: 'halfLine'
 };
 
 /**

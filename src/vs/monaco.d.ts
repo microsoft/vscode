@@ -3216,9 +3216,10 @@ declare module monaco.editor {
      * Units for Cursor move 'by' argument
      */
     export const CursorMoveByUnit: {
-        Lines: string;
-        WrappedLines: string;
-        Characters: string;
+        Line: string;
+        WrappedLine: string;
+        Character: string;
+        HalfLine: string;
     };
 
     /**

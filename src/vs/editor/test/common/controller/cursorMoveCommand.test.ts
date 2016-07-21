@@ -46,6 +46,78 @@ suite('Cursor move command test', () => {
 		thisConfiguration.dispose();
 	});
 
+	test('move left should move to left character', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 1, 8);
+
+		moveLeft(thisCursor);
+
+		cursorEqual(thisCursor, 1, 7);
+	});
+
+	test('move left should move to left by n characters', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 1, 8);
+
+		moveLeft(thisCursor, 3);
+
+		cursorEqual(thisCursor, 1, 5);
+	});
+
+	test('move left should move to left by half line', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 1, 8);
+
+		moveLeft(thisCursor, 1, CursorMoveByUnit.HalfLine);
+
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move left moves to previous line', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 2, 3);
+
+		moveLeft(thisCursor, 10);
+
+		cursorEqual(thisCursor, 1, LINE1.length + 1);
+	});
+
+	test('move right should move to right character', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 1, 5);
+
+		moveRight(thisCursor);
+
+		cursorEqual(thisCursor, 1, 6);
+	});
+
+	test('move right should move to right by n characters', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 1, 2);
+
+		moveRight(thisCursor, 6);
+
+		cursorEqual(thisCursor, 1, 8);
+	});
+
+	test('move right should move to right by half line', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 1, 4);
+
+		moveRight(thisCursor, 1, CursorMoveByUnit.HalfLine);
+
+		cursorEqual(thisCursor, 1, 14);
+	});
+
+	test('move right moves to next line', () => {
+		thisCursor= aCursor();
+		moveTo(thisCursor, 1, 8);
+
+		moveRight(thisCursor, 100);
+
+		cursorEqual(thisCursor, 2, 1);
+	});
+
 	test('move to first character of line from middle', () => {
 		thisCursor= aCursor();
 		moveTo(thisCursor, 1, 8);
@@ -404,12 +476,20 @@ function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
 	move(cursor, {to: CursorMovePosition.WrappedLineLastNonWhitespaceCharacter});
 }
 
+function moveLeft(cursor: Cursor, amount?: number, by?: string, select?: boolean) {
+	move(cursor, {to: CursorMovePosition.Left, by:by, amount: amount, select: select});
+}
+
+function moveRight(cursor: Cursor, amount?: number, by?: string, select?: boolean) {
+	move(cursor, {to: CursorMovePosition.Right, by:by, amount: amount, select: select});
+}
+
 function moveUp(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Up, by:CursorMoveByUnit.WrappedLines, amount: noOfLines, select: select});
+	move(cursor, {to: CursorMovePosition.Up, by:CursorMoveByUnit.WrappedLine, amount: noOfLines, select: select});
 }
 
 function moveDown(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Down, by:CursorMoveByUnit.WrappedLines, amount: noOfLines, select: select});
+	move(cursor, {to: CursorMovePosition.Down, by:CursorMoveByUnit.WrappedLine, amount: noOfLines, select: select});
 }
 
 function moveToTop(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
