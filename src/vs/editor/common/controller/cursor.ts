@@ -1270,8 +1270,9 @@ export class Cursor extends EventEmitter {
 
 	private _moveDown(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData= ctx.eventData || {};
-		ctx.eventData.to= editorCommon.CursorMoveViewPosition.LineDown;
-		ctx.eventData.inSelectionMode= inSelectionMode;
+		ctx.eventData.to= editorCommon.CursorMovePosition.Down;
+		ctx.eventData.select = inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLines;
 		ctx.eventData.isPaged= isPaged;
 
 		return this._cursorMove(ctx);
@@ -1279,8 +1280,9 @@ export class Cursor extends EventEmitter {
 
 	private _moveUp(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData= ctx.eventData || {};
-		ctx.eventData.to= editorCommon.CursorMoveViewPosition.LineUp;
-		ctx.eventData.inSelectionMode= inSelectionMode;
+		ctx.eventData.to= editorCommon.CursorMovePosition.Up;
+		ctx.eventData.select= inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLines;
 		ctx.eventData.isPaged= isPaged;
 
 		return this._cursorMove(ctx);
