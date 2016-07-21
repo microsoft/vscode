@@ -8,7 +8,7 @@
 			"id": "r",
 			"extensions": [ ".r", ".rhistory", ".rprofile", ".rt" ],
 			"aliases": [ "R", "r" ],
-			"configuration": "./r.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "r",
