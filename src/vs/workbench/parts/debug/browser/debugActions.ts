@@ -593,6 +593,9 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	public run(): TPromise<void> {
+		if (this.debugService.state !== debug.State.Stopped) {
+			return TPromise.as(null);
+		}
 		const lineNumber = this.editor.getPosition().lineNumber;
 		const uri = this.editor.getModel().uri;
 
@@ -607,26 +610,10 @@ export class RunToCursorAction extends EditorAction {
 			}
 		});
 
-		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {
+		const bpExists = !!(this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
+		return (bpExists ? TPromise.as(null) : this.debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
 			this.debugService.continue(this.debugService.getViewModel().getFocusedThreadId());
 		});
-	}
-
-	public getGroupId(): string {
-		return '5_debug/1_run_to_cursor';
-	}
-
-	public shouldShowInContextMenu(): boolean {
-		if (this.debugService.state !== debug.State.Stopped) {
-			return false;
-		}
-
-		const lineNumber = this.editor.getPosition().lineNumber;
-		const uri = this.editor.getModel().uri;
-		const bps = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString());
-
-		// breakpoint must not be on position (no need for this action).
-		return bps.length === 0;
 	}
 
 	public isSupported(): boolean {
@@ -672,15 +659,7 @@ export class SelectionToReplAction extends EditorAction {
 
 	public isSupported(): boolean {
 		const selection = this.editor.getSelection();
-		return !!selection && !selection.isEmpty() && this.debugService.state !== debug.State.Disabled;
-	}
-
-	public getGroupId(): string {
-		return '5_debug/2_selection_to_repl';
-	}
-
-	public shouldShowInContextMenu(): boolean {
-		return this.isSupported();
+		return !!selection && !selection.isEmpty() && this.debugService.state !== debug.State.Disabled && this.debugService.state !== debug.State.Inactive;
 	}
 }
 

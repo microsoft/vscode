@@ -263,7 +263,7 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 	}
 }
 
-var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { primary: null, context: ContextKey.EditorTextFocus };
+export var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { primary: null, context: ContextKey.EditorTextFocus };
 
 function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
