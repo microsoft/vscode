@@ -9,7 +9,7 @@ import {parse} from 'vs/base/common/json';
 import {readFile} from 'vs/base/node/pfs';
 import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IAutoClosingPair} from 'vs/editor/common/modes';
+import {IAutoClosingPair, IAutoClosingPairConditional} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 type CharacterPair = [string, string];
@@ -22,8 +22,8 @@ interface ICommentRule {
 interface ILanguageConfiguration {
 	comments?: ICommentRule;
 	brackets?: CharacterPair[];
-	autoClosingPairs?: CharacterPair[];
-	surroundingPairs?: CharacterPair[];
+	autoClosingPairs?: (CharacterPair | IAutoClosingPairConditional)[];
+	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];
 }
 
 export class LanguageConfigurationFileHandler {
@@ -92,10 +92,12 @@ export class LanguageConfigurationFileHandler {
 		LanguageConfigurationRegistry.register(modeId, richEditConfig);
 	}
 
-	private _mapCharacterPairs(pairs:CharacterPair[]): IAutoClosingPair[] {
+	private _mapCharacterPairs(pairs: (CharacterPair | IAutoClosingPairConditional)[]): IAutoClosingPairConditional[] {
 		return pairs.map(pair => {
-			let [open, close] = pair;
-			return { open: open, close: close };
+			if (Array.isArray(pair)) {
+				return { open: pair[0], close: pair[1] };
+			}
+			return <IAutoClosingPairConditional> pair;
 		});
 	}
 }
