@@ -52,6 +52,7 @@ interface IPickOpenEntryItem extends IPickOpenEntry {
 
 interface IInternalPickOptions {
 	value?: string;
+	valueSelect?: boolean;
 	placeHolder?: string;
 	inputDecoration?: Severity;
 	password?: boolean;
@@ -122,15 +123,15 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 	}
 
-	public input(options?: IInputOptions): TPromise<string> {
-		const defaultMessage = options && options.prompt
+	public input(options: IInputOptions = {}): TPromise<string> {
+		const defaultMessage = options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 		let currentPick = defaultMessage;
 		let currentValidation = TPromise.as(true);
 		let currentDecoration: Severity;
-		let lastValue = options && options.value || '';
+		let lastValue = options.value || '';
 
 		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
 
@@ -141,7 +142,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				autoFocus: { autoFocusFirstEntry: true },
 				password: options.password,
 				placeHolder: options.placeHolder,
-				value: options.value,
+				value: lastValue || options.value,
+				valueSelect: !lastValue || lastValue === options.value,
 				inputDecoration: currentDecoration,
 				onDidType: (value) => {
 					lastValue = value;
@@ -255,7 +257,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Respect input value
 		if (options.value) {
-			this.pickOpenWidget.setValue(options.value);
+			this.pickOpenWidget.setValue(options.value, options.valueSelect);
 		}
 
 		// Respect password
