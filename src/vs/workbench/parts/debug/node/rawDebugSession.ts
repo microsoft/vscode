@@ -221,7 +221,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
-		this.capabilities = objects.mixin(this.capabilities, response.body);
+		if (response) {
+			this.capabilities = objects.mixin(this.capabilities, response.body);
+		}
+
 		return response;
 	}
 

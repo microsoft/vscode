@@ -632,6 +632,10 @@ export class DebugService implements debug.IDebugService {
 				this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
+				if (!this.session) {
+					return TPromise.as(null);
+				}
+
 				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
@@ -942,6 +946,7 @@ export class DebugService implements debug.IDebugService {
 
 	private lazyTransitionToRunningState(threadId?: number): void {
 		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
+
 		const toDispose = this.session.onDidStop(e => {
 			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
 				setNewFocusedStackFrameScheduler.cancel();
