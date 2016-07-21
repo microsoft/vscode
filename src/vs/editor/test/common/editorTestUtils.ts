@@ -19,8 +19,8 @@ export function withEditorModel(text:string[], callback:(model:Model) => void): 
 export function viewModelHelper(model): IViewModelHelper{
 	return {
 			viewModel: model,
-			getCurrentVisibleRange: () => { return null; },
-			getCurrentCenteredRange: () => { return null; },
+			getCurrentVisibleViewRangeInViewPort: () => { return null; },
+			getCurrentVisibleModelRangeInViewPort: () => { return null; },
 			convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
 				return new Position(lineNumber, column);
 			},
@@ -32,6 +32,9 @@ export function viewModelHelper(model): IViewModelHelper{
 			},
 			convertViewSelectionToModelSelection: (viewSelection: Selection) => {
 				return viewSelection;
+			},
+			convertViewRangeToModelRange: (modelRange: Range) => {
+				return modelRange;
 			},
 			validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
 				return modelPosition;

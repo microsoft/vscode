@@ -4185,17 +4185,30 @@ export var EventType = {
 /**
  * Positions in the view for cursor move command.
  */
-export const CursorMoveViewPosition = {
-	LineStart: 'lineStart',
-	LineFirstNonWhitespaceCharacter: 'lineFirstNonWhitespaceCharacter',
-	LineColumnCenter: 'lineColumnCenter',
-	LineEnd: 'lineEnd',
-	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter',
-	LineUp: 'lineUp',
-	LineDown: 'lineDown',
-	LineViewTop: 'lineViewTop',
-	LineViewCenter: 'lineViewCenter',
-	LineViewBottom: 'lineViewBottom'
+export const CursorMovePosition = {
+	Left: 'left',
+	Right: 'right',
+	Up: 'up',
+	Down: 'down',
+
+	WrappedLineStart: 'wrappedLineStart',
+	WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
+	WrappedLineColumnCenter: 'wrappedLineColumnCenter',
+	WrappedLineEnd: 'wrappedLineEnd',
+	WrappedLineLastNonWhitespaceCharacter: 'wrappedLineLastNonWhitespaceCharacter',
+
+	ViewPortTop: 'viewPortTop',
+	ViewPortCenter: 'viewPortCenter',
+	ViewPortBottom: 'viewPortBottom',
+};
+
+/**
+ * Units for Cursor move 'by' argument
+ */
+export const CursorMoveByUnit = {
+	Lines: 'lines',
+	WrappedLines: 'wrappedLines',
+	Characters: 'characters'
 };
 
 /**
@@ -4203,10 +4216,9 @@ export const CursorMoveViewPosition = {
  */
 export interface CursorMoveArguments {
 	to: string;
-	inSelectionMode?: boolean;
-	noOfLines?: number;
-	isPaged?: boolean;
-	pageSize?: number;
+	select?: boolean;
+	by?: string;
+	amount?: number;
 };
 
 /**
@@ -4217,23 +4229,21 @@ let isCursorMoveArgs= function(arg): boolean  {
 		return false;
 	}
 
-	if (!types.isString(arg.to)) {
+	let cursorMoveArg: CursorMoveArguments = arg;
+
+	if (!types.isString(cursorMoveArg.to)) {
 		return false;
 	}
 
-	if (!types.isUndefined(arg.inSelectionMode) && !types.isBoolean(arg.inSelectionMode)) {
+	if (!types.isUndefined(cursorMoveArg.select) && !types.isBoolean(cursorMoveArg.select)) {
 		return false;
 	}
 
-	if (!types.isUndefined(arg.noOfLines) && !types.isNumber(arg.noOfLines)) {
+	if (!types.isUndefined(cursorMoveArg.by) && !types.isString(cursorMoveArg.by)) {
 		return false;
 	}
 
-	if (!types.isUndefined(arg.isPaged) && !types.isBoolean(arg.isPaged)) {
-		return false;
-	}
-
-	if (!types.isUndefined(arg.pageSize) && !types.isNumber(arg.pageSize)) {
+	if (!types.isUndefined(cursorMoveArg.amount) && !types.isNumber(cursorMoveArg.amount)) {
 		return false;
 	}
 

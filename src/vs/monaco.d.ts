@@ -3197,17 +3197,28 @@ declare module monaco.editor {
     /**
      * Positions in the view for cursor move command.
      */
-    export const CursorMoveViewPosition: {
-        LineStart: string;
-        LineFirstNonWhitespaceCharacter: string;
-        LineColumnCenter: string;
-        LineEnd: string;
-        LineLastNonWhitespaceCharacter: string;
-        LineUp: string;
-        LineDown: string;
-        LineViewTop: string;
-        LineViewCenter: string;
-        LineViewBottom: string;
+    export const CursorMovePosition: {
+        Left: string;
+        Right: string;
+        Up: string;
+        Down: string;
+        WrappedLineStart: string;
+        WrappedLineFirstNonWhitespaceCharacter: string;
+        WrappedLineColumnCenter: string;
+        WrappedLineEnd: string;
+        WrappedLineLastNonWhitespaceCharacter: string;
+        ViewPortTop: string;
+        ViewPortCenter: string;
+        ViewPortBottom: string;
+    };
+
+    /**
+     * Units for Cursor move 'by' argument
+     */
+    export const CursorMoveByUnit: {
+        Lines: string;
+        WrappedLines: string;
+        Characters: string;
     };
 
     /**
@@ -3215,10 +3226,9 @@ declare module monaco.editor {
      */
     export interface CursorMoveArguments {
         to: string;
-        inSelectionMode?: boolean;
-        noOfLines?: number;
-        isPaged?: boolean;
-        pageSize?: number;
+        select?: boolean;
+        by?: string;
+        amount?: number;
     }
 
     /**
