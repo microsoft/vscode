@@ -27,7 +27,7 @@
 				"extensions": [
 					".jsx"
 				],
-				"configuration": "./javascript.configuration.json"
+				"configuration": "./language-configuration.json"
 			},
 			{
 				"id": "javascript",
@@ -46,7 +46,8 @@
 				"firstLine": "^#!.*\\bnode",
 				"mimetypes": [
 					"text/javascript"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [
