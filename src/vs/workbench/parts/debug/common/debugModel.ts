@@ -288,24 +288,10 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	}
 }
 
-export class Scope implements debug.IScope {
+export class Scope extends ExpressionContainer implements debug.IScope {
 
-	private children: TPromise<Variable[]>;
-
-	constructor(private threadId: number, public name: string, public reference: number, public expensive: boolean) {
-		this.children = null;
-	}
-
-	public getId(): string {
-		return `scope:${ this.threadId }:${ this.name }:${ this.reference }`;
-	}
-
-	public getChildren(debugService: debug.IDebugService): TPromise<Variable[]> {
-		if (!this.children) {
-			this.children = resolveChildren(debugService, this);
-		}
-
-		return this.children;
+	constructor(private threadId: number, public name: string, reference: number, public expensive: boolean) {
+		super(reference, `scope:${threadId}:${name}:${reference}`, true);
 	}
 }
 
