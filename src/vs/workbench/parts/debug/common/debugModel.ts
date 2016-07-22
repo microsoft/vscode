@@ -35,11 +35,12 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		frameId: stackFrame ? stackFrame.frameId : undefined,
 		context
 	}).then(response => {
-		expression.available = !!response.body;
+		expression.available = !!(response && response.body);
 		if (response.body) {
 			expression.value = response.body.result;
 			expression.reference = response.body.variablesReference;
 			expression.childrenCount = response.body.totalCount;
+			expression.type = response.body.type;
 		}
 
 		return expression;
@@ -292,6 +293,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	static DEFAULT_VALUE = 'not available';
 
 	public available: boolean;
+	public type: string;
 
 	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
 		super(0, id, cacheChildren, 0);
