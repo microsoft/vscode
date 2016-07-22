@@ -480,9 +480,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._indentRanges = null;
 	}
 
+	protected _computeIndentRanges(): IndentRange[] {
+		return computeRanges(this);
+	}
+
 	private _getIndentRanges(): IndentRange[] {
 		if (!this._indentRanges) {
-			this._indentRanges = computeRanges(this);
+			this._indentRanges = this._computeIndentRanges();
 		}
 		return this._indentRanges;
 	}

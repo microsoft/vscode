@@ -33,6 +33,9 @@ export interface CommentRule {
 	blockComment?: CharacterPair;
 }
 
+// default folding end pattern for C based languages.
+export const DEFAULT_FOLD_END_PATTERN = /^\s*\}|^\s*\]|^\s*\)/;
+
 /**
  * The language configuration interface defines the contract between extensions and
  * various editor features, like automatic bracket insertion, automatic indentation etc.
@@ -55,6 +58,10 @@ export interface LanguageConfiguration {
 	 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 	 */
 	wordPattern?: RegExp;
+	/**
+	 * The language's fold end definition which is used to check the last line of a fold range for inclusion.
+	 */
+	foldEndPattern?: RegExp;
 	/**
 	 * The language's indentation settings.
 	 */
@@ -90,6 +97,7 @@ export class RichEditSupport {
 	public comments: ICommentsConfiguration;
 	public characterPair: IRichEditCharacterPair;
 	public wordDefinition: RegExp;
+	public foldEndPattern: RegExp;
 	public onEnter: IRichEditOnEnter;
 	public brackets: IRichEditBrackets;
 
@@ -117,6 +125,7 @@ export class RichEditSupport {
 		}
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
+		this.foldEndPattern = this._conf.foldEndPattern || DEFAULT_FOLD_END_PATTERN;
 	}
 
 	private static _mergeConf(prev:LanguageConfiguration, current:LanguageConfiguration): LanguageConfiguration {
@@ -229,6 +238,14 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 		return value.wordDefinition || null;
+	}
+
+	public getFoldEndPattern(modeId:string): RegExp {
+		let value = this._getRichEditSupport(modeId);
+		if (!value) {
+			return null;
+		}
+		return value.foldEndPattern || null;
 	}
 
 	public getOnEnterSupport(modeId:string): IRichEditOnEnter {

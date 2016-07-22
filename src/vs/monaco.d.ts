@@ -3994,6 +3994,10 @@ declare module monaco.languages {
          */
         wordPattern?: RegExp;
         /**
+         * The language's fold end definition which is used to check the last line of a fold range for inclusion.
+         */
+        foldEndPattern?: RegExp;
+        /**
          * The language's indentation settings.
          */
         indentationRules?: IndentationRule;

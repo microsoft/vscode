@@ -26,6 +26,7 @@ import {LineToken} from 'vs/editor/common/model/lineToken';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {IndentRange, computeRanges} from 'vs/editor/common/model/indentRanges';
 
 class ModeToModelBinder implements IDisposable {
 
@@ -320,6 +321,11 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		super._resetValue(e, newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
+	}
+
+	protected _computeIndentRanges(): IndentRange[] {
+		var foldEndPattern = LanguageConfigurationRegistry.getFoldEndPattern(this.getMode().getId());
+		return computeRanges(this, foldEndPattern);
 	}
 
 	_resetMode(e:editorCommon.IModelModeChangedEvent, newMode:IMode): void {
