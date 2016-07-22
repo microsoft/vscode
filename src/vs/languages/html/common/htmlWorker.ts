@@ -159,7 +159,7 @@ export class HTMLWorker {
 					if (isWhiteSpace(startIndent) && isWhiteSpace(endIndent)) {
 						suggestion.overwriteBefore = position.column - 1; // replace from start of line
 						suggestion.codeSnippet = startIndent + '</' + matchingTag + closeTag;
-						suggestion.filterText = currentLine.substring(0, position.column - 1);
+						suggestion.filterText = endIndent + '</' + matchingTag + closeTag;
 					}
 				}
 				return true;
@@ -168,7 +168,7 @@ export class HTMLWorker {
 		};
 
 
-		if (scanner.getTokenType() === DELIM_END) {
+		if (scanner.getTokenType() === DELIM_END && scanner.getTokenRange().endColumn === position.column) {
 			let hasClose = collectClosingTagSuggestion(suggestions.currentWord.length + 1);
 			if (!hasClose) {
 				this._tagProviders.forEach((provider) => {
@@ -178,7 +178,8 @@ export class HTMLWorker {
 							overwriteBefore: suggestions.currentWord.length + 1,
 							codeSnippet: '/' + tag + closeTag,
 							type: 'property',
-							documentationLabel: label
+							documentationLabel: label,
+							filterText: '</' + tag + closeTag
 						});
 					});
 				});
@@ -192,7 +193,8 @@ export class HTMLWorker {
 						label: tag,
 						codeSnippet: tag,
 						type: 'property',
-						documentationLabel: label
+						documentationLabel: label,
+						overwriteBefore: suggestions.currentWord.length
 					});
 				});
 			});
@@ -225,13 +227,14 @@ export class HTMLWorker {
 				suggestions.suggestions.push({
 					label: attribute,
 					codeSnippet: codeSnippet,
-					type: type === 'handler' ? 'function' : 'value'
+					type: type === 'handler' ? 'function' : 'value',
+					overwriteBefore: suggestions.currentWord.length
 				});
 			});
 		});
 	}
 
-	private collectAttributeValueSuggestions(scanner: IHTMLScanner, suggestions:  modes.ISuggestResult): void {
+	private collectAttributeValueSuggestions(scanner: IHTMLScanner, suggestions: modes.ISuggestResult): void {
 		let needsQuotes = scanner.getTokenType() === DELIM_ASSIGN;
 
 		let attribute: string = null;
@@ -257,7 +260,8 @@ export class HTMLWorker {
 				suggestions.suggestions.push({
 					label: value,
 					codeSnippet: needsQuotes ? '"' + value + '"' : value,
-					type: 'unit'
+					type: 'unit',
+					overwriteBefore: suggestions.currentWord.length
 				});
 			});
 		});
