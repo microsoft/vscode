@@ -53,6 +53,17 @@ export function computeRanges(model: ITextModel, minimumRangeSize: number = 1): 
 
 			// new folding range
 			let endLineNumber = previous.line - 1;
+
+			if (previous.line <= model.getLineCount()) {
+				// folding end pattern for C based languages.
+				const foldEndPattern = /^\s*\}|^\s*\]|^\s*\)/;
+
+				let foldEndLineContent = model.getLineContent(previous.line);
+				if (previous.indent === indent && foldEndPattern.test(foldEndLineContent)) {
+					endLineNumber = previous.line;
+				}
+			}
+
 			if (endLineNumber - line >= minimumRangeSize) {
 				result.push(new IndentRange(line, endLineNumber, indent));
 			}
