@@ -17,6 +17,7 @@ import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/termin
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Keybinding} from 'vs/base/common/keyCodes';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
@@ -31,6 +32,7 @@ export class TerminalInstance {
 	private terminalDomElement: HTMLDivElement;
 	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
+	private toggleTabFocusModeKeybindings: Keybinding[];
 
 	public constructor(
 		private terminalProcess: ITerminalProcess,
@@ -46,6 +48,7 @@ export class TerminalInstance {
 	) {
 		let self = this;
 		this.toDispose = [];
+		this.toggleTabFocusModeKeybindings = self.keybindingService.lookupKeybindings(ToggleTabFocusModeAction.ID);
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.terminalDomElement = document.createElement('div');
@@ -64,18 +67,12 @@ export class TerminalInstance {
 			return false;
 		});
 		this.xterm.attachCustomKeydownHandler(function (event: KeyboardEvent) {
-			// HACK: Only listen to the tab focus mode keybinding if it's the default since
-			// there doesn't seem to be a convenient way to convert vscode keycodes to regular
-			// DOM keycodes
-			const opts: Keybinding[] = self.keybindingService.lookupKeybindings(ToggleTabFocusModeAction.ID);
-			if (opts.length > 0) {
-				const opt = opts[0];
-				if (opt.hasCtrlCmd() && !opt.hasAlt() && !opt.hasShift() && opts[0].extractKeyCode() === 43) {
-					if (event.ctrlKey && event.keyCode === 77) {
-						event.preventDefault();
-						return false;
-					}
-				}
+			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
+			// be escaped
+			let standardKeyboardEvent = new StandardKeyboardEvent(event);
+			if (self.toggleTabFocusModeKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+				event.preventDefault();
+				return false;
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
