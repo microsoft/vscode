@@ -71,6 +71,14 @@ export interface ISearchProgressItem extends IFileMatch, IProgress {
 export interface ISearchComplete {
 	limitHit?: boolean;
 	results: IFileMatch[];
+	stats: ISearchStats;
+}
+
+export interface ISearchStats {
+	fileWalkStartTime: number;
+	fileWalkResultTime: number;
+	directoriesWalked: number;
+	filesWalked: number;
 }
 
 

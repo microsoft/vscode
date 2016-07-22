@@ -14,7 +14,7 @@ import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
 import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISearchService, ISearchComplete, ISearchProgressItem } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchComplete, ISearchProgressItem, ISearchStats } from 'vs/platform/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,6 +23,13 @@ suite('SearchModel', () => {
 
 	let instantiationService: TestInstantiationService;
 	let restoreStubs;
+
+	const testSearchStats: ISearchStats = {
+		fileWalkStartTime: 0,
+		fileWalkResultTime: 1,
+		directoriesWalked: 2,
+		filesWalked: 3
+	};
 
 	setup(() => {
 		restoreStubs= [];
@@ -72,7 +79,7 @@ suite('SearchModel', () => {
 
 		promise.progress(results[0]);
 		promise.progress(results[1]);
-		promise.complete({results: []});
+		promise.complete({results: [], stats: testSearchStats});
 
 		result.done(() => {
 			let actual= testObject.searchResult.matches();
@@ -138,7 +145,7 @@ suite('SearchModel', () => {
 		let result= testObject.search({contentPattern: {pattern: 'somestring'}, type: 1});
 
 		promise.progress(aRawMatch('file://c:/1', aLineMatch('some preview')));
-		promise.complete({results: []});
+		promise.complete({results: [], stats: testSearchStats});
 
 		result.done(() => {
 			assert.ok(target1.calledTwice);
