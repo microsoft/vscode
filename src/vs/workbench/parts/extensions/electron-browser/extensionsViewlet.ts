@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { mapEvent, filterEvent } from 'vs/base/common/event';
+import Event, { mapEvent, filterEvent, Emitter } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -33,13 +33,17 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
+	private _onSearchChange = new Emitter<string>();
+	onSearchChange: Event<string> = this._onSearchChange.event;
+
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
 	private extensionsBox: HTMLElement;
 	private list: PagedList<IExtension>;
+	private primaryActions: IAction[];
+	private secondaryActions: IAction[];
 	private disposables: IDisposable[] = [];
-	private clearAction: ClearExtensionsInputAction;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -122,22 +126,26 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	getActions(): IAction[] {
-		if (!this.clearAction) {
-			this.clearAction = this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL);
+		if (!this.primaryActions) {
+			this.primaryActions = [
+				this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange)
+			];
 		}
 
-		return [
-			this.clearAction
-		];
+		return this.primaryActions;
 	}
 
 	getSecondaryActions(): IAction[] {
-		return [
-			this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
-		];
+		if (!this.secondaryActions) {
+			this.secondaryActions = [
+				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
+			];
+		}
+
+		return this.secondaryActions;
 	}
 
 	search(text: string, immediate = false): void {
@@ -147,8 +155,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private triggerSearch(immediate = false, suggestPopular = false): void {
 		const text = this.searchBox.value;
-		// Joao do not kill me for this hack -isidor
-		this.clearAction.enabled = !!text;
+		this._onSearchChange.fire(text);
 		this.searchDelayer.trigger(() => this.doSearch(text, suggestPopular), immediate || !text ? 0 : 500);
 	}
 
