@@ -695,7 +695,11 @@ export class SelectActionItem extends BaseActionItem {
 
 	public setOptions(options: string[], selected: number): void {
 		this.options = options;
+		if (selected >= 0) {
 		this.selected = selected;
+		} else if (this.selected < 0 || this.selected > this.options.length) {
+			this.selected = 0;
+		}
 
 		this.doSetOptions();
 	}
@@ -726,6 +730,10 @@ export class SelectActionItem extends BaseActionItem {
 		DOM.addClass(container, 'select-container');
 		container.appendChild(this.select);
 		this.doSetOptions();
+	}
+
+	protected getSelected(): string {
+		return this.options && this.selected >= 0 && this.selected < this.options.length ? this.options[this.selected] : null;
 	}
 
 	private doSetOptions(): void {
