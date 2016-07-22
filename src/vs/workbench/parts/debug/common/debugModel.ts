@@ -159,7 +159,12 @@ export class OutputElement implements debug.ITreeElement {
 
 export class ValueOutputElement extends OutputElement {
 
-	constructor(public value: string, public severity: severity, public category?: string, public counter:number = 1) {
+	constructor(
+		public value: string,
+		public severity: severity,
+		public category?: string,
+		public counter: number = 1
+	) {
 		super();
 	}
 }
@@ -224,7 +229,13 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	private children: TPromise<debug.IExpression[]>;
 	private _value: string;
 
-	constructor(public reference: number, private id: string, private cacheChildren: boolean, public childrenCount: number, private chunkIndex = 0) {
+	constructor(
+		public reference: number,
+		private id: string,
+		private cacheChildren: boolean,
+		public childrenCount: number,
+		private chunkIndex = 0
+	) {
 		// noop
 	}
 
@@ -294,7 +305,16 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
 
-	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, childrenCount: number, public type: string = null, public available = true, chunkIndex = 0) {
+	constructor(
+		public parent: debug.IExpressionContainer,
+		reference: number,
+		public name: string,
+		value: string,
+		childrenCount: number,
+		public type: string = null,
+		public available = true,
+		chunkIndex = 0
+	) {
 		super(reference, `variable:${ parent.getId() }:${ name }`, true, childrenCount, chunkIndex);
 		this.value = massageValue(value);
 	}
@@ -302,7 +322,13 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 
 export class Scope extends ExpressionContainer implements debug.IScope {
 
-	constructor(private threadId: number, public name: string, reference: number, public expensive: boolean, childrenCount: number) {
+	constructor(
+		private threadId: number,
+		public name: string,
+		reference: number,
+		public expensive: boolean,
+		childrenCount: number
+	) {
 		super(reference, `scope:${threadId}:${name}:${reference}`, true, childrenCount);
 	}
 }
@@ -311,7 +337,14 @@ export class StackFrame implements debug.IStackFrame {
 
 	private scopes: TPromise<Scope[]>;
 
-	constructor(public threadId: number, public frameId: number, public source: Source, public name: string, public lineNumber: number, public column: number) {
+	constructor(
+		public threadId: number,
+		public frameId: number,
+		public source: Source,
+		public name: string,
+		public lineNumber: number,
+		public column: number
+	) {
 		this.scopes = null;
 	}
 
@@ -338,7 +371,12 @@ export class Breakpoint implements debug.IBreakpoint {
 	public message: string;
 	private id: string;
 
-	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
+	constructor(
+		public source: Source,
+		public desiredLineNumber: number,
+		public enabled: boolean,
+		public condition: string
+	) {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
@@ -391,9 +429,13 @@ export class Model implements debug.IModel {
 	private _onDidChangeWatchExpressions: Emitter<debug.IExpression>;
 	private _onDidChangeREPLElements: Emitter<void>;
 
-	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean, private functionBreakpoints: debug.IFunctionBreakpoint[],
-		private exceptionBreakpoints: debug.IExceptionBreakpoint[], private watchExpressions: Expression[]) {
-
+	constructor(
+		private breakpoints: debug.IBreakpoint[],
+		private breakpointsActivated: boolean,
+		private functionBreakpoints: debug.IFunctionBreakpoint[],
+		private exceptionBreakpoints: debug.IExceptionBreakpoint[],
+		private watchExpressions: Expression[]
+	) {
 		this.threads = {};
 		this.replElements = [];
 		this.toDispose = [];
