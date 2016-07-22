@@ -19,7 +19,9 @@ import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInpu
 import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -405,4 +407,33 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		}
 	}
+});
+
+const mapDeprecatedCommands = {
+	'workbench.action.terminal.focus': 'workbench.action.focusPanel'
+};
+
+Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
+	const newCommandId = mapDeprecatedCommands[deprecatedCommandId];
+
+	KeybindingsRegistry.registerCommandDesc({
+		id: deprecatedCommandId,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		handler(accessor: ServicesAccessor) {
+			const messageService = accessor.get(IMessageService);
+			const commandService = accessor.get(ICommandService);
+
+			messageService.show(Severity.Warning, {
+				message: nls.localize('commandDeprecated', "Command **{0}** has been removed. You can use **{1}** instead", deprecatedCommandId, newCommandId),
+				actions: [
+					CloseAction,
+					new Action('openKeybindings', nls.localize('openKeybindings', "Configure Keyboard Shortcuts"), null, true, () => {
+						return commandService.executeCommand('workbench.action.openGlobalKeybindings');
+					})
+				]
+			});
+		},
+		when: undefined,
+		primary: undefined
+	});
 });
