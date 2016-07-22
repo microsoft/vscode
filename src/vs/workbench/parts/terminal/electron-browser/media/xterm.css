@@ -16,7 +16,8 @@
 	position: relative;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus {
+.monaco-workbench .panel.integrated-terminal .xterm:focus {
+	/* Hide outline when focus jumps from xterm to the text area */
 	outline: none;
 }
 
