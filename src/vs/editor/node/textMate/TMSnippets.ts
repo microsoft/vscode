@@ -5,33 +5,23 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {parse, ParseError} from 'vs/base/common/json';
+import {parse} from 'vs/base/common/json';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {readFile} from 'vs/base/node/pfs';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ISuggestion} from 'vs/editor/common/modes';
-import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
+import {ISnippetsRegistry, Extensions, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {CodeSnippet, ExternalSnippetType} from 'vs/editor/contrib/snippet/common/snippet';
+import platform = require('vs/platform/platform');
 
-export interface ITMSnippetsExtensionPoint {
+export interface ISnippetsExtensionPoint {
 	language: string;
 	path: string;
 }
 
-export function snippetUpdated(modeId: string, filePath: string): TPromise<void> {
-	return readFile(filePath).then((fileContents) => {
-		var errors: ParseError[] = [];
-		var snippetsObj = parse(fileContents.toString(), errors);
-		var adaptedSnippets = TMSnippetsAdaptor.adapt(snippetsObj);
-		SnippetsRegistry.registerSnippets(modeId, filePath, adaptedSnippets);
-	});
-}
-
-let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITMSnippetsExtensionPoint[]>('snippets', {
-	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes TextMate snippets.'),
+let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippetsExtensionPoint[]>('snippets', {
+	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes snippets.'),
 	type: 'array',
 	defaultSnippets: [ { body: [{ language: '', path: '' }] }],
 	items: {
@@ -51,28 +41,23 @@ let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITMSnippe
 });
 
 export class MainProcessTextMateSnippet {
-	private _modelService: IModelService;
 	private _modeService: IModeService;
 
-	constructor(
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
-	) {
-		this._modelService = modelService;
+	constructor(@IModeService modeService: IModeService) {
 		this._modeService = modeService;
 
 		snippetsExtensionPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
 				let tmSnippets = extensions[i].value;
 				for (let j = 0; j < tmSnippets.length; j++) {
-					this._withTMSnippetContribution(extensions[i].description.extensionFolderPath, tmSnippets[j], extensions[i].collector);
+					this._withSnippetContribution(extensions[i].description.extensionFolderPath, tmSnippets[j], extensions[i].collector);
 				}
 			}
 		});
 	}
 
-	private _withTMSnippetContribution(extensionFolderPath:string, snippet:ITMSnippetsExtensionPoint, collector:IExtensionMessageCollector): void {
-		if (!snippet.language || (typeof snippet.language !== 'string') || !this._modeService.isRegisteredMode(snippet.language)) {
+	private _withSnippetContribution(extensionFolderPath: string, snippet: ISnippetsExtensionPoint, collector: IExtensionMessageCollector): void {
+		if (!snippet.language || (typeof snippet.language !== 'string')) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.language)));
 			return;
 		}
@@ -87,68 +72,61 @@ export class MainProcessTextMateSnippet {
 		}
 
 		let modeId = snippet.language;
-		let disposable = this._modeService.onDidCreateMode((mode) => {
+		let disposable = this._modeService.onDidCreateMode(mode => {
 			if (mode.getId() !== modeId) {
 				return;
 			}
-			this.registerDefinition(modeId, normalizedAbsolutePath);
+			readAndRegisterSnippets(modeId, normalizedAbsolutePath);
 			disposable.dispose();
-		});
-	}
-
-	public registerDefinition(modeId: string, filePath: string): void {
-		readFile(filePath).then((fileContents) => {
-			var errors: ParseError[] = [];
-			var snippetsObj = parse(fileContents.toString(), errors);
-			var adaptedSnippets = TMSnippetsAdaptor.adapt(snippetsObj);
-			SnippetsRegistry.registerSnippets(modeId, filePath, adaptedSnippets);
 		});
 	}
 }
 
-class TMSnippetsAdaptor {
+let snippetsRegistry = <ISnippetsRegistry>platform.Registry.as(Extensions.Snippets);
 
-	public static adapt(snippetsObj: any): ISuggestion[]{
-		var topLevelProperties = Object.keys(snippetsObj),
-			result: ISuggestion[] = [];
+export function readAndRegisterSnippets(modeId: string, filePath: string): TPromise<void> {
+	return readFile(filePath).then(fileContents => {
+		let snippets = parseSnippetFile(fileContents.toString());
+		snippetsRegistry.registerSnippets(modeId, snippets, filePath);
+	});
+}
 
-		var processSnippet = (snippet: any, description: string) => {
-			var prefix = snippet['prefix'];
-			var bodyStringOrArray = snippet['body'];
+function parseSnippetFile(snippetFileContent: string): ISnippet[] {
+	let snippetsObj = parse(snippetFileContent);
 
-			if (Array.isArray(bodyStringOrArray)) {
-				bodyStringOrArray = bodyStringOrArray.join('\n');
-			}
+	let topLevelProperties = Object.keys(snippetsObj);
+	let result: ISnippet[] = [];
 
-			if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
-				var convertedSnippet = TMSnippetsAdaptor.convertSnippet(bodyStringOrArray);
-				if (convertedSnippet !== null) {
-					result.push({
-						type: 'snippet',
-						label: prefix,
-						documentationLabel: snippet['description'] || description,
-						codeSnippet: convertedSnippet,
-						noAutoAccept: true
-					});
-				}
-			}
-		};
+	let processSnippet = (snippet: any, description: string) => {
+		let prefix = snippet['prefix'];
+		let bodyStringOrArray = snippet['body'];
 
-		topLevelProperties.forEach(topLevelProperty => {
-			var scopeOrTemplate = snippetsObj[topLevelProperty];
-			if (scopeOrTemplate['body'] && scopeOrTemplate['prefix']) {
-				processSnippet(scopeOrTemplate, topLevelProperty);
-			} else {
-				var snippetNames = Object.keys(scopeOrTemplate);
-				snippetNames.forEach(name => {
-					processSnippet(scopeOrTemplate[name], name);
+		if (Array.isArray(bodyStringOrArray)) {
+			bodyStringOrArray = bodyStringOrArray.join('\n');
+		}
+
+		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
+			let codeSnippet = CodeSnippet.convertExternalSnippet(bodyStringOrArray, ExternalSnippetType.TextMateSnippet);
+			if (codeSnippet !== null) {
+				result.push({
+					prefix,
+					description: snippet['description'] || description,
+					codeSnippet
 				});
 			}
-		});
-		return result;
-	}
+		}
+	};
 
-	private static convertSnippet(textMateSnippet: string): string {
-		return CodeSnippet.convertExternalSnippet(textMateSnippet, ExternalSnippetType.TextMateSnippet);
-	}
+	topLevelProperties.forEach(topLevelProperty => {
+		let scopeOrTemplate = snippetsObj[topLevelProperty];
+		if (scopeOrTemplate['body'] && scopeOrTemplate['prefix']) {
+			processSnippet(scopeOrTemplate, topLevelProperty);
+		} else {
+			let snippetNames = Object.keys(scopeOrTemplate);
+			snippetNames.forEach(name => {
+				processSnippet(scopeOrTemplate[name], name);
+			});
+		}
+	});
+	return result;
 }

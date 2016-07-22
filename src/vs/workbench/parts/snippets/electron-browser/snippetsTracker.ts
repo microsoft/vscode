@@ -11,7 +11,7 @@ import async = require('vs/base/common/async');
 import winjs = require('vs/base/common/winjs.base');
 import extfs = require('vs/base/node/extfs');
 import lifecycle = require('vs/base/common/lifecycle');
-import tmsnippets = require('vs/editor/node/textMate/TMSnippets');
+import {readAndRegisterSnippets} from 'vs/editor/node/textMate/TMSnippets';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -72,7 +72,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 			return winjs.TPromise.join(snippetFiles.map(snippetFile => {
 				var modeId = snippetFile.replace(/\.json$/, '').toLowerCase();
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
-				return tmsnippets.snippetUpdated(modeId, snippetPath);
+				return readAndRegisterSnippets(modeId, snippetPath);
 			}));
 		});
 	}
