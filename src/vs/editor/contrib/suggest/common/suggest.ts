@@ -11,8 +11,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
-import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
+import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegistry';
 import {Position} from 'vs/editor/common/core/position';
+import {Registry} from 'vs/platform/platform';
 
 export const Context = {
 	Visible: 'suggestWidgetVisible',
@@ -33,15 +34,19 @@ export interface ISuggestOptions {
 	snippetConfig?: SnippetConfig;
 }
 
+let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
+
 export function provideSuggestionItems(model: IReadOnlyModel, position: Position, options: ISuggestOptions = {}): TPromise<ISuggestionItem[]> {
 
 	const result: ISuggestionItem[] = [];
 	const suggestFilter = createSuggesionFilter(options);
 	const suggestCompare = createSuggesionComparator(options);
 
-	// add suggestions from snippet registry
-	const snippets = SnippetsRegistry.getSnippets(model, position);
-	fillInSuggestResult(result, snippets, undefined, suggestFilter);
+	// add suggestions from snippet registry.
+	// currentWord is irrelevant, all suggestion use overwriteBefore
+	let snippetSuggestResult : ISuggestResult = { suggestions: [], currentWord: '' };
+	snippetsRegistry.getSnippetCompletions(model, position, snippetSuggestResult.suggestions);
+	fillInSuggestResult(result, snippetSuggestResult, undefined, suggestFilter);
 
 
 	// add suggestions from contributed providers - providers are ordered in groups of

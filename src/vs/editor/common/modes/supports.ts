@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
@@ -126,96 +123,4 @@ export class FilteredLineContext implements modes.ILineContext {
 const IGNORE_IN_TOKENS = /\b(comment|string|regex)\b/;
 export function ignoreBracketsInToken(tokenType:string): boolean {
 	return IGNORE_IN_TOKENS.test(tokenType);
-}
-
-// TODO@Martin: find a better home for this code:
-// TODO@Martin: modify suggestSupport to return a boolean if snippets should be presented or not
-//       and turn this into a real registry
-export class SnippetsRegistry {
-
-	private static _snippets: { [modeId: string]: { [path: string]: modes.ISuggestion[] } } = Object.create(null);
-
-	public static registerSnippets(modeId: string, path: string, snippets: modes.ISuggestion[]): void {
-		let snippetsByMode = this._snippets[modeId];
-		if (!snippetsByMode) {
-			this._snippets[modeId] = snippetsByMode = {};
-		}
-		snippetsByMode[path] = snippets;
-	}
-
-	// the previous
-	private static getNonWhitespacePrefix(model: IReadOnlyModel, position: IPosition) {
-		let line = model.getLineContent(position.lineNumber);
-		let match = line.match(/[^\s]+$/);
-		if (match) {
-			return match[0];
-		}
-		return '';
-	}
-
-	public static getSnippets(model: IReadOnlyModel, position: IPosition): modes.ISuggestResult {
-		let word = model.getWordAtPosition(position);
-		let currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
-		let currentFullWord = SnippetsRegistry.getNonWhitespacePrefix(model, position).toLowerCase();
-		let result : modes.ISuggestResult = {
-			currentWord: currentWord,
-			suggestions: []
-		};
-
-		let modeId = model.getModeId();
-		let snippets : modes.ISuggestion[]= [];
-		let snipppetsByMode = this._snippets[modeId];
-		if (snipppetsByMode) {
-			for (let s in snipppetsByMode) {
-				snippets = snippets.concat(snipppetsByMode[s]);
-			}
-		}
-
-		// to avoid that snippets are too prominent in the intellisense proposals:
-		// enforce that current word is matched or the position is after a whitespace
-		snippets.forEach(p => {
-			if (currentWord.length === 0 && currentFullWord.length === 0) {
-				// if there's no prefix, only show snippets at the beginning of the line, or after a whitespace
-			} else {
-				let label = p.label.toLowerCase();
-				// force that the current word or full word matches with the snippet prefix
-				if (currentWord.length > 0 && strings.startsWith(label, currentWord)) {
-					// ok
-				} else if (currentFullWord.length > currentWord.length && strings.startsWith(label, currentFullWord)) {
-					p = objects.clone(p);
-					p.overwriteBefore = currentFullWord.length;
-					p.filterText = label;
-				} else {
-					return;
-				}
-			}
-			result.suggestions.push(p);
-		});
-
-		return result;
-
-	}
-
-	public static fillInSnippets(bucket: modes.ISuggestion[], model: IReadOnlyModel, position: IPosition): void {
-		const match = model.getLineContent(position.lineNumber).substr(0, position.column - 1).match(/[^\s]+$/);
-		if (!match) {
-			return;
-		}
-		let idx = 0;
-		const prefix = match[0];
-		let snipppetsByMode = this._snippets[model.getModeId()];
-		if (snipppetsByMode) {
-			for (let path in snipppetsByMode) {
-				const suggestions = snipppetsByMode[path];
-				if (suggestions) {
-					for (const suggestion of suggestions) {
-						if (strings.endsWith(prefix, suggestion.label)) {
-							bucket[idx++] = suggestion;
-						}
-					}
-				}
-			}
-		}
-		bucket.length = idx;
-	}
 }
