@@ -5,6 +5,9 @@ os:
   - linux
   - osx
 
+env:
+  - VSCODE_BUILD_VERBOSE=true
+
 addons:
   apt:
     sources:

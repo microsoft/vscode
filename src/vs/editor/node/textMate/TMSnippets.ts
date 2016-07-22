@@ -101,7 +101,7 @@ export class MainProcessTextMateSnippet {
 			var errors: ParseError[] = [];
 			var snippetsObj = parse(fileContents.toString(), errors);
 			var adaptedSnippets = TMSnippetsAdaptor.adapt(snippetsObj);
-			SnippetsRegistry.registerDefaultSnippets(modeId, adaptedSnippets);
+			SnippetsRegistry.registerSnippets(modeId, filePath, adaptedSnippets);
 		});
 	}
 }

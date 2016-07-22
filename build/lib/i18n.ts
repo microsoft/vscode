@@ -12,8 +12,9 @@ import File = require('vinyl');
 import * as Is from 'is';
 
 var util = require('gulp-util');
+
 function log(message: any, ...rest: any[]): void {
-	util.log(util.colors.cyan('[i18n]'), message, ...rest);
+	util.log(util.colors.green('[i18n]'), message, ...rest);
 }
 
 interface Map<V> {
@@ -211,7 +212,10 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 			return;
 		}
 
-		log(`Generating nls bundles for: ${language.iso639_2}`);
+		if (process.env['VSCODE_BUILD_VERBOSE']) {
+			log(`Generating nls bundles for: ${language.iso639_2}`);
+		}
+
 		statistics[language.iso639_2] = 0;
 		let localizedModules: Map<string[]> = Object.create(null);
 		let cwd = path.join(languageDirectory, language.name, 'src');
@@ -223,7 +227,9 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 				let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
 				messages = JSON.parse(content);
 			} else {
-				// log(`No localized messages found for module ${module}. Using default messages.`);
+				if (process.env['VSCODE_BUILD_VERBOSE']) {
+					log(`No localized messages found for module ${module}. Using default messages.`);
+				}
 				messages = defaultMessages[module];
 				statistics[language.iso639_2] = statistics[language.iso639_2] + Object.keys(messages).length;
 			}
@@ -237,7 +243,9 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 				}
 				let message: string = messages[key];
 				if (!message) {
-					log(`No localized message found for key ${key} in module ${module}. Using default message.`);
+					if (process.env['VSCODE_BUILD_VERBOSE']) {
+						log(`No localized message found for key ${key} in module ${module}. Using default message.`);
+					}
 					message = defaultMessages[module][key];
 					statistics[language.iso639_2] = statistics[language.iso639_2] + 1;
 				}
@@ -267,10 +275,9 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 			emitter.emit('data', new File( { path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
 		});
 	});
-	log(`Statistics (total ${total}):`);
 	Object.keys(statistics).forEach(key => {
 		let value = statistics[key];
-		log(`\t${value} untranslated strings for locale ${key} found.`);
+		log(`${key} has ${value} untranslated strings.`);
 	});
 	vscodeLanguages.forEach(language => {
 		let iso639_2 = iso639_3_to_2[language];
@@ -279,7 +286,7 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 		} else {
 			let stats = statistics[iso639_2];
 			if (Is.undef(stats)) {
-				log(`\tNo translations found for language ${language}. Using default language instead.`)
+				log(`\tNo translations found for language ${language}. Using default language instead.`);
 			}
 		}
 	});
@@ -293,7 +300,7 @@ export function processNlsFiles(opts:{fileHeader:string;}): ThroughStream {
 			if (file.isBuffer()) {
 				json = JSON.parse(file.contents.toString('utf8'));
 			} else {
-				this.emit('error', `Failed to read component file: ${file.relative}`)
+				this.emit('error', `Failed to read component file: ${file.relative}`);
 			}
 			if (BundledFormat.is(json)) {
 				processCoreBundleFormat(opts.fileHeader, json, this);

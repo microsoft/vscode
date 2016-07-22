@@ -133,12 +133,7 @@ export function ignoreBracketsInToken(tokenType:string): boolean {
 //       and turn this into a real registry
 export class SnippetsRegistry {
 
-	private static _defaultSnippets: { [modeId: string]: modes.ISuggestion[] } = Object.create(null);
 	private static _snippets: { [modeId: string]: { [path: string]: modes.ISuggestion[] } } = Object.create(null);
-
-	public static registerDefaultSnippets(modeId: string, snippets: modes.ISuggestion[]): void {
-		this._defaultSnippets[modeId] = (this._defaultSnippets[modeId] || []).concat(snippets);
-	}
 
 	public static registerSnippets(modeId: string, path: string, snippets: modes.ISuggestion[]): void {
 		let snippetsByMode = this._snippets[modeId];
@@ -175,10 +170,7 @@ export class SnippetsRegistry {
 				snippets = snippets.concat(snipppetsByMode[s]);
 			}
 		}
-		let defaultSnippets = this._defaultSnippets[modeId];
-		if (defaultSnippets) {
-			snippets = snippets.concat(defaultSnippets);
-		}
+
 		// to avoid that snippets are too prominent in the intellisense proposals:
 		// enforce that current word is matched or the position is after a whitespace
 		snippets.forEach(p => {
@@ -200,22 +192,30 @@ export class SnippetsRegistry {
 			result.suggestions.push(p);
 		});
 
-		// if (result.suggestions.length > 0) {
-		// 	if (word) {
-		// 		// Push also the current word as first suggestion, to avoid unexpected snippet acceptance on Enter.
-		// 		result.suggestions = result.suggestions.slice(0);
-		// 		result.suggestions.unshift({
-		// 			codeSnippet: word.word,
-		// 			label: word.word,
-		// 			type: 'text'
-		// 		});
-		// 	}
-		// 	result.incomplete = true;
-		// }
-
 		return result;
 
 	}
 
-
+	public static fillInSnippets(bucket: modes.ISuggestion[], model: IReadOnlyModel, position: IPosition): void {
+		const match = model.getLineContent(position.lineNumber).substr(0, position.column - 1).match(/[^\s]+$/);
+		if (!match) {
+			return;
+		}
+		let idx = 0;
+		const prefix = match[0];
+		let snipppetsByMode = this._snippets[model.getModeId()];
+		if (snipppetsByMode) {
+			for (let path in snipppetsByMode) {
+				const suggestions = snipppetsByMode[path];
+				if (suggestions) {
+					for (const suggestion of suggestions) {
+						if (strings.endsWith(prefix, suggestion.label)) {
+							bucket[idx++] = suggestion;
+						}
+					}
+				}
+			}
+		}
+		bucket.length = idx;
+	}
 }

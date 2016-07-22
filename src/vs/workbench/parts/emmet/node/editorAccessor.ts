@@ -73,7 +73,7 @@ export class EditorAccessor implements emmet.Editor {
 		var match = currentLine.match(/<[/]?$/);
 		if (match) {
 			if (strings.startsWith(value, match[0])) {
-				startPosition = { lineNumber: startPosition.lineNumber, column: startPosition.column - 1 - match[0].length };
+				startPosition = { lineNumber: startPosition.lineNumber, column: startPosition.column - match[0].length };
 			} else {
 				return; // ignore
 			}

@@ -206,6 +206,17 @@ export class Position {
 
 export class Range {
 
+	static is(thing: any): thing is Range {
+		if (thing instanceof Range) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Position.is((<Range>thing).start)
+			&& Position.is((<Range>thing.end));
+	}
+
 	protected _start: Position;
 	protected _end: Position;
 
@@ -768,4 +779,22 @@ export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
 	InCenterIfOutsideViewport = 2
+}
+
+export class DocumentLink {
+
+	range: Range;
+
+	target: URI;
+
+	constructor(range: Range, target: URI) {
+		if (!(target instanceof URI)) {
+			throw illegalArgument('target');
+		}
+		if (!Range.is(range) || range.isEmpty) {
+			throw illegalArgument('range');
+		}
+		this.range = range;
+		this.target = target;
+	}
 }

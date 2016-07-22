@@ -21,7 +21,8 @@
 			"id": "css",
 			"aliases": ["CSS", "css"],
 			"extensions": [".css"],
-			"mimetypes": ["text/css"]
+			"mimetypes": ["text/css"],
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "css",

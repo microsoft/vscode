@@ -49,7 +49,9 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'variablesview.memento';
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -137,7 +139,9 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'watchexpressionsview.memento';
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
@@ -214,7 +218,9 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 	private pauseMessage: builder.Builder;
 	private pauseMessageLabel: builder.Builder;
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -307,7 +313,9 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	private static MAX_VISIBLE_FILES = 9;
 	private static MEMENTO = 'breakopintsview.memento';
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,

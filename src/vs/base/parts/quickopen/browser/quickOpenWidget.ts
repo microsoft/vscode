@@ -759,10 +759,12 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public setValue(value: string): void {
+	public setValue(value: string, select: boolean): void {
 		if (this.inputBox) {
 			this.inputBox.value = value;
-			this.inputBox.select();
+			if (select) {
+				this.inputBox.select();
+			}
 		}
 	}
 

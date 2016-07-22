@@ -328,10 +328,14 @@ export default class URI {
 			}
 		}
 		if (path) {
-			// lower-case windown drive letters in /C:/fff
+			// lower-case windows drive letters in /C:/fff or C:/fff
 			const m = URI._upperCaseDrive.exec(path);
 			if (m) {
-				path = m[1] + m[2].toLowerCase() + path.substr(m[1].length + m[2].length);
+				if (m[1]) {
+					path = '/' + m[2].toLowerCase() + path.substr(3); // "/c:".length === 3
+				} else {
+					path = m[2].toLowerCase() + path.substr(2); // // "c:".length === 2
+				}
 			}
 
 			// encode every segement but not slashes

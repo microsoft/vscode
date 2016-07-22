@@ -21,24 +21,10 @@ import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, Mou
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 
 interface IPosition {
 	x: number;
 	y: number;
-}
-
-interface OldContextMenuAction extends IAction {
-	getGroupId(): string;
-	shouldShowInContextMenu(): boolean;
-	isSupported(): boolean;
-}
-
-namespace OldContextMenuAction {
-	export function is(thing: any): thing is OldContextMenuAction {
-		return typeof (<OldContextMenuAction>thing).getGroupId === 'function'
-			&& typeof (<OldContextMenuAction>thing).shouldShowInContextMenu === 'function';
-	}
 }
 
 class ContextMenuController implements IEditorContribution {
@@ -121,12 +107,6 @@ class ContextMenuController implements IEditorContribution {
 			return;	// We need the context menu service to function
 		}
 
-		var position = this._editor.getPosition();
-		var editorModel = this._editor.getModel();
-		if (!position || !editorModel) {
-			return;
-		}
-
 		// Find actions available for menu
 		var menuActions = this._getMenuActions();
 
@@ -137,58 +117,15 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	private _getMenuActions(): IAction[] {
-
-		const editorModel = this._editor.getModel();
-		if (!editorModel) {
-			return [];
-		}
-
-		const actions: IAction[] = [];
-		fillInActions(this._contextMenu, actions);
-
-		const oldContextMenuActions = <OldContextMenuAction[]>this._editor.getActions().filter(action => {
-			if (OldContextMenuAction.is(action)) {
-				return action.shouldShowInContextMenu() && action.isSupported();
-			}
-		});
-		if (oldContextMenuActions.length > 0) {
-			actions.push(new Separator(), ...ContextMenuController._prepareActions(oldContextMenuActions));
-		}
-
-		return actions;
-	}
-
-	private static _prepareActions(actions: OldContextMenuAction[]): IAction[] {
-
-		const data = actions.map(action => {
-			const groupId = action.getGroupId();
-			const idx = groupId.indexOf('/');
-			const group = idx > 0
-				? groupId.substr(0, idx)
-				: groupId;
-
-			return { action, group };
-		});
-
-		data.sort((a, b) => {
-			if (a.group < b.group) {
-				return -1;
-			} else if (a.group > b.group) {
-				return 1;
-			} else {
-				return 0;
-			}
-		});
-
 		const result: IAction[] = [];
-		let lastGroup: string;
-		data.forEach((value, idx) => {
-			if (lastGroup && lastGroup !== value.group) {
-				result.push(new Separator());
-			}
-			result.push(value.action);
-			lastGroup = value.group;
-		});
+		const groups = this._contextMenu.getActions();
+
+		for (const group of groups) {
+			const [, actions] = group;
+			result.push(...actions);
+			result.push(new Separator());
+		}
+		result.pop(); // remove last separator
 
 		return result;
 	}

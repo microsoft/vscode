@@ -9,7 +9,7 @@
 			"aliases": ["YAML", "yaml"],
 			"extensions": [".eyaml", ".eyml", ".yaml", ".yml"],
 			"firstLine": "^#cloud-config",
-			"configuration": "./yaml.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "yaml",

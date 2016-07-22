@@ -157,7 +157,12 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService)
 
 export class BaseDebugController extends treedefaults.DefaultController {
 
-	constructor(protected debugService: debug.IDebugService, private contextMenuService: IContextMenuService, private actionProvider: renderer.IActionProvider, private focusOnContextMenu = true) {
+	constructor(
+		protected debugService: debug.IDebugService,
+		private contextMenuService: IContextMenuService,
+		private actionProvider: renderer.IActionProvider,
+		private focusOnContextMenu = true
+	) {
 		super();
 
 		if (isMacintosh) {
@@ -281,7 +286,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements renderer.IActionProvider {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -310,8 +315,8 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
 		} else if (element instanceof model.StackFrame) {
-			const caps = this.debugService.getActiveSession().configuration.capabilities;
-			if (typeof caps.supportsRestartFrame === 'boolean' && caps.supportsRestartFrame) {
+			const capabilities = this.debugService.getActiveSession().configuration.capabilities;
+			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(debugactions.RestartFrameAction, debugactions.RestartFrameAction.ID, debugactions.RestartFrameAction.LABEL));
 			}
 		}
@@ -326,7 +331,7 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 
 export class CallStackDataSource implements tree.IDataSource {
 
-	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor(@debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -402,7 +407,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	private static ERROR_TEMPLATE_ID = 'error';
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -491,7 +496,7 @@ export class CallStackRenderer implements tree.IRenderer {
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
-		if (stackFrame.source.available && stackFrame.lineNumber !== undefined) {
+		if (stackFrame.lineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.lineNumber}`;
 			dom.removeClass(data.lineNumber, 'unavailable');
 		} else {
@@ -506,7 +511,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 export class CallstackAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -823,7 +828,9 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private toDispose: lifecycle.IDisposable[];
 	private actionProvider: WatchExpressionsActionProvider;
 
-	constructor(actionProvider: renderer.IActionProvider, private actionRunner: actions.IActionRunner,
+	constructor(
+		actionProvider: renderer.IActionProvider,
+		private actionRunner: actions.IActionRunner,
 		@IMessageService private messageService: IMessageService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService
@@ -1185,7 +1192,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 

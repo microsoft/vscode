@@ -23,7 +23,6 @@ suite('Suggest', function () {
 		model = Model.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
 		registration = SuggestRegistry.register({ pattern: 'bar/path' }, {
 			triggerCharacters: [],
-			shouldAutotriggerSuggest: true,
 			provideCompletionItems() {
 				return [{
 					currentWord: '',

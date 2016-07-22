@@ -9,13 +9,13 @@
 			"aliases": ["Perl", "perl"],
 			"extensions": [".pl", ".pm", ".pod", ".t", ".PL", ".psgi"],
 			"firstLine": "^#!.*\\bperl\\b",
-			"configuration": "./perl.configuration.json"
+			"configuration": "./perl.language-configuration.json"
 		}, {
 			"id": "perl6",
 			"aliases": ["Perl 6", "perl6"],
 			"extensions": [".p6", ".pl6", ".pm6", ".nqp"],
 			"firstLine": "(^#!.*\\bperl6\\b)|use\\s+v6",
-			"configuration": "./perl6.configuration.json"
+			"configuration": "./perl6.language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "perl",

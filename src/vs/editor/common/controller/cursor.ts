@@ -102,31 +102,6 @@ export class Cursor extends EventEmitter {
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
-		if (!this.viewModelHelper) {
-			this.viewModelHelper = {
-				viewModel: this.model,
-				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertModelRangeToViewRange: (modelRange: Range) => {
-					return modelRange;
-				},
-				convertViewToModelPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertViewSelectionToModelSelection: (viewSelection:Selection) => {
-					return viewSelection;
-				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
-					return modelPosition;
-				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range) => {
-					return modelRange;
-				}
-
-			};
-		}
-
 		this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
 		this.cursorUndoStack = [];
 
@@ -1128,7 +1103,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _cursorMove(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, !!ctx.eventData.inSelectionMode, ctx.eventData.to, ctx.eventSource, oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, ctx.eventData, ctx.eventSource, oneCtx));
 	}
 
 	private _columnSelectToLineNumber: number = 0;
@@ -1278,15 +1253,23 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveLeft(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveLeft(oneCursor, inSelectionMode, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Left;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordLeft(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordLeft(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
 	}
 
-	private _moveRight(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveRight(oneCursor, inSelectionMode, oneCtx));
+	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Right;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordRight(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
@@ -1294,11 +1277,23 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveDown(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveDown(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Down;
+		ctx.eventData.select = inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
+		ctx.eventData.isPaged= isPaged;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveUp(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveUp(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Up;
+		ctx.eventData.select= inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
+		ctx.eventData.isPaged= isPaged;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveToBeginningOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {

@@ -227,7 +227,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>(?i:\b(select(\s+distinct)?|insert\s+(ignore\s+)?into|update|delete|from|set|where|group\sby|or|like|and|union(\s+all)?|having|order\sby|limit|(inner|cross)\s+join|join|straight_join|(left|right)(\s+outer)?\s+join|natural(\s+(left|right)(\s+outer)?)?\s+join)\b)</string>
+			<string>(?i:\b(select(\s+distinct)?|insert\s+(ignore\s+)?into|update|delete|from|declare|set|where|group\sby|or|like|and|union(\s+all)?|having|order\sby|limit|(inner|cross)\s+join|join|straight_join|(left|right)(\s+outer)?\s+join|natural(\s+(left|right)(\s+outer)?)?\s+join)\b)</string>
 			<key>name</key>
 			<string>keyword.other.DML.sql</string>
 		</dict>
@@ -239,7 +239,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>(?i:\b(values|use|exec|openquery)\b)</string>
+			<string>(?i:\b(values|go|use|into|exec|execute|openquery)\b)</string>
 			<key>name</key>
 			<string>keyword.other.DML.II.sql</string>
 		</dict>

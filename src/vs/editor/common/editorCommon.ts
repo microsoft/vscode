@@ -396,6 +396,10 @@ export interface IEditorOptions {
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
+	 * Enable word based suggestions. Defaults to 'true'
+	 */
+	wordBasedSuggestions?: boolean;
+	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
 	 */
@@ -805,6 +809,7 @@ export class EditorContribOptions {
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
 	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	wordBasedSuggestions: boolean;
 	selectionHighlight:boolean;
 	referenceInfos: boolean;
 	folding: boolean;
@@ -824,6 +829,7 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+		wordBasedSuggestions: boolean;
 		selectionHighlight:boolean;
 		referenceInfos: boolean;
 		folding: boolean;
@@ -839,6 +845,7 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
+		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.referenceInfos = Boolean(source.referenceInfos);
 		this.folding = Boolean(source.folding);
@@ -860,6 +867,7 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
+			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.referenceInfos === other.referenceInfos
 			&& this.folding === other.folding
@@ -4175,14 +4183,72 @@ export var EventType = {
 };
 
 /**
- * Logical positions in the view for cursor move command.
+ * Positions in the view for cursor move command.
  */
-export const CursorMoveViewPosition = {
-	LineStart: 'lineStart',
-	LineFirstNonWhitespaceCharacter: 'lineFirstNonWhitespaceCharacter',
-	LineColumnCenter: 'lineColumnCenter',
-	LineEnd: 'lineEnd',
-	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter'
+export const CursorMovePosition = {
+	Left: 'left',
+	Right: 'right',
+	Up: 'up',
+	Down: 'down',
+
+	WrappedLineStart: 'wrappedLineStart',
+	WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
+	WrappedLineColumnCenter: 'wrappedLineColumnCenter',
+	WrappedLineEnd: 'wrappedLineEnd',
+	WrappedLineLastNonWhitespaceCharacter: 'wrappedLineLastNonWhitespaceCharacter',
+
+	ViewPortTop: 'viewPortTop',
+	ViewPortCenter: 'viewPortCenter',
+	ViewPortBottom: 'viewPortBottom',
+};
+
+/**
+ * Units for Cursor move 'by' argument
+ */
+export const CursorMoveByUnit = {
+	Line: 'line',
+	WrappedLine: 'wrappedLine',
+	Character: 'character',
+	HalfLine: 'halfLine'
+};
+
+/**
+ * Arguments for Cursor move command
+ */
+export interface CursorMoveArguments {
+	to: string;
+	select?: boolean;
+	by?: string;
+	amount?: number;
+};
+
+/**
+ * @internal
+ */
+let isCursorMoveArgs= function(arg): boolean  {
+	if (!types.isObject(arg)) {
+		return false;
+	}
+
+	let cursorMoveArg: CursorMoveArguments = arg;
+
+	if (!types.isString(cursorMoveArg.to)) {
+		return false;
+	}
+
+	if (!types.isUndefined(cursorMoveArg.select) && !types.isBoolean(cursorMoveArg.select)) {
+		return false;
+	}
+
+	if (!types.isUndefined(cursorMoveArg.by) && !types.isString(cursorMoveArg.by)) {
+		return false;
+	}
+
+	if (!types.isUndefined(cursorMoveArg.amount) && !types.isNumber(cursorMoveArg.amount)) {
+		return false;
+	}
+
+	return true;
 };
 
 /**
@@ -4195,7 +4261,7 @@ export var CommandDescription = {
 			{
 				name: nls.localize('editorCommand.cursorMove.arg.name', "Cursor move argument"),
 				description: nls.localize('editorCommand.cursorMove.arg.description', "Argument containing mandatory 'to' value and an optional 'inSelectionMode' value. Value of 'to' has to be a defined value in `CursorMoveViewPosition`."),
-				constraint: (arg) => types.isObject(arg) && types.isString(arg.to) && (types.isUndefined(arg.inSelectionMode) || types.isBoolean(arg.inSelectionMode))
+				constraint: isCursorMoveArgs
 			}
 		]
 	}

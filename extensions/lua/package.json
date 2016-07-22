@@ -8,7 +8,7 @@
 			"id": "lua",
 			"extensions": [ ".lua" ],
 			"aliases": [ "Lua", "lua" ],
-			"configuration": "./lua.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "lua",
