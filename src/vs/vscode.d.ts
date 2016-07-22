@@ -2500,6 +2500,12 @@ declare namespace vscode {
 			 * @deprecated
 			 */
 			brackets?: any;
+			/**
+			 * This property is deprecated and not fully supported anymore by
+			 * the editor (scope and lineStart are ignored).
+			 * Use the the autoClosingPairs property in the language configuration file instead.
+			 * @deprecated
+			 */
 			docComment?: {
 				scope: string;
 				open: string;
@@ -2511,7 +2517,7 @@ declare namespace vscode {
 		/**
 		 * **Deprecated** Do not use.
 		 *
-		 * @deprecated Use the language configuration file instead.
+		 * @deprecated * Use the the autoClosingPairs property in the language configuration file instead.
 		 */
 		__characterPairSupport?: {
 			autoClosingPairs: {

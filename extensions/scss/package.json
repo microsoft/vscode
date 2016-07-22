@@ -8,7 +8,8 @@
 			"id": "scss",
 			"aliases": ["Sass", "scss"],
 			"extensions": [".scss"],
-			"mimetypes": ["text/x-scss", "text/scss"]
+			"mimetypes": ["text/x-scss", "text/scss"],
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "scss",

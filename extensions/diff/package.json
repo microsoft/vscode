@@ -9,7 +9,7 @@
 				"id": "diff",
 				"aliases": ["Diff", "diff" ],
 				"extensions": [".patch", ".diff", ".rej"],
-				"configuration": "./diff.configuration.json"
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [

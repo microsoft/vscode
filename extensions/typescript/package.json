@@ -37,7 +37,8 @@
 				],
 				"extensions": [
 					".ts"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			},
 			{
 				"id": "typescriptreact",
@@ -47,7 +48,8 @@
 				],
 				"extensions": [
 					".tsx"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [

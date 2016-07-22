@@ -8,7 +8,7 @@
 			"id": "fsharp",
 			"extensions": [ ".fs", ".fsi", ".ml", ".mli", ".fsx", ".fsscript" ],
 			"aliases": [ "F#", "FSharp", "fsharp" ],
-			"configuration": "./fsharp.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "fsharp",

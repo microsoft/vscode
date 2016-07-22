@@ -8,13 +8,13 @@
 			"id": "c",
 			"extensions": [ ".c"],
 			"aliases": [ "C", "c" ],
-			"configuration": "./cpp.configuration.json"
+			"configuration": "./language-configuration.json"
 		},
 		{
 			"id": "cpp",
 			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".mm", ".ino", ".inl" ],
 			"aliases": [ "C++", "Cpp", "cpp"],
-			"configuration": "./cpp.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "c",
