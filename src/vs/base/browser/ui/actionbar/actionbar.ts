@@ -696,7 +696,7 @@ export class SelectActionItem extends BaseActionItem {
 	public setOptions(options: string[], selected: number): void {
 		this.options = options;
 		if (selected >= 0) {
-		this.selected = selected;
+			this.selected = selected;
 		} else if (this.selected < 0 || this.selected > this.options.length) {
 			this.selected = 0;
 		}
@@ -745,6 +745,7 @@ export class SelectActionItem extends BaseActionItem {
 
 		if (this.selected >= 0) {
 			this.select.selectedIndex = this.selected;
+			this.select.title = this.options[this.selected];
 		}
 	}
 
