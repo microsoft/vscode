@@ -397,8 +397,6 @@ export interface ISuggestSupport {
 
 	triggerCharacters: string[];
 
-	shouldAutotriggerSuggest: boolean;
-
 	filter?: IFilter;
 
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
@@ -881,6 +879,7 @@ export type CharacterPair = [string, string];
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
+
 }
 
 /**

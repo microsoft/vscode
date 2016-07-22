@@ -185,7 +185,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			try {
 				let obj = JSON.parse(success.responseText);
 				if (obj) {
-					let result = [];
+					let result : string[] = [];
 					if (obj.description) {
 						result.push(obj.description);
 					}
@@ -211,7 +211,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(infos => {
 					infos.forEach(info => {
-						htmlContent.push(info);
+						htmlContent.push({language: 'string', value: info});
 					});
 					return htmlContent;
 				});

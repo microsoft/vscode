@@ -428,9 +428,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "0.33.0",
-      "from": "git://github.com/Tyriar/xterm.js#124_add_textarea_back",
-      "resolved": "git://github.com/Tyriar/xterm.js#124_add_textarea_back"
+      "version": "1.0.0",
+      "from": "git+https://github.com/sourcelair/xterm.js.git#10fbf0d",
+      "resolved": "git+https://github.com/sourcelair/xterm.js.git#10fbf0dcccdb1f8a9f065029c788ca86fb99fce8"
     },
     "yauzl": {
       "version": "2.3.1",

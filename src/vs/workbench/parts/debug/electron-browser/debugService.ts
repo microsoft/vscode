@@ -291,6 +291,10 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
+		this.toDisposeOnSessionEnd.push(this.session.onDidContinued(event => {
+			this.lazyTransitionToRunningState(event.body.allThreadsContinued ? undefined : event.body.threadId);
+		}));
+
 		this.toDisposeOnSessionEnd.push(this.session.onDidOutput(event => {
 			if (event.body && event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
@@ -619,7 +623,8 @@ export class DebugService implements debug.IDebugService {
 				pathFormat: 'path',
 				linesStartAt1: true,
 				columnsStartAt1: true,
-				supportsVariableType: true // #8858
+				supportsVariableType: true, // #8858
+				supportsVariablePaging: false // #9537
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				if (!this.session) {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
@@ -628,6 +633,10 @@ export class DebugService implements debug.IDebugService {
 				this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
+				if (!this.session) {
+					return TPromise.as(null);
+				}
+
 				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
@@ -827,7 +836,7 @@ export class DebugService implements debug.IDebugService {
 
 		if (source.inMemory) {
 			// internal module
-			if (source.reference !== 0 && this.session) {
+			if (source.reference !== 0 && this.session && source.available) {
 				return this.session.source({ sourceReference: source.reference }).then(response => {
 					const mime = response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
 					return this.getDebugStringEditorInput(source, response.body.content, mime);
@@ -938,6 +947,7 @@ export class DebugService implements debug.IDebugService {
 
 	private lazyTransitionToRunningState(threadId?: number): void {
 		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
+
 		const toDispose = this.session.onDidStop(e => {
 			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
 				setNewFocusedStackFrameScheduler.cancel();

@@ -405,7 +405,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	}
 
 	private onGitOperationEnd(e: { operation: git.IGitOperation; error: any; }): void {
-		if (e.operation.id === git.ServiceOperations.COMMIT || e.operation.id === git.ServiceOperations.RESET) {
+		if (e.operation.id === git.ServiceOperations.COMMIT) {
 			if (this.commitInputBox) {
 				this.commitInputBox.enable();
 

@@ -170,7 +170,7 @@ export class BowerJSONContribution implements IJSONContribution {
 				htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(documentation => {
 					if (documentation) {
-						htmlContent.push(documentation);
+						htmlContent.push({ language: 'string', value: documentation});
 					}
 					return htmlContent;
 				});

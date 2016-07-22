@@ -1247,6 +1247,10 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Enable word based suggestions. Defaults to 'true'
+         */
+        wordBasedSuggestions?: boolean;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
@@ -1409,6 +1413,7 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        wordBasedSuggestions: boolean;
         selectionHighlight: boolean;
         referenceInfos: boolean;
         folding: boolean;
@@ -3190,15 +3195,42 @@ declare module monaco.editor {
     };
 
     /**
-     * Logical positions in the view for cursor move command.
+     * Positions in the view for cursor move command.
      */
-    export const CursorMoveViewPosition: {
-        LineStart: string;
-        LineFirstNonWhitespaceCharacter: string;
-        LineColumnCenter: string;
-        LineEnd: string;
-        LineLastNonWhitespaceCharacter: string;
+    export const CursorMovePosition: {
+        Left: string;
+        Right: string;
+        Up: string;
+        Down: string;
+        WrappedLineStart: string;
+        WrappedLineFirstNonWhitespaceCharacter: string;
+        WrappedLineColumnCenter: string;
+        WrappedLineEnd: string;
+        WrappedLineLastNonWhitespaceCharacter: string;
+        ViewPortTop: string;
+        ViewPortCenter: string;
+        ViewPortBottom: string;
     };
+
+    /**
+     * Units for Cursor move 'by' argument
+     */
+    export const CursorMoveByUnit: {
+        Line: string;
+        WrappedLine: string;
+        Character: string;
+        HalfLine: string;
+    };
+
+    /**
+     * Arguments for Cursor move command
+     */
+    export interface CursorMoveArguments {
+        to: string;
+        select?: boolean;
+        by?: string;
+        amount?: number;
+    }
 
     /**
      * Built-in commands.

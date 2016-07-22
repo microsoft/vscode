@@ -21,7 +21,6 @@ import model = require('vs/workbench/parts/debug/common/debugModel');
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import IDebugService = debug.IDebugService;
 
@@ -594,6 +593,9 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	public run(): TPromise<void> {
+		if (this.debugService.state !== debug.State.Stopped) {
+			return TPromise.as(null);
+		}
 		const lineNumber = this.editor.getPosition().lineNumber;
 		const uri = this.editor.getModel().uri;
 
@@ -608,26 +610,10 @@ export class RunToCursorAction extends EditorAction {
 			}
 		});
 
-		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {
+		const bpExists = !!(this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
+		return (bpExists ? TPromise.as(null) : this.debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
 			this.debugService.continue(this.debugService.getViewModel().getFocusedThreadId());
 		});
-	}
-
-	public getGroupId(): string {
-		return '5_debug/1_run_to_cursor';
-	}
-
-	public shouldShowInContextMenu(): boolean {
-		if (this.debugService.state !== debug.State.Stopped) {
-			return false;
-		}
-
-		const lineNumber = this.editor.getPosition().lineNumber;
-		const uri = this.editor.getModel().uri;
-		const bps = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString());
-
-		// breakpoint must not be on position (no need for this action).
-		return bps.length === 0;
 	}
 
 	public isSupported(): boolean {
@@ -653,30 +639,6 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-export class SelectionToWatchExpressionsAction extends EditorAction {
-	static ID = 'editor.debug.action.selectionToWatch';
-
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService, @IViewletService private viewletService: IViewletService) {
-		super(descriptor, editor, Behaviour.TextFocus);
-	}
-
-	public run(): TPromise<any> {
-		const text = this.editor.getModel().getValueInRange(this.editor.getSelection());
-		return this.viewletService.openViewlet(debug.VIEWLET_ID).then(() => this.debugService.addWatchExpression(text));
-	}
-
-	public getGroupId(): string {
-		return '5_debug/3_selection_to_watch';
-	}
-
-	public shouldShowInContextMenu(): boolean {
-		const selection = this.editor.getSelection();
-		const text = this.editor.getModel().getValueInRange(selection);
-
-		return !!selection && !selection.isEmpty() && this.debugService.getConfigurationManager().configurationName && text && /\S/.test(text);
-	}
-}
-
 export class SelectionToReplAction extends EditorAction {
 	static ID = 'editor.debug.action.selectionToRepl';
 
@@ -686,7 +648,7 @@ export class SelectionToReplAction extends EditorAction {
 		@IDebugService private debugService: IDebugService,
 		@IPanelService private panelService: IPanelService
 	) {
-		super(descriptor, editor, Behaviour.TextFocus);
+		super(descriptor, editor, Behaviour.UpdateOnCursorPositionChange);
 	}
 
 	public run(): TPromise<any> {
@@ -695,13 +657,9 @@ export class SelectionToReplAction extends EditorAction {
 			.then(() => this.panelService.openPanel(debug.REPL_ID, true));
 	}
 
-	public getGroupId(): string {
-		return '5_debug/2_selection_to_repl';
-	}
-
-	public shouldShowInContextMenu(): boolean {
+	public isSupported(): boolean {
 		const selection = this.editor.getSelection();
-		return !!selection && !selection.isEmpty() && this.debugService.state === debug.State.Stopped;
+		return !!selection && !selection.isEmpty() && this.debugService.state !== debug.State.Disabled && this.debugService.state !== debug.State.Inactive;
 	}
 }
 

@@ -30,7 +30,7 @@
     "vscode-debugprotocol": "1.10.0",
     "vscode-textmate": "2.0.1",
     "winreg": "1.2.0",
-    "xterm": "git://github.com/Tyriar/xterm.js#124_add_textarea_back",
+    "xterm": "git+https://github.com/sourcelair/xterm.js.git#10fbf0d",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -45,7 +45,7 @@
     "ghooks": "1.0.3",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "1.6.1",
+    "gulp-atom-electron": "^1.7.1",
     "gulp-azure-storage": "^0.6.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",

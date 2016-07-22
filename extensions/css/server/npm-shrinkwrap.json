@@ -3,9 +3,8 @@
   "version": "0.0.1",
   "dependencies": {
     "vscode-css-languageservice": {
-      "version": "1.0.4",
-      "from": "vscode-css-languageservice@>=1.0.4 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-css-languageservice/-/vscode-css-languageservice-1.0.4.tgz"
+      "version": "1.0.5-next.1",
+      "from": "vscode-css-languageservice@next"
     },
     "vscode-jsonrpc": {
       "version": "2.2.0",

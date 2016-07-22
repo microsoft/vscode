@@ -12,6 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode} from 'vs/editor/common/modes';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
+import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
 
 export function testCommand(
 	lines: string[],
@@ -24,7 +25,7 @@ export function testCommand(
 
 	let model = Model.createFromString(lines.join('\n'), undefined, mode);
 	let config = new MockConfiguration(null);
-	let cursor = new Cursor(0, config, model, null, false);
+	let cursor = new Cursor(0, config, model, viewModelHelper(model), false);
 
 	cursor.setSelections('tests', [selection]);
 

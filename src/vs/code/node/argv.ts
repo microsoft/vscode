@@ -88,6 +88,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
 	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
+	'--extensionHomePath': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),

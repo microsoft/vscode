@@ -37,7 +37,8 @@
 				],
 				"extensions": [
 					".ts"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			},
 			{
 				"id": "typescriptreact",
@@ -47,7 +48,8 @@
 				],
 				"extensions": [
 					".tsx"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [
@@ -205,22 +207,12 @@
 				"title": "%javascript.reloadProjects.title%"
 			}
 		],
-		"debuggers": [
+		"breakpoints": [
 			{
-				"type": "node",
-				"enableBreakpointsFor": {
-					"languageIds": [
-						"typescript", "typescriptreact"
-					]
-				}
+				"language": "typescript"
 			},
 			{
-				"type": "extensionHost",
-				"enableBreakpointsFor": {
-					"languageIds": [
-						"typescript"
-					]
-				}
+				"language": "typescriptreact"
 			}
 		],
 		"snippets": [

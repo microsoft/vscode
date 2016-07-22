@@ -56,6 +56,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
+	private _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
 	private _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
 	private _onDidExitAdapter: Emitter<SessionExitedEvent>;
 	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
@@ -78,6 +79,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
+		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
 		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
 		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
@@ -92,6 +94,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public get onDidStop(): Event<DebugProtocol.StoppedEvent> {
 		return this._onDidStop.event;
+	}
+
+	public get onDidContinued(): Event<DebugProtocol.ContinuedEvent> {
+		return this._onDidContinued.event;
 	}
 
 	public get onDidTerminateDebugee(): Event<SessionTerminatedEvent> {
@@ -143,11 +149,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.initServer().then(() => {
 			const promise = super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse.body ? errorResponse.body.error : null;
-				const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
+				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorResponse.message;
 				if (error && error.sendTelemetry) {
-					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
+					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					if (this.customTelemetryService) {
-						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: message });
+						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					}
 				}
 				if (errors.isPromiseCanceledError(errorResponse) || (error && error.showUser === false)) {
@@ -155,15 +161,16 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 					return TPromise.as(null);
 				}
 
+				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-					return TPromise.wrapError(errors.create(message, { actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
+					return TPromise.wrapError(errors.create(userMessage, { actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
 						shell.openExternal(error.url);
 						return TPromise.as(null);
 					})]}));
 				}
 
-				return TPromise.wrapError(new Error(message));
+				return TPromise.wrapError(new Error(userMessage));
 			});
 
 			this.sentPromises.push(promise);
@@ -184,6 +191,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		} else if (event.event === 'stopped') {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
+		} else if (event.event === 'continued') {
+			this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
 		} else if (event.event === 'thread') {
 			this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
 		} else if (event.event === 'output') {
@@ -212,7 +221,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
-		this.capabilities = objects.mixin(this.capabilities, response.body);
+		if (response) {
+			this.capabilities = objects.mixin(this.capabilities, response.body);
+		}
+
 		return response;
 	}
 

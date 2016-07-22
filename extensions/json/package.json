@@ -35,7 +35,7 @@
 					"application/json",
 					"application/manifest+json"
 				],
-				"configuration": "./json.configuration.json"
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [
@@ -53,6 +53,10 @@
 			{
 				"fileMatch": "package.json",
 				"url": "vscode://schemas/vscode-extensions"
+			},
+			{
+				"fileMatch": "*language-configuration.json",
+				"url": "vscode://schemas/language-configuration"
 			},
 			{
 				"fileMatch": "vscode://defaultsettings/keybindings.json",

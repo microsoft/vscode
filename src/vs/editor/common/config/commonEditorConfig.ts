@@ -262,6 +262,7 @@ class InternalEditorOptionsHelper {
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			snippetSuggestions: opts.snippetSuggestions,
+			wordBasedSuggestions: opts.wordBasedSuggestions,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			referenceInfos: toBoolean(opts.referenceInfos),
 			folding: toBoolean(opts.folding),
@@ -713,6 +714,11 @@ let editorConfiguration:IConfigurationNode = {
 			'enum': ['top', 'bottom', 'inline', 'none'],
 			'default': DefaultConfig.editor.snippetSuggestions,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
+		},
+		'editor.wordBasedSuggestions': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.wordBasedSuggestions,
+			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
 		},
 		'editor.selectionHighlight' : {
 			'type': 'boolean',
