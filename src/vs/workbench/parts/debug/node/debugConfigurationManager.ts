@@ -275,7 +275,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		// We need a map from interactive variables to keys because we only want to trigger an command once per key -
 		// even though it might occure multiple times in configuration #7026.
-		const interactiveVariablesToKeys: { [key: string]: string[] } = {};
+		const interactiveVariablesToSubstitutes: { [interactiveVariable: string]: { object: any, key: string }[] } = {};
 		const findInteractiveVariables = (object: any) => {
 			Object.keys(object).forEach(key => {
 				if (object[key] && typeof object[key] === 'object') {
@@ -284,17 +284,17 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					const matches = /\${command.(.+)}/.exec(object[key]);
 					if (matches && matches.length === 2) {
 						const interactiveVariable = matches[1];
-						if (!interactiveVariablesToKeys[interactiveVariable]) {
-							interactiveVariablesToKeys[interactiveVariable] = [];
+						if (!interactiveVariablesToSubstitutes[interactiveVariable]) {
+							interactiveVariablesToSubstitutes[interactiveVariable] = [];
 						}
-						interactiveVariablesToKeys[interactiveVariable].push(key);
+						interactiveVariablesToSubstitutes[interactiveVariable].push({ object, key });
 					}
 				}
 			});
 		};
 		findInteractiveVariables(this.configuration);
 
-		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToKeys).map(interactiveVariable => {
+		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
 			return () => {
 				const commandId = this.adapter.variables ? this.adapter.variables[interactiveVariable] : null;
 				if (!commandId) {
@@ -304,7 +304,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 						if (!result) {
 							this.configuration.silentlyAbort = true;
 						}
-						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = this.configuration[key].replace(`\${command.${ interactiveVariable }}`, result));
+						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
+							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
+						);
 					});
 				}
 			};
