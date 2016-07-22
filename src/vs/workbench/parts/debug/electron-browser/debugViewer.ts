@@ -1144,6 +1144,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
+		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
 
@@ -1156,9 +1157,20 @@ export class BreakpointsRenderer implements tree.IRenderer {
 				ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
 			});
 		} else {
-			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
 			data.name.textContent = functionBreakpoint.name;
 			data.checkbox.checked = functionBreakpoint.enabled;
+			data.breakpoint.title = functionBreakpoint.name;
+
+			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
+			const session = this.debugService.getActiveSession();
+			if ((session && !session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
+				tree.addTraits('disabled', [functionBreakpoint]);
+				if (session && !session.configuration.capabilities.supportsFunctionBreakpoints) {
+					data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
+				}
+			} else {
+				tree.removeTraits('disabled', [functionBreakpoint]);
+			}
 		}
 		data.actionBar.context = functionBreakpoint;
 	}
