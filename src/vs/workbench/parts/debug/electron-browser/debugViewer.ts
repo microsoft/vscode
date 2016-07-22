@@ -887,7 +887,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		data.name.textContent = `${watchExpression.name}:`;
 		if (watchExpression.value) {
 			renderExpressionValue(watchExpression, data.value, true, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
-			data.expression.title = watchExpression.value;
+			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}
 

@@ -51,6 +51,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	name: string;
 	value: string;
 	valueChanged: boolean;
+	type?: string;
 }
 
 export interface IThread extends ITreeElement {
