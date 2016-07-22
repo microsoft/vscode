@@ -623,7 +623,8 @@ export class DebugService implements debug.IDebugService {
 				pathFormat: 'path',
 				linesStartAt1: true,
 				columnsStartAt1: true,
-				supportsVariableType: true // #8858
+				supportsVariableType: true, // #8858
+				supportsVariablePaging: false // #9537
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				if (!this.session) {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
