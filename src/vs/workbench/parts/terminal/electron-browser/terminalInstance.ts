@@ -16,6 +16,9 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {Keybinding} from 'vs/base/common/keyCodes';
+import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
+import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
 export class TerminalInstance {
 
@@ -41,6 +44,7 @@ export class TerminalInstance {
 		private terminalFocusContextKey: IKeybindingContextKey<boolean>,
 		private onExitCallback: (TerminalInstance) => void
 	) {
+		let self = this;
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
@@ -59,6 +63,26 @@ export class TerminalInstance {
 			});
 			return false;
 		});
+		this.xterm.attachCustomKeydownHandler(function (event: KeyboardEvent) {
+			// HACK: Only listen to the tab focus mode keybinding if it's the default since
+			// there doesn't seem to be a convenient way to convert vscode keycodes to regular
+			// DOM keycodes
+			const opts: Keybinding[] = self.keybindingService.lookupKeybindings(ToggleTabFocusModeAction.ID);
+			if (opts.length > 0) {
+				const opt = opts[0];
+				if (opt.hasCtrlCmd() && !opt.hasAlt() && !opt.hasShift() && opts[0].extractKeyCode() === 43) {
+					if (event.ctrlKey && event.keyCode === 77) {
+						event.preventDefault();
+						return false;
+					}
+				}
+			}
+
+			// If tab focus mode is on, tab is not passed to the terminal
+			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+				return false;
+			}
+		});
 		this.terminalProcess.process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this.isExiting) {
@@ -73,7 +97,22 @@ export class TerminalInstance {
 
 		this.xterm.open(this.terminalDomElement);
 
-		let self = this;
+
+		let xtermHelper: HTMLElement = this.xterm.element.querySelector('.xterm-helpers');
+		let focusTrap: HTMLElement = document.createElement('div');
+		focusTrap.setAttribute('tabindex', '0');
+		DOM.addClass(focusTrap, 'focus-trap');
+		focusTrap.addEventListener('focus', function (event: FocusEvent) {
+			let currentElement = focusTrap;
+			while (!DOM.hasClass(currentElement, 'part')) {
+				currentElement = currentElement.parentElement;
+			}
+			let hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
+			hidePanelElement.focus();
+		});
+		xtermHelper.insertBefore(focusTrap, this.xterm.textarea);
+
+
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'focus', (event: KeyboardEvent) => {
 			self.terminalFocusContextKey.set(true);
 		}));
