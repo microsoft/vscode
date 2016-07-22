@@ -39,7 +39,7 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		if (response.body) {
 			expression.value = response.body.result;
 			expression.reference = response.body.variablesReference;
-			expression.childrenCount = response.body.totalCount;
+			expression.childrenCount = response.body.totalVariables;
 			expression.type = response.body.type;
 		}
 
@@ -265,7 +265,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 						count
 					}).then(response => {
 						return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-							v => new Variable(this, v.variablesReference, v.name, v.value, v.totalCount, v.type)
+							v => new Variable(this, v.variablesReference, v.name, v.value, v.totalVariables, v.type)
 						);
 					}, (e: Error) => [new Variable(this, 0, null, e.message, 0, null, false)]);
 				}
@@ -364,7 +364,7 @@ export class StackFrame implements debug.IStackFrame {
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
 		if (!this.scopes) {
 			this.scopes = debugService.getActiveSession().scopes({ frameId: this.frameId }).then(response => {
-				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.totalCount));
+				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.totalVariables));
 			}, err => []);
 		}
 
