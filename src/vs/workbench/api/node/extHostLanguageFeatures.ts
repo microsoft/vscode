@@ -588,10 +588,31 @@ class SignatureHelpAdapter {
 	}
 }
 
+class LinkProviderAdapter {
+
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.DocumentLinkProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.DocumentLinkProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	provideLinks(resource: URI): TPromise<modes.ILink[]> {
+		const doc = this._documents.getDocumentData(resource).document;
+
+		return asWinJsPromise(token => this._provider.provideDocumentLinks(doc, token)).then(links => {
+			if (Array.isArray(links)) {
+				return links.map(TypeConverters.DocumentLink.from);
+			}
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter;
 
 export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
@@ -819,6 +840,19 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
 		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(resource, position));
+	}
+
+	// --- links
+
+	registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new LinkProviderAdapter(this._documents, provider);
+		this._proxy.$registerDocumentLinkProvider(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$providDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(resource));
 	}
 
 	// --- configuration

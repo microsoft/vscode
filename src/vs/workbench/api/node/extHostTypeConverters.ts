@@ -318,6 +318,19 @@ export namespace SignatureHelp {
 	}
 }
 
+export namespace DocumentLink {
+
+	export function from(link: types.DocumentLink): modes.ILink {
+		return {
+			range: fromRange(link.range),
+			url: link.target.toString()
+		};
+	}
+
+	export function to(link: modes.ILink):types.DocumentLink {
+		return new types.DocumentLink(toRange(link.range), URI.parse(link.url));
+	}
+}
 
 export namespace Command {
 
