@@ -10,6 +10,7 @@ import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import Event, { Emitter} from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, emmet as $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -22,7 +23,6 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
 import { CompletionItem, CompletionModel } from '../common/completionModel';
-import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from '../common/suggestModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface ISuggestionTemplateData {
@@ -158,23 +158,6 @@ class Delegate implements IDelegate<CompletionItem> {
 	getTemplateId(element: CompletionItem): string {
 		return 'suggestion';
 	}
-}
-
-function computeScore(suggestion: string, currentWord: string, currentWordLowerCase: string): number {
-	const suggestionLowerCase = suggestion.toLowerCase();
-	let score = 0;
-
-	for (let i = 0; i < currentWord.length && i < suggestion.length; i++) {
-		if (currentWord[i] === suggestion[i]) {
-			score += 2;
-		} else if (currentWordLowerCase[i] === suggestionLowerCase[i]) {
-			score += 1;
-		} else {
-			break;
-		}
-	}
-
-	return score;
 }
 
 enum State {
@@ -325,9 +308,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
 
+	private _onDidAccept = new Emitter<CompletionItem>();
+	private _onDidHide = new Emitter<SuggestWidget>();
+
 	constructor(
 		private editor: ICodeEditor,
-		private model: SuggestModel,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -359,9 +344,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
-			this.model.onDidTrigger(e => this.onDidTrigger(e)),
-			this.model.onDidSuggest(e => this.onDidSuggest(e)),
-			this.model.onDidCancel(e => this.onDidCancel(e))
+			// this.model.onDidTrigger(e => this.onDidTrigger(e)),
+			// this.model.onDidSuggest(e => this.onDidSuggest(e)),
+			// this.model.onDidCancel(e => this.onDidCancel(e))
 		];
 
 		this.suggestWidgetVisible = keybindingService.createKey(SuggestContext.Visible, false);
@@ -408,10 +393,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 
 		const item = e.elements[0];
-		const container = item.container;
-		const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
-		const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
-		this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
+		// const container = item.container;
+		// const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
+		// const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
+		// this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
+		this._onDidAccept.fire(item);
 
 		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 
@@ -477,10 +463,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 
-		const position = this.model.getRequestPosition() || this.editor.getPosition();
-		this.currentSuggestionDetails = item.resolveDetails(this.editor.getModel(), position)
-			.then(details => {
-				item.updateDetails(details);
+		this.currentSuggestionDetails = item.resolve()
+			.then(() => {
 				this.list.setFocus(index);
 				this.updateWidgetHeight();
 				this.list.reveal(index);
@@ -545,12 +529,20 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	private onDidTrigger(e: ITriggerEvent) {
+	get onDidAccept(): Event<CompletionItem> {
+		return this._onDidAccept.event;
+	}
+
+	get onDidHide(): Event<SuggestWidget> {
+		return this._onDidHide.event;
+	}
+
+	showTriggered(auto: boolean) {
 		if (this.state !== State.Hidden) {
 			return;
 		}
 
-		this.isAuto = !!e.auto;
+		this.isAuto = auto;
 
 		if (!this.isAuto) {
 			this.loadingTimeout = setTimeout(() => {
@@ -560,64 +552,36 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	private onDidSuggest(e: ISuggestEvent): void {
+	showSuggestions(completionModel: CompletionModel): void {
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
 		}
 
-		this.completionModel = e.completionModel;
+		this.completionModel = completionModel;
+		const visibleCount = this.completionModel.items.length;
+		const isEmpty = visibleCount === 0;
+		this.suggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
-		if (e.isFrozen && this.state !== State.Empty) {
+		if (isEmpty && !this.isAuto && this.state !== State.Empty) {
 			this.setState(State.Frozen);
 			return;
 		}
 
-		let visibleCount = this.completionModel.items.length;
-
-		const isEmpty = visibleCount === 0;
-		this.suggestWidgetMultipleSuggestions.set(visibleCount > 1);
-
 		if (isEmpty) {
-			if (e.auto) {
+			if (this.isAuto) {
 				this.setState(State.Hidden);
 			} else {
 				this.setState(State.Empty);
 			}
-
 			this.completionModel = null;
 
 		} else {
-			const currentWord = e.currentWord;
-			const currentWordLowerCase = currentWord.toLowerCase();
-			let bestSuggestionIndex = -1;
-			let bestScore = -1;
-
-			this.completionModel.items.forEach((item, index) => {
-				const score = computeScore(item.suggestion.label, currentWord, currentWordLowerCase);
-
-				if (score > bestScore) {
-					bestScore = score;
-					bestSuggestionIndex = index;
-				}
-			});
-
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
-			this.list.setFocus(bestSuggestionIndex);
-			this.list.reveal(bestSuggestionIndex, 0);
+			this.list.setFocus(this.completionModel.indexOfHighestScoredItem);
+			this.list.reveal(this.completionModel.indexOfHighestScoredItem, 0);
 
 			this.setState(State.Open);
-		}
-	}
-
-	private onDidCancel(e: ICancelEvent) {
-		if (this.loadingTimeout) {
-			clearTimeout(this.loadingTimeout);
-			this.loadingTimeout = null;
-		}
-
-		if (!e.retrigger) {
-			this.setState(State.Hidden);
 		}
 	}
 
@@ -694,7 +658,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				if (focus) {
 					this.list.setSelection(this.completionModel.items.indexOf(focus));
 				} else {
-					this.model.cancel();
+					this.cancel();
 				}
 				return true;
 		}
@@ -735,12 +699,19 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		removeClass(this.element, 'visible');
 	}
 
-	cancel(): void {
+	cancelDetailsOrWidget(): void {
 		if (this.state === State.Details) {
 			this.toggleDetails();
 		} else {
-			this.model.cancel();
+			this.cancel();
 		}
+	}
+
+	cancel() {
+		clearTimeout(this.loadingTimeout);
+		this.loadingTimeout = null;
+		this.setState(State.Hidden);
+		this._onDidHide.fire(this);
 	}
 
 	getPosition(): IContentWidgetPosition {

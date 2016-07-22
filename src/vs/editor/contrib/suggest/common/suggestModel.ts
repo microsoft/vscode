@@ -14,7 +14,6 @@ import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/mo
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestionItem, provideSuggestionItems} from './suggest';
 import {CompletionModel} from './completionModel';
-import {Position} from 'vs/editor/common/core/position';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -219,13 +218,6 @@ export class SuggestModel implements IDisposable {
 		return actuallyCanceled;
 	}
 
-	getRequestPosition(): Position {
-		if (!this.context) {
-			return null;
-		}
-
-		return new Position(this.context.lineNumber, this.context.column);
-	}
 
 	private isAutoSuggest(): boolean {
 		return this.state === State.Auto;
@@ -342,6 +334,8 @@ export class SuggestModel implements IDisposable {
 		}).then(null, onUnexpectedError);
 	}
 
+
+
 	private onNewContext(ctx: Context): void {
 		if (this.context && this.context.isDifferentContext(ctx)) {
 			if (this.context.shouldRetrigger(ctx)) {
@@ -371,7 +365,7 @@ export class SuggestModel implements IDisposable {
 					isFrozen = true;
 				}
 			} else {
-				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore);
+				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore, 0);
 			}
 
 			this._onDidSuggest.fire({

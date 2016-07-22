@@ -6,43 +6,50 @@
 'use strict';
 
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {assign} from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {ISuggestion} from 'vs/editor/common/modes';
 import {ISuggestionItem} from './suggest';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {Position} from 'vs/editor/common/core/position';
+
+
+function computeScore(suggestion: string, currentWord: string, currentWordLowerCase: string): number {
+	const suggestionLowerCase = suggestion.toLowerCase();
+	let score = 0;
+
+	for (let i = 0; i < currentWord.length && i < suggestion.length; i++) {
+		if (currentWord[i] === suggestion[i]) {
+			score += 2;
+		} else if (currentWordLowerCase[i] === suggestionLowerCase[i]) {
+			score += 1;
+		} else {
+			break;
+		}
+	}
+
+	return score;
+}
+
 
 export class CompletionItem {
 
 	suggestion: ISuggestion;
-	highlights: IMatch[];
-	container: ISuggestResult;
 	filter: IFilter;
+	highlights: IMatch[];
+	score: number;
 
-	private _support: ISuggestSupport;
-
-	constructor(item: ISuggestionItem) {
-		this.suggestion = item.suggestion;
-		this.container = item.container;
-		this.filter = item.support && item.support.filter || fuzzyContiguousFilter;
-		this._support = item.support;
-	}
-
-	resolveDetails(model:IReadOnlyModel, position:Position): TPromise<ISuggestion> {
-		if (!this._support || typeof this._support.resolveCompletionItem !== 'function') {
-			return TPromise.as(this.suggestion);
+	constructor(private _item: ISuggestionItem) {
+		this.suggestion = _item.suggestion;
+		if (typeof this.suggestion.overwriteBefore !== 'number') {
+			this.suggestion.overwriteBefore = _item.container.currentWord.length;
 		}
-
-		return asWinJsPromise((token) => {
-			return this._support.resolveCompletionItem(model, position, this.suggestion, token);
-		});
+		if (typeof this.suggestion.overwriteAfter !== 'number') {
+			this.suggestion.overwriteAfter = 0;
+		}
+		this.filter = _item.support && _item.support.filter || fuzzyContiguousFilter;
 	}
 
-	updateDetails(value: ISuggestion): void {
-		this.suggestion = assign(this.suggestion, value);
+	resolve(): TPromise<this> {
+		return this._item.resolve().then(() => this);
 	}
 }
 
@@ -58,10 +65,10 @@ export class CompletionModel {
 	private _lineContext: LineContext;
 	private _items: CompletionItem[] = [];
 	private _filteredItems: CompletionItem[] = undefined;
+	private _indexOfBestScoredItem: number;
 
-	constructor(raw: ISuggestionItem[], leadingLineContent: string) {
-		this.raw = raw;
-		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
+	constructor(raw: ISuggestionItem[], leadingLineContent: string, characterCountDelta: number) {
+		this._lineContext = { leadingLineContent, characterCountDelta };
 		for (const item of raw) {
 			this._items.push(new CompletionItem(item));
 		}
@@ -85,18 +92,23 @@ export class CompletionModel {
 		return this._filteredItems;
 	}
 
+	get indexOfHighestScoredItem(): number {
+		if (!this._filteredItems) {
+			this._filter();
+		}
+		return this._indexOfBestScoredItem;
+	}
 
 	private _filter(): void {
 		this._filteredItems = [];
+
+		this._indexOfBestScoredItem = 0;
+		let bestScore = 0;
+
 		const {leadingLineContent, characterCountDelta} = this._lineContext;
 		for (let item of this._items) {
 
-			let {overwriteBefore} = item.suggestion;
-			if (typeof overwriteBefore !== 'number') {
-				overwriteBefore = item.container.currentWord.length;
-			}
-
-			const start = leadingLineContent.length - (overwriteBefore + characterCountDelta);
+			const start = leadingLineContent.length - (item.suggestion.overwriteBefore + characterCountDelta);
 			const word = leadingLineContent.substr(start);
 
 			const {filter, suggestion} = item;
@@ -118,6 +130,11 @@ export class CompletionModel {
 
 			if (match) {
 				this._filteredItems.push(item);
+				const score = item.score = computeScore(suggestion.label, word, word.toLowerCase());
+				if (score > bestScore) {
+					bestScore = score;
+					this._indexOfBestScoredItem = this._filteredItems.length - 1;
+				}
 			}
 		}
 	}

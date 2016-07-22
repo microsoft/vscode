@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {assign} from 'vs/base/common/objects';
 import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
@@ -24,6 +25,7 @@ export interface ISuggestionItem {
 	suggestion: ISuggestion;
 	container: ISuggestResult;
 	support: ISuggestSupport;
+	resolve(): TPromise<void>;
 }
 
 export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none' | 'only';
@@ -34,6 +36,36 @@ export interface ISuggestOptions {
 }
 
 export function provideSuggestionItems(model: IReadOnlyModel, position: Position, options: ISuggestOptions = {}): TPromise<ISuggestionItem[]> {
+
+	function fillInSuggestResult(bucket: ISuggestionItem[], result: ISuggestResult, support: ISuggestSupport, acceptFn: (c: ISuggestion) => boolean): boolean {
+		if (!result) {
+			return false;
+		}
+		if (!result.suggestions) {
+			return false;
+		}
+		const len = bucket.length;
+		for (const suggestion of result.suggestions) {
+			if (acceptFn(suggestion)) {
+				const item = {
+					support,
+					suggestion,
+					container: result,
+					resolve() {
+						if (!support || typeof support.resolveCompletionItem !== 'function') {
+							return TPromise.as(undefined);
+						}
+
+						return asWinJsPromise(token => support.resolveCompletionItem(model, position, suggestion, token)).then(suggestion => {
+							assign(item.suggestion, suggestion);
+						});
+					}
+				};
+				bucket.push(item);
+			}
+		}
+		return len !== bucket.length;
+	}
 
 	const result: ISuggestionItem[] = [];
 	const suggestFilter = createSuggesionFilter(options);
@@ -67,25 +99,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 	return sequence(factory).then(() => result.sort(suggestCompare));
 }
 
-function fillInSuggestResult(bucket: ISuggestionItem[], result: ISuggestResult, support: ISuggestSupport, acceptFn: (c: ISuggestion) => boolean): boolean {
-	if (!result) {
-		return false;
-	}
-	if (!result.suggestions) {
-		return false;
-	}
-	const len = bucket.length;
-	for (const suggestion of result.suggestions) {
-		if (acceptFn(suggestion)) {
-			bucket.push({
-				support,
-				suggestion,
-				container: result,
-			});
-		}
-	}
-	return len !== bucket.length;
-}
+
 
 function createSuggesionFilter(options: ISuggestOptions): (candidate: ISuggestion) => boolean {
 	if (options.snippetConfig === 'only') {
