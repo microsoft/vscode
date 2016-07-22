@@ -12,20 +12,25 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { EditorAction } from 'vs/editor/common/editorAction';
-import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IReadOnlyModel, IPosition, IEditorActionDescriptorData, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { getSnippetController } from 'vs/editor/contrib/snippet/common/snippet';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { withCodeEditorFromCommandHandler } from 'vs/editor/common/config/config';
 import { SuggestModel } from '../common/suggestModel';
+import { ISuggestionItem } from '../common/suggest';
 import { SuggestWidget } from './suggestWidget';
 
+export interface ISuggestDataProvider {
+	(model: IReadOnlyModel, position: IPosition): TPromise<ISuggestionItem[]>;
+}
+
 export class SuggestController implements IEditorContribution {
-	static ID: string = 'editor.contrib.suggestController';
+
+	private static ID: string = 'editor.contrib.suggestController';
 
 	static getController(editor: ICommonCodeEditor): SuggestController {
 		return <SuggestController>editor.getContribution(SuggestController.ID);
@@ -37,7 +42,7 @@ export class SuggestController implements IEditorContribution {
 	private toDispose: IDisposable[];
 
 	constructor(
-		private editor: ICodeEditor,
+		private editor: ICommonCodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.model = new SuggestModel(this.editor);
@@ -129,6 +134,17 @@ export class SuggestController implements IEditorContribution {
 		this.editor.focus();
 
 		return TPromise.as(false);
+	}
+
+	trigger(provider: ISuggestDataProvider): TPromise<any> {
+
+		// model set loading
+
+		return provider(this.editor.getModel(), this.editor.getPosition()).then(items => {
+			console.log(items.length);
+
+			// model set data
+		});
 	}
 
 	acceptSelectedSuggestion(): void {
