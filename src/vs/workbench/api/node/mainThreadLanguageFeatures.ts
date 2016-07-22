@@ -201,6 +201,17 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		return undefined;
 	}
 
+	// --- links
+
+	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = modes.LinkProviderRegistry.register(selector, <modes.LinkProvider>{
+			provideLinks: (model, token) => {
+				return wireCancellationToken(token, this._proxy.$providDocumentLinks(handle, model.uri));
+			}
+		});
+		return undefined;
+	}
+
 	// --- configuration
 
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> {

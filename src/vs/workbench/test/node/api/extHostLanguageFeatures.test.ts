@@ -35,6 +35,7 @@ import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {provideSuggestionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
+import {getLinks} from 'vs/editor/contrib/links/common/links';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
@@ -946,6 +947,50 @@ suite('ExtHostLanguageFeatures', function() {
 
 				assert.equal(first.text, ';');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+			});
+		});
+	});
+
+	test('Links, data conversion', function () {
+
+		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks() {
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getLinks(model).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.url, 'foo:bar#3');
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+			});
+		});
+	});
+
+	test('Links, evil provider', function () {
+
+		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks() {
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+			}
+		}));
+
+		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks(): any {
+				throw new Error();
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getLinks(model).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.url, 'foo:bar#3');
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
 			});
 		});
 	});
