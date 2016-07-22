@@ -35,11 +35,12 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		frameId: stackFrame ? stackFrame.frameId : undefined,
 		context
 	}).then(response => {
-		expression.available = !!response.body;
+		expression.available = !!(response && response.body);
 		if (response.body) {
 			expression.value = response.body.result;
 			expression.reference = response.body.variablesReference;
 			expression.childrenCount = response.body.totalCount;
+			expression.type = response.body.type;
 		}
 
 		return expression;
@@ -256,10 +257,12 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 					}
 					this.children = TPromise.as(chunks);
 				} else {
+					const start = this.getChildrenInChunks ? this.chunkIndex * ExpressionContainer.CHUNK_SIZE : undefined;
+					const count = this.getChildrenInChunks ? ExpressionContainer.CHUNK_SIZE : undefined;
 					this.children = session.variables({
 						variablesReference: this.reference,
-						start: this.chunkIndex * ExpressionContainer.CHUNK_SIZE,
-						count: ExpressionContainer.CHUNK_SIZE
+						start,
+						count
 					}).then(response => {
 						return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
 							v => new Variable(this, v.variablesReference, v.name, v.value, v.totalCount, v.type)
@@ -280,6 +283,11 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 		return this._value;
 	}
 
+	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
+	private get getChildrenInChunks(): boolean {
+		return !!this.childrenCount;
+	}
+
 	public set value(value: string) {
 		this._value = massageValue(value);
 		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
@@ -292,6 +300,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	static DEFAULT_VALUE = 'not available';
 
 	public available: boolean;
+	public type: string;
 
 	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
 		super(0, id, cacheChildren, 0);

@@ -37,6 +37,7 @@ import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEdit
 	GlobalQuickOpenAction, OpenPreviousEditorFromHistoryAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction, ShowEditorsInCenterGroupAction,
 	NAVIGATE_IN_CENTER_GROUP_PREFIX, ShowEditorsInRightGroupAction, NAVIGATE_IN_RIGHT_GROUP_PREFIX, RemoveFromEditorHistoryAction, FocusLastEditorInStackAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
+import {registerEditorComamnds} from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Register String Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
@@ -406,3 +407,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+registerEditorComamnds();

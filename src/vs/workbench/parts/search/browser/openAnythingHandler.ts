@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as arrays from 'vs/base/common/arrays';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
@@ -182,27 +183,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				// Combine symbol results and file results
 				let result = [...results[0].entries, ...results[1].entries];
 
-				// Sort
-				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
-				const sortedResultTime = Date.now();
-
-				// Apply Range
-				result.forEach((element) => {
-					if (element instanceof FileEntry) {
-						(<FileEntry>element).setRange(searchWithRange ? searchWithRange.range : null);
-					}
-				});
-
 				// Cache for fast lookup
 				this.resultsToSearchCache[searchValue] = result;
 
-				// Cap the number of results to make the view snappy
-				const viewResults = result.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : result;
+				// Sort
+				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
+				const compare = (elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
+				const viewResults = arrays.top(result, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+				const sortedResultTime = Date.now();
 
-				// Apply highlights to file entries
+				// Apply range and highlights to file entries
 				viewResults.forEach(entry => {
 					if (entry instanceof FileEntry) {
+						entry.setRange(searchWithRange ? searchWithRange.range : null);
 						const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
 						entry.setHighlights(labelHighlights, descriptionHighlights);
 					}
@@ -324,21 +317,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		const unsortedResultTime = Date.now();
 
 		// Sort
-		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache));
+		const compare = (elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache);
+		const viewResults = arrays.top(results, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 		const sortedResultTime = Date.now();
 
-		// Apply Range
-		results.forEach((element) => {
-			if (element instanceof FileEntry) {
-				(<FileEntry>element).setRange(range);
-			}
-		});
-
-		// Cap the number of results to make the view snappy
-		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
-
-		// Apply highlights
+		// Apply range and highlights
 		viewResults.forEach(entry => {
+			if (entry instanceof FileEntry) {
+				entry.setRange(range);
+			}
 			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 		});
