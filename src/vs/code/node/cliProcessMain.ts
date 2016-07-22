@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
+import * as path from 'path';
 import { ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
@@ -38,6 +39,8 @@ function getId(manifest: IExtensionManifest): string {
 	return `${ manifest.publisher }.${ manifest.name }`;
 }
 
+type Task = { ():TPromise<void> };
+
 class Main {
 
 	constructor(
@@ -67,43 +70,57 @@ class Main {
 		});
 	}
 
-	private installExtension(ids: string[]): TPromise<any> {
-		return sequence(ids.map(id => () => {
-			return this.extensionManagementService.getInstalled().then(installed => {
-				const isInstalled = installed.some(e => getId(e.manifest) === id);
+	private installExtension(extensions: string[]): TPromise<any> {
+		const vsixTasks: Task[] = extensions
+			.filter(e => /\.vsix$/i.test(e))
+			.map(id => () => {
+				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
-				if (isInstalled) {
-					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
-					return TPromise.as(null);
-				}
-
-				return this.extensionGalleryService.query({ names: [id] })
-					.then<IPager<IGalleryExtension>>(null, err => {
-						if (err.responseText) {
-							try {
-								const response = JSON.parse(err.responseText);
-								return TPromise.wrapError(response.message);
-							} catch (e) {
-								return TPromise.wrapError(err);
-							}
-						}
-					})
-					.then(result => {
-						const [extension] = result.firstPage;
-
-						if (!extension) {
-							return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
-						}
-
-						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
-						console.log(localize('installing', "Installing..."));
-
-						return this.extensionManagementService.install(extension).then(() => {
-							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.versions[0].version));
-						});
-					});
+				return this.extensionManagementService.install(extension).then(() => {
+					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", path.basename(extension)));
+				});
 			});
-		}));
+
+		const galleryTasks: Task[] = extensions
+			.filter(e => !/\.vsix$/i.test(e))
+			.map(id => () => {
+				return this.extensionManagementService.getInstalled().then(installed => {
+					const isInstalled = installed.some(e => getId(e.manifest) === id);
+
+					if (isInstalled) {
+						console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+						return TPromise.as(null);
+					}
+
+					return this.extensionGalleryService.query({ names: [id] })
+						.then<IPager<IGalleryExtension>>(null, err => {
+							if (err.responseText) {
+								try {
+									const response = JSON.parse(err.responseText);
+									return TPromise.wrapError(response.message);
+								} catch (e) {
+									return TPromise.wrapError(err);
+								}
+							}
+						})
+						.then(result => {
+							const [extension] = result.firstPage;
+
+							if (!extension) {
+								return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
+							}
+
+							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
+							console.log(localize('installing', "Installing..."));
+
+							return this.extensionManagementService.install(extension).then(() => {
+								console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.versions[0].version));
+							});
+						});
+				});
+			});
+
+		return sequence([...vsixTasks, ...galleryTasks]);
 	}
 
 	private uninstallExtension(ids: string[]): TPromise<any> {
