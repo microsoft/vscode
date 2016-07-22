@@ -257,10 +257,12 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 					}
 					this.children = TPromise.as(chunks);
 				} else {
+					const start = this.getChildrenInChunks ? this.chunkIndex * ExpressionContainer.CHUNK_SIZE : undefined;
+					const count = this.getChildrenInChunks ? ExpressionContainer.CHUNK_SIZE : undefined;
 					this.children = session.variables({
 						variablesReference: this.reference,
-						start: this.chunkIndex * ExpressionContainer.CHUNK_SIZE,
-						count: ExpressionContainer.CHUNK_SIZE
+						start,
+						count
 					}).then(response => {
 						return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
 							v => new Variable(this, v.variablesReference, v.name, v.value, v.totalCount, v.type)
@@ -279,6 +281,11 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 
 	public get value(): string {
 		return this._value;
+	}
+
+	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
+	private get getChildrenInChunks(): boolean {
+		return !!this.childrenCount;
 	}
 
 	public set value(value: string) {
