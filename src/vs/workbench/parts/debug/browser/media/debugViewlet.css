@@ -86,16 +86,6 @@
 	opacity: 0.35;
 }
 
-.monaco-workbench.windows .debug-select {
-	margin-top: 7px; /* Center the select box */
-}
-
-.vs-dark .monaco-workbench .debug-select {
-	background-color: #3C3C3C;
-	border-color: #3C3C3C;
-	color: rgb(204, 204, 204);
-}
-
 /* Call stack */
 
 .debug-viewlet .debug-call-stack-title {
@@ -325,12 +315,4 @@
 
 .debug-viewlet > .noworkspace-view > p {
 	line-height: 1.5em;
-}
-
-/* High Contrast Theming */
-
-.hc-black .monaco-workbench .debug-select {
-	background-color: #3C3C3C;
-	border-color: #3C3C3C;
-	color: rgb(204, 204, 204);
 }
