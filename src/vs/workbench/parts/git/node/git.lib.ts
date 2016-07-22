@@ -708,8 +708,12 @@ export class Repository {
 
 			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
 			const homedir = os.homedir();
-			const templatePath = result.stdout.trim()
+			let templatePath = result.stdout.trim()
 				.replace(/^~([^\/]*)\//, (_, user) => `${ user ? path.join(path.dirname(homedir), user) : homedir }/`);
+
+			if (!path.isAbsolute(templatePath)) {
+				templatePath = path.join(this.repository, templatePath);
+			}
 
 			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
 		}, () => '');
