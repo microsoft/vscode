@@ -111,10 +111,7 @@ export class RichEditSupport {
 		this._handleComments(modeId, this._conf);
 
 		this.characterPair = new CharacterPairSupport(LanguageConfigurationRegistry, modeId, this._conf);
-
-		if (this._conf.__electricCharacterSupport || this._conf.brackets) {
-			this.electricCharacter = new BracketElectricCharacterSupport(LanguageConfigurationRegistry, modeId, this.brackets, this._conf.__electricCharacterSupport);
-		}
+		this.electricCharacter = new BracketElectricCharacterSupport(LanguageConfigurationRegistry, modeId, this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
 	}

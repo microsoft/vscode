@@ -879,6 +879,7 @@ export type CharacterPair = [string, string];
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
+
 }
 
 /**

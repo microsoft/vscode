@@ -9,7 +9,7 @@
 			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi" ],
 			"aliases": [ "Python", "py" ],
 			"firstLine": "^#!/.*\\bpython[0-9.-]*\\b",
-			"configuration": "./python.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "python",

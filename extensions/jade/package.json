@@ -8,7 +8,7 @@
 			"id": "jade",
 			"extensions": [ ".jade", ".pug" ],
 			"aliases": [ "Jade", "jade" ],
-			"configuration": "./jade.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "jade",

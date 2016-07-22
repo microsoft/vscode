@@ -8,7 +8,7 @@
 			"id": "powershell",
 			"extensions": [ ".ps1", ".psm1", ".psd1", ".pssc", ".psrc" ],
 			"aliases": [ "PowerShell", "powershell", "ps", "ps1" ],
-			"configuration": "./powershell.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "powershell",
