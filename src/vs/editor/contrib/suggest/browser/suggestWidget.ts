@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./suggest';
+import 'vs/css!./media/suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
