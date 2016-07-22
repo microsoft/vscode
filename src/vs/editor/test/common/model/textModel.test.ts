@@ -622,10 +622,10 @@ suite('TextModel.getLineIndentGuide', () => {
 			/* 7*/[1, '  void bar() {'],
 			/* 8*/[1, '    console.log(3);'],
 			/* 9*/[1, '  }'],
-			/*10*/[1, '}'],
+			/*10*/[0, '}'],
 			/*11*/[0, 'interface B {'],
 			/*12*/[1, '  void bar();'],
-			/*13*/[1, '}'],
+			/*13*/[0, '}'],
 		]);
 	});
 
@@ -637,7 +637,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[0, 'class A {'],
 			[1, '  void foo() {'],
 			[1, '  }'],
-			[1, '}'],
+			[0, '}'],
 		]);
 	});
 
@@ -650,7 +650,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, '     return 1;'],
 			[1, '  }'],
 			[1, '      '],
-			[1, '}'],
+			[0, '}'],
 		]);
 	});
 
@@ -661,9 +661,9 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, '\tvoid foo() {'],
 			[2, '\t \t//hello'],
 			[2, '\t    return 2;'],
-			[2, '  \t}'],
+			[1, '  \t}'],
 			[1, '      '],
-			[1, '}'],
+			[0, '}'],
 		]);
 	});
 
@@ -682,10 +682,10 @@ suite('TextModel.getLineIndentGuide', () => {
 			/*11*/[ 2, '        if (!node.id) {'],
 			/*12*/[ 3, '            node.id = nextNodeId;'],
 			/*13*/[ 3, '            nextNodeId++;'],
-			/*14*/[ 3, '        }'],
+			/*14*/[ 2, '        }'],
 			/*15*/[ 2, '        return node.id;'],
-			/*16*/[ 2, '    }'],
-			/*17*/[ 1, '}'],
+			/*16*/[ 1, '    }'],
+			/*17*/[ 0, '}'],
 		]);
 	});
 
