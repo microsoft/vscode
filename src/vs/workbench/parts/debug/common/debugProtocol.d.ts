@@ -513,7 +513,8 @@ declare module DebugProtocol {
 	}
 
 	/** Variables request; value of command field is "variables".
-		Retrieves all variables (or a range thereof) for the given variable reference.
+		Retrieves all child variables for the given variable reference.
+		An optional filter can be used to limit the fetched children to either named or indexed children.
 	*/
 	export interface VariablesRequest extends Request {
 		arguments: VariablesArguments;
@@ -522,6 +523,8 @@ declare module DebugProtocol {
 	export interface VariablesArguments {
 		/** The Variable reference. */
 		variablesReference: number;
+		/** Optional filter to limit the child variables to either named or indexed. If ommited, both types are fetched. */
+		filter?: "indexed" | "named";
 		/** The index of the first variable to return; if omitted children start at 0. */
 		start?: number;
 		/** The number of variables to return. If count is missing or 0, all variables are returned. */
@@ -640,10 +643,12 @@ declare module DebugProtocol {
 			type?: string;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest */
 			variablesReference: number;
-			/** The total number of child variables.
-				If this number is large, the number should be returned via the optional 'totalVariables' attribute.
-				The client can use this information to present the variables in a paged UI and fetch them in chunks. */
-			totalVariables?: number;
+			/** The number of named child variables.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
+			namedVariables?: number;
+			/** The number of indexed child variables.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
+			indexedVariables?: number;
 		};
 	}
 
@@ -892,9 +897,12 @@ declare module DebugProtocol {
 		name: string;
 		/** The variables of this scope can be retrieved by passing the value of variablesReference to the VariablesRequest. */
 		variablesReference: number;
-		/** The total number of variables in this scope.
+		/** The number of named variables in this scope.
 			The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
-		totalVariables?: number;
+		namedVariables?: number;
+		/** The number of indexed variables in this scope.
+			The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
+		indexedVariables?: number;
 		/** If true, the number of variables in this scope is large or expensive to retrieve. */
 		expensive: boolean;
 	}
@@ -913,12 +921,16 @@ declare module DebugProtocol {
 		type?: string;
 		/** The variable's value. For structured objects this can be a multi line text, e.g. for a function the body of a function. */
 		value: string;
-		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
-		variablesReference: number;
-		/** The total number of child variables. */
-		totalVariables?: number;
 		/** Properties of a variable that can be used to determine how to render the variable in the UI. Format of the string value: TBD. */
 		kind?: string;
+		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
+		variablesReference: number;
+		/** The number of named child variables in this scope.
+			The client can use this optional information to present the children in a paged UI and fetch them in chunks. */
+		namedVariables?: number;
+		/** The number of indexed child variables in this scope.
+			The client can use this optional information to present the children in a paged UI and fetch them in chunks. */
+		indexedVariables?: number;
 	}
 
 	/** Properties of a breakpoint passed to the setBreakpoints request.
