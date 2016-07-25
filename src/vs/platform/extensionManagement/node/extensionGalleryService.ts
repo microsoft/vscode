@@ -63,6 +63,13 @@ enum FilterType {
 	SearchText = 10
 }
 
+const AssetType = {
+	Icon: 'Microsoft.VisualStudio.Services.Icons.Default',
+	Details: 'Microsoft.VisualStudio.Services.Content.Details',
+	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
+	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage'
+};
+
 interface ICriterium {
 	filterType: FilterType;
 	value?: string;
@@ -77,6 +84,7 @@ interface IQueryState {
 	sortOrder: SortOrder;
 	flags: Flags;
 	criteria: ICriterium[];
+	assetTypes: string[];
 }
 
 const DefaultQueryState: IQueryState = {
@@ -85,7 +93,8 @@ const DefaultQueryState: IQueryState = {
 	sortBy: SortBy.NoneOrRelevance,
 	sortOrder: SortOrder.Default,
 	flags: Flags.None,
-	criteria: []
+	criteria: [],
+	assetTypes: []
 };
 
 class Query {
@@ -118,7 +127,7 @@ class Query {
 		return new Query(assign({}, this.state, { sortBy }));
 	}
 
-	withSortOrder(sortOrder): Query {
+	withSortOrder(sortOrder: SortOrder): Query {
 		return new Query(assign({}, this.state, { sortOrder }));
 	}
 
@@ -126,17 +135,14 @@ class Query {
 		return new Query(assign({}, this.state, { flags: flags.reduce((r, f) => r | f, 0) }));
 	}
 
+	withAssetTypes(...assetTypes: string[]): Query {
+		return new Query(assign({}, this.state, { assetTypes }));
+	}
+
 	get raw(): any {
-		return {
-			filters: [{
-				criteria: this.state.criteria,
-				pageNumber: this.state.pageNumber,
-				pageSize: this.state.pageSize,
-				sortBy: this.state.sortBy,
-				sortOrder: this.state.sortOrder
-			}],
-			flags: this.state.flags
-		};
+		const { criteria, pageNumber, pageSize, sortBy, sortOrder, flags, assetTypes } = this.state;
+		const filters = [{ criteria, pageNumber, pageSize, sortBy, sortOrder }];
+		return { filters, assetTypes, flags };
 	}
 }
 
@@ -150,10 +156,10 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		version: v.version,
 		date: v.lastUpdated,
 		downloadHeaders,
-		downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
-		manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`,
-		readmeUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Content.Details`,
-		iconUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Icons.Default`
+		downloadUrl: `${ v.assetUri }/${ AssetType.VSIX }?install=true`,
+		manifestUrl: `${ v.assetUri }/${ AssetType.Manifest }`,
+		readmeUrl: `${ v.assetUri }/${ AssetType.Details }`,
+		iconUrl: `${ v.assetUri }/${ AssetType.Icon }`
 	}));
 
 	return {
