@@ -756,7 +756,7 @@
 		<key>controlWords</key>
 		<dict>
 			<key>match</key>
-			<string>(\b(?&lt;!-|\$)(?i:begin|exit|break|return|catch|finally|for|continue|foreach|throw|from|trap|try|do|if|until|in|using|else|elseif|while|end|where)\b(?!-|\.))</string>
+			<string>(\b(?&lt;!-|\$)(?i:begin|process|exit|break|return|catch|finally|for|continue|foreach|throw|from|trap|try|do|if|until|in|using|else|elseif|while|end|where)\b(?!-|\.))</string>
 			<key>name</key>
 			<string>keyword.control.powershell</string>
 		</dict>
@@ -1072,7 +1072,7 @@
 		<key>reservedWords</key>
 		<dict>
 			<key>match</key>
-			<string>(\b(?&lt;!-|\$)(?i:configuration|node|process|enum|filter|sequence|class|data|define|function|dynamicparam|inlinescript|var|parallel|param|workflow)\b(?!-|\.))</string>
+			<string>(\b(?&lt;!-|\$)(?i:configuration|node|enum|filter|sequence|class|data|define|function|dynamicparam|inlinescript|var|parallel|param|workflow)\b(?!-|\.))</string>
 			<key>name</key>
 			<string>keyword.other.powershell</string>
 		</dict>
@@ -1371,7 +1371,7 @@
 							<key>comment</key>
 							<string>Reserved words within [( )]</string>
 							<key>match</key>
-							<string>\b(?i)(mandatory|valuefrompipeline|valuefrompipelinebypropertyname|valuefromremainingarguments|position|parametersetname|defaultparametersetname|supportsshouldprocess|positionalbinding|helpuri|confirmimpact)\b</string>
+							<string>\b(?i)(mandatory|valuefrompipeline|valuefrompipelinebypropertyname|valuefromremainingarguments|position|parametersetname|defaultparametersetname|supportsshouldprocess|positionalbinding|helpuri|confirmimpact|helpmessage)\b</string>
 							<key>name</key>
 							<string>entity.other.attribute-name.powershell</string>
 						</dict>
@@ -1423,7 +1423,7 @@
 					<key>comment</key>
 					<string>Automatic variables - read-only.</string>
 					<key>match</key>
-					<string>(\$)(?i:(_|args|consolefilename|error|event|eventsubscriber|executioncontext|false|foreach|home|host|input|lastexitcode|matches|myinvocation|nestedpromptlevel|null|pid|psboundparameters|pscmdlet|psculture|psdebugcontext|pshome|psitem|psscriptroot|psuiculture|psversiontable|pwd|sender|shellid|sourceargs|sourceeventargs|switch|this|true))\b((\.[\w"']+)*)</string>
+					<string>(\$)(?i:(_|args|consolefilename|error|event|eventsubscriber|executioncontext|false|foreach|home|host|input|lastexitcode|matches|myinvocation|nestedpromptlevel|null|pid|psboundparameters|pscmdlet|psculture|psdebugcontext|pshome|psitem|psscriptroot|psuiculture|psversiontable|pwd|sender|shellid|sourceargs|sourceeventargs|switch|this|true))\b((\.[\w"'\- @#]+)*)</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -1457,7 +1457,7 @@
 					<key>comment</key>
 					<string>$var, $local:var</string>
 					<key>match</key>
-					<string>(\$)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(\w+)(:\w+)?((\.[\w"']+)*)</string>
+					<string>(\$)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(\w+)(:\w+)?((\.[\w"'\- @#]+)*)</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -1496,7 +1496,7 @@
 					<key>comment</key>
 					<string>${var}, ${script:var}</string>
 					<key>match</key>
-					<string>(\$)(\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+)(\})((\.[\w"']+)*)</string>
+					<string>(\$)(\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+?)(\})((\.[\w"'\- @#]+)*)</string>
 				</dict>
 				<dict>
 					<key>captures</key>
@@ -1611,7 +1611,7 @@
 					<key>comment</key>
 					<string>${var}, ${script:var}</string>
 					<key>match</key>
-					<string>(\$)(\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+)(\})</string>
+					<string>(\$)(\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+?)(\})</string>
 				</dict>
 				<dict>
 					<key>captures</key>
