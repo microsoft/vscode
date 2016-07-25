@@ -80,10 +80,12 @@ class TriggerCharacterCompletion implements editor.IEditorContribution {
 		clearTimeout(this._triggerHandle);
 
 		if (!this._editor.getConfiguration().contribInfo.quickSuggestions) {
+			this._wordContext = null;
 			return;
 		}
 
 		if (e.source !== 'keyboard' || e.reason !== editor.CursorChangeReason.NotSet) {
+			this._wordContext = null;
 			return;
 		}
 
