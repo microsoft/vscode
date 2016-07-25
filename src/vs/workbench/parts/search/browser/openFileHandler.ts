@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import {TPromise, PPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
@@ -104,7 +104,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			.then(result => result[0]);
 	}
 
-	public getResultsWithStats(searchValue: string): TPromise<[QuickOpenModel, ISearchStats]> {
+	public getResultsWithStats(searchValue: string): PPromise<[QuickOpenModel, ISearchStats], QuickOpenEntry> {
 		searchValue = searchValue.trim();
 		let promise: TPromise<[QuickOpenEntry[], ISearchStats]>;
 
@@ -118,25 +118,26 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return promise.then(result => [new QuickOpenModel(result[0]), result[1]]);
 	}
 
-	private doFindResults(searchValue: string): TPromise<[QuickOpenEntry[], ISearchStats]> {
+	private doFindResults(searchValue: string): PPromise<[QuickOpenEntry[], ISearchStats], QuickOpenEntry> {
 		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue
 		};
 
+		let results: QuickOpenEntry[] = [];
 		return this.searchService.search(this.queryBuilder.file(query)).then((complete) => {
-			let results: QuickOpenEntry[] = [];
-			for (let i = 0; i < complete.results.length; i++) {
-				let fileMatch = complete.results[i];
-
-				let label = paths.basename(fileMatch.resource.fsPath);
-				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
-
-				results.push(this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource));
-			}
-
 			return [results, complete.stats];
+		}, null, progress => {
+			const resource = progress.resource;
+			if (resource) {
+				const label = paths.basename(resource.fsPath);
+				const description = labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService);
+				const fileEntry = this.instantiationService.createInstance(FileEntry, label, description, resource);
+				results.push(fileEntry);
+				return fileEntry;
+			}
+			return progress;
 		});
 	}
 
