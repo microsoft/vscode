@@ -39,7 +39,7 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		if (response.body) {
 			expression.value = response.body.result;
 			expression.reference = response.body.variablesReference;
-			expression.childrenCount = response.body.indexedVariables;
+			expression.indexedVariables = response.body.indexedVariables;
 			expression.type = response.body.type;
 		}
 
@@ -234,7 +234,8 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 		public reference: number,
 		private id: string,
 		private cacheChildren: boolean,
-		public childrenCount: number,
+		public namedVariables: number,
+		public indexedVariables: number,
 		private chunkIndex = 0
 	) {
 		// noop
@@ -247,29 +248,25 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			if (!session || this.reference <= 0) {
 				this.children = TPromise.as([]);
 			} else {
-				if (this.childrenCount > ExpressionContainer.CHUNK_SIZE) {
-					// There are a lot of children, create fake intermediate values that represent chunks #9537
-					const chunks = [];
-					const numberOfChunks = this.childrenCount / ExpressionContainer.CHUNK_SIZE;
-					for (let i = 0; i < numberOfChunks; i++) {
-						const chunkSize = (i < numberOfChunks - 1) ? ExpressionContainer.CHUNK_SIZE : this.childrenCount % ExpressionContainer.CHUNK_SIZE;
-						const chunkName = `${i * ExpressionContainer.CHUNK_SIZE}..${i * ExpressionContainer.CHUNK_SIZE + chunkSize - 1}`;
-						chunks.push(new Variable(this, this.reference, chunkName, '', chunkSize, null, true, i));
+
+				// Check if object has named variables, fetch them independent from indexed variables #9670
+				this.children = (!!this.namedVariables ? this.fetchVariables(session, undefined, undefined, 'named') : TPromise.as([])).then(childrenArray => {
+					if (this.indexedVariables > ExpressionContainer.CHUNK_SIZE) {
+						// There are a lot of children, create fake intermediate values that represent chunks #9537
+						const numberOfChunks = this.indexedVariables / ExpressionContainer.CHUNK_SIZE;
+						for (let i = 0; i < numberOfChunks; i++) {
+							const chunkSize = (i < numberOfChunks - 1) ? ExpressionContainer.CHUNK_SIZE : this.indexedVariables % ExpressionContainer.CHUNK_SIZE;
+							const chunkName = `${i * ExpressionContainer.CHUNK_SIZE}..${i * ExpressionContainer.CHUNK_SIZE + chunkSize - 1}`;
+							childrenArray.push(new Variable(this, this.reference, chunkName, '', null, chunkSize, null, true, i));
+						}
+
+						return childrenArray;
 					}
-					this.children = TPromise.as(chunks);
-				} else {
+
 					const start = this.getChildrenInChunks ? this.chunkIndex * ExpressionContainer.CHUNK_SIZE : undefined;
-					const count = this.getChildrenInChunks ? this.childrenCount : undefined;
-					this.children = session.variables({
-						variablesReference: this.reference,
-						start,
-						count
-					}).then(response => {
-						return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-							v => new Variable(this, v.variablesReference, v.name, v.value, v.indexedVariables, v.type)
-						);
-					}, (e: Error) => [new Variable(this, 0, null, e.message, 0, null, false)]);
-				}
+					const count = this.getChildrenInChunks ? this.indexedVariables : undefined;
+					return this.fetchVariables(session, start, count, 'indexed').then(variables => childrenArray.concat(variables));
+				});
 			}
 		}
 
@@ -284,9 +281,22 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 		return this._value;
 	}
 
+	private fetchVariables(session: debug.IRawDebugSession, start: number, count: number, filter: 'indexed'|'named'): TPromise<Variable[]> {
+		return session.variables({
+			variablesReference: this.reference,
+			start,
+			count,
+			filter
+		}).then(response => {
+			return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
+				v => new Variable(this, v.variablesReference, v.name, v.value, v.namedVariables, v.indexedVariables, v.type)
+			);
+		}, (e: Error) => [new Variable(this, 0, null, e.message, 0, 0, null, false)]);
+	}
+
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
 	private get getChildrenInChunks(): boolean {
-		return !!this.childrenCount;
+		return !!this.indexedVariables;
 	}
 
 	public set value(value: string) {
@@ -304,7 +314,7 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	public type: string;
 
 	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
-		super(0, id, cacheChildren, 0);
+		super(0, id, cacheChildren, 0, 0);
 		this.value = Expression.DEFAULT_VALUE;
 		this.available = false;
 	}
@@ -320,12 +330,13 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		reference: number,
 		public name: string,
 		value: string,
-		childrenCount: number,
+		namedVariables: number,
+		indexedVariables: number,
 		public type: string = null,
 		public available = true,
 		chunkIndex = 0
 	) {
-		super(reference, `variable:${ parent.getId() }:${ name }`, true, childrenCount, chunkIndex);
+		super(reference, `variable:${ parent.getId() }:${ name }`, true, namedVariables, indexedVariables, chunkIndex);
 		this.value = massageValue(value);
 	}
 }
@@ -337,9 +348,10 @@ export class Scope extends ExpressionContainer implements debug.IScope {
 		public name: string,
 		reference: number,
 		public expensive: boolean,
-		childrenCount: number
+		namedVariables: number,
+		indexedVariables: number
 	) {
-		super(reference, `scope:${threadId}:${name}:${reference}`, true, childrenCount);
+		super(reference, `scope:${threadId}:${name}:${reference}`, true, namedVariables, indexedVariables);
 	}
 }
 
@@ -365,7 +377,7 @@ export class StackFrame implements debug.IStackFrame {
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
 		if (!this.scopes) {
 			this.scopes = debugService.getActiveSession().scopes({ frameId: this.frameId }).then(response => {
-				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.indexedVariables));
+				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables));
 			}, err => []);
 		}
 
