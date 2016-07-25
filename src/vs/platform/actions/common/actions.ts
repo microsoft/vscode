@@ -117,7 +117,7 @@ export class MenuItemAction extends Actions.Action {
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 
-		this.order = 100000; //TODO@Ben order is menu item property, not an action property
+		this.order = this._item.order; //TODO@Ben order is menu item property, not an action property
 	}
 
 	set resource(value: URI) {
