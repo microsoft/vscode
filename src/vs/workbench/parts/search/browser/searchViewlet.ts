@@ -503,11 +503,11 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		this.searchWidget.setWidth(this.size.width - 34 /* container margin */);
+		this.searchWidget.setWidth(this.size.width - 25 /* container margin */);
 
-		this.inputPatternExclusions.setWidth(this.size.width - 36 /* container margin */);
-		this.inputPatternIncludes.setWidth(this.size.width - 36 /* container margin */);
-		this.inputPatternGlobalExclusions.width = this.size.width - 36 /* container margin */ - 24 /* actions */;
+		this.inputPatternExclusions.setWidth(this.size.width - 28 /* container margin */);
+		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
+		this.inputPatternGlobalExclusions.width = this.size.width - 28 /* container margin */ - 24 /* actions */;
 
 		let searchResultContainerSize = this.size.height - dom.getTotalHeight(this.searchWidgetsContainer.getContainer()) - 6 /** container margin top */;
 		this.results.style({ height: searchResultContainerSize + 'px' });
