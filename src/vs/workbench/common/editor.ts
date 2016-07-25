@@ -839,9 +839,9 @@ export const ActiveEditorMovePositioningBy = {
 export interface ActiveEditorMoveArguments {
 	to?: string;
 	by?: string;
-	amount?: number;
+	value?: number;
 }
 
 export var EditorCommands = {
-	ActiveEditorMove: 					'activeEditorMove'
+	MoveActiveEditor: 					'moveActiveEditor'
 };
