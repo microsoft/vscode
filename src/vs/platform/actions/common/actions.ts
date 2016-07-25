@@ -56,7 +56,7 @@ export interface IMenuRegistry {
 	commands: { [id: string]: ICommandAction };
 	addCommand(userCommand: ICommandAction): boolean;
 	getCommand(id: string): ICommandAction;
-	appendMenuItem(menu: MenuId, item: IMenuItem): void;
+	appendMenuItem(menu: MenuId, item: IMenuItem): IDisposable;
 	getMenuItems(loc: MenuId): IMenuItem[];
 }
 
@@ -76,13 +76,21 @@ export const MenuRegistry: IMenuRegistry = new class {
 		return this.commands[id];
 	}
 
-	appendMenuItem(loc: MenuId, items: IMenuItem): void {
+	appendMenuItem(loc: MenuId, item: IMenuItem): IDisposable {
 		let array = this.menuItems[loc];
 		if (!array) {
-			this.menuItems[loc] = [items];
+			this.menuItems[loc] = array = [item];
 		} else {
-			array.push(items);
+			array.push(item);
 		}
+		return {
+			dispose() {
+				const idx = array.indexOf(item);
+				if (idx >= 0) {
+					array.splice(idx, 1);
+				}
+			}
+		};
 	}
 
 	getMenuItems(loc: MenuId): IMenuItem[] {
