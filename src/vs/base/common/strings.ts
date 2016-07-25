@@ -284,6 +284,16 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 	return -1;
 }
 
+export function compare(a: string, b: string): number {
+	if (a < b) {
+		return -1;
+	} else if(a > b) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 export function localeCompare(strA: string, strB: string): number {
 	return strA.localeCompare(strB);
 }
