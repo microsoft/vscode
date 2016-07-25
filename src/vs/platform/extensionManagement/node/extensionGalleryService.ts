@@ -255,6 +255,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				headers = assign(headers, {
 					'Content-Type': 'application/json',
 					'Accept': 'application/json;api-version=3.0-preview.1',
+					'Accept-Encoding': 'gzip',
 					'Content-Length': data.length
 				});
 
