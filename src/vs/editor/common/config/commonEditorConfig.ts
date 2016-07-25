@@ -262,6 +262,7 @@ class InternalEditorOptionsHelper {
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			snippetSuggestions: opts.snippetSuggestions,
+			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			referenceInfos: toBoolean(opts.referenceInfos),
@@ -719,6 +720,11 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
+		},
+		'editor.tabCompletion': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.tabCompletion,
+			'description': nls.localize('tabCompletion', "Insert snippets when their prefix matches.")
 		},
 		'editor.selectionHighlight' : {
 			'type': 'boolean',
