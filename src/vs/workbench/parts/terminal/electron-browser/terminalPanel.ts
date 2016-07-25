@@ -156,7 +156,6 @@ export class TerminalPanel extends Panel {
 					}
 				});
 			}
-			event.stopImmediatePropagation();
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mouseup', (event) => {
 			if (this.terminalInstances.length === 0) {
@@ -209,7 +208,17 @@ export class TerminalPanel extends Panel {
 
 	private createTerminal(terminalProcess: ITerminalProcess, terminalFocusContextKey: IKeybindingContextKey<boolean>): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
-			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextMenuService, this.contextService, this.instantiationService, this.keybindingService, this.terminalService, this.messageService, terminalFocusContextKey, this.onTerminalInstanceExit.bind(this));
+			var terminalInstance = new TerminalInstance(
+				terminalProcess,
+				this.terminalContainer,
+				this.contextMenuService,
+				this.contextService,
+				this.instantiationService,
+				this.keybindingService,
+				this.terminalService,
+				this.messageService,
+				terminalFocusContextKey,
+				this.onTerminalInstanceExit.bind(this));
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
 			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
