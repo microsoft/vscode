@@ -98,31 +98,39 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
 	install(arg: any): TPromise<void> {
+		let id: string;
+		let result: TPromise<ILocalExtension>;
+
 		if (types.isString(arg)) {
 			const zipPath = arg as string;
 
-			return validate(zipPath).then(manifest => {
-				const id = getExtensionId(manifest, manifest.version);
+			result = validate(zipPath).then(manifest => {
+				id = getExtensionId(manifest, manifest.version);
 				this._onInstallExtension.fire({ id });
 
 				return this.installValidExtension(zipPath, id);
 			});
+		} else {
+			const extension = arg as IGalleryExtension;
+			id = getExtensionId(extension, extension.versions[0].version);
+			this._onInstallExtension.fire({ id, gallery: extension });
+
+			result = this.isObsolete(id).then(obsolete => {
+				if (obsolete) {
+					return TPromise.wrapError<ILocalExtension>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
+				}
+
+				return this.installFromGallery(arg);
+			});
 		}
 
-		const extension = arg as IGalleryExtension;
-		const id = getExtensionId(extension, extension.versions[0].version);
-		this._onInstallExtension.fire({ id, gallery: extension });
-
-		return this.isObsolete(id).then(obsolete => {
-			if (obsolete) {
-				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
-			}
-
-			return this.installFromGallery(arg);
-		});
+		return result.then(
+			local => this._onDidInstallExtension.fire({ id, local }),
+			error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
+		);
 	}
 
-	private installFromGallery(extension: IGalleryExtension): TPromise<void> {
+	private installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		return this.getLastValidExtensionVersion(extension).then(versionInfo => {
 				const version = versionInfo.version;
 				const url = versionInfo.downloadUrl;
@@ -170,7 +178,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			});
 	}
 
-	private installValidExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<void> {
+	private installValidExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<ILocalExtension> {
 		const extensionPath = path.join(this.extensionsPath, id);
 		const manifestPath = path.join(extensionPath, 'package.json');
 
@@ -186,10 +194,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					const rawManifest = assign(manifest, { __metadata: metadata });
 
 					return pfs.writeFile(manifestPath, JSON.stringify(rawManifest, null, '\t'))
-						.then(() => this._onDidInstallExtension.fire({ id, local }));
+						.then(() => local);
 				});
-			})
-			.then<void>(null, error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); });
+			});
 	}
 
 	uninstall(extension: ILocalExtension): TPromise<void> {

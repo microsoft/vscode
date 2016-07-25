@@ -298,18 +298,19 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extension.local = local;
 		extension.needsRestart = true;
 
+		let eventName: string = 'extensionGallery:install';
 		this.installing = this.installing.filter(e => e.id !== id);
 
-		const galleryId = local.metadata && local.metadata.id;
-		const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
-		let eventName: string;
+		if (!error) {
+			const galleryId = local.metadata && local.metadata.id;
+			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
 
-		if (galleryId && installed) {
-			eventName = 'extensionGallery:update';
-			installed.local = local;
-		} else {
-			eventName = 'extensionGallery:install';
-			this.installed.push(extension);
+			if (galleryId && installed) {
+				eventName = 'extensionGallery:update';
+				installed.local = local;
+			} else {
+				this.installed.push(extension);
+			}
 		}
 
 		this.reportTelemetry(extension, eventName, !error);
