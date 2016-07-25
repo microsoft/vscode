@@ -172,9 +172,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue).then(([results, telemetry]) => {
+			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue).then(([results, stats]) => {
 				receivedFileResults = true;
-				searchStats = telemetry;
+				searchStats = stats;
 
 				return results;
 			}));
