@@ -229,6 +229,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
 		this._configuration.updateOptions(newOptions);
 		this._editorReadonly.set(this._configuration.editor.readOnly);
+		this._editorTabMovesFocusKey.set(this._configuration.editor.tabFocusMode);
 	}
 
 	public getConfiguration(): editorCommon.InternalEditorOptions {
