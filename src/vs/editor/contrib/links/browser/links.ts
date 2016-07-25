@@ -16,7 +16,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IEditorService, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -75,16 +74,6 @@ class LinkOccurence {
 	}
 }
 
-class Link {
-	range: Range;
-	url: string;
-
-	constructor(source:ILink) {
-		this.range = new Range(source.range.startLineNumber, source.range.startColumn, source.range.endLineNumber, source.range.endColumn);
-		this.url = source.url;
-	}
-}
-
 class LinkDetector implements editorCommon.IEditorContribution {
 
 	public static ID: string = 'editor.linkDetector';
@@ -102,7 +91,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private editor:ICodeEditor;
 	private listenersToRemove:IDisposable[];
 	private timeoutPromise:TPromise<void>;
-	private computePromise:TPromise<ILink[]>;
+	private computePromise:TPromise<void>;
 	private activeLinkDecorationId:string;
 	private lastMouseEvent:IEditorMouseEvent;
 	private editorService:IEditorService;
@@ -172,73 +161,14 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		let modePromise:TPromise<ILink[]> = TPromise.as(null);
-		if (LinkProviderRegistry.has(this.editor.getModel())) {
-			modePromise = getLinks(this.editor.getModel());
+		if (!LinkProviderRegistry.has(this.editor.getModel())) {
+			return;
 		}
 
-		let standardPromise:TPromise<ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().uri);
-
-		this.computePromise = TPromise.join([modePromise, standardPromise]).then((r) => {
-			let a = r[0];
-			let b = r[1];
-			if (!a || a.length === 0) {
-				return b || [];
-			}
-			if (!b || b.length === 0) {
-				return a || [];
-			}
-			return LinkDetector._linksUnion(a.map(el => new Link(el)), b.map(el => new Link(el)));
-		});
-
-		this.computePromise.then((links:ILink[]) => {
+		this.computePromise = getLinks(this.editor.getModel()).then(links => {
 			this.updateDecorations(links);
 			this.computePromise = null;
 		});
-	}
-
-	private static _linksUnion(oldLinks: Link[], newLinks: Link[]): Link[] {
-		// reunite oldLinks with newLinks and remove duplicates
-		var result: Link[] = [],
-			oldIndex: number,
-			oldLen: number,
-			newIndex: number,
-			newLen: number,
-			oldLink: Link,
-			newLink: Link,
-			comparisonResult: number;
-
-		for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
-			oldLink = oldLinks[oldIndex];
-			newLink = newLinks[newIndex];
-
-			if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
-				// Remove the oldLink
-				oldIndex++;
-				continue;
-			}
-
-			comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
-
-			if (comparisonResult < 0) {
-				// oldLink is before
-				result.push(oldLink);
-				oldIndex++;
-			} else {
-				// newLink is before
-				result.push(newLink);
-				newIndex++;
-			}
-		}
-
-		for (; oldIndex < oldLen; oldIndex++) {
-			result.push(oldLinks[oldIndex]);
-		}
-		for (; newIndex < newLen; newIndex++) {
-			result.push(newLinks[newIndex]);
-		}
-
-		return result;
 	}
 
 	private updateDecorations(links:ILink[]):void {

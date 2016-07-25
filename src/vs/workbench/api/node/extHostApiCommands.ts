@@ -147,7 +147,13 @@ class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of TextEdits.'
 		});
-
+		this._register('vscode.executeLinkProvider', this._executeDocumentLinkProvider, {
+			description: 'Execute document link provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+			],
+			returns: 'A promise that resolves to an array of DocumentLink-instances.'
+		});
 
 		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string) => {
 			return this._commands.executeCommand('_workbench.previewHtml',
@@ -414,6 +420,14 @@ class ExtHostApiCommands {
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatOnTypeProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
+			}
+		});
+	}
+
+	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {
+		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(typeConverters.DocumentLink.to);
 			}
 		});
 	}
