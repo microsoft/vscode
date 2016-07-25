@@ -3,6 +3,8 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"activationEvents": ["onLanguage:python"],
+	"main": "./out/pythonMain",
 	"contributes": {
 		"languages": [{
 			"id": "python",
@@ -19,5 +21,9 @@
 			"scopeName": "source.regexp.python",
 			"path": "./syntaxes/Regular Expressions (Python).tmLanguage"
 		}]
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:python",
+		"watch": "gulp watch-extension:python"
 	}
 }
