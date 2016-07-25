@@ -7,7 +7,8 @@
 
 import * as strings from 'vs/base/common/strings';
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -35,7 +36,7 @@ class TabCompletionController implements editor.IEditorContribution {
 		const hasSnippets = keybindingService.createKey(TabCompletionController.ContextKey, undefined);
 		this._cursorChangeSubscription = editor.onDidChangeCursorPosition(e => {
 			this._currentSnippets.length = 0;
-			var prefix = getNonWhitespacePrefix(editor.getModel(), editor.getPosition());
+			const prefix = getNonWhitespacePrefix(editor.getModel(), editor.getPosition());
 			if (prefix) {
 				snippetsRegistry.visitSnippets(editor.getModel().getModeId(), s => {
 					if (strings.endsWith(prefix, s.prefix)) {
@@ -57,7 +58,7 @@ class TabCompletionController implements editor.IEditorContribution {
 			const snippet = this._currentSnippets[0];
 			const codeSnippet = new CodeSnippet(snippet.codeSnippet);
 			this._snippetController.run(codeSnippet, snippet.prefix.length, 0);
-		} else {
+		// } else {
 			// todo@joh - show suggest widget with proposals
 		}
 	}
@@ -68,13 +69,19 @@ class TabCompletionController implements editor.IEditorContribution {
 }
 
 CommonEditorRegistry.registerEditorContribution(TabCompletionController);
-CommonEditorRegistry.registerEditorCommand(
-	'insertSnippet',
-	KeybindingsRegistry.WEIGHT.editorContrib(),
-	{ primary: KeyCode.Tab },
-	true,
-	TabCompletionController.ContextKey,
-	(accessor, editor) => {
-		const controller = <TabCompletionController>editor.getContribution(TabCompletionController.Id);
-		controller.performSnippetCompletions();
-	});
+
+KeybindingsRegistry.registerCommandDesc({
+	id: 'insertSnippet',
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	primary: KeyCode.Tab,
+	when: KbExpr.and(KbExpr.has(TabCompletionController.ContextKey),
+		KbExpr.has(editor.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+		KbExpr.not(editor.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
+		KbExpr.has('config.editor.tabCompletion')),
+	handler(accessor) {
+		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		if (editor) {
+			(<TabCompletionController>editor.getContribution(TabCompletionController.Id)).performSnippetCompletions();
+		}
+	}
+});

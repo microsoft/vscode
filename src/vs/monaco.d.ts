@@ -1247,6 +1247,10 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Enable tab completion. Defaults to 'false'
+         */
+        tabCompletion?: boolean;
+        /**
          * Enable word based suggestions. Defaults to 'true'
          */
         wordBasedSuggestions?: boolean;
@@ -1413,6 +1417,7 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        tabCompletion: boolean;
         wordBasedSuggestions: boolean;
         selectionHighlight: boolean;
         referenceInfos: boolean;

@@ -396,6 +396,10 @@ export interface IEditorOptions {
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
+	 * Enable tab completion. Defaults to 'false'
+	 */
+	tabCompletion?: boolean;
+	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
 	wordBasedSuggestions?: boolean;
@@ -809,6 +813,7 @@ export class EditorContribOptions {
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
 	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	tabCompletion: boolean;
 	wordBasedSuggestions: boolean;
 	selectionHighlight:boolean;
 	referenceInfos: boolean;
@@ -829,6 +834,7 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		selectionHighlight:boolean;
 		referenceInfos: boolean;
@@ -845,6 +851,7 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
+		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.referenceInfos = Boolean(source.referenceInfos);
@@ -867,6 +874,7 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
+			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.referenceInfos === other.referenceInfos
