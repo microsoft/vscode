@@ -9,11 +9,13 @@ import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IExtension } from './extensions';
 import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
+import { EventType } from 'vs/base/common/events';
 
 export interface ITemplateData {
 	element: HTMLElement;
@@ -36,7 +38,10 @@ const actionOptions = { icon: true, label: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {}
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService
+	) {}
 
 	get templateId() { return 'extension'; }
 
@@ -53,6 +58,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, { animated: false });
+
+		actionbar.addListener2(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 
 		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
