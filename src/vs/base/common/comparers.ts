@@ -49,7 +49,7 @@ export function compareAnything(one: string, other: string, lookFor: string): nu
 	}
 
 	// Compare by name
-	return strings.localeCompare(elementAName, elementBName);
+	return elementAName.localeCompare(elementBName);
 }
 
 export function compareByPrefix(one: string, other: string, lookFor: string): number {

@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import {IAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {matchesFuzzy} from 'vs/base/common/filters';
-import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
@@ -88,7 +87,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		let elementAName = elementA.getLabel().toLowerCase();
 		let elementBName = elementB.getLabel().toLowerCase();
 
-		return strings.localeCompare(elementAName, elementBName);
+		return elementAName.localeCompare(elementBName);
 	}
 
 	_editorActionsToEntries(actions: IAction[], searchValue: string): EditorActionCommandEntry[] {
