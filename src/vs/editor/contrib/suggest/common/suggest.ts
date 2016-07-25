@@ -6,6 +6,7 @@
 
 import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import {compare} from 'vs/base/common/strings';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
@@ -106,18 +107,28 @@ function createSuggesionComparator(options: ISuggestOptions): (a: ISuggestionIte
 
 	function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
-		if (typeof a.suggestion.sortText === 'string' && typeof b.suggestion.sortText === 'string') {
-			const one = a.suggestion.sortText.toLowerCase();
-			const other = b.suggestion.sortText.toLowerCase();
+		let ret = 0;
 
-			if (one < other) {
-				return -1;
-			} else if (one > other) {
-				return 1;
+		// check with 'sortText'
+		if (typeof a.suggestion.sortText === 'string' && typeof b.suggestion.sortText === 'string') {
+			ret = compare(a.suggestion.sortText.toLowerCase(), b.suggestion.sortText.toLowerCase());
+		}
+
+		// check with 'label'
+		if (!ret) {
+			ret = compare(a.suggestion.label.toLowerCase(), b.suggestion.label.toLowerCase());
+		}
+
+		// check with 'type' and lower snippets
+		if (!ret && a.suggestion.type !== b.suggestion.type) {
+			if (a.suggestion.type === 'snippet') {
+				ret = 1;
+			} else if (b.suggestion.type === 'snippet') {
+				ret = -1;
 			}
 		}
 
-		return a.suggestion.label.toLowerCase() < b.suggestion.label.toLowerCase() ? -1 : 1;
+		return ret;
 	}
 
 	function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
