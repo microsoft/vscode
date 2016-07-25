@@ -21,7 +21,8 @@
 	outline: none;
 }
 
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus {
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
 	outline: 2px solid #f38518;
 }
 
@@ -47,29 +48,38 @@
 .vs-dark .monaco-workbench .panel.integrated-terminal .reverse-video { color: #CCC; }
 .hc-black .monaco-workbench .panel.integrated-terminal .reverse-video { color: #FFF; }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor { background-color: #333; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor { background-color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor { background-color: #FFF; }
+.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #333; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #CCC; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #FFF; }
 
-.monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor {
+.monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #333;
 	outline-offset: -1px;
 }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor {
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #CCC;
 	outline-offset: -1px;
 }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor {
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #FFF;
 	outline-offset: -1px;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
+.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
+.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
 
 @keyframes blink-cursor {
 	0% {
