@@ -12,8 +12,9 @@
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		["\"", "\""],
-		["'", "'"]
+		{ "open": "\"", "close": "\"", "notIn": ["string"]},
+		{ "open": "'", "close": "'", "notIn": ["string", "comment"]},
+		["/**", " */"]
 	],
 	"surroundingPairs": [
 		["{", "}"],
@@ -22,15 +23,4 @@
 		["\"", "\""],
 		["'", "'"]
 	]
-
-	// enhancedBrackets: [
-	// 			{ tokenType:'string', openTrigger: '"', open: /@"$/, closeComplete: '"@' },
-	// 			{ tokenType:'string', openTrigger: '\'', open: /@'$/, closeComplete: '\'@' },
-	// 			{ tokenType:'string', openTrigger: '"', open: /"$/, closeComplete: '"' },
-	// 			{ tokenType: 'string', openTrigger: '\'', open: /'$/, closeComplete: '\'' }
-	// ],
-
-	// autoClosingPairs: [['{', '}'], ['[', ']'], ['(', ')']],	// Defined explicitly, to suppress the
-	// 														// default auto-closing of ' and " which is
-	// 														// override above by enhancedBrackets
 }
