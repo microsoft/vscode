@@ -34,7 +34,7 @@ let isActiveEditorMoveArg= function(arg): boolean  {
 		return false;
 	}
 
-	if (!types.isUndefined(activeEditorMoveArg.amount) && !types.isNumber(activeEditorMoveArg.amount)) {
+	if (!types.isUndefined(activeEditorMoveArg.value) && !types.isNumber(activeEditorMoveArg.value)) {
 		return false;
 	}
 
@@ -44,16 +44,22 @@ let isActiveEditorMoveArg= function(arg): boolean  {
 
 function _registerActiveEditorMoveCommand() {
 	KeybindingsRegistry.registerCommandDesc({
-		id: EditorCommands.ActiveEditorMove,
+		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 		primary: null,
 		handler: (accessor, args: any) => _moveActiveEditor(args, accessor),
 		description: {
-			description: nls.localize('editorCommand.activeEditorMove.description', "Command to move active editor"),
+			description: nls.localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
+					description: nls.localize('editorCommand.activeEditorMove.arg.description', `
+						Argument Properties:
+						'to': String value providing where to move.
+						'by': String value providing the unit for move. By tab or by group.
+						'value': Number value providing how many positions or an absolute position to move.
+					`),
 					constraint: isActiveEditorMoveArg
 				}
 			]
@@ -63,9 +69,9 @@ function _registerActiveEditorMoveCommand() {
 
 function _moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor) {
 	let tabsShown = !!(<IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration()).workbench.editor.showTabs;
-	args.by = tabsShown ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
 	args.to = args.to || ActiveEditorMovePositioning.RIGHT;
-	args.amount = args.amount || 1;
+	args.by = tabsShown ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
+	args.value = types.isUndefined(args.value) ? 1 : args.value;
 
 	let activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
 
@@ -89,16 +95,16 @@ function _moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, 
 			index = editorGroup.count - 1;
 			break;
 		case ActiveEditorMovePositioning.LEFT:
-			index = index - args.amount;
+			index = index - args.value;
 			break;
 		case ActiveEditorMovePositioning.RIGHT:
-			index = index + args.amount;
+			index = index + args.value;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
 			index = Math.round(editorGroup.count / 2);
 			break;
 		case ActiveEditorMovePositioning.POSITION:
-			index = args.amount;
+			index = args.value - 1;
 			break;
 	}
 	index = index < 0 ? 0 : index >= editorGroup.count ? editorGroup.count - 1 : index;
@@ -120,7 +126,7 @@ function _moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor:
 			newPosition = Position.CENTER;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
-			newPosition = args.amount;
+			newPosition = args.value - 1;
 			break;
 	}
 	newPosition = POSITIONS.indexOf(newPosition) !== -1 ? newPosition : activeEditor.position;
