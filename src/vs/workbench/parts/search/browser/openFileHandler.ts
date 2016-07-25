@@ -20,7 +20,7 @@ import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IQueryOptions, ISearchService} from 'vs/platform/search/common/search';
+import {IQueryOptions, ISearchService, ISearchStats} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class FileEntry extends EditorQuickOpenEntry {
@@ -100,20 +100,25 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+		return this.getResultsWithStats(searchValue)
+			.then(result => result[0]);
+	}
+
+	public getResultsWithStats(searchValue: string): TPromise<[QuickOpenModel, ISearchStats]> {
 		searchValue = searchValue.trim();
-		let promise: TPromise<QuickOpenEntry[]>;
+		let promise: TPromise<[QuickOpenEntry[], ISearchStats]>;
 
 		// Respond directly to empty search
 		if (!searchValue) {
-			promise = TPromise.as([]);
+			promise = TPromise.as(<[QuickOpenEntry[], ISearchStats]>[[], undefined]);
 		} else {
 			promise = this.doFindResults(searchValue);
 		}
 
-		return promise.then(e => new QuickOpenModel(e));
+		return promise.then(result => [new QuickOpenModel(result[0]), result[1]]);
 	}
 
-	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
+	private doFindResults(searchValue: string): TPromise<[QuickOpenEntry[], ISearchStats]> {
 		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
@@ -131,7 +136,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				results.push(this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource));
 			}
 
-			return results;
+			return [results, complete.stats];
 		});
 	}
 

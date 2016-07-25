@@ -14,7 +14,7 @@ import {ILineMatch, IProgress} from 'vs/platform/search/common/search';
 import {detectMimeAndEncodingFromBuffer} from 'vs/base/node/mime';
 import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';
 import {UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode} from 'vs/base/node/encoding';
-import {ISerializedFileMatch, IRawSearch, ISearchEngine} from './search';
+import {ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} from './search';
 
 interface ReadLinesOptions {
 	bufferLength: number;
@@ -59,7 +59,7 @@ export class Engine implements ISearchEngine {
 		this.walker.cancel();
 	}
 
-	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		let resultCounter = 0;
 
 		let progress = () => {
@@ -80,7 +80,10 @@ export class Engine implements ISearchEngine {
 			// Emit done()
 			if (this.worked === this.total && this.walkerIsDone && !this.isDone) {
 				this.isDone = true;
-				done(this.walkerError, this.limitReached);
+				done(this.walkerError, {
+					limitHit: this.limitReached,
+					stats: this.walker.getStats()
+				});
 			}
 		};
 

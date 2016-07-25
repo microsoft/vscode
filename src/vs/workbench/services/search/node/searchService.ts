@@ -74,7 +74,11 @@ export class SearchService implements ISearchService {
 				// on Complete
 				(complete) => {
 					flushLocalResultsOnce();
-					onComplete({ results: complete.results.filter((match) => typeof localResults[match.resource.toString()] === 'undefined'), limitHit: complete.limitHit }); // dont override local results
+					onComplete({
+						limitHit: complete.limitHit,
+						results: complete.results.filter((match) => typeof localResults[match.resource.toString()] === 'undefined'), // dont override local results
+						stats: complete.stats
+					});
 				},
 
 				// on Error
@@ -242,7 +246,8 @@ export class DiskSearch {
 			request.done((complete) => {
 				c({
 					limitHit: complete.limitHit,
-					results: result
+					results: result,
+					stats: complete.stats
 				});
 			}, e, (data) => {
 
