@@ -294,10 +294,6 @@ export function compare(a: string, b: string): number {
 	}
 }
 
-export function localeCompare(strA: string, strB: string): number {
-	return strA.localeCompare(strB);
-}
-
 function isAsciiChar(code: number): boolean {
 	return (code >= 97 && code <= 122) || (code >= 65 && code <= 90);
 }

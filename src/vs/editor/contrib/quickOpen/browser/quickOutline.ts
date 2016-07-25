@@ -268,7 +268,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		let elementBName = elementB.getLabel().toLowerCase();
 
 		// Compare by name
-		let r = strings.localeCompare(elementAName, elementBName);
+		let r = elementAName.localeCompare(elementBName);
 		if (r !== 0) {
 			return r;
 		}
@@ -287,7 +287,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		// Sort by type first if scoped search
 		let elementAType = elementA.getType();
 		let elementBType = elementB.getType();
-		let r = strings.localeCompare(elementAType, elementBType);
+		let r = elementAType.localeCompare(elementBType);
 		if (r !== 0) {
 			return r;
 		}
@@ -298,7 +298,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			let elementBName = elementB.getLabel().toLowerCase();
 
 			// Compare by name
-			let r = strings.localeCompare(elementAName, elementBName);
+			let r = elementAName.localeCompare(elementBName);
 			if (r !== 0) {
 				return r;
 			}
