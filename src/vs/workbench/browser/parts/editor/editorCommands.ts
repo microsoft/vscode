@@ -101,7 +101,7 @@ function _moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, 
 			index = index + args.value;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
-			index = Math.round(editorGroup.count / 2);
+			index = Math.round(editorGroup.count / 2) - 1;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
 			index = args.value - 1;
