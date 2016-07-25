@@ -145,7 +145,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send(request, args);
 	}
 
-	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
+	protected send(command: string, args: any, cancelOnDisconnect = true): TPromise<DebugProtocol.Response> {
 		return this.initServer().then(() => {
 			const promise = super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse.body ? errorResponse.body.error : null;
@@ -173,7 +173,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				return TPromise.wrapError(new Error(userMessage));
 			});
 
-			this.sentPromises.push(promise);
+			if (cancelOnDisconnect) {
+				this.sentPromises.push(promise);
+			}
 			return promise;
 		});
 	}
@@ -286,7 +288,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			// point of no return: from now on don't report any errors
 			this.stopServerPending = true;
 			this.restarted = restart;
-			return this.send('disconnect', { restart: restart }).then(() => this.stopServer(), () => this.stopServer());
+			return this.send('disconnect', { restart: restart }, false).then(() => this.stopServer(), () => this.stopServer());
 		}
 
 		return TPromise.as(null);
