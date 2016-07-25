@@ -13,7 +13,7 @@ import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/e
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {getSnippetController, CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickOpen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {ISnippetsRegistry, Extensions, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 
 interface ISnippetPick extends IPickOpenEntry {
