@@ -30,7 +30,7 @@ class ShowSnippetsActions extends EditorAction {
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@ICodeEditorService private _editorService: ICodeEditorService
 	) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable);
+		super(descriptor, editor, Behaviour.Writeable);
 	}
 
 	run(): TPromise<boolean> {
