@@ -109,7 +109,12 @@ export class TerminalInstance {
 		});
 		xtermHelper.insertBefore(focusTrap, this.xterm.textarea);
 
-
+		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'focus', (event: KeyboardEvent) => {
+			self.terminalFocusContextKey.set(true);
+		}));
+		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'blur', (event: KeyboardEvent) => {
+			self.terminalFocusContextKey.reset();
+		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'focus', (event: KeyboardEvent) => {
 			self.terminalFocusContextKey.set(true);
 		}));
