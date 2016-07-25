@@ -252,13 +252,14 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 					const chunks = [];
 					const numberOfChunks = this.childrenCount / ExpressionContainer.CHUNK_SIZE;
 					for (let i = 0; i < numberOfChunks; i++) {
-						const chunkName = `${i * ExpressionContainer.CHUNK_SIZE}..${(i + 1) * ExpressionContainer.CHUNK_SIZE - 1}`;
-						chunks.push(new Variable(this, this.reference, chunkName, '', ExpressionContainer.CHUNK_SIZE, null, true, i));
+						const chunkSize = (i < numberOfChunks - 1) ? ExpressionContainer.CHUNK_SIZE : this.childrenCount % ExpressionContainer.CHUNK_SIZE;
+						const chunkName = `${i * ExpressionContainer.CHUNK_SIZE}..${i * ExpressionContainer.CHUNK_SIZE + chunkSize - 1}`;
+						chunks.push(new Variable(this, this.reference, chunkName, '', chunkSize, null, true, i));
 					}
 					this.children = TPromise.as(chunks);
 				} else {
 					const start = this.getChildrenInChunks ? this.chunkIndex * ExpressionContainer.CHUNK_SIZE : undefined;
-					const count = this.getChildrenInChunks ? ExpressionContainer.CHUNK_SIZE : undefined;
+					const count = this.getChildrenInChunks ? this.childrenCount : undefined;
 					this.children = session.variables({
 						variablesReference: this.reference,
 						start,
