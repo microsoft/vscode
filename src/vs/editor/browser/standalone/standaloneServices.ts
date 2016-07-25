@@ -38,7 +38,7 @@ import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {IMenuService} from 'vs/platform/actions/common/actions';
-import {MenuService} from 'vs/platform/actions/browser/menuService';
+import {MenuService} from 'vs/platform/actions/common/menuService';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
 import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 
