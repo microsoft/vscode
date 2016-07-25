@@ -12,32 +12,27 @@ import {NullCommandService} from 'vs/platform/commands/common/commands';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 
+// --- service instances
+
 const extensionService = new class extends AbstractExtensionService<ActivatedExtension> {
-
-	constructor() {
-		super(true);
-	}
-
 	protected _showMessage(): void {
 		console.log(arguments);
 	}
-
 	protected _createFailedExtension() {
 		return null;
 	}
-
 	protected _actualActivateExtension() {
 		return null;
 	}
-};
+}(true);
 
 const keybindingService = new class extends MockKeybindingService {
-
 	contextMatchesRules() {
 		return true;
 	}
 };
 
+// --- tests
 
 suite('MenuService', function () {
 
@@ -62,28 +57,100 @@ suite('MenuService', function () {
 
 		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 			command: { id: 'two', title: 'FOO' },
-			group: 'Hello'
+			group: 'hello'
 		}));
 
 		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 			command: { id: 'three', title: 'FOO' },
-			group: ''
+			group: 'Hello'
 		}));
 
 		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 			command: { id: 'four', title: 'FOO' },
+			group: ''
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'five', title: 'FOO' },
 			group: 'navigation'
 		}));
 
 		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
 
-		assert.equal(groups.length, 4);
-		const [one, two, three, four] = groups;
+		assert.equal(groups.length, 5);
+		const [one, two, three, four, five] = groups;
 
 		assert.equal(one[0], 'navigation');
 		assert.equal(two[0], '0_hello');
 		assert.equal(three[0], 'Hello');
-		assert.equal(four[0], '');
+		assert.equal(four[0], 'hello');
+		assert.equal(five[0], '');
+	});
 
+	test('in group sorting, by title', function () {
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'a', title: 'aaa' },
+			group: 'Hello'
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'b', title: 'fff' },
+			group: 'Hello'
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'c', title: 'zzz' },
+			group: 'Hello'
+		}));
+
+		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
+
+		assert.equal(groups.length, 1);
+		const [[, actions]] = groups;
+
+		assert.equal(actions.length, 3);
+		const [one, two, three] = actions;
+		assert.equal(one.id, 'a');
+		assert.equal(two.id, 'b');
+		assert.equal(three.id, 'c');
+	});
+
+	test('in group sorting, by title and order', function () {
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'a', title: 'aaa' },
+			group: 'Hello',
+			order: 10
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'b', title: 'fff' },
+			group: 'Hello'
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'c', title: 'zzz' },
+			group: 'Hello',
+			order: -1
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'd', title: 'yyy' },
+			group: 'Hello',
+			order: -1
+		}));
+
+		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
+
+		assert.equal(groups.length, 1);
+		const [[, actions]] = groups;
+
+		assert.equal(actions.length, 4);
+		const [one, two, three, four] = actions;
+		assert.equal(one.id, 'd');
+		assert.equal(two.id, 'c');
+		assert.equal(three.id, 'b');
+		assert.equal(four.id, 'a');
 	});
 });
