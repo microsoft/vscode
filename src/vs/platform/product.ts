@@ -43,6 +43,7 @@ export interface IProductConfiguration {
 	reportIssueUrl: string;
 	licenseUrl: string;
 	privacyStatementUrl: string;
+	npsSurveyUrl: string;
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
