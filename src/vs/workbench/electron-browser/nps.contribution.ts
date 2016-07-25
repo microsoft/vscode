@@ -14,6 +14,7 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/platform';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
@@ -29,7 +30,8 @@ class NPSContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		const skipVersion = storageService.get(NPSContribution.SKIP_VERSION_KEY, StorageScope.GLOBAL, '0.0.0');
 
@@ -66,9 +68,10 @@ class NPSContribution implements IWorkbenchContribution {
 		const message = nls.localize('surveyQuestion', "Do you mind taking a quick feedback survey?");
 
 		const takeSurveyAction = new Action('nps.takeSurvey', nls.localize('takeSurvey', "Take Survey"), '', true, () => {
-			shell.openExternal(product.npsSurveyUrl);
-			storageService.store(NPSContribution.SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
-			return TPromise.as(null);
+			return telemetryService.getTelemetryInfo().then(info => {
+				shell.openExternal(`${ product.npsSurveyUrl }?o=${ encodeURIComponent(process.platform) }&v=${ encodeURIComponent(pkg.version) }&m=${ encodeURIComponent(info.machineId) }`);
+				storageService.store(NPSContribution.SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+			});
 		});
 
 		const remindMeLaterAction = new Action('nps.later', nls.localize('remindLater', "Remind Me later"), '', true, () => {
