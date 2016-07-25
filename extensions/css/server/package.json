@@ -8,11 +8,12 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^1.0.5-next.1",
+    "vscode-css-languageservice": "^1.0.5-next.2",
     "vscode-languageserver": "^2.2.0"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-server",
-    "watch": "gulp watch-extension:css-server"
+    "watch": "gulp watch-extension:css-server",
+    "update-ls": "npm install vscode-css-languageservice@next --save"
   }
 }
