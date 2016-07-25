@@ -3234,7 +3234,7 @@ declare module monaco.editor {
         to: string;
         select?: boolean;
         by?: string;
-        amount?: number;
+        value?: number;
     }
 
     /**

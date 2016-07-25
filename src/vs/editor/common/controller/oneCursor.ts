@@ -680,13 +680,13 @@ export class OneCursorOp {
 		let inSelectionMode = !!moveParams.select;
 		let validatedViewPosition = cursor.getValidViewPosition();
 		let viewLineNumber = validatedViewPosition.lineNumber;
-		let noOfLines = moveParams.isPaged ? (moveParams.pageSize || cursor.getPageSize()) : moveParams.amount;
+		let noOfLines = moveParams.isPaged ? (moveParams.pageSize || cursor.getPageSize()) : moveParams.value;
 		let viewColumn;
 		switch (moveParams.to) {
 			case editorCommon.CursorMovePosition.Left:
-				return this.moveLeft(cursor, inSelectionMode, editorCommon.CursorMoveByUnit.HalfLine === moveParams.by ? cursor.getViewHalfLineSize(viewLineNumber) : moveParams.amount, ctx);
+				return this.moveLeft(cursor, inSelectionMode, editorCommon.CursorMoveByUnit.HalfLine === moveParams.by ? cursor.getViewHalfLineSize(viewLineNumber) : moveParams.value, ctx);
 			case editorCommon.CursorMovePosition.Right:
-				return this.moveRight(cursor, inSelectionMode, editorCommon.CursorMoveByUnit.HalfLine === moveParams.by ? cursor.getViewHalfLineSize(viewLineNumber) : moveParams.amount, ctx);
+				return this.moveRight(cursor, inSelectionMode, editorCommon.CursorMoveByUnit.HalfLine === moveParams.by ? cursor.getViewHalfLineSize(viewLineNumber) : moveParams.value, ctx);
 			case editorCommon.CursorMovePosition.Up:
 				if (editorCommon.CursorMoveByUnit.WrappedLine === moveParams.by) {
 					return this.moveUp(cursor, inSelectionMode, noOfLines, ctx);
@@ -713,11 +713,11 @@ export class OneCursorOp {
 				viewColumn = cursor.getViewLineLastNonWhiteSpaceColumn(viewLineNumber);
 				break;
 			case editorCommon.CursorMovePosition.ViewPortTop:
-				viewLineNumber = cursor.convertModelPositionToViewPosition(cursor.getLineFromViewPortTop(moveParams.amount), 1).lineNumber;
+				viewLineNumber = cursor.convertModelPositionToViewPosition(cursor.getLineFromViewPortTop(moveParams.value), 1).lineNumber;
 				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
 				break;
 			case editorCommon.CursorMovePosition.ViewPortBottom:
-				viewLineNumber= cursor.convertModelPositionToViewPosition(cursor.getLineFromViewPortBottom(moveParams.amount), 1).lineNumber;;
+				viewLineNumber= cursor.convertModelPositionToViewPosition(cursor.getLineFromViewPortBottom(moveParams.value), 1).lineNumber;;
 				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
 				break;
 			case editorCommon.CursorMovePosition.ViewPortCenter:

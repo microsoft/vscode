@@ -4227,7 +4227,7 @@ export interface CursorMoveArguments {
 	to: string;
 	select?: boolean;
 	by?: string;
-	amount?: number;
+	value?: number;
 };
 
 /**
@@ -4252,7 +4252,7 @@ let isCursorMoveArgs= function(arg): boolean  {
 		return false;
 	}
 
-	if (!types.isUndefined(cursorMoveArg.amount) && !types.isNumber(cursorMoveArg.amount)) {
+	if (!types.isUndefined(cursorMoveArg.value) && !types.isNumber(cursorMoveArg.value)) {
 		return false;
 	}
 
