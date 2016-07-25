@@ -13,11 +13,11 @@ import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import glob = require('vs/base/common/glob');
-import {IProgress} from 'vs/platform/search/common/search';
+import {IProgress, ISearchStats} from 'vs/platform/search/common/search';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
-import {ISerializedFileMatch, IRawSearch, ISearchEngine} from './search';
+import {ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} from './search';
 
 export class FileWalker {
 	private config: IRawSearch;
@@ -30,6 +30,9 @@ export class FileWalker {
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
+	private fileWalkStartTime: number;
+	private directoriesWalked: number;
+	private filesWalked: number;
 
 	private walkedPaths: { [path: string]: boolean; };
 
@@ -43,6 +46,8 @@ export class FileWalker {
 		this.walkedPaths = Object.create(null);
 		this.resultCount = 0;
 		this.isLimitHit = false;
+		this.directoriesWalked = 0;
+		this.filesWalked = 0;
 
 		if (this.filePattern) {
 			this.filePattern = this.filePattern.replace(/\\/g, '/'); // Normalize file patterns to forward slashes
@@ -55,6 +60,7 @@ export class FileWalker {
 	}
 
 	public walk(rootFolders: string[], extraFiles: string[], onResult: (result: ISerializedFileMatch, size: number) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+		this.fileWalkStartTime = Date.now();
 
 		// Support that the file pattern is a full path to a file that exists
 		this.checkFilePatternAbsoluteMatch((exists, size) => {
@@ -86,6 +92,7 @@ export class FileWalker {
 
 			// For each root folder
 			flow.parallel(rootFolders, (absolutePath, perEntryCallback) => {
+				this.directoriesWalked++;
 				extfs.readdir(absolutePath, (error: Error, files: string[]) => {
 					if (error || this.isCanceled || this.isLimitHit) {
 						return perEntryCallback(null, null);
@@ -109,6 +116,15 @@ export class FileWalker {
 				done(err ? err[0] : null, this.isLimitHit);
 			});
 		});
+	}
+
+	public getStats(): ISearchStats {
+		return {
+			fileWalkStartTime: this.fileWalkStartTime,
+			fileWalkResultTime: Date.now(),
+			directoriesWalked: this.directoriesWalked,
+			filesWalked: this.filesWalked
+		};
 	}
 
 	private checkFilePatternAbsoluteMatch(clb: (exists: boolean, size?: number) => void): void {
@@ -174,6 +190,7 @@ export class FileWalker {
 
 					// Directory: Follow directories
 					if (stat.isDirectory()) {
+						this.directoriesWalked++;
 
 						// to really prevent loops with links we need to resolve the real path of them
 						return this.realPathIfNeeded(currentAbsolutePath, lstat, (error, realpath) => {
@@ -200,6 +217,7 @@ export class FileWalker {
 
 					// File: Check for match on file pattern and include pattern
 					else {
+						this.filesWalked++;
 						if (currentRelativePathWithSlashes === this.filePattern) {
 							return clb(null); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 						}
@@ -290,8 +308,13 @@ export class Engine implements ISearchEngine {
 		this.walker = new FileWalker(config);
 	}
 
-	public search(onResult: (result: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-		this.walker.walk(this.rootFolders, this.extraFiles, onResult, done);
+	public search(onResult: (result: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+		this.walker.walk(this.rootFolders, this.extraFiles, onResult, (err: Error, isLimitHit: boolean) => {
+			done(err, {
+				limitHit: isLimitHit,
+				stats: this.walker.getStats()
+			});
+		});
 	}
 
 	public cancel(): void {

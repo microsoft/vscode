@@ -8,7 +8,7 @@
 import assert = require('assert');
 
 import {IProgress} from 'vs/platform/search/common/search';
-import {ISearchEngine, ISerializedFileMatch} from 'vs/workbench/services/search/node/search';
+import {ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete} from 'vs/workbench/services/search/node/search';
 import {SearchService as RawSearchService} from 'vs/workbench/services/search/node/rawSearchService';
 import {DiskSearch} from 'vs/workbench/services/search/node/searchService';
 
@@ -18,13 +18,21 @@ class TestSearchEngine implements ISearchEngine {
 	constructor(private result: () => ISerializedFileMatch) {
 	}
 
-	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		const self = this;
 		(function next() {
 			process.nextTick(() => {
 				const result = self.result();
 				if (!result) {
-					done(null, false);
+					done(null, {
+						limitHit: false,
+						stats: {
+							fileWalkStartTime: 0,
+							fileWalkResultTime: 1,
+							directoriesWalked: 2,
+							filesWalked: 3
+						}
+					});
 				} else {
 					onResult(result);
 					next();

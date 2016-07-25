@@ -6,6 +6,7 @@
 'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
@@ -25,6 +26,7 @@ import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbol
 /* tslint:enable:no-unused-variable */
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ISearchStats} from 'vs/platform/search/common/search';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -40,11 +42,16 @@ interface ITimerEventData {
 	unsortedResultDuration: number;
 	sortedResultDuration: number;
 	numberOfResultEntries: number;
+	fileWalkStartDuration?: number;
+	fileWalkResultDuration?: number;
+	directoriesWalked?: number;
+	filesWalked?: number;
 }
 
 interface ITelemetryData {
 	fromCache: boolean;
 	searchLength: number;
+	searchStats?: ISearchStats;
 	unsortedResultTime: number;
 	sortedResultTime: number;
 	numberOfResultEntries: number;
@@ -133,6 +140,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// The throttler needs a factory for its promises
 		let promiseFactory = () => {
 			let receivedFileResults = false;
+			let searchStats: ISearchStats;
 
 			// Symbol Results (unless a range is specified)
 			let resultPromises: TPromise<QuickOpenModel>[] = [];
@@ -164,8 +172,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResults(searchValue).then((results: QuickOpenModel) => {
+			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue).then(([results, stats]) => {
 				receivedFileResults = true;
+				searchStats = stats;
 
 				return results;
 			}));
@@ -204,6 +213,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				timerEvent.data = this.createTimerEventData(startTime, {
 					fromCache: false,
 					searchLength: searchValue.length,
+					searchStats: searchStats,
 					unsortedResultTime,
 					sortedResultTime,
 					numberOfResultEntries: result.length
@@ -372,12 +382,19 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private createTimerEventData(startTime: number, telemetry: ITelemetryData): ITimerEventData {
-		return {
+		const data: ITimerEventData = {
 			fromCache: telemetry.fromCache,
 			searchLength: telemetry.searchLength,
 			unsortedResultDuration: telemetry.unsortedResultTime - startTime,
 			sortedResultDuration: telemetry.sortedResultTime - startTime,
 			numberOfResultEntries: telemetry.numberOfResultEntries
 		};
+		const stats = telemetry.searchStats;
+		return stats ? objects.assign(data, {
+			fileWalkStartDuration: stats.fileWalkStartTime - startTime,
+			fileWalkResultDuration: stats.fileWalkResultTime - startTime,
+			directoriesWalked: stats.directoriesWalked,
+			filesWalked: stats.filesWalked
+		}) : data;
 	}
 }
