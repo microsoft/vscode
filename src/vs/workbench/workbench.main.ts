@@ -11,6 +11,7 @@ import 'vs/base/common/errors';
 
 // Editor
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
+import 'vs/editor/contrib/suggest/electron-browser/snippetCompletion';
 import 'vs/editor/browser/editor.all';
 
 // Languages
