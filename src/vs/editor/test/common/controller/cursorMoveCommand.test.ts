@@ -476,24 +476,24 @@ function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
 	move(cursor, {to: CursorMovePosition.WrappedLineLastNonWhitespaceCharacter});
 }
 
-function moveLeft(cursor: Cursor, amount?: number, by?: string, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Left, by:by, amount: amount, select: select});
+function moveLeft(cursor: Cursor, value?: number, by?: string, select?: boolean) {
+	move(cursor, {to: CursorMovePosition.Left, by:by, value: value, select: select});
 }
 
-function moveRight(cursor: Cursor, amount?: number, by?: string, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Right, by:by, amount: amount, select: select});
+function moveRight(cursor: Cursor, value?: number, by?: string, select?: boolean) {
+	move(cursor, {to: CursorMovePosition.Right, by:by, value: value, select: select});
 }
 
 function moveUp(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Up, by:CursorMoveByUnit.WrappedLine, amount: noOfLines, select: select});
+	move(cursor, {to: CursorMovePosition.Up, by:CursorMoveByUnit.WrappedLine, value: noOfLines, select: select});
 }
 
 function moveDown(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Down, by:CursorMoveByUnit.WrappedLine, amount: noOfLines, select: select});
+	move(cursor, {to: CursorMovePosition.Down, by:CursorMoveByUnit.WrappedLine, value: noOfLines, select: select});
 }
 
 function moveToTop(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.ViewPortTop, amount: noOfLines, select: select});
+	move(cursor, {to: CursorMovePosition.ViewPortTop, value: noOfLines, select: select});
 }
 
 function moveToCenter(cursor: Cursor, select?: boolean) {
@@ -501,7 +501,7 @@ function moveToCenter(cursor: Cursor, select?: boolean) {
 }
 
 function moveToBottom(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.ViewPortBottom, amount: noOfLines, select: select});
+	move(cursor, {to: CursorMovePosition.ViewPortBottom, value: noOfLines, select: select});
 }
 
 function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, selLineNumber: number = posLineNumber, selColumn: number = posColumn) {
