@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as semver from 'semver';
 import { shell } from 'electron';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -35,7 +34,7 @@ class NPSContribution implements IWorkbenchContribution {
 	) {
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '0.0.0');
 
-		if (semver.gte(pkg.version, skipVersion)) {
+		if (skipVersion) {
 			return;
 		}
 
