@@ -82,8 +82,8 @@ suite('MenuService', function () {
 
 		assert.equal(one[0], 'navigation');
 		assert.equal(two[0], '0_hello');
-		assert.equal(three[0], 'Hello');
-		assert.equal(four[0], 'hello');
+		assert.equal(three[0], 'hello');
+		assert.equal(four[0], 'Hello');
 		assert.equal(five[0], '');
 	});
 
