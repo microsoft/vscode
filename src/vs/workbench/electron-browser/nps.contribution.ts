@@ -85,7 +85,9 @@ class NPSContribution implements IWorkbenchContribution {
 		});
 
 		const actions = [takeSurveyAction, remindMeLaterAction, neverAgainAction];
-		messageService.show(Severity.Info, { message, actions });
+
+		// TODO@Ben need this setTimeout due to #9769
+		setTimeout(() => messageService.show(Severity.Info, { message, actions }));
 	}
 
 	getId(): string {
