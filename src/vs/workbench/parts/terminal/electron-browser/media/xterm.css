@@ -55,20 +55,17 @@
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #FFF; }
 
-.monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor,
-.monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
+.monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #333;
 	outline-offset: -1px;
 }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #CCC;
 	outline-offset: -1px;
 }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.focus) .terminal-cursor,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(:focus) .terminal-cursor {
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
 	background-color: transparent;
 	outline: 1px solid #FFF;
 	outline-offset: -1px;
