@@ -160,8 +160,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			return TPromise.wrapError(new Error(nls.localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName || extension.name)));
 		}
 
+		const headers = { 'accept-encoding': 'gzip' };
 		const version = versions[0];
+
 		return this.request(version.manifestUrl)
+			.then(opts => assign(opts, { headers }))
 			.then(opts => json<IExtensionManifest>(opts))
 			.then(manifest => {
 				const desc = {
