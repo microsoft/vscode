@@ -499,7 +499,7 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'navigation',
-		order: 2,
+		order: 1.2,
 		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
 	}
 });
@@ -519,7 +519,7 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		group: 'navigation',
-		order: 1,
+		order: 1.1,
 		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
 	}
 });

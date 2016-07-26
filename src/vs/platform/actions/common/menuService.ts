@@ -125,25 +125,27 @@ class Menu implements IMenu {
 		let aGroup = a.group;
 		let bGroup = b.group;
 
-		// Falsy groups come last
-		if (!aGroup && bGroup) {
-			return 1;
-		} else if (aGroup && !bGroup) {
-			return -1;
-		}
+		if (aGroup !== bGroup) {
 
-		// 'navigation' group comes first
-		if (aGroup === 'navigation') {
-			return -1;
-		} else if (bGroup === 'navigation') {
-			return 1;
-		}
+			// Falsy groups come last
+			if (!aGroup) {
+				return 1;
+			} else if (!bGroup) {
+				return -1;
+			}
 
-		// lexical sort for groups
-		if (aGroup < bGroup) {
-			return -1;
-		} else if(aGroup > bGroup) {
-			return 1;
+			// 'navigation' group comes first
+			if (aGroup === 'navigation') {
+				return -1;
+			} else if (bGroup === 'navigation') {
+				return 1;
+			}
+
+			// lexical sort for groups
+			let value = aGroup.localeCompare(bGroup);
+			if (value !== 0) {
+				return value;
+			}
 		}
 
 		// sort on priority - default is 0

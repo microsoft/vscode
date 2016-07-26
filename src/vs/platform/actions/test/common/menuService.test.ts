@@ -153,4 +153,37 @@ suite('MenuService', function () {
 		assert.equal(three.id, 'b');
 		assert.equal(four.id, 'a');
 	});
+
+
+	test('in group sorting, special: navigation', function () {
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'a', title: 'aaa' },
+			group: 'navigation',
+			order: 1.3
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'b', title: 'fff' },
+			group: 'navigation',
+			order: 1.2
+		}));
+
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+			command: { id: 'c', title: 'zzz' },
+			group: 'navigation',
+			order: 1.1
+		}));
+
+		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
+
+		assert.equal(groups.length, 1);
+		const [[, actions]] = groups;
+
+		assert.equal(actions.length, 3);
+		const [one, two, three] = actions;
+		assert.equal(one.id, 'c');
+		assert.equal(two.id, 'b');
+		assert.equal(three.id, 'a');
+	});
 });

@@ -231,8 +231,8 @@ CommonEditorRegistry.registerEditorAction({
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
 	},
 	menuOpts: {
-		group: 'modification',
-		order: 10,
+		group: '1_modification',
+		order: 1.3,
 		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasFormattingProvider)
 	}
 });

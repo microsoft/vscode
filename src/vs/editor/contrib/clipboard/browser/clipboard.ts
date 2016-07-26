@@ -135,7 +135,7 @@ function registerClipboardAction(desc: IClipboardCommand, alias: string, weight:
 			id: desc.id,
 			title: desc.label
 		},
-		group: `cutcopypaste`,
+		group: `9_cutcopypaste`,
 		order: weight,
 		when: desc.kbExpr
 	});

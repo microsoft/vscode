@@ -137,7 +137,8 @@ CommonEditorRegistry.registerEditorAction({
 	},
 	menuOpts: {
 		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasReferenceProvider),
-		group: 'navigation'
+		group: 'navigation',
+		order: 1.3
 	}
 });
 

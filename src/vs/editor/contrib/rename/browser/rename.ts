@@ -157,8 +157,8 @@ CommonEditorRegistry.registerEditorAction({
 		primary: KeyCode.F2
 	},
 	menuOpts: {
-		group: 'modification',
-		order: 1,
+		group: '1_modification',
+		order: 1.1,
 		kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
 	}
 });
