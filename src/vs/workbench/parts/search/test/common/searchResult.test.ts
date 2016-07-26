@@ -34,6 +34,7 @@ suite('SearchResult', () => {
 		assert.equal(lineMatch.range().endLineNumber, 2);
 		assert.equal(lineMatch.range().startColumn, 1);
 		assert.equal(lineMatch.range().endColumn, 4);
+		assert.equal('file:///c%3A/folder/file.txt>1>0foo', lineMatch.id());
 	});
 
 	test('Line Match - Remove', function () {
@@ -57,6 +58,105 @@ suite('SearchResult', () => {
 		assert.equal(fileMatch.matches(), 0);
 		assert.equal(fileMatch.resource().toString(), 'file:///c%3A/file.txt');
 		assert.equal(fileMatch.name(), 'file.txt');
+	});
+
+	test('File Match: Select an existing match', function () {
+		let testObject = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
+			preview: 'foo',
+			lineNumber: 1,
+			offsetAndLengths: [[0, 3]]
+		}, {
+				preview: 'bar',
+				lineNumber: 1,
+				offsetAndLengths: [[5, 3]]
+			}]);
+
+		testObject.setSelectedMatch(testObject.matches()[0]);
+
+		assert.equal(testObject.matches()[0], testObject.getSelectedMatch());
+	});
+
+	test('File Match: Select non existing match', function () {
+		let testObject = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
+			preview: 'foo',
+			lineNumber: 1,
+			offsetAndLengths: [[0, 3]]
+		}, {
+				preview: 'bar',
+				lineNumber: 1,
+				offsetAndLengths: [[5, 3]]
+			}]);
+		let target = testObject.matches()[0];
+		testObject.remove(target);
+
+		testObject.setSelectedMatch(target);
+
+		assert.equal(undefined, testObject.getSelectedMatch());
+	});
+
+	test('File Match: isSelected return true for selected match', function () {
+		let testObject = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
+			preview: 'foo',
+			lineNumber: 1,
+			offsetAndLengths: [[0, 3]]
+		}, {
+				preview: 'bar',
+				lineNumber: 1,
+				offsetAndLengths: [[5, 3]]
+			}]);
+		let target = testObject.matches()[0];
+		testObject.setSelectedMatch(target);
+
+		assert.ok(testObject.isMatchSelected(target));
+	});
+
+	test('File Match: isSelected return false for un-selected match', function () {
+		let testObject = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
+			preview: 'foo',
+			lineNumber: 1,
+			offsetAndLengths: [[0, 3]]
+		}, {
+				preview: 'bar',
+				lineNumber: 1,
+				offsetAndLengths: [[5, 3]]
+			}]);
+
+		testObject.setSelectedMatch(testObject.matches()[0]);
+
+		assert.ok(!testObject.isMatchSelected(testObject.matches()[1]));
+	});
+
+	test('File Match: unselect', function () {
+		let testObject = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
+			preview: 'foo',
+			lineNumber: 1,
+			offsetAndLengths: [[0, 3]]
+		}, {
+				preview: 'bar',
+				lineNumber: 1,
+				offsetAndLengths: [[5, 3]]
+			}]);
+
+		testObject.setSelectedMatch(testObject.matches()[0]);
+		testObject.setSelectedMatch(null);
+
+		assert.equal(null, testObject.getSelectedMatch());
+	});
+
+	test('File Match: unselect when not selected', function () {
+		let testObject = aFileMatch('folder\\file.txt', aSearchResult(), ...[{
+			preview: 'foo',
+			lineNumber: 1,
+			offsetAndLengths: [[0, 3]]
+		}, {
+				preview: 'bar',
+				lineNumber: 1,
+				offsetAndLengths: [[5, 3]]
+			}]);
+
+		testObject.setSelectedMatch(null);
+
+		assert.equal(null, testObject.getSelectedMatch());
 	});
 
 	test('Alle Drei Zusammen', function () {
