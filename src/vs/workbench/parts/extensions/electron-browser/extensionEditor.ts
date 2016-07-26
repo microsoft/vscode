@@ -91,10 +91,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.name = append(title, $<HTMLAnchorElement>('a.name'));
 		this.name.href = '#';
 
-		this.license = append(title, $<HTMLAnchorElement>('a.license'));
-		this.license.href = '#';
-		this.license.textContent = localize('license', 'License');
-
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
 		this.publisher.href = '#';
@@ -103,6 +99,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
+
+		this.license = append(subtitle, $<HTMLAnchorElement>('a.license'));
+		this.license.href = '#';
+		this.license.textContent = localize('license', 'License');
 
 		this.description = append(details, $('.description'));
 
