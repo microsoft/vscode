@@ -42,5 +42,8 @@ script:
   - gulp electron
   - gulp compile
   - gulp optimize-vscode
-  - ./scripts/test.sh
+  - ./scripts/test.sh --coverage
   - ./scripts/test-integration.sh
+
+after_success:
+  - cat coverage/lcov.info | node_modules/.bin/coveralls
