@@ -117,17 +117,22 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	private _getMenuActions(): IAction[] {
-		const result: IAction[] = [];
-		const groups = this._contextMenu.getActions();
+		this._editor.beginForcedWidgetFocus();
+		try {
+			const result: IAction[] = [];
+			const groups = this._contextMenu.getActions();
 
-		for (const group of groups) {
-			const [, actions] = group;
-			result.push(...actions);
-			result.push(new Separator());
+			for (const group of groups) {
+				const [, actions] = group;
+				result.push(...actions);
+				result.push(new Separator());
+			}
+			result.pop(); // remove last separator
+			return result;
+
+		} finally {
+			this._editor.endForcedWidgetFocus();
 		}
-		result.pop(); // remove last separator
-
-		return result;
 	}
 
 	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition = null): void {
