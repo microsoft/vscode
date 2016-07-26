@@ -190,7 +190,9 @@ export class TerminalService implements ITerminalService {
 
 	public paste(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
-			document.execCommand('paste');
+			this.focus().then(() => {
+				document.execCommand('paste');
+			});
 		});
 	}
 
