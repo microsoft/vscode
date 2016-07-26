@@ -41,6 +41,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 
 import IGitService = git.IGitService;
 
@@ -89,7 +90,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		@IGitService gitService: IGitService,
 		@IOutputService outputService: IOutputService,
 		@IEventService eventService: IEventService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super();
 
@@ -241,6 +243,14 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		} else {
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
+		}
+	}
+
+	private updateCommitInputPrevCommitMsg(): void {
+		let prevCommitMsg = this.storageService.get('prevCommitMsg');
+		if (prevCommitMsg) {
+			this.commitInputBox.value = prevCommitMsg;
+			this.storageService.remove('prevCommitMsg');
 		}
 	}
 
@@ -413,6 +423,12 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 					this.commitInputBox.value = '';
 					this.updateCommitInputTemplate();
 				}
+			}
+		} else if (e.operation.id === git.ServiceOperations.RESET) {
+			if (!e.error) {
+				this.updateCommitInputPrevCommitMsg();
+			} else {
+				this.storageService.remove('prevCommitMsg');
 			}
 		}
 	}
