@@ -84,6 +84,8 @@ export class SearchViewlet extends Viewlet {
 	private inputPatternIncludes: PatternInputWidget;
 	private results: Builder;
 
+	private currentSelectedFileMatch: FileMatch;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEventService private eventService: IEventService,
@@ -406,7 +408,7 @@ export class SearchViewlet extends Viewlet {
 			this.toUnbind.push(renderer);
 
 			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
-				let element: any;
+				let element: Match;
 				let keyboard = event.payload && event.payload.origin === 'keyboard';
 				if (keyboard) {
 					element = this.tree.getFocus();
@@ -424,6 +426,11 @@ export class SearchViewlet extends Viewlet {
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
 
+				if (this.currentSelectedFileMatch) {
+					this.currentSelectedFileMatch.setSelectedMatch(null);
+				}
+				this.currentSelectedFileMatch = element.parent();
+				this.currentSelectedFileMatch.setSelectedMatch(element);
 				this.onFocus(element, !focusEditor, sideBySide, doubleClick);
 			}));
 		});
@@ -892,6 +899,7 @@ export class SearchViewlet extends Viewlet {
 		this.messages.hide();
 		this.results.show();
 		this.tree.onVisible();
+		this.currentSelectedFileMatch = null;
 	}
 
 	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
