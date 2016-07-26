@@ -112,26 +112,67 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		// string magic to get the parents of the variable (a and b for a.b.foo)
 		const lineContent = model.getLineContent(pos.lineNumber);
-		const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
-			.split('.').map(word => word.trim()).filter(word => !!word);
-		namesToFind.push(hoveringOver);
-		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
+		const session = this.debugService.getActiveSession();
+		let evaluatedExpression : TPromise<Expression> = undefined;
+		let matchingExpression: string = undefined;
+		let startOffset: number = 0;
+		if (session.configuration.capabilities.supportsEvaluateForHovers) {
+			let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+			let result: RegExpExecArray = undefined;
 
-		return this.getExpression(namesToFind).then(expression => {
+			while (result = expression.exec(lineContent)) {
+				let start = result.index + 1;
+				let end = start + result[0].length;
+
+				if (start <= range.startColumn && end >= range.endColumn) {
+					matchingExpression = result[0];
+					startOffset = start;
+					break;
+				}
+			}
+
+			if (matchingExpression) {
+				let subExpression: RegExp = /\w+/g;
+				let subExpressionResult: RegExpExecArray = undefined;
+				while (subExpressionResult = subExpression.exec(matchingExpression)) {
+					let subStart = subExpressionResult.index + 1 + startOffset;
+					let subEnd = subStart + subExpressionResult[0].length;
+					if (subStart <= range.startColumn && subEnd >= range.endColumn) {
+						break;
+					}
+				}
+
+				if (subExpressionResult) {
+					matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
+				}
+			}
+
+			evaluatedExpression = this.getExpressionSupportingEvaluate(session, matchingExpression);
+		}
+		else {
+			// string magic to get the parents of the variable (a and b for a.b.foo)
+			const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
+				.split('.').map(word => word.trim()).filter(word => !!word);
+			namesToFind.push(hoveringOver);
+			namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
+			evaluatedExpression = this.getExpression(namesToFind);
+		}
+
+		return evaluatedExpression.then(expression => {
 			if (!expression || !expression.available) {
 				this.hide();
 				return;
 			}
 
-			// show it
+			const hoverHighlightText: string = session.configuration.capabilities.supportsEvaluateForHovers ? matchingExpression : hoveringOver;
+
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
 				range: {
 					startLineNumber: pos.lineNumber,
 					endLineNumber: pos.lineNumber,
-					startColumn: lineContent.indexOf(hoveringOver) + 1,
-					endColumn: lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length
+					startColumn: lineContent.indexOf(hoverHighlightText) + 1,
+					endColumn: lineContent.indexOf(hoverHighlightText) + 1 + hoverHighlightText.length
 				},
 				options: {
 					className: 'hoverHighlight'
@@ -142,12 +183,13 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		});
 	}
 
-	private getExpression(namesToFind: string[]): TPromise<Expression> {
-		const session = this.debugService.getActiveSession();
+	private getExpressionSupportingEvaluate(session: debug.IRawDebugSession, expression: string) : TPromise<Expression> {
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (session.configuration.capabilities.supportsEvaluateForHovers) {
-			return evaluateExpression(session, focusedStackFrame, new Expression(namesToFind.join('.'), true), 'hover');
-		}
+		return evaluateExpression(session, focusedStackFrame, new Expression(expression, true), 'hover');
+	}
+
+	private getExpression(namesToFind: string[]): TPromise<Expression> {
+		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
 
 		const variables: debug.IExpression[] = [];
 		return focusedStackFrame.getScopes(this.debugService).then(scopes => {
