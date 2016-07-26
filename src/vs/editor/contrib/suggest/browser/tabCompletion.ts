@@ -5,7 +5,6 @@
 
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
@@ -34,12 +33,17 @@ class TabCompletionController implements editor.IEditorContribution {
 	) {
 		this._snippetController = getSnippetController(editor);
 		const hasSnippets = keybindingService.createKey(TabCompletionController.ContextKey, undefined);
-		this._cursorChangeSubscription = editor.onDidChangeCursorPosition(e => {
+		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
+
 			this._currentSnippets.length = 0;
-			const prefix = getNonWhitespacePrefix(editor.getModel(), editor.getPosition());
+
+			const prefix = e.selection.isEmpty()
+				? getNonWhitespacePrefix(editor.getModel(), editor.getPosition())
+				: editor.getModel().getValueInRange(e.selection);
+
 			if (prefix) {
 				snippetsRegistry.visitSnippets(editor.getModel().getModeId(), s => {
-					if (strings.endsWith(prefix, s.prefix)) {
+					if (prefix === s.prefix) {
 						this._currentSnippets.push(s);
 					}
 					return true;
