@@ -257,8 +257,12 @@ export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
 	return arr;
 }
 
-export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; } {
-	const result = Object.create(null);
-	array.forEach(t => result[indexer(t)] = t);
-	return result;
+export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; };
+export function index<T,R>(array: T[], indexer: (t: T) => string, merger?: (t: T, r: R) => R): { [key: string]: R; };
+export function index<T,R>(array: T[], indexer: (t: T) => string, merger: (t: T, r: R) => R = t => t as any): { [key: string]: R; } {
+	return array.reduce((r, t) => {
+		const key = indexer(t);
+		r[key] = merger(t, r[key]);
+		return r;
+	}, Object.create(null));
 }
