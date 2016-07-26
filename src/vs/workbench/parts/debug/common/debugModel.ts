@@ -39,6 +39,7 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		if (response.body) {
 			expression.value = response.body.result;
 			expression.reference = response.body.variablesReference;
+			expression.namedVariables = response.body.namedVariables;
 			expression.indexedVariables = response.body.indexedVariables;
 			expression.type = response.body.type;
 		}
