@@ -185,8 +185,11 @@ export abstract class AbstractKeybindingService {
 	public contextMatchesRules(rules: KbExpr): boolean {
 		const ctx = Object.create(null);
 		this.getContext(this._myContextId).fillInContext(ctx);
-		// console.log(JSON.stringify(ctx, null, '\t'));
-		return KeybindingResolver.contextMatchesRules(ctx, rules);
+		const result = KeybindingResolver.contextMatchesRules(ctx, rules);
+		// console.group(rules.serialize() + ' -> ' + result);
+		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
+		// console.groupEnd();
+		return result;
 	}
 
 	public getContextValue<T>(key: string): T {
