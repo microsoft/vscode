@@ -79,7 +79,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			'type': 'boolean',
-			'default': true
+			'default': false
 		},
 		'terminal.integrated.setLocaleVariables': {
 			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
