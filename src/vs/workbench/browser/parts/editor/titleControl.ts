@@ -377,7 +377,9 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		if (this.showTabs) {
 			if (!showTabsOverflowAction) {
-				secondaryEditorActions.push(new Separator());
+				if (secondaryEditorActions.length > 0) {
+					secondaryEditorActions.push(new Separator());
+				}
 				secondaryEditorActions.push(this.showEditorsInGroupAction);
 			}
 			secondaryEditorActions.push(new Separator());
