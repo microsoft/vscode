@@ -7,6 +7,7 @@
 import { IRawGitService, IRawStatus, ServiceState, RawServiceState } from 'vs/workbench/parts/git/common/git';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ILogOptions } from 'vs/workbench/parts/git/node/git.lib';
 
 export class NoOpGitService implements IRawGitService {
 
@@ -103,6 +104,10 @@ export class NoOpGitService implements IRawGitService {
 	}
 
 	getCommitTemplate(): TPromise<string> {
+		return TPromise.as(null);
+	}
+
+	getLog(options?: ILogOptions): TPromise<string> {
 		return TPromise.as(null);
 	}
 }

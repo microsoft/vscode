@@ -118,6 +118,18 @@ export class GitError {
 	}
 }
 
+export interface ILogOptions {
+	/**
+	 * @example `git log -1 --format=%B` to get the last commit log, message only
+	 */
+	prevCount?: number;
+
+	/**
+	 * @example format: "%B" translates to `git log --format=%B` to extract only the message
+	 */
+	format?: string;
+}
+
 export interface IGitOptions {
 	gitPath:string;
 	version: string;
@@ -717,6 +729,20 @@ export class Repository {
 
 			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
 		}, () => '');
+	}
+
+	/** Implemented for use case `git log` and `git log -N`. */
+	getLog(options?: ILogOptions): TPromise<string> {
+		const args = ['log'];
+
+		if (options) {
+			if (options.prevCount) { args.push(`-${options.prevCount}`); }
+			if (options.format) { args.push(`--format=${options.format}`); }
+		}
+
+		return this.run(args, { log: false }).then(result => {
+			return result.stdout.trim();
+		});
 	}
 
 	onOutput(listener: (output: string) => void): () => void {
