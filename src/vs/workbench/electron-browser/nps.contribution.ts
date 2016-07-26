@@ -32,7 +32,7 @@ class NPSContribution implements IWorkbenchContribution {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '0.0.0');
+		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
 
 		if (skipVersion) {
 			return;
