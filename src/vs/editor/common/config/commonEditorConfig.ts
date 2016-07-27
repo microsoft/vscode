@@ -724,7 +724,7 @@ let editorConfiguration:IConfigurationNode = {
 		'editor.tabCompletion': {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.tabCompletion,
-			'description': nls.localize('tabCompletion', "Insert snippets when their prefix matches.")
+			'description': nls.localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
 		},
 		'editor.selectionHighlight' : {
 			'type': 'boolean',
