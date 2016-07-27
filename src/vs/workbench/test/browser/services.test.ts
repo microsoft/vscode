@@ -38,6 +38,7 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
+import {Emitter} from 'vs/base/common/event';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -110,6 +111,9 @@ class TestEditorPart implements IEditorPart {
 
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
+
+	onDidActiveViewletChange = new Emitter<IViewlet>().event;
+
 	public openViewlet(id: string, focus?: boolean): Promise {
 		return TPromise.as(null);
 	}

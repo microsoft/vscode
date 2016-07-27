@@ -8,6 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
+import {IComposite} from 'vs/workbench/common/composite';
 import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
 import {Viewlet, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -24,10 +25,14 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
 	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+
+	private _onDidActiveViewletChange = new Emitter<IViewlet>();
+	onDidActiveViewletChange: Event<IViewlet> = this._onDidActiveViewletChange.event;
 
 	public _serviceBrand: any;
 
@@ -77,7 +82,10 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus).then(composite => {
+			this._onDidActiveViewletChange.fire(composite as IComposite as IViewlet);
+			return composite;
+		});
 	}
 
 	public getActiveViewlet(): IViewlet {
