@@ -9,6 +9,7 @@ import * as nls from 'vs/nls';
 import { shell } from 'electron';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
+import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -95,7 +96,7 @@ class NPSContribution implements IWorkbenchContribution {
 	}
 }
 
-if (product.npsSurveyUrl) {
+if (language === 'en' && product.npsSurveyUrl) {
 	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(NPSContribution);
 }
