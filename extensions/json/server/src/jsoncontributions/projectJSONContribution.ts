@@ -155,7 +155,7 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 									insertText += ',';
 								}
 							}
-							let item : CompletionItem = { kind: CompletionItemKind.Property, label: name, insertText: insertText };
+							let item : CompletionItem = { kind: CompletionItemKind.Property, label: name, insertText: insertText, filterText: JSON.stringify(name)};
 							if (!this.completeWithCache(name, item)) {
 								item.data = RESOLVE_ID + name;
 							}

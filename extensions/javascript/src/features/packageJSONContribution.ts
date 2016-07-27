@@ -74,6 +74,7 @@ export class PackageJSONContribution implements IJSONContribution {
 										let proposal = new CompletionItem(name);
 										proposal.kind = CompletionItemKind.Property;
 										proposal.insertText = insertText;
+										proposal.filterText = JSON.stringify(name);
 										proposal.documentation = '';
 										collector.add(proposal);
 									}
@@ -105,6 +106,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					let proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = insertText;
+					proposal.filterText = JSON.stringify(name);
 					proposal.documentation = '';
 					collector.add(proposal);
 				});

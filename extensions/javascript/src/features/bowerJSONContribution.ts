@@ -71,6 +71,7 @@ export class BowerJSONContribution implements IJSONContribution {
 									let proposal = new CompletionItem(name);
 									proposal.kind = CompletionItemKind.Property;
 									proposal.insertText = insertText;
+									proposal.filterText = JSON.stringify(name);
 									proposal.documentation = description;
 									collector.add(proposal);
 								}
@@ -100,6 +101,7 @@ export class BowerJSONContribution implements IJSONContribution {
 					let proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = insertText;
+					proposal.filterText = JSON.stringify(name);
 					proposal.documentation = '';
 					collector.add(proposal);
 				});
@@ -115,6 +117,7 @@ export class BowerJSONContribution implements IJSONContribution {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
 			let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
 			proposal.insertText = '"{{latest}}"';
+			proposal.filterText = '""';
 			proposal.kind = CompletionItemKind.Value;
 			proposal.documentation = 'The latest version of the package';
 			collector.add(proposal);
