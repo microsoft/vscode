@@ -257,7 +257,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 						const numberOfChunks = this.indexedVariables / ExpressionContainer.CHUNK_SIZE;
 						for (let i = 0; i < numberOfChunks; i++) {
 							const chunkSize = Math.min(ExpressionContainer.CHUNK_SIZE, this.indexedVariables - i * ExpressionContainer.CHUNK_SIZE);
-							const chunkName = `${i * ExpressionContainer.CHUNK_SIZE} \u2026 ${i * ExpressionContainer.CHUNK_SIZE + chunkSize - 1}`;
+							const chunkName = `[${i * ExpressionContainer.CHUNK_SIZE}..${i * ExpressionContainer.CHUNK_SIZE + chunkSize - 1}]`;
 							childrenArray.push(new Variable(this, this.reference, chunkName, '', null, chunkSize, null, true, i));
 						}
 
