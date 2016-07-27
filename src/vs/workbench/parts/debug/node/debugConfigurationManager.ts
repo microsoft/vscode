@@ -159,6 +159,7 @@ const schema: IJSONSchema = {
 			type: 'array',
 			description: nls.localize('app.launch.json.configurations', "List of configurations. Add new configurations or edit existing ones."),
 			items: {
+				'type': 'object',
 				oneOf: []
 			}
 		}
