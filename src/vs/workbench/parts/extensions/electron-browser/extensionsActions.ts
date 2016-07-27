@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -93,7 +93,7 @@ export class UninstallAction extends Action {
 		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
 			this.messageService.show(severity.Info, {
 				message: localize('postUninstallMessage', "{0} was successfully uninstalled. Restart to deactivate it.", this.extension.displayName),
-				actions: [CloseAction, this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"))]
+				actions: [LaterAction, this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"))]
 			});
 		});
 	}
