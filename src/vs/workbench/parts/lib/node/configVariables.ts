@@ -23,7 +23,12 @@ export class ConfigVariables extends SystemVariables {
 		return value.replace(regexp, (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
 			let newValue = new Function('_', 'try {return _.' + name + ';} catch (ex) { return "";}')(config);
-			return Types.isString(newValue) ? newValue : '';
+			if (Types.isString(newValue)) {
+				return newValue;
+			}
+			else {
+				return this.resolve(newValue) + '';
+			}
 		});
 	}
 }
