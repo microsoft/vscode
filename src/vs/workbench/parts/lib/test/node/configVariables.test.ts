@@ -88,6 +88,36 @@ suite('ConfigVariables tests', () => {
 			assert.strictEqual(systemVariables.resolve('${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} ${workspaceRoot} - ${workspaceRoot} ${env.key1} - ${env.key2}'), 'foo bar /VSCode/workspaceLocation - /VSCode/workspaceLocation Value for Key1 - Value for Key2');
 		}
 	});
+
+	test('ConfigVariables: mixed types', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo',
+				lineNumbers: 123,
+				insertSpaces: false
+			},
+			terminal: {
+				integrated: {
+					fontFamily: 'bar'
+				}
+			},
+			json: {
+				schemas: [
+					{
+						fileMatch: [
+							'{{/myfile}}',
+							'{{/myOtherfile}}'
+						],
+						url: '{{schemaURL}}'
+					}
+				]
+			}
+		});
+
+		let systemVariables: ConfigVariables = new ConfigVariables(configurationService, null, null, URI.parse('file:///VSCode/workspaceLocation'));
+		assert.strictEqual(systemVariables.resolve('abc ${config.editor.fontFamily} ${config.editor.lineNumbers} ${config.editor.insertSpaces} ${config.json.schemas[0].fileMatch[1]} xyz'), 'abc foo 123 false {{/myOtherfile}} xyz');
+	});
 });
 
 class MockConfigurationService implements IConfigurationService {
