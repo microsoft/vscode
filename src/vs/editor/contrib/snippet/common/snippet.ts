@@ -260,11 +260,6 @@ export class CodeSnippet implements ICodeSnippet {
 				convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' :'{{}}';
 				continue;
 			}
-			if (snippetType === ExternalSnippetType.EmmetSnippet && /^\|/.test(restOfLine)) {
-				++i;
-				convertedSnippet += '{{}}';
-				continue;
-			}
 
 			// Tab stops
 			var matches = restOfLine.match(/^\$(\d+)/);
