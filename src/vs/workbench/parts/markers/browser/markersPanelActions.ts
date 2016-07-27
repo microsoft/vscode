@@ -16,7 +16,6 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -121,8 +120,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 	}
 
 	private updateFilter(filter: string) {
-		this.markersPanel.markersModel.update(new FilterOptions(filter));
-		this.markersPanel.refreshPanel();
+		this.markersPanel.updateFilter(filter);
 		this.delayer.trigger(this.reportFilteringUsed.bind(this));
 	}
 

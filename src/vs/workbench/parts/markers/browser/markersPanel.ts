@@ -24,7 +24,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { IProblemsConfiguration, MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
+import { IProblemsConfiguration, MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
@@ -124,9 +124,8 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
-	public refreshPanel(updateTitleArea: boolean = false): TPromise<any> {
+	private refreshPanel(updateTitleArea: boolean = false): TPromise<any> {
 		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
-		this.refreshAutoExpanded();
 		if (updateTitleArea) {
 			this.updateTitleArea();
 		}
@@ -138,6 +137,13 @@ export class MarkersPanel extends Panel {
 			});
 		}
 		return TPromise.as(null);
+	}
+
+	public updateFilter(filter: string) {
+		this.markersModel.update(new FilterOptions(filter));
+		this.autoExpanded = new Set.ArraySet<string>();
+		this.refreshPanel();
+		this.autoReveal();
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
@@ -229,14 +235,6 @@ export class MarkersPanel extends Panel {
 		let message = this.markersModel.getMessage();
 		this.messageBox.textContent = message;
 		dom.toggleClass(this.messageBoxContainer, 'hidden', this.markersModel.hasFilteredResources());
-	}
-
-	private refreshAutoExpanded(): void {
-		this.markersModel.nonFilteredResources.forEach((resource) => {
-			if (this.tree.isExpanded(resource)) {
-				this.autoExpanded.unset(resource.uri.toString());
-			}
-		});
 	}
 
 	private autoExpand(): void {
