@@ -71,6 +71,7 @@
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
+    "lodash": "^4.14.0",
     "mime": "1.2.11",
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
