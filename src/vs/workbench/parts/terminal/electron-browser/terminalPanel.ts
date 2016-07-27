@@ -84,7 +84,7 @@ export class TerminalPanel extends Panel {
 	private getContextMenuActions(): IAction[] {
 		if (!this.contextMenuActions) {
 			this.contextMenuActions = [
-				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New terminal")),
+				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New Terminal")),
 				new Separator(),
 				this.instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy")),
 				this.instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste"))
