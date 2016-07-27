@@ -112,15 +112,24 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		const lineContent = model.getLineContent(pos.lineNumber);
 		const session = this.debugService.getActiveSession();
+		const canEvaluateForHovers: boolean = session.configuration.capabilities.supportsEvaluateForHovers;
+
+		const lineContent = model.getLineContent(pos.lineNumber);
 		let evaluatedExpression : TPromise<Expression> = undefined;
 		let matchingExpression: string = undefined;
 		let startOffset: number = 0;
-		if (session.configuration.capabilities.supportsEvaluateForHovers) {
+		if (canEvaluateForHovers) {
+			// If the debug adapter supports evaluation-based-hover, we need to try and guess what the expression under the mouse cursor is.
+			// Someday it might be nice if the language service could somehow provide this.
+			// But this code attempts to approximate the answer for a variety of languages.
+			// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
+
+			// Match any character except a set of characters which often break interesting sub-expressions
 			let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
 			let result: RegExpExecArray = undefined;
 
+			// First find the full expression under the cursor
 			while (result = expression.exec(lineContent)) {
 				let start = result.index + 1;
 				let end = start + result[0].length;
@@ -132,13 +141,14 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				}
 			}
 
+			// If there are non-word characters after the cursor, we want to truncate the expression then.
+			// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 			if (matchingExpression) {
 				let subExpression: RegExp = /\w+/g;
 				let subExpressionResult: RegExpExecArray = undefined;
 				while (subExpressionResult = subExpression.exec(matchingExpression)) {
-					let subStart = subExpressionResult.index + 1 + startOffset;
-					let subEnd = subStart + subExpressionResult[0].length;
-					if (subStart <= range.startColumn && subEnd >= range.endColumn) {
+					let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
+					if (subEnd >= range.endColumn) {
 						break;
 					}
 				}
@@ -165,15 +175,12 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				return;
 			}
 
-			const hoverHighlightText: string = session.configuration.capabilities.supportsEvaluateForHovers ? matchingExpression : hoveringOver;
+			let hoverRange: Range = canEvaluateForHovers ?
+						new Range(pos.lineNumber, startOffset, pos.lineNumber, startOffset + matchingExpression.length) :
+						new Range(pos.lineNumber, lineContent.indexOf(hoveringOver) + 1, pos.lineNumber, lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length)
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: {
-					startLineNumber: pos.lineNumber,
-					endLineNumber: pos.lineNumber,
-					startColumn: lineContent.indexOf(hoverHighlightText) + 1,
-					endColumn: lineContent.indexOf(hoverHighlightText) + 1 + hoverHighlightText.length
-				},
+				range: hoverRange,
 				options: {
 					className: 'hoverHighlight'
 				}
