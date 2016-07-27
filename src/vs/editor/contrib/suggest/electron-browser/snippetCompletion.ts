@@ -61,7 +61,7 @@ class ShowSnippetsActions extends EditorAction {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(
 	ShowSnippetsActions,
 	ShowSnippetsActions.ID,
-	nls.localize('snippet.suggestions.label', "Show Snippets"),
+	nls.localize('snippet.suggestions.label', "Insert Snippet"),
 	undefined,
-	'Show Snippets'
+	'Insert Snippet'
 ));
