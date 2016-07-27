@@ -8,6 +8,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {parse, stringify} from 'vs/base/common/marshalling';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as workerProtocol from 'vs/base/common/worker/workerProtocol';
+import {isWeb} from 'vs/base/common/platform';
 
 export interface IWorker {
 	getId():number;
@@ -16,7 +17,11 @@ export interface IWorker {
 }
 
 let webWorkerWarningLogged = false;
-export function logOnceWebWorkerWarning(err:any): void {
+export function logOnceWebWorkerWarning(err: any): void {
+	if (!isWeb) {
+		// running tests
+		return;
+	}
 	if (!webWorkerWarningLogged) {
 		webWorkerWarningLogged = true;
 		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/Microsoft/monaco-editor#faq');
