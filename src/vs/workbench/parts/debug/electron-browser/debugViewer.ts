@@ -71,11 +71,12 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 
 export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = variable.name + ':';
+		data.name.textContent = variable.name;
 		data.name.title = variable.type ? variable.type : '';
 	}
 
 	if (variable.value) {
+		data.name.textContent += ':';
 		renderExpressionValue(variable, data.value, showChanged, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
 		data.value.title = variable.value;
 	} else {
@@ -884,8 +885,9 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		}
 		data.actionBar.context = watchExpression;
 
-		data.name.textContent = `${watchExpression.name}:`;
+		data.name.textContent = watchExpression.name;
 		if (watchExpression.value) {
+			data.name.textContent += ':';
 			renderExpressionValue(watchExpression, data.value, true, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
 			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
