@@ -32,20 +32,11 @@
 
 .monaco-editor .quickfix-widget {
 	background-color: #F3F3F3;
-	font-size: 12px;
 	border: 1px solid rgb(200, 200, 200);
 	z-index: 40;
 }
-.monaco-editor.mac .quickfix-widget {
-	font-size: 11px;
-}
-
-.monaco-editor.mac .quickfix-widget .text {
-	line-height: 1.3em;
-}
 
 .monaco-editor .quickfix-widget .monaco-tree .monaco-tree-row > .content {
-	-mox-box-sizing: border-box;
 	box-sizing: border-box;
 	line-height: 1.2em;
 	padding: 2px 10px 2px 2px;
