@@ -8,7 +8,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {OptionsChangeEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
@@ -36,7 +35,6 @@ import {Selection} from 'vs/editor/common/core/selection';
 export abstract class BaseTextEditor extends BaseEditor {
 	private editorControl: IEditor;
 	private _editorContainer: Builder;
-	private _disposeOnInputChange: IDisposable[] = [];
 
 	constructor(
 		id: string,
@@ -52,6 +50,11 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IThemeService private _themeService: IThemeService
 	) {
 		super(id, telemetryService);
+
+		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.applyConfiguration(e.config)));
+
+		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.onThemeChanged()));
 	}
 
 	public get instantiationService(): IInstantiationService {
@@ -68,14 +71,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public get messageService() {
 		return this._messageService;
-	}
-
-	private hookConfigurationListeners(): void {
-		if (this._disposeOnInputChange.length === 0) {
-			this._disposeOnInputChange.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
-			this._disposeOnInputChange.push(this.configurationService.onDidUpdateConfiguration(e => this.applyConfiguration(e.config)));
-			this._disposeOnInputChange.push(this._themeService.onDidThemeChange(_ => this.onThemeChanged()));
-		}
 	}
 
 	protected applyConfiguration(configuration: IFilesConfiguration): void {
@@ -146,17 +141,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-
-		this.hookConfigurationListeners();
-
 		return super.setInput(input, options).then(() => {
 			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
 		});
-	}
-
-	public clearInput(): void {
-		this._disposeOnInputChange = dispose(this._disposeOnInputChange);
-		return super.clearInput();
 	}
 
 	public setEditorVisible(visible: boolean, position: Position = null): void {
@@ -190,8 +177,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	public dispose(): void {
-
-		dispose(this._disposeOnInputChange);
 
 		// Destroy Editor Control
 		this.editorControl.destroy();
