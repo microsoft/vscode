@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var gulp = require('gulp');
-var filter = require('gulp-filter');
-var es = require('event-stream');
-var gulptslint = require('gulp-tslint');
-var tslint = require('tslint');
+'use strict';
 
-var all = [
+const gulp = require('gulp');
+const filter = require('gulp-filter');
+const es = require('event-stream');
+const gulptslint = require('gulp-tslint');
+const tslint = require('tslint');
+
+const all = [
 	'*',
 	'build/**/*',
 	'extensions/**/*',
@@ -18,7 +20,7 @@ var all = [
 	'test/**/*'
 ];
 
-var eolFilter = [
+const eolFilter = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
@@ -31,7 +33,7 @@ var eolFilter = [
 	'!build/win32/**'
 ];
 
-var indentationFilter = [
+const indentationFilter = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!**/*.md',
@@ -61,7 +63,7 @@ var indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace/**'
 ];
 
-var copyrightFilter = [
+const copyrightFilter = [
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
@@ -79,7 +81,7 @@ var copyrightFilter = [
 	'!extensions/markdown/media/tomorrow.css'
 ];
 
-var tslintFilter = [
+const tslintFilter = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/*.d.ts',
@@ -90,45 +92,38 @@ var tslintFilter = [
 	'!extensions/**/*.test.ts'
 ];
 
-var copyrightHeader = [
+const copyrightHeader = [
 	'/*---------------------------------------------------------------------------------------------',
 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
 ].join('\n');
 
-function failureReporter(failure) {
-	var name = failure.name || failure.fileName;
-	var position = failure.startPosition;
-	var line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
-	var character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+function reportFailures(failures) {
+	failures.forEach(failure => {
+		const name = failure.name || failure.fileName;
+		const position = failure.startPosition;
+		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
 
-	console.error(
-		name
-		+ ':' + (line + 1)
-		+ ':' + (character + 1)
-		+ ': ' + failure.failure
-	);
+		console.error(`${ name }:${ line + 1}:${ character + 1 }:${ failure.failure }`);
+	});
 }
 
-gulp.task('tslint', function () {
-	var options = { summarizeFailureOutput: true };
-
-	function reporter(failures) {
-		failures.forEach(failureReporter);
-	}
+gulp.task('tslint', () => {
+	const options = { summarizeFailureOutput: true };
 
 	return gulp.src(all, { base: '.' })
 		.pipe(filter(tslintFilter))
 		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(reporter, options));
+		.pipe(gulptslint.report(reportFailures, options));
 });
 
-var hygiene = exports.hygiene = function (some, options) {
+const hygiene = exports.hygiene = (some, options) => {
 	options = options || {};
-	var errorCount = 0;
+	let errorCount = 0;
 
-	var eol = es.through(function (file) {
+	const eol = es.through(function (file) {
 		if (/\r\n?/g.test(file.contents.toString('utf8'))) {
 			console.error(file.relative + ': Bad EOL found');
 			errorCount++;
@@ -137,11 +132,11 @@ var hygiene = exports.hygiene = function (some, options) {
 		this.emit('data', file);
 	});
 
-	var indentation = es.through(function (file) {
+	const indentation = es.through(function (file) {
 		file.contents
 			.toString('utf8')
 			.split(/\r\n|\r|\n/)
-			.forEach(function (line, i) {
+			.forEach((line, i) => {
 				if (/^\s*$/.test(line)) {
 					// empty or whitespace lines are OK
 				} else if (/^[\t]*[^\s]/.test(line)) {
@@ -157,7 +152,7 @@ var hygiene = exports.hygiene = function (some, options) {
 		this.emit('data', file);
 	});
 
-	var copyrights = es.through(function (file) {
+	const copyrights = es.through(function (file) {
 		if (file.contents.toString('utf8').indexOf(copyrightHeader) !== 0) {
 			console.error(file.relative + ': Missing or bad copyright statement');
 			errorCount++;
@@ -166,25 +161,23 @@ var hygiene = exports.hygiene = function (some, options) {
 		this.emit('data', file);
 	});
 
-	var tsl = es.through(function(file) {
-		var configuration = tslint.findConfiguration(null, '.');
-		var options = {
-			formatter: 'json',
-			configuration: configuration,
-			rulesDirectory: 'build/lib/tslint'
-		};
-		var contents = file.contents.toString('utf8');
-		var linter = new tslint(file.relative, contents, options);
-		var result = linter.lint();
+	const tsl = es.through(function(file) {
+		const configuration = tslint.findConfiguration(null, '.');
+		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const contents = file.contents.toString('utf8');
+		const linter = new tslint(file.relative, contents, options);
+		const result = linter.lint();
+
 		if (result.failureCount > 0) {
-			result.failures.forEach(failureReporter);
+			reportFailures(result.failures);
 			errorCount += result.failureCount;
 		}
+
 		this.emit('data', file);
 	});
 
 	return gulp.src(some || all, { base: '.' })
-		.pipe(filter(function (f) { return !f.stat.isDirectory(); }))
+		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(eolFilter))
 		.pipe(options.skipEOL ? es.through() : eol)
 		.pipe(filter(indentationFilter))
@@ -202,28 +195,27 @@ var hygiene = exports.hygiene = function (some, options) {
 		}));
 };
 
-gulp.task('hygiene', function () {
-	return hygiene();
-});
+gulp.task('hygiene', () => hygiene());
 
-// this allows us to run this as a git pre-commit hook
+// this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {
-	var cp = require('child_process');
-	cp.exec('git config core.autocrlf', function (err, out) {
-		var skipEOL = out.trim() === 'true';
+	const cp = require('child_process');
 
-		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, function (err, out) {
+	cp.exec('git config core.autocrlf', (err, out) => {
+		const skipEOL = out.trim() === 'true';
+
+		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, (err, out) => {
 			if (err) {
 				console.error();
 				console.error(err);
 				process.exit(1);
 			}
 
-			var some = out
+			const some = out
 				.split(/\r?\n/)
-				.filter(function (l) { return !!l; });
+				.filter(l => !!l);
 
-			hygiene(some, { skipEOL: skipEOL }).on('error', function (err) {
+			hygiene(some, { skipEOL: skipEOL }).on('error', err => {
 				console.error();
 				console.error(err);
 				process.exit(1);
