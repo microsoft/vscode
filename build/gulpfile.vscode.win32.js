@@ -9,7 +9,6 @@ const gulp = require('gulp');
 const path = require('path');
 const assert = require('assert');
 const cp = require('child_process');
-const _ = require('lodash');
 const util = require('./lib/util');
 const pkg = require('../package.json');
 const product = require('../product.json');
@@ -23,13 +22,12 @@ function packageInnoSetup(iss, options, cb) {
 	options = options || {};
 
 	const definitions = options.definitions || {};
-	const defs = _(definitions)
-		.forEach((value, key) => assert(typeof value === 'string', `Missing value for '${ key }' in Inno Setup package step`))
-		.map((value, key) => `/d${ key }=${ value }`)
-		.value();
+	const keys = Object.keys(definitions);
 
-	const args = [iss]
-		.concat(defs);
+	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${ key }' in Inno Setup package step`));
+
+	const defs = keys.map(key => `/d${ key }=${ definitions[key] }`);
+	const args = [iss].concat(defs);
 
 	cp.spawn(innoSetupPath, args, { stdio: 'inherit' })
 		.on('error', cb)
