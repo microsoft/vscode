@@ -44,6 +44,11 @@
 	z-index: -10;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
+}
+
 .monaco-workbench .panel.integrated-terminal .reverse-video { color: #1e1e1e; }
 .vs-dark .monaco-workbench .panel.integrated-terminal .reverse-video { color: #CCC; }
 .hc-black .monaco-workbench .panel.integrated-terminal .reverse-video { color: #FFF; }
