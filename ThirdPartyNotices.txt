@@ -16,7 +16,7 @@ This project incorporates components from the projects listed below. The origina
 9.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
 10.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
 11.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
-12.	ionide/ionide-fsharp (https://github.com/ionide/ionide-fsharp)
+12.	ionide/ionide-fsharp (https://github.com/ionide/ionide-atom-fsharp)
 13.	js-beautify version 1.6.2 (https://github.com/beautify-web/js-beautify)
 14.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 15.	language-docker (https://github.com/docker/docker)
