@@ -22,9 +22,6 @@ export class MockModeService implements IModeService {
 	configureModeById(modeId: string, options: any): void {
 		throw new Error('Not implemented');
 	}
-	configureAllModes(config:any): void {
-		throw new Error('Not implemented');
-	}
 	getConfigurationForMode(modeId:string): any {
 		throw new Error('Not implemented');
 	}

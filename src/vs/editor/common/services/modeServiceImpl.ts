@@ -192,7 +192,7 @@ export class ModeServiceImpl implements IModeService {
 		}
 	}
 
-	public configureAllModes(config:any): void {
+	protected _configureAllModes(config:any): void {
 		if (!config) {
 			return;
 		}
@@ -587,6 +587,9 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
+
+		// Update Languages
+		this._configureAllModes(configuration);
 
 		// Clear user configured mime associations
 		mime.clearTextMimes(true /* user configured */);

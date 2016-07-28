@@ -541,44 +541,33 @@ export class EditorConfiguration {
 	/**
 	 * Ask the provided configuration service to apply its configuration to the provided editor.
 	 */
-	public static apply(config:any, editor?:editorCommon.IEditor): void;
-	public static apply(config:any, editor?:editorCommon.IEditor[]): void;
-	public static apply(config:any, editorOrArray?:any): void {
+	public static apply(config: any, editor: editorCommon.IEditor): void {
 		if (!config) {
 			return;
 		}
 
-		let editors:editorCommon.IEditor[] = editorOrArray;
-		if (!Array.isArray(editorOrArray)) {
-			editors = [editorOrArray];
-		}
+		// Editor Settings (Code Editor, Diff, Terminal)
+		if (editor && typeof editor.updateOptions === 'function') {
+			let type = editor.getEditorType();
+			if (type !== editorCommon.EditorType.ICodeEditor && type !== editorCommon.EditorType.IDiffEditor) {
+				return;
+			}
 
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-
-			// Editor Settings (Code Editor, Diff, Terminal)
-			if (editor && typeof editor.updateOptions === 'function') {
-				let type = editor.getEditorType();
-				if (type !== editorCommon.EditorType.ICodeEditor && type !== editorCommon.EditorType.IDiffEditor) {
-					continue;
-				}
-
-				let editorConfig = config[EditorConfiguration.EDITOR_SECTION];
-				if (type === editorCommon.EditorType.IDiffEditor) {
-					let diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
-					if (diffEditorConfig) {
-						if (!editorConfig) {
-							editorConfig = diffEditorConfig;
-						} else {
-							editorConfig = objects.mixin(editorConfig, diffEditorConfig);
-						}
+			let editorConfig = config[EditorConfiguration.EDITOR_SECTION];
+			if (type === editorCommon.EditorType.IDiffEditor) {
+				let diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
+				if (diffEditorConfig) {
+					if (!editorConfig) {
+						editorConfig = diffEditorConfig;
+					} else {
+						editorConfig = objects.mixin(editorConfig, diffEditorConfig);
 					}
 				}
+			}
 
-				if (editorConfig) {
-					delete editorConfig.readOnly; // Prevent someone from making editor readonly
-					editor.updateOptions(editorConfig);
-				}
+			if (editorConfig) {
+				delete editorConfig.readOnly; // Prevent someone from making editor readonly
+				editor.updateOptions(editorConfig);
 			}
 		}
 	}
