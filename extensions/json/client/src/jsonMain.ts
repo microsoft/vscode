@@ -89,7 +89,7 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(disposable);
 
 		languages.setLanguageConfiguration('json', {
-			wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|(-?\d+\.?\d*([eE][+-]?\d*)?)|-|\w+/
+			wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/
 		});
 	});
 }
