@@ -17,7 +17,7 @@ export class EditorAccessor implements emmet.Editor {
 	editor: ICommonCodeEditor;
 	private _hasMadeEdits: boolean;
 
-	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'scss', 'stylus', 'xml', 'xsl', 'jade', 'pug', 'handlebars', 'ejs', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig'];
+	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'scss', 'stylus', 'xml', 'xsl', 'jade', 'handlebars', 'ejs', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig'];
 
 	constructor(editor: ICommonCodeEditor) {
 		this.editor = editor;
