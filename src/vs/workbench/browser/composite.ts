@@ -100,6 +100,12 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 		if (visible) {
 			this._telemetryData = {};
 			this._telemetryData.startTime = new Date();
+
+			// Only submit telemetry data when not running from an integration test
+			if (this._telemetryService && this._telemetryService.publicLog) {
+				let eventName: string = 'compositeOpen';
+				this._telemetryService.publicLog(eventName, { composite: this.getId() });
+			}
 		}
 
 		// Send telemetry data when composite hides
