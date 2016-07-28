@@ -87,7 +87,7 @@ var tslintFilter = [
 	'!src/vs/base/**/*.test.ts',
 	'!src/vs/languages/**/*.test.ts',
 	'!src/vs/workbench/**/*.test.ts',
-	'!extensions/**/*.test.ts',
+	'!extensions/**/*.test.ts'
 ];
 
 var copyrightHeader = [
@@ -171,7 +171,7 @@ var hygiene = exports.hygiene = function (some, options) {
 		var options = {
 			formatter: 'json',
 			configuration: configuration,
-			rulesDirectory: 'build/lib/tslint',
+			rulesDirectory: 'build/lib/tslint'
 		};
 		var contents = file.contents.toString('utf8');
 		var linter = new tslint(file.relative, contents, options);
