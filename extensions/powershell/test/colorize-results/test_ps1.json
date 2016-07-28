@@ -44,7 +44,7 @@
 		}
 	},
 	{
-		"c": "() ",
+		"c": "() {",
 		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -55,19 +55,8 @@
 		}
 	},
 	{
-		"c": "{",
-		"t": "meta.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
 		"c": "    ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -78,7 +67,7 @@
 	},
 	{
 		"c": "try",
-		"t": "control.keyword.meta.powershell.scriptblock",
+		"t": "control.keyword.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -89,7 +78,7 @@
 	},
 	{
 		"c": " {",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -100,7 +89,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -111,7 +100,7 @@
 	},
 	{
 		"c": "$",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -122,7 +111,7 @@
 	},
 	{
 		"c": "identity",
-		"t": "meta.other.powershell.readwrite.scriptblock.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -133,7 +122,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -144,7 +133,7 @@
 	},
 	{
 		"c": "=",
-		"t": "assignment.keyword.meta.operator.powershell.scriptblock",
+		"t": "assignment.keyword.operator.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -155,7 +144,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -165,41 +154,19 @@
 		}
 	},
 	{
-		"c": "[",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"c": "[Security.Principal.WindowsIdentity]",
+		"t": "attribute-name.entity.other",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "Security.Principal.WindowsIdentity",
-		"t": "entity.meta.name.powershell.scriptblock.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "]",
-		"t": "keyword.meta.other.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
 		"c": "::GetCurrent",
-		"t": "meta.method.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -210,7 +177,7 @@
 	},
 	{
 		"c": "()",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -221,7 +188,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -232,7 +199,7 @@
 	},
 	{
 		"c": "$",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -243,7 +210,7 @@
 	},
 	{
 		"c": "principal",
-		"t": "meta.other.powershell.readwrite.scriptblock.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -254,7 +221,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -265,7 +232,7 @@
 	},
 	{
 		"c": "=",
-		"t": "assignment.keyword.meta.operator.powershell.scriptblock",
+		"t": "assignment.keyword.operator.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -276,7 +243,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -287,7 +254,7 @@
 	},
 	{
 		"c": "New-Object",
-		"t": "command.function.meta.powershell.scriptblock.support",
+		"t": "function.powershell.support",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -297,8 +264,8 @@
 		}
 	},
 	{
-		"c": " Security.Principal.WindowsPrincipal",
-		"t": "command.meta.powershell.scriptblock",
+		"c": " Security.Principal.WindowsPrincipal ",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -308,19 +275,19 @@
 		}
 	},
 	{
-		"c": " -ArgumentList",
-		"t": "command.meta.parameter.powershell.scriptblock.variable",
+		"c": "-",
+		"t": "assignment.keyword.operator.powershell",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
 		}
 	},
 	{
-		"c": " ",
-		"t": "command.meta.powershell.scriptblock",
+		"c": "ArgumentList ",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -331,7 +298,7 @@
 	},
 	{
 		"c": "$",
-		"t": "command.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -342,7 +309,7 @@
 	},
 	{
 		"c": "identity",
-		"t": "command.meta.other.powershell.readwrite.scriptblock.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -353,7 +320,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -364,7 +331,7 @@
 	},
 	{
 		"c": "return",
-		"t": "control.keyword.meta.powershell.scriptblock",
+		"t": "control.keyword.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -375,7 +342,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -386,7 +353,7 @@
 	},
 	{
 		"c": "$",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -397,7 +364,7 @@
 	},
 	{
 		"c": "principal",
-		"t": "meta.other.powershell.readwrite.scriptblock.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -408,7 +375,40 @@
 	},
 	{
 		"c": ".IsInRole",
-		"t": "attribute-name.entity.meta.other.powershell.scriptblock",
+		"t": "entity.function.invocation.name.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "(",
+		"t": "keyword.other.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "interpolated.powershell.simple.source",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "[Security.Principal.WindowsBuiltInRole]",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
@@ -418,74 +418,8 @@
 		}
 	},
 	{
-		"c": "(",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "array.meta.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "[",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "Security.Principal.WindowsBuiltInRole",
-		"t": "array.entity.meta.name.powershell.scriptblock.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "]",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "::Administrator",
-		"t": "array.meta.method.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "array.meta.powershell.scriptblock",
+		"c": "::Administrator ",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -496,7 +430,7 @@
 	},
 	{
 		"c": ")",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -507,7 +441,7 @@
 	},
 	{
 		"c": "    } ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -518,7 +452,7 @@
 	},
 	{
 		"c": "catch",
-		"t": "control.keyword.meta.powershell.scriptblock",
+		"t": "control.keyword.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -529,7 +463,7 @@
 	},
 	{
 		"c": " {",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -540,7 +474,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -551,7 +485,7 @@
 	},
 	{
 		"c": "throw",
-		"t": "control.keyword.meta.powershell.scriptblock",
+		"t": "control.keyword.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -562,7 +496,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -573,7 +507,7 @@
 	},
 	{
 		"c": "\"Failed to determine if the current user has elevated privileges. The error was: '{0}'.\"",
-		"t": "double.meta.powershell.quoted.scriptblock.string",
+		"t": "double.powershell.quoted.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -584,7 +518,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -595,7 +529,7 @@
 	},
 	{
 		"c": "-f",
-		"t": "format.keyword.meta.operator.powershell.scriptblock",
+		"t": "keyword.operator.powershell.string-format",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -606,7 +540,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -616,19 +550,30 @@
 		}
 	},
 	{
-		"c": "$_",
-		"t": "constant.language.meta.powershell.scriptblock",
+		"c": "$",
+		"t": "keyword.other.powershell",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.language rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.language rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.language rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.language rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.language rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": "_",
+		"t": "automatic.constant.powershell.support",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "    }",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -639,7 +584,7 @@
 	},
 	{
 		"c": "}",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -694,7 +639,7 @@
 	},
 	{
 		"c": "{",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -705,7 +650,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -716,18 +661,18 @@
 	},
 	{
 		"c": "param",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"t": "control.keyword.powershell",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -738,7 +683,7 @@
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -749,7 +694,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "array.meta.powershell.scriptblock",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -759,41 +704,30 @@
 		}
 	},
 	{
-		"c": "[",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"c": "[Parameter",
+		"t": "entity.interpolated.name.powershell.simple.source.tag",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "Parameter",
-		"t": "array.entity.meta.name.powershell.scriptblock.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag rgb(128, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag rgb(128, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
 		"c": "Mandatory",
-		"t": "array.attribute-name.entity.meta.other.powershell.scriptblock",
+		"t": "attribute.attribute-name.constant.entity.interpolated.language.other.parameter.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
@@ -804,51 +738,62 @@
 	},
 	{
 		"c": "=",
-		"t": "array.assignment.keyword.meta.operator.powershell.scriptblock",
+		"t": "attribute.attribute-name.entity.interpolated.other.parameter.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
 		"c": "1",
-		"t": "array.constant.integer.meta.numeric.powershell.scriptblock",
+		"t": "attribute.attribute-name.entity.interpolated.other.parameter.powershell.simple.source.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.numeric rgb(181, 206, 168)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.numeric rgb(9, 136, 90)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.numeric rgb(181, 206, 168)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
-		"c": ")][",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"c": ")",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
-		"c": "string",
-		"t": "array.entity.meta.name.powershell.scriptblock.type",
+		"c": "]",
+		"t": "entity.interpolated.name.powershell.simple.source.tag",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag rgb(128, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag rgb(128, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag rgb(86, 156, 214)"
 		}
 	},
 	{
-		"c": "]$",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"c": "[string]",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
+		}
+	},
+	{
+		"c": "$",
+		"t": "interpolated.keyword.other.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -859,7 +804,7 @@
 	},
 	{
 		"c": "Command",
-		"t": "array.meta.other.powershell.readwrite.scriptblock.variable",
+		"t": "interpolated.other.powershell.readwrite.simple.source.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -870,7 +815,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "array.meta.powershell.scriptblock",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -881,7 +826,7 @@
 	},
 	{
 		"c": ")",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -892,7 +837,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -903,7 +848,7 @@
 	},
 	{
 		"c": "foreach",
-		"t": "control.keyword.meta.powershell.scriptblock",
+		"t": "control.keyword.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -914,7 +859,7 @@
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -924,19 +869,30 @@
 		}
 	},
 	{
-		"c": "$_",
-		"t": "array.constant.language.meta.powershell.scriptblock",
+		"c": "$",
+		"t": "interpolated.keyword.other.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.language rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.language rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.language rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.language rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.language rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": "_",
+		"t": "automatic.constant.interpolated.powershell.simple.source.support",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " ",
-		"t": "array.meta.powershell.scriptblock",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -947,7 +903,7 @@
 	},
 	{
 		"c": "in",
-		"t": "array.control.keyword.meta.powershell.scriptblock",
+		"t": "control.interpolated.keyword.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -958,7 +914,7 @@
 	},
 	{
 		"c": " cmd ",
-		"t": "array.meta.powershell.scriptblock",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -969,7 +925,7 @@
 	},
 	{
 		"c": "/",
-		"t": "array.keyword.meta.multiplicative.operator.powershell.scriptblock",
+		"t": "assignment.interpolated.keyword.operator.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -980,7 +936,7 @@
 	},
 	{
 		"c": "c ",
-		"t": "array.meta.powershell.scriptblock",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -991,7 +947,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "array.double.meta.powershell.quoted.scriptblock.string",
+		"t": "double.interpolated.powershell.quoted.simple.source.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1002,7 +958,7 @@
 	},
 	{
 		"c": "$",
-		"t": "array.double.keyword.meta.other.powershell.quoted.scriptblock.string",
+		"t": "double.interpolated.keyword.other.powershell.quoted.simple.source.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1013,7 +969,7 @@
 	},
 	{
 		"c": "Command",
-		"t": "array.double.meta.other.powershell.quoted.readwrite.scriptblock.string.variable",
+		"t": "double.interpolated.other.powershell.quoted.readwrite.simple.source.string.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -1024,7 +980,7 @@
 	},
 	{
 		"c": "  2>&1 & set\"",
-		"t": "array.double.meta.powershell.quoted.scriptblock.string",
+		"t": "double.interpolated.powershell.quoted.simple.source.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1035,7 +991,7 @@
 	},
 	{
 		"c": ")",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1046,7 +1002,7 @@
 	},
 	{
 		"c": " {",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1057,7 +1013,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1068,7 +1024,7 @@
 	},
 	{
 		"c": "if",
-		"t": "control.keyword.meta.powershell.scriptblock",
+		"t": "control.keyword.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -1079,7 +1035,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1090,7 +1046,7 @@
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1100,19 +1056,30 @@
 		}
 	},
 	{
-		"c": "$_",
-		"t": "array.constant.language.meta.powershell.scriptblock",
+		"c": "$",
+		"t": "interpolated.keyword.other.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.language rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.language rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.language rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.language rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.language rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": "_",
+		"t": "automatic.constant.interpolated.powershell.simple.source.support",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": " ",
-		"t": "array.meta.powershell.scriptblock",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1123,7 +1090,7 @@
 	},
 	{
 		"c": "-match",
-		"t": "array.comparison.keyword.meta.operator.powershell.scriptblock",
+		"t": "comparison.interpolated.keyword.operator.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -1134,7 +1101,7 @@
 	},
 	{
 		"c": " ",
-		"t": "array.meta.powershell.scriptblock",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1145,7 +1112,7 @@
 	},
 	{
 		"c": "'^([^=]+)=(.*)'",
-		"t": "array.meta.powershell.quoted.scriptblock.single.string",
+		"t": "interpolated.powershell.quoted.simple.single.source.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1156,7 +1123,7 @@
 	},
 	{
 		"c": ")",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1167,7 +1134,7 @@
 	},
 	{
 		"c": " {",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1178,7 +1145,7 @@
 	},
 	{
 		"c": "            ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1188,41 +1155,19 @@
 		}
 	},
 	{
-		"c": "[",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"c": "[System.Environment]",
+		"t": "attribute-name.entity.other",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "System.Environment",
-		"t": "entity.meta.name.powershell.scriptblock.type",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "]",
-		"t": "keyword.meta.other.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
 		"c": "::SetEnvironmentVariable",
-		"t": "meta.method.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1233,7 +1178,7 @@
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1243,30 +1188,41 @@
 		}
 	},
 	{
-		"c": "$matches",
-		"t": "array.constant.language.meta.powershell.scriptblock",
+		"c": "$",
+		"t": "interpolated.keyword.other.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.language rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.language rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.language rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.language rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.language rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": "matches",
+		"t": "automatic.constant.interpolated.powershell.simple.source.support",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "[",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
 		"c": "1",
-		"t": "array.constant.integer.meta.numeric.powershell.scriptblock",
+		"t": "constant.interpolated.numeric.powershell.scientific.simple.source.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
@@ -1277,18 +1233,29 @@
 	},
 	{
 		"c": "]",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
 		}
 	},
 	{
-		"c": ", ",
-		"t": "array.meta.powershell.scriptblock",
+		"c": ",",
+		"t": "interpolated.keyword.operator.other.powershell.simple.source",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1298,19 +1265,8 @@
 		}
 	},
 	{
-		"c": "$matches",
-		"t": "array.constant.language.meta.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.language rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.language rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.language rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.language rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.language rgb(86, 156, 214)"
-		}
-	},
-	{
-		"c": "[",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"c": "$",
+		"t": "interpolated.keyword.other.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1320,8 +1276,30 @@
 		}
 	},
 	{
+		"c": "matches",
+		"t": "automatic.constant.interpolated.powershell.simple.source.support",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "[",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
+		}
+	},
+	{
 		"c": "2",
-		"t": "array.constant.integer.meta.numeric.powershell.scriptblock",
+		"t": "constant.interpolated.numeric.powershell.scientific.simple.source.support",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.numeric rgb(181, 206, 168)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.numeric rgb(9, 136, 90)",
@@ -1331,8 +1309,19 @@
 		}
 	},
 	{
-		"c": "])",
-		"t": "array.keyword.meta.other.powershell.scriptblock",
+		"c": "]",
+		"t": "attribute-name.entity.interpolated.other.powershell.simple.source",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name rgb(156, 220, 254)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name rgb(255, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name rgb(156, 220, 254)"
+		}
+	},
+	{
+		"c": ")",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1343,7 +1332,7 @@
 	},
 	{
 		"c": "        }",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1354,7 +1343,7 @@
 	},
 	{
 		"c": "    }",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1365,7 +1354,7 @@
 	},
 	{
 		"c": "}",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1376,7 +1365,7 @@
 	},
 	{
 		"c": "Write-Host",
-		"t": "command.function.meta.powershell.support",
+		"t": "function.powershell.support",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1386,19 +1375,30 @@
 		}
 	},
 	{
-		"c": " -Object",
-		"t": "command.meta.parameter.powershell.variable",
+		"c": " ",
+		"t": "",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
-		"c": " ",
-		"t": "command.meta.powershell",
+		"c": "-",
+		"t": "assignment.keyword.operator.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": "Object ",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1409,7 +1409,7 @@
 	},
 	{
 		"c": "'Initializing Azure PowerShell environment...'",
-		"t": "command.meta.powershell.quoted.single.string",
+		"t": "powershell.quoted.single.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1420,13 +1420,13 @@
 	},
 	{
 		"c": ";",
-		"t": "command.meta.powershell",
+		"t": "keyword.other.powershell.statement-separator",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
 		}
 	},
 	{
@@ -1464,7 +1464,7 @@
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1475,18 +1475,18 @@
 	},
 	{
 		"c": "!",
-		"t": "array.meta.powershell",
+		"t": "interpolated.keyword.operator.powershell.simple.source.unary",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
 		}
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell",
+		"t": "interpolated.keyword.other.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1497,7 +1497,7 @@
 	},
 	{
 		"c": "Test-IsAdmin",
-		"t": "array.command.function.meta.powershell.support",
+		"t": "function.interpolated.powershell.simple.source.support",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1507,8 +1507,19 @@
 		}
 	},
 	{
-		"c": "))",
-		"t": "array.keyword.meta.other.powershell",
+		"c": ")",
+		"t": "interpolated.keyword.other.powershell.simple.source",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": ")",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1519,7 +1530,7 @@
 	},
 	{
 		"c": "{",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1530,7 +1541,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1541,7 +1552,7 @@
 	},
 	{
 		"c": "Write-Host",
-		"t": "command.function.meta.powershell.scriptblock.support",
+		"t": "function.powershell.support",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1551,19 +1562,30 @@
 		}
 	},
 	{
-		"c": " -Object",
-		"t": "command.meta.parameter.powershell.scriptblock.variable",
+		"c": " ",
+		"t": "",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
-		"c": " ",
-		"t": "command.meta.powershell.scriptblock",
+		"c": "-",
+		"t": "assignment.keyword.operator.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": "Object ",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1574,7 +1596,7 @@
 	},
 	{
 		"c": "'Please launch command under administrator account. It is needed for environment setting up and unit test.'",
-		"t": "command.meta.powershell.quoted.scriptblock.single.string",
+		"t": "powershell.quoted.single.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1584,19 +1606,8 @@
 		}
 	},
 	{
-		"c": " -ForegroundColor",
-		"t": "command.meta.parameter.powershell.scriptblock.variable",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " Red;",
-		"t": "command.meta.powershell.scriptblock",
+		"c": " ",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1606,8 +1617,41 @@
 		}
 	},
 	{
+		"c": "-",
+		"t": "assignment.keyword.operator.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": "ForegroundColor Red",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": ";",
+		"t": "keyword.other.powershell.statement-separator",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
 		"c": "}",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1629,13 +1673,13 @@
 	},
 	{
 		"c": "env:",
-		"t": "modifier.powershell.scope.storage",
+		"t": "drive.powershell.support.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
@@ -1684,7 +1728,7 @@
 	},
 	{
 		"c": "Split-Path",
-		"t": "command.function.meta.powershell.support",
+		"t": "function.powershell.support",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1694,19 +1738,52 @@
 		}
 	},
 	{
-		"c": " -Parent -Path",
-		"t": "command.meta.parameter.powershell.variable",
+		"c": " ",
+		"t": "",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
-		"c": " ",
-		"t": "command.meta.powershell",
+		"c": "-",
+		"t": "assignment.keyword.operator.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": "Parent ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "-",
+		"t": "assignment.keyword.operator.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": "Path ",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1717,7 +1794,7 @@
 	},
 	{
 		"c": "$",
-		"t": "command.keyword.meta.other.powershell",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1728,18 +1805,18 @@
 	},
 	{
 		"c": "env:",
-		"t": "command.meta.modifier.powershell.scope.storage",
+		"t": "drive.powershell.support.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "AzurePSRoot",
-		"t": "command.meta.other.powershell.readwrite.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -1750,13 +1827,13 @@
 	},
 	{
 		"c": ";",
-		"t": "command.meta.powershell",
+		"t": "keyword.other.powershell.statement-separator",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
 		}
 	},
 	{
@@ -1783,7 +1860,7 @@
 	},
 	{
 		"c": "(",
-		"t": "array.keyword.meta.other.powershell",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1794,7 +1871,7 @@
 	},
 	{
 		"c": "Test-Path",
-		"t": "array.command.function.meta.powershell.support",
+		"t": "function.interpolated.powershell.simple.source.support",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1804,19 +1881,30 @@
 		}
 	},
 	{
-		"c": " -Path",
-		"t": "array.command.meta.parameter.powershell.variable",
+		"c": " ",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
-		"c": " ",
-		"t": "array.command.meta.powershell",
+		"c": "-",
+		"t": "assignment.interpolated.keyword.operator.powershell.simple.source",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": "Path ",
+		"t": "interpolated.powershell.simple.source",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1827,7 +1915,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "array.command.double.meta.powershell.quoted.string",
+		"t": "double.interpolated.powershell.quoted.simple.source.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1838,7 +1926,7 @@
 	},
 	{
 		"c": "$",
-		"t": "array.command.double.keyword.meta.other.powershell.quoted.string",
+		"t": "double.interpolated.keyword.other.powershell.quoted.simple.source.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1849,18 +1937,18 @@
 	},
 	{
 		"c": "env:",
-		"t": "array.command.double.meta.modifier.powershell.quoted.scope.storage.string",
+		"t": "double.drive.interpolated.powershell.quoted.simple.source.string.support.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string rgb(206, 145, 120)"
 		}
 	},
 	{
 		"c": "ADXSDKProgramFiles",
-		"t": "array.command.double.meta.other.powershell.quoted.readwrite.string.variable",
+		"t": "double.interpolated.other.powershell.quoted.readwrite.simple.source.string.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -1871,7 +1959,7 @@
 	},
 	{
 		"c": "\\Microsoft Visual Studio 12.0\"",
-		"t": "array.command.double.meta.powershell.quoted.string",
+		"t": "double.interpolated.powershell.quoted.simple.source.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1882,7 +1970,7 @@
 	},
 	{
 		"c": ")",
-		"t": "array.keyword.meta.other.powershell",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1892,7 +1980,7 @@
 		}
 	},
 	{
-		"c": " ",
+		"c": " {",
 		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -1903,19 +1991,8 @@
 		}
 	},
 	{
-		"c": "{",
-		"t": "meta.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
 		"c": "    ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -1926,7 +2003,7 @@
 	},
 	{
 		"c": "$",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -1937,7 +2014,7 @@
 	},
 	{
 		"c": "vsVersion",
-		"t": "meta.other.powershell.readwrite.scriptblock.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -1948,7 +2025,7 @@
 	},
 	{
 		"c": "=",
-		"t": "assignment.keyword.meta.operator.powershell.scriptblock",
+		"t": "assignment.keyword.operator.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -1959,7 +2036,7 @@
 	},
 	{
 		"c": "\"12.0\"",
-		"t": "double.meta.powershell.quoted.scriptblock.string",
+		"t": "double.powershell.quoted.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -1969,18 +2046,7 @@
 		}
 	},
 	{
-		"c": "}",
-		"t": "meta.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " ",
+		"c": "} ",
 		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -2002,7 +2068,7 @@
 		}
 	},
 	{
-		"c": " ",
+		"c": " {",
 		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -2013,19 +2079,8 @@
 		}
 	},
 	{
-		"c": "{",
-		"t": "meta.powershell.scriptblock",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
 		"c": "    ",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -2036,7 +2091,7 @@
 	},
 	{
 		"c": "$",
-		"t": "keyword.meta.other.powershell.scriptblock",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -2047,7 +2102,7 @@
 	},
 	{
 		"c": "vsVersion",
-		"t": "meta.other.powershell.readwrite.scriptblock.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -2058,7 +2113,7 @@
 	},
 	{
 		"c": "=",
-		"t": "assignment.keyword.meta.operator.powershell.scriptblock",
+		"t": "assignment.keyword.operator.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -2069,7 +2124,7 @@
 	},
 	{
 		"c": "\"11.0\"",
-		"t": "double.meta.powershell.quoted.scriptblock.string",
+		"t": "double.powershell.quoted.string",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string rgb(206, 145, 120)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string rgb(163, 21, 21)",
@@ -2080,7 +2135,7 @@
 	},
 	{
 		"c": "}",
-		"t": "meta.powershell.scriptblock",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -2168,7 +2223,7 @@
 	},
 	{
 		"c": "-f",
-		"t": "format.keyword.operator.powershell",
+		"t": "keyword.operator.powershell.string-format",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
@@ -2201,13 +2256,13 @@
 	},
 	{
 		"c": "env:",
-		"t": "modifier.powershell.scope.storage",
+		"t": "drive.powershell.support.variable",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.modifier rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.modifier rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.modifier rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
@@ -2222,7 +2277,18 @@
 		}
 	},
 	{
-		"c": ", ",
+		"c": ",",
+		"t": "keyword.operator.other.powershell",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": " ",
 		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -2256,6 +2322,28 @@
 	},
 	{
 		"c": ";",
+		"t": "keyword.other.powershell.statement-separator",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
+		}
+	},
+	{
+		"c": "Invoke-Environment",
+		"t": "function.powershell.support",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " ",
 		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -2266,30 +2354,19 @@
 		}
 	},
 	{
-		"c": "Invoke-Environment",
-		"t": "command.function.meta.powershell.support",
+		"c": "-",
+		"t": "assignment.keyword.operator.powershell",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
 		}
 	},
 	{
-		"c": " -Command",
-		"t": "command.meta.parameter.powershell.variable",
-		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": " ",
-		"t": "command.meta.powershell",
+		"c": "Command ",
+		"t": "",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -2300,7 +2377,7 @@
 	},
 	{
 		"c": "$",
-		"t": "command.keyword.meta.other.powershell",
+		"t": "keyword.other.powershell",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
@@ -2311,7 +2388,7 @@
 	},
 	{
 		"c": "setVSEnv",
-		"t": "command.meta.other.powershell.readwrite.variable",
+		"t": "other.powershell.readwrite.variable",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable rgb(156, 220, 254)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable rgb(0, 16, 128)",
@@ -2322,13 +2399,13 @@
 	},
 	{
 		"c": ";",
-		"t": "command.meta.powershell",
+		"t": "keyword.other.powershell.statement-separator",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
 		}
 	}
 ]
