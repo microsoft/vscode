@@ -33,7 +33,7 @@ export class OpenerService implements IOpenerService {
 
 		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
 			// execute as command
-			let args: any;
+			let args: any = [];
 			try {
 				args = parse(query);
 				if (!Array.isArray(args)) {
@@ -49,16 +49,20 @@ export class OpenerService implements IOpenerService {
 				if (!model) {
 					return;
 				}
-				// support file:///some/file.js#L73
 				let selection: {
 					startLineNumber: number;
 					startColumn: number;
 				};
-				if (/^L\d+$/.test(fragment)) {
+				const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
+				if (match) {
+					// support file:///some/file.js#73,84
+					// support file:///some/file.js#L73
 					selection = {
-						startLineNumber: parseInt(fragment.substr(1)),
-						startColumn: 1
+						startLineNumber: parseInt(match[1]),
+						startColumn: match[2] ? parseInt(match[2]) : 1
 					};
+					// remove fragment
+					resource = resource.with({ fragment: '' });
 				}
 				return this._editorService.openEditor({ resource, options: { selection } });
 			});
