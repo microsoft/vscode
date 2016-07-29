@@ -76,7 +76,7 @@ import {IExtensionManagementService} from 'vs/platform/extensionManagement/commo
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 
 // self registering services
-import 'vs/platform/opener/electron-browser/opener.contribution';
+import 'vs/platform/opener/browser/opener.contribution';
 
 /**
  * Services that we require for the Shell
