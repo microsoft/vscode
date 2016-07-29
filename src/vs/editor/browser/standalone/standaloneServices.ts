@@ -19,6 +19,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
+import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -84,6 +85,10 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	commandService?:ICommandService;
+	/**
+	 * @internal
+	 */
+	openerService?:IOpenerService;
 	/**
 	 * @internal
 	 */

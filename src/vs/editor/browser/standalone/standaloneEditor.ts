@@ -18,6 +18,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {OpenerService} from 'vs/platform/opener/browser/openerService';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
@@ -59,6 +60,10 @@ export function create(domElement:HTMLElement, options?:IEditorConstructionOptio
 	if (!services || !services.editorService) {
 		editorService = new SimpleEditorService();
 		services.editorService = editorService;
+	}
+
+	if (!services.openerService) {
+		services.openerService = new OpenerService(editorService, services.commandService);
 	}
 
 	var t = prepareServices(domElement, services);

@@ -14,8 +14,8 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IEditorService, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -94,19 +94,19 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private computePromise:TPromise<void>;
 	private activeLinkDecorationId:string;
 	private lastMouseEvent:IEditorMouseEvent;
-	private editorService:IEditorService;
+	private openerService:IOpenerService;
 	private messageService:IMessageService;
 	private editorWorkerService: IEditorWorkerService;
 	private currentOccurences:{ [decorationId:string]:LinkOccurence; };
 
 	constructor(
 		editor:ICodeEditor,
-		@IEditorService editorService:IEditorService,
+		@IOpenerService openerService:IOpenerService,
 		@IMessageService messageService:IMessageService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		this.editor = editor;
-		this.editorService = editorService;
+		this.openerService = openerService;
 		this.messageService = messageService;
 		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
@@ -253,54 +253,22 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.openLinkOccurence(occurence, mouseEvent.event.altKey);
 	}
 
-	public openLinkOccurence(occurence:LinkOccurence, openToSide:boolean):void {
+	public openLinkOccurence(occurence: LinkOccurence, openToSide: boolean): void {
 
-		if (!this.editorService) {
+		if (!this.openerService) {
 			return;
 		}
 
-		var link = occurence.link;
-		var absoluteUrl = link.url;
-		var hashIndex = absoluteUrl.indexOf('#');
-		var lineNumber = -1;
-		var column = -1;
-		if (hashIndex >= 0) {
-			var hash = absoluteUrl.substr(hashIndex + 1);
-			var selection = hash.split(',');
-
-			if (selection.length > 0) {
-				lineNumber = Number(selection[0]);
-			}
-
-			if (selection.length > 1) {
-				column = Number(selection[1]);
-			}
-
-			if (lineNumber >= 0 || column >= 0) {
-				absoluteUrl = absoluteUrl.substr(0, hashIndex);
-			}
-		}
-
-		var url: URI;
+		let url: URI;
 		try {
-			url = URI.parse(absoluteUrl);
+			url = URI.parse(occurence.link.url);
 		} catch (err) {
 			// invalid url
-			this.messageService.show(Severity.Warning, nls.localize('invalid.url', 'Invalid URI: cannot open {0}', absoluteUrl));
+			this.messageService.show(Severity.Warning, nls.localize('invalid.url', 'Invalid URI: cannot open {0}', occurence.link.url));
 			return;
 		}
 
-		var input:IResourceInput = {
-			resource: url
-		};
-
-		if (lineNumber >= 0) {
-			input.options = {
-				selection: { startLineNumber: lineNumber, startColumn: column }
-			};
-		}
-
-		this.editorService.openEditor(input, openToSide).done(null, onUnexpectedError);
+		this.openerService.open(url, { openToSide }).done(null, onUnexpectedError);
 	}
 
 	public getLinkOccurence(position: editorCommon.IPosition): LinkOccurence {
