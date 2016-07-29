@@ -23,7 +23,7 @@ export class OpenerService implements IOpenerService {
 		//
 	}
 
-	open(resource: URI): TPromise<any> {
+	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any> {
 
 		const {scheme, path, query, fragment} = resource;
 		let promise: TPromise<any>;
@@ -64,7 +64,7 @@ export class OpenerService implements IOpenerService {
 					// remove fragment
 					resource = resource.with({ fragment: '' });
 				}
-				return this._editorService.openEditor({ resource, options: { selection } });
+				return this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
 			});
 		}
 
