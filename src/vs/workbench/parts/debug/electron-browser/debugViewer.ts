@@ -75,9 +75,12 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 		data.name.title = variable.type ? variable.type : '';
 	}
 
-	if (variable.value) {
+	if (variable.value || !variable.resolved) {
 		data.name.textContent += ':';
 		renderExpressionValue(variable, data.value, showChanged, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
+		if (!variable.resolved) {
+			data.value.textContent = '(...)';
+		}
 		data.value.title = variable.value;
 	} else {
 		data.value.textContent = '';
@@ -703,15 +706,22 @@ export class VariablesController extends BaseDebugController {
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
-		// double click on primitive value: open input box to be able to set the value
-		if (element instanceof model.Variable && event.detail === 2) {
-			const expression = <debug.IExpression>element;
-			if (expression.reference === 0) {
-				this.debugService.getViewModel().setSelectedExpression(expression);
+		if (element instanceof model.Variable) {
+			const variable = <model.Variable>element;
+			if (!variable.resolved) {
+				// Get the getter variable's value
+				this.debugService.getVariable(variable)
+					// if everything went fine we need to refresh that tree element since his value updated
+					.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+			} else if (event.detail === 2) {
+				// double click on primitive value: open input box to be able to set the value
+				if (variable.reference === 0) {
+					this.debugService.getViewModel().setSelectedExpression(variable);
+				}
+				return true;
 			}
-			return true;
 		}
-
+		
 		return super.onLeftClick(tree, element, event);
 	}
 

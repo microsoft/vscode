@@ -127,6 +127,10 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
+	public getVariable(variable: debug.IExpression): TPromise<any> {
+		return TPromise.as(null);
+	}
+
 	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
 		return TPromise.as(null);
 	}

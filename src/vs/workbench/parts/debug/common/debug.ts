@@ -356,6 +356,11 @@ export interface IDebugService {
 	appendReplOutput(value: string, severity?: severity): void;
 
 	/**
+	 * Get the value for the variable against the debug adapter.
+	 */
+	getVariable(variable: IExpression): TPromise<void>;
+
+	/**
 	 * Sets the value for the variable against the debug adapter.
 	 */
 	setVariable(variable: IExpression, value: string): TPromise<void>;
