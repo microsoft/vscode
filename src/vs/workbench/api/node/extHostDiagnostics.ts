@@ -10,6 +10,7 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import {MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape} from './extHost.protocol';
+import {Diagnostic} from './extHostTypes';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -98,9 +99,14 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 				// no more than 250 diagnostics per file
 				if (diagnostics.length > DiagnosticCollection._maxDiagnosticsPerFile) {
 					console.warn('diagnostics for %s will be capped to %d (actually is %d)', uri.toString(), DiagnosticCollection._maxDiagnosticsPerFile, diagnostics.length);
-					diagnostics = diagnostics.slice(0, DiagnosticCollection._maxDiagnosticsPerFile);
+					marker = [];
+					const sorted = diagnostics.slice(0).sort(Diagnostic.compare);
+					for (let i = 0; i < DiagnosticCollection._maxDiagnosticsPerFile; i++) {
+						marker.push(DiagnosticCollection._toMarkerData(sorted[i]));
+					}
+				} else {
+					marker = diagnostics.map(DiagnosticCollection._toMarkerData);
 				}
-				marker = diagnostics.map(DiagnosticCollection._toMarkerData);
 			}
 
 			entries.push([<URI> uri, marker]);
