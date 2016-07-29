@@ -7,8 +7,9 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
+import Severity from 'vs/base/common/severity';
 import {DiagnosticCollection} from 'vs/workbench/api/node/extHostDiagnostics';
-import {Diagnostic, Range} from 'vs/workbench/api/node/extHostTypes';
+import {Diagnostic, DiagnosticSeverity, Range} from 'vs/workbench/api/node/extHostTypes';
 import {MainThreadDiagnosticsShape} from 'vs/workbench/api/node/extHost.protocol';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
@@ -170,9 +171,18 @@ suite('ExtHostDiagnostics', () => {
 		});
 		let uri = URI.parse('aa:bb');
 
-		collection.set(uri, new Array(500).map((value, i) => new Diagnostic(new Range(i, 0, i + 1, 0), `error#${i}`)));
+		let diagnostics: Diagnostic[] = [];
+		for (let i = 0; i < 500; i++) {
+			diagnostics.push(new Diagnostic(new Range(i, 0, i + 1, 0), `error#${i}`, i < 300
+				? DiagnosticSeverity.Warning
+				: DiagnosticSeverity.Error));
+		}
+
+		collection.set(uri, diagnostics);
 		assert.equal(collection.get(uri).length, 500);
 		assert.equal(lastEntries.length, 1);
 		assert.equal(lastEntries[0][1].length, 250);
+		assert.equal(lastEntries[0][1][0].severity, Severity.Error);
+		assert.equal(lastEntries[0][1][200].severity, Severity.Warning);
 	});
 });
