@@ -110,8 +110,8 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 				'version': '{{1.0.0-*}}',
 				'dependencies': {},
 				'frameworks': {
-					'dnx451': {},
-					'dnxcore50': {}
+					'net461': {},
+					'netcoreapp1.0': {}
 				}
 			};
 			result.add({ kind: CompletionItemKind.Class, label: localize('json.project.default', 'Default project.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });

@@ -34,8 +34,8 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 				'version': '{{1.0.0-*}}',
 				'dependencies': {},
 				'frameworks': {
-					'dnx451': {},
-					'dnxcore50': {}
+					'net461': {},
+					'netcoreapp1.0': {}
 				}
 			};
 			result.add({ type: 'snippet', label: nls.localize('json.project.default', 'Default project.json'), codeSnippet: JSON.stringify(defaultValue, null, '\t'), documentationLabel: '' });
