@@ -104,6 +104,49 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
+	private getHoveredExpression(lineContent: string, range: Range) : Range {
+		let matchingExpression = undefined;
+		let startOffset = 0;
+
+		// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
+		// Match any character except a set of characters which often break interesting sub-expressions
+		let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+		let result = undefined;
+
+		// First find the full expression under the cursor
+		while (result = expression.exec(lineContent)) {
+			let start = result.index + 1;
+			let end = start + result[0].length;
+
+			if (start <= range.startColumn && end >= range.endColumn) {
+				matchingExpression = result[0];
+				startOffset = start;
+				break;
+			}
+		}
+
+		// If there are non-word characters after the cursor, we want to truncate the expression then.
+		// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
+		if (matchingExpression) {
+			let subExpression: RegExp = /\w+/g;
+			let subExpressionResult = undefined;
+			while (subExpressionResult = subExpression.exec(matchingExpression)) {
+				let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
+				if (subEnd >= range.endColumn) {
+					break;
+				}
+			}
+
+			if (subExpressionResult) {
+				matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
+			}
+		}
+
+		return matchingExpression ?
+			new Range(range.startLineNumber, startOffset, range.endLineNumber, startOffset + matchingExpression.length - 1) :
+			new Range(range.startLineNumber, 0, range.endLineNumber, 0);
+	}
+
 	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
@@ -116,48 +159,14 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		const canEvaluateForHovers: boolean = session.configuration.capabilities.supportsEvaluateForHovers;
 
 		const lineContent = model.getLineContent(pos.lineNumber);
-		let evaluatedExpression : TPromise<Expression> = undefined;
-		let matchingExpression: string = undefined;
-		let startOffset: number = 0;
+		let evaluatedExpression = undefined;
+		let matchingExpression = undefined;
+		let startOffset = 0;
+
 		if (canEvaluateForHovers) {
-			// If the debug adapter supports evaluation-based-hover, we need to try and guess what the expression under the mouse cursor is.
-			// Someday it might be nice if the language service could somehow provide this.
-			// But this code attempts to approximate the answer for a variety of languages.
-			// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
-
-			// Match any character except a set of characters which often break interesting sub-expressions
-			let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
-			let result: RegExpExecArray = undefined;
-
-			// First find the full expression under the cursor
-			while (result = expression.exec(lineContent)) {
-				let start = result.index + 1;
-				let end = start + result[0].length;
-
-				if (start <= range.startColumn && end >= range.endColumn) {
-					matchingExpression = result[0];
-					startOffset = start;
-					break;
-				}
-			}
-
-			// If there are non-word characters after the cursor, we want to truncate the expression then.
-			// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
-			if (matchingExpression) {
-				let subExpression: RegExp = /\w+/g;
-				let subExpressionResult: RegExpExecArray = undefined;
-				while (subExpressionResult = subExpression.exec(matchingExpression)) {
-					let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
-					if (subEnd >= range.endColumn) {
-						break;
-					}
-				}
-
-				if (subExpressionResult) {
-					matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
-				}
-			}
-
+			let expressionRange = this.getHoveredExpression(lineContent, range);
+			startOffset = expressionRange.startColumn;
+			let matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 			evaluatedExpression = this.getExpressionSupportingEvaluate(session, matchingExpression);
 		}
 		else {
