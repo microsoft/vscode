@@ -79,6 +79,9 @@ export function detectMimeAndEncodingFromBuffer({buffer, bytesRead}: stream.Read
 			}
 		}
 	}
+	if (isText && !enc) {
+		enc = encoding.detectEncodingByBuffer(buffer);
+	}
 
 	return {
 		mimes: isText ? [mime.MIME_TEXT] : [mime.MIME_BINARY],
