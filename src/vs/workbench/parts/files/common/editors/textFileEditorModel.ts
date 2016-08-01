@@ -23,10 +23,12 @@ import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ITelemetryService, anonymize} from 'vs/platform/telemetry/common/telemetry';
+import {Action} from 'vs/base/common/actions';
+import encoding = require('vs/base/node/encoding');
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -218,6 +220,24 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				children: void 0,
 			};
 			this.updateVersionOnDiskStat(resolvedStat);
+
+			if (!this.preferredEncoding && !this.contentEncoding && 0 < content.value.length) {
+				// Detect encoding from file
+				encoding.detectFileEncoding(this.resource.fsPath, Buffer.byteLength(content.value.lines.join('')), (err, detected) => {
+					if (detected && detected !== content.encoding) {
+						this.messageService.show(Severity.Info, {
+							message: `This file was opened with ${content.encoding}, but guess encoding is ${detected}.`,
+							actions: [
+								new Action('changeEncoding.with.detectedEncoding', `Reopen with ${detected}`, null, true, () => {
+									this.setEncoding(detected, EncodingMode.Decode);
+									return TPromise.as(true);
+								}),
+								CloseAction
+							]
+						});
+					}
+				});
+			}
 
 			// Keep the original encoding to not loose it when saving
 			const oldEncoding = this.contentEncoding;

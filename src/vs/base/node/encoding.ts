@@ -7,6 +7,7 @@
 
 import stream = require('vs/base/node/stream');
 import iconv = require('iconv-lite');
+import jschardet = require('jschardet');
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -84,5 +85,28 @@ export function detectEncodingByBOM(file: string, callback: (error: Error, encod
 		}
 
 		return callback(null, detectEncodingByBOMFromBuffer(buffer, bytesRead));
+	});
+}
+
+/**
+ * Detects the encoding from content.
+ * If detecting failed, `encoding` will be null.
+ */
+export function detectFileEncoding(file: string, totalBytes: number, callback: (error: Error, encoding: string) => void): void {
+	stream.readExactlyByFile(file, totalBytes, (err, buffer, bytesRead) => {
+		if (err) {
+			return callback(err, null);
+		}
+		let detected = jschardet.detect(buffer);
+		if (!detected || !detected.encoding) {
+			return callback(null, null);
+		}
+
+		// When a result was ascii or utf-N, will not return a guess encoding because it is detected by BOM.
+		let enc = detected.encoding.toLowerCase();
+		if (enc === 'ascii' || 0 <= enc.indexOf('utf')) {
+			return callback(null, null);
+		}
+		return callback(null, detected.encoding);
 	});
 }
