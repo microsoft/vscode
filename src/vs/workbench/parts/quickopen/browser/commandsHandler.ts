@@ -256,8 +256,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
 
 		let editorActions: EditorAction[] = [];
-		if (activeEditorControl && types.isFunction(activeEditorControl.getActions)) {
-			editorActions = activeEditorControl.getActions();
+		if (activeEditorControl && types.isFunction(activeEditorControl.getSupportedActions)) {
+			editorActions = activeEditorControl.getSupportedActions();
 		}
 
 		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);
@@ -319,12 +319,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let editorAction = <EditorAction>action;
-			if (!editorAction.isSupported()) {
-				continue; // do not show actions that are not supported in this context
-			}
-
-			let keys = this.keybindingService.lookupKeybindings(editorAction.id);
+			let keys = this.keybindingService.lookupKeybindings(action.id);
 			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
 			let label = action.label;

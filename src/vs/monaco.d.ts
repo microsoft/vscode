@@ -2889,6 +2889,10 @@ declare module monaco.editor {
          */
         getActions(): IAction[];
         /**
+         * Returns all actions associated with this editor.
+         */
+        getSupportedActions(): IAction[];
+        /**
          * Saves current view state of the editor in a serializable object.
          */
         saveViewState(): IEditorViewState;

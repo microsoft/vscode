@@ -24,7 +24,7 @@ import {EditorState} from 'vs/editor/common/core/editorState';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {DynamicEditorAction} from 'vs/editor/common/editorAction';
+import {EditorAction, DynamicEditorAction} from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
@@ -572,6 +572,13 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				result.push(<IAction>contribution);
 			}
 		}
+
+		return result;
+	}
+
+	public getSupportedActions(): IAction[] {
+		let result = this.getActions();
+		result = result.filter(action => (<EditorAction>action).isSupported());
 
 		return result;
 	}
