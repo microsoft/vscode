@@ -8,7 +8,7 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {addDisposableListener, addClass} from 'vs/base/browser/dom';
+import {addDisposableListener, addClass, EventType} from 'vs/base/browser/dom';
 import {isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 
@@ -88,6 +88,12 @@ export default class Webview {
 					this._webview.style.opacity = '';
 					return;
 				}
+			}),
+			addDisposableListener(this._webview, EventType.DRAG_OVER, (event: DragEvent) => {
+				event.stopImmediatePropagation();
+			}),
+			addDisposableListener(this._webview, EventType.DROP, (event: DragEvent) => {
+				event.stopImmediatePropagation();
 			})
 		];
 
