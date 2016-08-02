@@ -77,6 +77,7 @@
     "mocha": "^2.2.5",
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
+    "plist": "^1.2.0",
     "queue": "3.0.6",
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
