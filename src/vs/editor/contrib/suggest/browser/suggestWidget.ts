@@ -24,6 +24,7 @@ import { Context as SuggestContext } from '../common/suggest';
 import { CompletionItem, CompletionModel } from '../common/completionModel';
 import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from '../common/suggestModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -328,6 +329,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	constructor(
 		private editor: ICodeEditor,
 		private model: SuggestModel,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -607,6 +609,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.list.reveal(bestSuggestionIndex, 0);
 
 			this.setState(State.Open);
+			this.telemetryService.publicLog('suggestWidget', {
+				suggestionCount: visibleCount,
+				wasAutomaticallyTriggered: !!e.auto
+			});
 		}
 	}
 
