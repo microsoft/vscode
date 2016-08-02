@@ -68,31 +68,49 @@ suite('QuickOpen performance', () => {
 			return instantiationService.createInstance(descriptors[0])
 				.then((handler: QuickOpenHandler) => {
 					return handler.getResults('a').then(result => {
-						const events = telemetryService.events;
-						assert.strictEqual(events.length, 1);
-						const event = events[0];
-						events.length = 0;
-						assert.strictEqual(event.name, 'openAnything');
-						assert.ok(!event.data.fromCache);
-						return event;
+						const uncachedEvent = popEvent();
+						assert.ok(!uncachedEvent.data.fromCache);
+						return uncachedEvent;
+					}).then(uncachedEvent => {
+						return handler.getResults('ab').then(result => {
+							const cachedEvent = popEvent();
+							assert.ok(cachedEvent.data.fromCache);
+							return [uncachedEvent, cachedEvent];
+						});
 					});
 				});
+		}
+
+		function popEvent() {
+			const events = telemetryService.events;
+			assert.strictEqual(events.length, 1);
+			const event = events[0];
+			events.length = 0;
+			assert.strictEqual(event.name, 'openAnything');
+			return event;
 		}
 
 		return measure() // Warm-up first
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default
+					const cachedEvents: Timer.ITimerEvent[] = [];
 					let i = n;
 					return (function iterate() {
 						if (!i--) {
 							return;
 						}
 						return measure()
-							.then(event => {
-								console.log(JSON.stringify(event.data) + ',');
+							.then(([uncachedEvent, cachedEvent]) => {
+								console.log(JSON.stringify(uncachedEvent.data) + ',');
+								cachedEvents.push(cachedEvent);
 								return iterate();
 							});
-					})();
+					})().then(() => {
+						console.log();
+						cachedEvents.forEach(cachedEvent => {
+							console.log(JSON.stringify(cachedEvent.data) + ',');
+						});
+					});
 				}
 			});
 	});
