@@ -601,6 +601,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		return this.modifiedEditor.getActions();
 	}
 
+	public getSupportedActions(): IAction[] {
+		return this.modifiedEditor.getSupportedActions();
+	}
+
 	public getAction(id:string): IAction {
 		return this.modifiedEditor.getAction(id);
 	}

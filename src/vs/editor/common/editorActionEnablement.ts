@@ -12,7 +12,6 @@ export enum Behaviour {
 	WidgetFocus = 1 << 1,
 	Writeable = 1 << 2,
 	UpdateOnModelChange = 1 << 3,
-	UpdateOnConfigurationChange = 1 << 4,
 	UpdateOnCursorPositionChange = 1 << 6
 }
 

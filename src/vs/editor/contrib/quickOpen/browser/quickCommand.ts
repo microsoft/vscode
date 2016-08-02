@@ -12,7 +12,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
 
@@ -80,7 +79,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 	}
 
 	_getModel(value: string): QuickOpenModel {
-		return new QuickOpenModel(this._editorActionsToEntries(this.editor.getActions(), value));
+		return new QuickOpenModel(this._editorActionsToEntries(this.editor.getSupportedActions(), value));
 	}
 
 	_sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
@@ -96,13 +95,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let editorAction = <EditorAction>action;
-
-			if (!editorAction.isSupported()) {
-				continue; // do not show actions that are not supported in this context
-			}
-
-			let keys = this._keybindingService.lookupKeybindings(editorAction.id).map(k => this._keybindingService.getLabelFor(k));
+			let keys = this._keybindingService.lookupKeybindings(action.id).map(k => this._keybindingService.getLabelFor(k));
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);
