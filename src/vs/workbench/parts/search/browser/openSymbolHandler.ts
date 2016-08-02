@@ -47,7 +47,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 	public getDescription(): string {
 		let result = this._bearing.containerName;
-		if (!result) {
+		if (!result && this._bearing.resource) {
 			result = labels.getPathLabel(this._bearing.resource, this._contextService);
 		}
 		return result;

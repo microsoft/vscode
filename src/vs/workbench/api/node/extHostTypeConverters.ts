@@ -194,18 +194,18 @@ export function fromSymbolInformation(info: vscode.SymbolInformation): IWorkspac
 	return <IWorkspaceSymbol>{
 		name: info.name,
 		type: types.SymbolKind[info.kind || types.SymbolKind.Property].toLowerCase(),
-		range: fromRange(info.location.range),
-		resource: info.location.uri,
-		containerName: info.containerName
+		containerName: info.containerName,
+		range: info.location && fromRange(info.location.range),
+		resource: info.location && info.location.uri,
 	};
 }
 
 export function toSymbolInformation(bearing: IWorkspaceSymbol): types.SymbolInformation {
 	return new types.SymbolInformation(bearing.name,
 		types.SymbolKind[bearing.type.charAt(0).toUpperCase() + bearing.type.substr(1)],
-		toRange(bearing.range),
-		bearing.resource,
-		bearing.containerName);
+		bearing.containerName,
+		new types.Location(bearing.resource, toRange(bearing.range))
+	);
 }
 
 

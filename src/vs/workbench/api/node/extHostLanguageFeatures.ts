@@ -394,24 +394,49 @@ class OnTypeFormattingAdapter {
 	}
 }
 
+interface MyWorkspaceSymbol extends IWorkspaceSymbol {
+	idx: number;
+}
+
 class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 
 	private _provider: vscode.WorkspaceSymbolProvider;
+	private _cache: vscode.SymbolInformation[];
 
 	constructor(provider: vscode.WorkspaceSymbolProvider) {
 		this._provider = provider;
 	}
 
 	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]> {
+
+		this._cache = [];
+
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.fromSymbolInformation);
+				this._cache = value;
+				return value.map((item, idx) => {
+					const result = <MyWorkspaceSymbol>TypeConverters.fromSymbolInformation(item);
+					result.idx = idx;
+					return result;
+				});
 			}
 		});
 	}
 
 	resolveWorkspaceSymbol(item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
-		return TPromise.as(item);
+
+		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
+			return;
+		}
+
+		const idx = (<MyWorkspaceSymbol>item).idx;
+		if(typeof idx !== 'number') {
+			return;
+		}
+
+		return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(this._cache[idx], token)).then(value => {
+			return value && TypeConverters.fromSymbolInformation(value);
+		});
 	}
 }
 
