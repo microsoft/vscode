@@ -264,6 +264,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('pause', args);
 	}
 
+	public getVariable(args: DebugProtocol.GetVariableArguments): TPromise<DebugProtocol.GetVariableResponse> {
+		return this.send('getVariable', args);
+	}
+
 	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
 		return this.send('setVariable', args);
 	}

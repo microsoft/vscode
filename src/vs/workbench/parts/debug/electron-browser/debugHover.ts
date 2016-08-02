@@ -16,7 +16,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
+import {evaluateExpression, Expression, Variable} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
@@ -58,7 +58,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController(editor)
+			controller: new DebugHoverController(this.debugService, editor)
 		}, debugTreeOptions);
 
 		this.toDispose = [];
@@ -265,11 +265,21 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 class DebugHoverController extends DefaultController {
 
-	constructor(private editor: editorbrowser.ICodeEditor) {
+	constructor(private debugService: debug.IDebugService, private editor: editorbrowser.ICodeEditor) {
 		super();
 	}
 
 	/* protected */ public onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
+		if (element instanceof Variable) {
+			const variable = <Variable>element;
+			if (!variable.resolved) {
+				// Get the getter variable's value
+				this.debugService.getVariable(variable)
+					// if everything went fine we need to refresh that tree element since his value updated
+					.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+			}
+		}
+
 		if (element.reference > 0) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();

@@ -490,6 +490,27 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
+	public getVariable(variable: debug.IExpression): TPromise<any> {
+		if (!this.session || !(variable instanceof model.Variable)) {
+			return TPromise.as(null);
+		}
+
+		return this.session.getVariable({
+			name: variable.name,
+			variablesReference: (<model.Variable>variable).parent.reference
+		}).then(response => {
+			variable.value = response.body.value;
+			variable.reference = response.body.variablesReference;
+			(<model.Variable>variable).resolved = true;
+			return void 0;
+		}, err => {
+			// On error we show the errorMessage.
+			(<model.Variable>variable).value = err.message;
+			(<model.Variable>variable).resolved = true;
+			return void 0;
+		});
+	}
+
 	public setVariable(variable: debug.IExpression, value: string): TPromise<any> {
 		if (!this.session || !(variable instanceof model.Variable)) {
 			return TPromise.as(null);

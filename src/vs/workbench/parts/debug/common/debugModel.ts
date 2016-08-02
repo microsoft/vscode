@@ -290,7 +290,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			filter
 		}).then(response => {
 			return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-				v => new Variable(this, v.variablesReference, v.name, v.value, v.namedVariables, v.indexedVariables, v.type)
+				v => new Variable(this, v.variablesReference, v.name, v.value, v.namedVariables, v.indexedVariables, v.type, undefined, undefined, v.unsolved)
 			);
 		}, (e: Error) => [new Variable(this, 0, null, e.message, 0, 0, null, false)]);
 	}
@@ -326,6 +326,9 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
 
+	// Used to determine whether the variable has resolved
+	public resolved: boolean;
+
 	constructor(
 		public parent: debug.IExpressionContainer,
 		reference: number,
@@ -335,10 +338,12 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		indexedVariables: number,
 		public type: string = null,
 		public available = true,
-		chunkIndex = 0
+		chunkIndex = 0,
+		unsolved?: boolean
 	) {
 		super(reference, `variable:${ parent.getId() }:${ name }`, true, namedVariables, indexedVariables, chunkIndex);
 		this.value = massageValue(value);
+		this.resolved = !unsolved;
 	}
 }
 

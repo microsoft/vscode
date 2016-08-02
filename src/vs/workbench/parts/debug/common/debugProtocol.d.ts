@@ -538,6 +538,29 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** getVariable request; value of command field is "getVariable".
+		Get the variable with the given name in the variable container.
+	*/
+	export interface GetVariableRequest extends Request {
+		arguments: GetVariableArguments;
+	}
+	/** Arguments for "getVariable" request. */
+	export interface GetVariableArguments {
+		/** The reference of the variable container. */
+		variablesReference: number;
+		/** The name of the variable. */
+		name: string;
+	}
+	/** Response to "getVariable" request. */
+	export interface GetVariableResponse extends Response {
+		body: {
+			/** the value of the variable. */
+			value: string;
+			/** The reference of the variable. */
+			variablesReference: number;
+		};
+	}
+
 	/** setVariable request; value of command field is "setVariable".
 		Set the variable with the given name in the variable container to a new value.
 	*/
@@ -931,6 +954,8 @@ declare module DebugProtocol {
 		/** The number of indexed child variables in this scope.
 			The client can use this optional information to present the children in a paged UI and fetch them in chunks. */
 		indexedVariables?: number;
+		/** If unsolved is true, the variable need use `getVariable` function to get correct value */
+		unsolved?: boolean;
 	}
 
 	/** Properties of a breakpoint passed to the setBreakpoints request.
