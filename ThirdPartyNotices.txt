@@ -57,7 +57,7 @@ This project incorporates components from the projects listed below. The origina
 50.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
 51.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
 52.	typescript version 1.8.2 (https://github.com/Microsoft/TypeScript)
-53.	typescript-sublime-plugin version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+53.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
 54.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
 55.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
@@ -1759,7 +1759,7 @@ END OF TERMS AND CONDITIONS
 =========================================
 END OF typescript NOTICES AND INFORMATION
 
-%% typescript-sublime-plugin NOTICES AND INFORMATION BEGIN HERE
+%% TypeScript-TmLanguage NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) Microsoft Corporation.  All rights reserved.
 
@@ -1940,7 +1940,7 @@ Copyright (c) Microsoft Corporation.  All rights reserved.
 
    END OF TERMS AND CONDITIONS
 =========================================
-END OF typescript-sublime-plugin NOTICES AND INFORMATION
+END OF TypeScript-TmLanguage NOTICES AND INFORMATION
 
 %% unity-shader-files NOTICES AND INFORMATION BEGIN HERE
 =========================================
