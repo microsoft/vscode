@@ -19,7 +19,6 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -31,18 +30,16 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
-	private _onDidActiveViewletChange = new Emitter<IViewlet>();
-	onDidActiveViewletChange: Event<IViewlet> = this._onDidActiveViewletChange.event;
-
 	public _serviceBrand: any;
 
+	private _onDidViewletOpen = new Emitter<IViewlet>();
+	private _onDidViewletClose = new Emitter<IViewlet>();
 	private blockOpeningViewlet: boolean;
 
 	constructor(
 		id: string,
 		@IMessageService messageService: IMessageService,
 		@IStorageService storageService: IStorageService,
-		@IEventService eventService: IEventService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
@@ -52,7 +49,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		super(
 			messageService,
 			storageService,
-			eventService,
 			telemetryService,
 			contextMenuService,
 			partService,
@@ -65,6 +61,14 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			Scope.VIEWLET,
 			id
 		);
+	}
+
+	public get onDidViewletOpen(): Event<IViewlet> {
+		return this._onDidViewletOpen.event;
+	}
+
+	public get onDidViewletClose(): Event<IViewlet> {
+		return this._onDidViewletClose.event;
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
@@ -83,7 +87,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 
 		return this.openComposite(id, focus).then(composite => {
-			this._onDidActiveViewletChange.fire(composite as IComposite as IViewlet);
+			this._onDidViewletOpen.fire(composite as IComposite as IViewlet);
 			return composite;
 		});
 	}
@@ -97,7 +101,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	public hideActiveViewlet(): TPromise<void> {
-		return this.hideActiveComposite();
+		return this.hideActiveComposite().then(composite => this._onDidViewletClose.fire(composite as IComposite as IViewlet));
 	}
 }
 

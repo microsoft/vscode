@@ -14,21 +14,20 @@ import dom = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
-import { IEventService } from 'vs/platform/event/common/event';
-import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import { Panel } from 'vs/workbench/browser/panel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 
@@ -65,7 +64,7 @@ export class Repl extends Panel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IStorageService private storageService: IStorageService,
-		@IEventService private eventService: IEventService
+		@IPanelService private panelService: IPanelService
 	) {
 		super(debug.REPL_ID, telemetryService);
 
@@ -77,8 +76,8 @@ export class Repl extends Panel {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.onReplElementsUpdated();
 		}));
-		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
-			if (e.compositeId === debug.REPL_ID) {
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
+			if (panel.getId() === debug.REPL_ID) {
 				const elements = this.debugService.getModel().getReplElements();
 				if (elements.length > 0) {
 					return this.reveal(elements[elements.length - 1]);

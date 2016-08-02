@@ -13,21 +13,6 @@ import {Event} from 'vs/base/common/events';
 export class EventType {
 
 	/**
-	 * Event type for when a composite is about to open.
-	 */
-	static COMPOSITE_OPENING = 'compositeOpening';
-
-	/**
-	 * Event type for when a composite is opened.
-	 */
-	static COMPOSITE_OPENED = 'compositeOpened';
-
-	/**
-	 * Event type for when a composite is closed.
-	 */
-	static COMPOSITE_CLOSED = 'compositeClosed';
-
-	/**
 	 * Event type for when an untitled file is becoming dirty.
 	 */
 	static UNTITLED_FILE_DIRTY = 'untitledFileDirty';
@@ -63,19 +48,6 @@ export class OptionsChangeEvent extends Event {
 		this.key = key;
 		this.before = before;
 		this.after = after;
-	}
-}
-
-/**
- * Composite events are emitted when a composite opens or closes in the sidebar or panel.
- */
-export class CompositeEvent extends Event {
-	public compositeId: string;
-
-	constructor(compositeId: string, originalEvent?: any) {
-		super(originalEvent);
-
-		this.compositeId = compositeId;
 	}
 }
 

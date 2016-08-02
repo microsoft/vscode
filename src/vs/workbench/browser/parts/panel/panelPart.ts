@@ -8,6 +8,8 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {Action, IAction} from 'vs/base/common/actions';
+import Event, {Emitter} from 'vs/base/common/event';
+import {IComposite} from 'vs/workbench/common/composite';
 import {Builder} from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import {Registry} from 'vs/platform/platform';
@@ -21,7 +23,6 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -33,13 +34,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public static activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
 	public _serviceBrand: any;
+
+	private _onDidPanelOpen = new Emitter<IPanel>();
+	private _onDidPanelClose = new Emitter<IPanel>();
 	private blockOpeningPanel: boolean;
 
 	constructor(
 		id: string,
 		@IMessageService messageService: IMessageService,
 		@IStorageService storageService: IStorageService,
-		@IEventService eventService: IEventService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
@@ -49,7 +52,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		super(
 			messageService,
 			storageService,
-			eventService,
 			telemetryService,
 			contextMenuService,
 			partService,
@@ -62,6 +64,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			Scope.PANEL,
 			id
 		);
+	}
+
+	public get onDidPanelOpen(): Event<IPanel> {
+		return this._onDidPanelOpen.event;
+	}
+
+	public get onDidPanelClose(): Event<IPanel> {
+		return this._onDidPanelClose.event;
 	}
 
 	public create(parent: Builder): void {
@@ -90,7 +100,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus).then(composite => {
+			this._onDidPanelOpen.fire(composite as IComposite as IPanel);
+			return composite;
+		});
 	}
 
 	protected getActions(): IAction[] {
@@ -106,7 +119,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public hideActivePanel(): TPromise<void> {
-		return this.hideActiveComposite();
+		return this.hideActiveComposite().then(composite => this._onDidPanelClose.fire(composite as IComposite as IPanel));
 	}
 }
 

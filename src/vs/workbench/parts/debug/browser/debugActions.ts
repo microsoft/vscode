@@ -12,10 +12,8 @@ import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { EditorAction } from 'vs/editor/common/editorAction';
 import { Behaviour } from 'vs/editor/common/editorActionEnablement';
-import { IEventService } from 'vs/platform/event/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
@@ -770,8 +768,7 @@ export class ToggleReplAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IPartService private partService: IPartService,
 		@IPanelService private panelService: IPanelService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IEventService private eventService: IEventService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(id, label, 'debug-action toggle-repl', debugService, keybindingService);
 		this.enabled = this.debugService.state !== debug.State.Disabled;
@@ -794,8 +791,8 @@ export class ToggleReplAction extends AbstractDebugAction {
 				this.tooltip = nls.localize('unreadOutput', "New Output in Debug Console");
 			}
 		}));
-		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
-			if (e.compositeId === debug.REPL_ID) {
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
+			if (panel.getId() === debug.REPL_ID) {
 				this.class = 'debug-action toggle-repl';
 				this.tooltip = ToggleReplAction.LABEL;
 			}

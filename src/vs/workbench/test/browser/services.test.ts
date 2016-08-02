@@ -6,9 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
+import {IAction, IActionItem} from 'vs/base/common/actions';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
+import {IEditorControl} from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -30,11 +32,13 @@ import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {createMockModelService, TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/test/utils/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
+import {IPanel} from 'vs/workbench/common/panel';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -112,10 +116,14 @@ class TestEditorPart implements IEditorPart {
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
-	onDidActiveViewletChange = new Emitter<IViewlet>().event;
+	onDidViewletOpenEmitter = new Emitter<IViewlet>();
+	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
+
+	onDidViewletCloseEmitter = new Emitter<IViewlet>();
+	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): Promise {
-		return TPromise.as(null);
+		return TPromise.as(null).then();
 	}
 
 	public getActiveViewlet(): IViewlet {
@@ -124,15 +132,87 @@ class TestViewletService implements IViewletService {
 
 	public dispose() {
 	}
+
+}
+
+class TestPanelService implements IPanelService {
+	public _serviceBrand: any;
+
+	onDidPanelOpen = new Emitter<IPanel>().event;
+	onDidPanelClose = new Emitter<IPanel>().event;
+
+	public openPanel(id: string, focus?: boolean): Promise {
+		return TPromise.as(null);
+	}
+
+	public getActivePanel(): IViewlet {
+		return activeViewlet;
+	}
+
+	public dispose() {
+	}
+}
+
+class TestViewlet implements IViewlet {
+
+	constructor(private id: string) { }
+
+	getId(): string {
+		return this.id;
+	}
+
+	/**
+	 * Returns the name of this composite to show in the title area.
+	 */
+	getTitle(): string {
+		return this.id;
+	}
+
+	/**
+	 * Returns the primary actions of the composite.
+	 */
+	getActions(): IAction[] {
+		return [];
+	}
+
+	/**
+	 * Returns the secondary actions of the composite.
+	 */
+	getSecondaryActions(): IAction[] {
+		return [];
+	}
+
+	/**
+	 * Returns the action item for a specific action.
+	 */
+	getActionItem(action: IAction): IActionItem {
+		return null;
+	}
+
+	/**
+	 * Returns the underlying control of this composite.
+	 */
+	getControl(): IEditorControl {
+		return null;
+	}
+
+	/**
+	 * Asks the underlying control to focus.
+	 */
+	focus(): void {
+	}
+
+	getOptimalWidth(): number {
+		return 10;
+	}
 }
 
 class TestScopedService extends ScopedService {
 	public isActive: boolean;
 
-	constructor(eventService: IEventService) {
-		super(eventService, 'test.scopeId');
+	constructor(viewletService: IViewletService, panelService: IPanelService, scopeId: string) {
+		super(viewletService, panelService, scopeId);
 	}
-
 	public onScopeActivated() {
 		this.isActive = true;
 	}
@@ -404,22 +484,26 @@ suite('Workbench UI Services', () => {
 		delegate.openEditor(inp);
 	});
 
-	test('ScopedService', function () {
-		let eventService = new TestEventService();
-		let service = new TestScopedService(eventService);
-		assert(!service.isActive);
+	test('ScopedService', () => {
+		let viewletService = new TestViewletService();
+		let panelService = new TestPanelService();
+		let service = new TestScopedService(viewletService, panelService, 'test.scopeId');
+		const testViewlet = new TestViewlet('test.scopeId');
 
-		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+		assert(!service.isActive);
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 		assert(service.isActive);
 
-		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 		assert(!service.isActive);
+
 	});
 
 	test('WorkbenchProgressService', function () {
 		let testProgressBar = new TestProgressBar();
-		let eventService = new TestEventService();
-		let service = new WorkbenchProgressService(eventService, (<any>testProgressBar), 'test.scopeId', true);
+		let viewletService = new TestViewletService();
+		let panelService = new TestPanelService();
+		let service = new WorkbenchProgressService((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);
@@ -439,19 +523,20 @@ suite('Workbench UI Services', () => {
 		assert.strictEqual(true, testProgressBar.fDone);
 
 		// Inactive: Show (Infinite)
-		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+		const testViewlet = new TestViewlet('test.scopeId');
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 		service.show(true);
 		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(true, testProgressBar.fInfinite);
 
 		// Inactive: Show (Total / Worked)
-		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 		fn = service.show(100);
 		fn.total(80);
 		fn.worked(20);
 		assert.strictEqual(false, !!testProgressBar.fTotal);
-		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(20, testProgressBar.fWorked);
 		assert.strictEqual(80, testProgressBar.fTotal);
 
@@ -460,12 +545,12 @@ suite('Workbench UI Services', () => {
 		service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
-			eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+			viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 			p = TPromise.as(null);
 			service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 
-				eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+				viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 				assert.strictEqual(true, testProgressBar.fDone);
 			});
 		});
