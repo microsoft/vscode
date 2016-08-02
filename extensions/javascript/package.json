@@ -54,12 +54,12 @@
 			{
 				"language": "javascriptreact",
 				"scopeName": "source.js",
-				"path": "./syntaxes/JavaScript.tmLanguage"
+				"path": "./syntaxes/JavaScript.tmLanguage.json"
 			},
 			{
 				"language": "javascript",
 				"scopeName": "source.js",
-				"path": "./syntaxes/JavaScript.tmLanguage"
+				"path": "./syntaxes/JavaScript.tmLanguage.json"
 			},
 			{
 				"scopeName": "source.js.regexp",
