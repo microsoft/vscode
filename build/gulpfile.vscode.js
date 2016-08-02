@@ -141,6 +141,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
+			'!extensions/*/build/**',
 			'!extensions/*/{client,server}/src/**',
 			'!extensions/*/{client,server}/test/**',
 			'!extensions/*/{client,server}/out/**/test/**',
