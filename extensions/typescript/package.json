@@ -15,7 +15,8 @@
 		"vscode-nls": "^1.0.4"
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
+		"update-grammar": "node ./build/update-grammars.js"
 	},
 	"activationEvents": [
 		"onLanguage:javascript",
