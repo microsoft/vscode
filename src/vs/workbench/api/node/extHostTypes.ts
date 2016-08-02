@@ -628,11 +628,22 @@ export class SymbolInformation {
 	kind: SymbolKind;
 	containerName: string;
 
-	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string) {
+	constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
+	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
+	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | Range, locationOrUri?: Location | URI, containerName?: string) {
 		this.name = name;
 		this.kind = kind;
-		this.location = new Location(uri, range);
 		this.containerName = containerName;
+
+		if (typeof rangeOrContainer === 'string') {
+			this.containerName = rangeOrContainer;
+		}
+
+		if (locationOrUri instanceof Location) {
+			this.location = locationOrUri;
+		} else if(locationOrUri instanceof URI && rangeOrContainer instanceof Range) {
+			this.location = new Location(locationOrUri, rangeOrContainer);
+		}
 	}
 
 	toJSON(): any {
