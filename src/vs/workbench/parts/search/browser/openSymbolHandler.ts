@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
+import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QuickOpenModel, QuickOpenEntry} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {IAutoFocus/*, Mode, IEntryRunContext*/} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IAutoFocus, Mode, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import filters = require('vs/base/common/filters');
 import {Range} from 'vs/editor/common/core/range';
 import {EditorInput, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
@@ -18,18 +20,19 @@ import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ITypeBearing, INavigateTypesSupport, getNavigateToItems} from 'vs/workbench/parts/search/common/search';
+import {IWorkspaceSymbol, IWorkspaceSymbolProvider, getWorkspaceSymbols} from 'vs/workbench/parts/search/common/search';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
+	private _bearingResolve: TPromise<this>;
+
 	constructor(
-		private _bearing: ITypeBearing,
-		private _provider: INavigateTypesSupport,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		private _bearing: IWorkspaceSymbol,
+		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
 		super(editorService);
 	}
@@ -45,7 +48,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	public getDescription(): string {
 		let result = this._bearing.containerName;
 		if (!result) {
-			result = labels.getPathLabel(this._bearing.resourceUri, this._contextService);
+			result = labels.getPathLabel(this._bearing.resource, this._contextService);
 		}
 		return result;
 	}
@@ -54,9 +57,34 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return this._bearing.type;
 	}
 
+	public getResource(): URI {
+		return this._bearing.resource;
+	}
+
+	public run(mode: Mode, context: IEntryRunContext): boolean {
+
+		// resolve this type bearing if neccessary
+		if (!this._bearingResolve
+			&& typeof this._provider.resolveWorkspaceSymbol === 'function'
+			&& !this._bearing.range
+		) {
+
+			this._bearingResolve = this._provider.resolveWorkspaceSymbol(this._bearing).then(result => {
+				this._bearing = result || this._bearing;
+				return this;
+			}, onUnexpectedError);
+		}
+
+		TPromise.as(this._bearingResolve)
+			.then(_ => super.run(mode, context))
+			.done(undefined, onUnexpectedError);
+
+		return true;
+	}
+
 	public getInput(): IResourceInput | EditorInput {
 		let input: IResourceInput = {
-			resource: this._bearing.resourceUri,
+			resource: this._bearing.resource,
 			options: {
 				pinned: !this._configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
 			}
@@ -97,12 +125,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;
 
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IModeService private modeService: IModeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 
 		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY);
@@ -135,13 +158,24 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	}
 
 	private doGetResults(searchValue: string): TPromise<SymbolEntry[]> {
-		return getNavigateToItems(searchValue).then(bearings => {
-			return this.toQuickOpenEntries(bearings, searchValue);
+		return getWorkspaceSymbols(searchValue).then(tuples => {
+			const result: SymbolEntry[] = [];
+			for (const tuple of tuples) {
+				const [provider, bearings] = tuple;
+				this.fillInSymbolEntries(result, provider, bearings, searchValue);
+			}
+
+			// Sort (Standalone only)
+			if (!this.options.skipSorting) {
+				searchValue = searchValue.toLowerCase();
+				return result.sort((a, b) => SymbolEntry.compare(a, b, searchValue));
+			} else {
+				return result;
+			}
 		});
 	}
 
-	private toQuickOpenEntries(types: ITypeBearing[], searchValue: string): SymbolEntry[] {
-		const results: SymbolEntry[] = [];
+	private fillInSymbolEntries(bucket: SymbolEntry[], provider: IWorkspaceSymbolProvider, types: IWorkspaceSymbol[], searchValue: string): void {
 
 		// Convert to Entries
 		for (const element of types) {
@@ -150,18 +184,10 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 				continue; // ignore local symbols if we are told so
 			}
 
-			const entry = this.instantiationService.createInstance(SymbolEntry, element, undefined);
+			const entry = this.instantiationService.createInstance(SymbolEntry, element, provider);
 			entry.setHighlights(filters.matchesFuzzy(searchValue, entry.getLabel()));
-			results.push(entry);
+			bucket.push(entry);
 		}
-
-		// Sort (Standalone only)
-		if (!this.options.skipSorting) {
-			searchValue = searchValue.toLowerCase();
-			return results.sort((a, b) => SymbolEntry.compare(a, b, searchValue));
-		}
-
-		return results;
 	}
 
 	public getGroupLabel(): string {

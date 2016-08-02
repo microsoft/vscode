@@ -16,7 +16,7 @@ import * as modes from 'vs/editor/common/modes';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import {IWorkspaceSymbolProvider, IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 import {MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape} from './extHost.protocol';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
@@ -394,7 +394,7 @@ class OnTypeFormattingAdapter {
 	}
 }
 
-class NavigateTypeAdapter implements INavigateTypesSupport {
+class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 
 	private _provider: vscode.WorkspaceSymbolProvider;
 
@@ -402,12 +402,16 @@ class NavigateTypeAdapter implements INavigateTypesSupport {
 		this._provider = provider;
 	}
 
-	getNavigateToItems(search: string): TPromise<ITypeBearing[]> {
+	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]> {
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.fromSymbolInformation);
 			}
 		});
+	}
+
+	resolveWorkspaceSymbol(item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+		return TPromise.as(item);
 	}
 }
 
@@ -795,8 +799,12 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$getNavigateToItems(handle: number, search: string): TPromise<ITypeBearing[]> {
-		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.getNavigateToItems(search));
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
+	}
+
+	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
 	}
 
 	// --- rename

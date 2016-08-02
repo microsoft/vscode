@@ -30,7 +30,7 @@ import {getHover} from 'vs/editor/contrib/hover/common/hover';
 import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
-import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
+import {getWorkspaceSymbols} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {provideSuggestionItems} from 'vs/editor/contrib/suggest/common/suggest';
@@ -649,8 +649,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getNavigateToItems('').then(value => {
+			return getWorkspaceSymbols('').then(value => {
 				assert.equal(value.length, 1);
+				const [first] = value;
+				const [, symbols] = first;
+				assert.equal(symbols.length, 1);
+				assert.equal(symbols[0].name, 'testing');
 			});
 		});
 	});

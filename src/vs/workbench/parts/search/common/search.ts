@@ -15,24 +15,24 @@ import URI from 'vs/base/common/uri';
 /**
  * Interface used to navigate to types by value.
  */
-export interface ITypeBearing {
-	containerName: string;
+export interface IWorkspaceSymbol {
 	name: string;
-	parameters: string;
 	type: string;
+	containerName: string;
 	range: IRange;
-	resourceUri: URI;
+	resource: URI;
 }
 
-export interface INavigateTypesSupport {
-	getNavigateToItems: (search: string) => TPromise<ITypeBearing[]>;
+export interface IWorkspaceSymbolProvider {
+	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]>;
+	resolveWorkspaceSymbol?: (item: IWorkspaceSymbol) => TPromise<IWorkspaceSymbol>;
 }
 
-export namespace NavigateTypesSupportRegistry {
+export namespace WorkspaceSymbolProviderRegistry {
 
-	const _supports: INavigateTypesSupport[] = [];
+	const _supports: IWorkspaceSymbolProvider[] = [];
 
-	export function register(support: INavigateTypesSupport): IDisposable {
+	export function register(support: IWorkspaceSymbolProvider): IDisposable {
 
 		if (support) {
 			_supports.push(support);
@@ -51,26 +51,24 @@ export namespace NavigateTypesSupportRegistry {
 		};
 	}
 
-	export function all(): INavigateTypesSupport[] {
+	export function all(): IWorkspaceSymbolProvider[] {
 		return _supports.slice(0);
 	}
 }
 
-export function getNavigateToItems(query: string): TPromise<ITypeBearing[]> {
+export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
 
-	const promises = NavigateTypesSupportRegistry.all().map(support => {
-		return support.getNavigateToItems(query).then(value => value, onUnexpectedError);
-	});
+	const result: [IWorkspaceSymbolProvider, IWorkspaceSymbol[]][] = [];
 
-	return TPromise.join(promises).then(all => {
-		const result: ITypeBearing[] = [];
-		for (let bearings of all) {
-			if (Array.isArray(bearings)) {
-				result.push(...bearings);
+	const promises = WorkspaceSymbolProviderRegistry.all().map(support => {
+		return support.provideWorkspaceSymbols(query).then(value => {
+			if (Array.isArray(value)) {
+				result.push([support, value]);
 			}
-		}
-		return result;
+		}, onUnexpectedError);
 	});
+
+	return TPromise.join(promises).then(_ => result);
 }
 
 CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
@@ -78,5 +76,5 @@ CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', 
 	if (typeof query !== 'string') {
 		throw illegalArgument();
 	}
-	return getNavigateToItems(query);
+	return getWorkspaceSymbols(query);
 });
