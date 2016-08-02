@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {localize} from 'vs/nls';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import {MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape} from './extHost.protocol';
-import {Diagnostic} from './extHostTypes';
+import {DiagnosticSeverity} from './extHostTypes';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -98,12 +99,28 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 				// no more than 250 diagnostics per file
 				if (diagnostics.length > DiagnosticCollection._maxDiagnosticsPerFile) {
-					console.warn('diagnostics for %s will be capped to %d (actually is %d)', uri.toString(), DiagnosticCollection._maxDiagnosticsPerFile, diagnostics.length);
 					marker = [];
-					const sorted = diagnostics.slice(0).sort(Diagnostic.compare);
-					for (let i = 0; i < DiagnosticCollection._maxDiagnosticsPerFile; i++) {
-						marker.push(DiagnosticCollection._toMarkerData(sorted[i]));
+					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
+					orderLoop: for (let i = 0; i < 4; i++) {
+						for (const diagnostic of diagnostics) {
+							if (diagnostic.severity === order[i]) {
+								const len = marker.push(DiagnosticCollection._toMarkerData(diagnostic));
+								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {
+									break orderLoop;
+								}
+							}
+						}
 					}
+
+					// add 'signal' marker for showing omitted errors/warnings
+					marker.push({
+						severity: Severity.Error,
+						message: localize('limitHit', "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
+						startLineNumber: marker[marker.length - 1].startLineNumber,
+						startColumn: marker[marker.length - 1].startColumn,
+						endLineNumber: marker[marker.length - 1].endLineNumber,
+						endColumn: marker[marker.length - 1].endColumn
+					});
 				} else {
 					marker = diagnostics.map(DiagnosticCollection._toMarkerData);
 				}

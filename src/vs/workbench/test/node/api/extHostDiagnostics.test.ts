@@ -181,8 +181,9 @@ suite('ExtHostDiagnostics', () => {
 		collection.set(uri, diagnostics);
 		assert.equal(collection.get(uri).length, 500);
 		assert.equal(lastEntries.length, 1);
-		assert.equal(lastEntries[0][1].length, 250);
+		assert.equal(lastEntries[0][1].length, 251);
 		assert.equal(lastEntries[0][1][0].severity, Severity.Error);
 		assert.equal(lastEntries[0][1][200].severity, Severity.Warning);
+		assert.equal(lastEntries[0][1][250].severity, Severity.Error);
 	});
 });

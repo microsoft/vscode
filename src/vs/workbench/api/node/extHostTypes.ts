@@ -552,17 +552,6 @@ export class Diagnostic {
 			code: this.code,
 		};
 	}
-
-	static compare(a: vscode.Diagnostic, b: vscode.Diagnostic): number{
-		let ret = a.severity - b.severity;
-		if (ret === 0) {
-			ret = a.range.start.compareTo(b.range.start);
-		}
-		if (ret === 0) {
-			ret = a.message.localeCompare(b.message);
-		}
-		return ret;
-	}
 }
 
 export class Hover {
