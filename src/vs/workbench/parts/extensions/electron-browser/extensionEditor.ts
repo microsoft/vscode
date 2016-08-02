@@ -81,7 +81,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.highlightDisposable = empty;
 		this.disposables = [];
 
-		viewletService.onDidActiveViewletChange(this.onActiveViewletChange, this, this.disposables);
+		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
 
 	createEditor(parent: Builder): void {
@@ -200,7 +200,7 @@ export class ExtensionEditor extends BaseEditor {
 		return;
 	}
 
-	private onActiveViewletChange(viewlet: IViewlet): void {
+	private onViewletOpen(viewlet: IViewlet): void {
 		if (!viewlet || viewlet.getId() === VIEWLET_ID) {
 			return;
 		}

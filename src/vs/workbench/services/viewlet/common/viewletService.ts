@@ -14,7 +14,9 @@ export const IViewletService = createDecorator<IViewletService>('viewletService'
 export interface IViewletService {
 	_serviceBrand : ServiceIdentifier<any>;
 
-	onDidActiveViewletChange: Event<IViewlet>;
+	onDidViewletOpen: Event<IViewlet>;
+
+	onDidViewletClose: Event<IViewlet>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.

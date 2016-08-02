@@ -14,7 +14,7 @@ import errors = require('vs/base/common/errors');
 import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {/*CONTEXT,*/ ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
-import {CompositeEvent, EventType} from 'vs/workbench/common/events';
+import {IViewlet} from 'vs/workbench/common/viewlet';
 import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
@@ -22,7 +22,6 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IActivityService, IBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -45,7 +44,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 		@IViewletService private viewletService: IViewletService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEventService private eventService: IEventService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -61,28 +59,28 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.eventService.addListener2(EventType.COMPOSITE_OPENING, (e: CompositeEvent) => this.onCompositeOpening(e)));
+		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.onActiveViewletChanged(viewlet)));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.eventService.addListener2(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => this.onCompositeClosed(e)));
+		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onViewletClosed(viewlet)));
 	}
 
-	private onCompositeOpening(e: CompositeEvent): void {
-		if (this.viewletIdToActions[e.compositeId]) {
-			this.viewletIdToActions[e.compositeId].activate();
+	private onActiveViewletChanged(viewlet: IViewlet): void {
+		if (this.viewletIdToActions[viewlet.getId()]) {
+			this.viewletIdToActions[viewlet.getId()].activate();
 
 			// There can only be one active viewlet action
 			for (let key in this.viewletIdToActions) {
-				if (this.viewletIdToActions.hasOwnProperty(key) && key !== e.compositeId) {
+				if (this.viewletIdToActions.hasOwnProperty(key) && key !== viewlet.getId()) {
 					this.viewletIdToActions[key].deactivate();
 				}
 			}
 		}
 	}
 
-	private onCompositeClosed(e: CompositeEvent): void {
-		if (this.viewletIdToActions[e.compositeId]) {
-			this.viewletIdToActions[e.compositeId].deactivate();
+	private onViewletClosed(viewlet: IViewlet): void {
+		if (this.viewletIdToActions[viewlet.getId()]) {
+			this.viewletIdToActions[viewlet.getId()].deactivate();
 		}
 	}
 

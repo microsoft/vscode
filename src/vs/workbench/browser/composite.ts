@@ -8,7 +8,6 @@ import {Dimension, Builder} from 'vs/base/browser/builder';
 import {IAction, IActionRunner, ActionRunner} from 'vs/base/common/actions';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
-import {CompositeEvent} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IComposite} from 'vs/workbench/common/composite';
@@ -180,7 +179,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	 * gets visible.
 	 */
 	protected updateTitleArea(): void {
-		this.emit(EventType.INTERNAL_COMPOSITE_TITLE_AREA_UPDATE, new CompositeEvent(this.getId()));
+		this.emit(EventType.INTERNAL_COMPOSITE_TITLE_AREA_UPDATE, this.getId());
 	}
 
 	/**

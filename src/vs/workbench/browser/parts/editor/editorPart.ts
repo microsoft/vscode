@@ -354,7 +354,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Otherwise instantiate
-		const progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
+		const progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
 		const editorInstantiationService = this.sideBySideControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
@@ -379,7 +379,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
 		}
 
-		return instantiateEditorPromise;
+		return instantiateEditorPromise.then(result => {
+			progressService.dispose();
+			return result;
+		});
 	}
 
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {

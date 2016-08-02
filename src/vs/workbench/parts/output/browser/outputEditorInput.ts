@@ -14,8 +14,6 @@ import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService, MAX_OUTPUT_LENGTH, IOutputChannel} from 'vs/workbench/parts/output/common/output';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IEventService} from 'vs/platform/event/common/event';
-import {EventType, CompositeEvent} from 'vs/workbench/common/events';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 /**
@@ -49,8 +47,7 @@ export class OutputEditorInput extends StringEditorInput {
 		private outputChannel: IOutputChannel,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private outputService: IOutputService,
-		@IPanelService private panelService: IPanelService,
-		@IEventService private eventService: IEventService
+		@IPanelService private panelService: IPanelService
 	) {
 		super(nls.localize('output', "Output"), outputChannel ? nls.localize('outputChannel', "for '{0}'", outputChannel.label) : '', '', OUTPUT_MIME, true, instantiationService);
 
@@ -58,8 +55,8 @@ export class OutputEditorInput extends StringEditorInput {
 		this.toDispose = [];
 		this.toDispose.push(this.outputService.onOutput(this.onOutputReceived, this));
 		this.toDispose.push(this.outputService.onActiveOutputChannel(() => this.scheduleOutputAppend()));
-		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
-			if (e.compositeId === OUTPUT_PANEL_ID) {
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
+			if (panel.getId() === OUTPUT_PANEL_ID) {
 				this.appendOutput();
 			}
 		}));
