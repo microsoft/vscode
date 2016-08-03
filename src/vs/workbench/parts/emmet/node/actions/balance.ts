@@ -8,32 +8,29 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class BalanceInwardAction extends BasicEmmetEditorAction {
-
-	static ID = 'editor.emmet.action.balanceInward';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService, 'balance_inward');
+	constructor() {
+		super(
+			'editor.emmet.action.balanceInward',
+			nls.localize('balanceInward', "Emmet: Balance (inward)"),
+			'Emmet: Balance (inward)',
+			'balance_inward'
+		);
 	}
 }
 
 class BalanceOutwardAction extends BasicEmmetEditorAction {
-
-	static ID = 'editor.emmet.action.balanceOutward';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService, 'balance_outward');
+	constructor() {
+		super(
+			'editor.emmet.action.balanceOutward',
+			nls.localize('balanceOutward', "Emmet: Balance (outward)"),
+			'Emmet: Balance (outward)',
+			'balance_outward'
+		);
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BalanceInwardAction,
-	BalanceInwardAction.ID,
-	nls.localize('balanceInward', "Emmet: Balance (inward)"), void 0, 'Emmet: Balance (inward)'));
-
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BalanceOutwardAction,
-	BalanceOutwardAction.ID,
-	nls.localize('balanceOutward', "Emmet: Balance (outward)"), void 0, 'Emmet: Balance (outward)'));
+CommonEditorRegistry.registerEditorAction2(new BalanceInwardAction());
+CommonEditorRegistry.registerEditorAction2(new BalanceOutwardAction());

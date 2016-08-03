@@ -6,41 +6,39 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
-import * as emmet from 'emmet';
+import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ServicesAccessor, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 class UpdateTagAction extends EmmetEditorAction {
 
-	static ID = 'editor.emmet.action.updateTag';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
+	constructor() {
+		super(
+			'editor.emmet.action.updateTag',
+			nls.localize('updateTag', "Emmet: Update Tag"),
+			'Emmet: Update Tag'
+		);
 	}
 
-	public runEmmetAction(_emmet: typeof emmet) {
+	public runEmmetAction(accessor:ServicesAccessor, ctx: EmmetActionContext) {
+		const quickOpenService = accessor.get(IQuickOpenService);
+
 		let options: IInputOptions = {
 			prompt: nls.localize('enterTag', 'Enter Tag'),
 			placeHolder: nls.localize('tag', 'Tag')
 		};
-		this.quickOpenService.input(options).then(tag => {
-			this.wrapAbbreviation(_emmet, tag);
+
+		quickOpenService.input(options).then(tag => {
+			this.wrapAbbreviation(ctx, tag);
 		});
 	}
 
-	private wrapAbbreviation(_emmet: typeof emmet, tag) {
-		if (tag && !_emmet.run('update_tag', this.editorAccessor, tag)) {
-			this.noExpansionOccurred();
+	private wrapAbbreviation(ctx: EmmetActionContext, tag:string) {
+		if (tag && !ctx.emmet.run('update_tag', ctx.editorAccessor, tag)) {
+			this.noExpansionOccurred(ctx.editor);
 		}
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UpdateTagAction,
-	UpdateTagAction.ID,
-	nls.localize('updateTag', "Emmet: Update Tag"), void 0, 'Emmet: Update Tag'));
+CommonEditorRegistry.registerEditorAction2(new UpdateTagAction());

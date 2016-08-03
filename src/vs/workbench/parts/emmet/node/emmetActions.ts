@@ -6,9 +6,9 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {EditorAction2, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -85,33 +85,46 @@ class LazyEmmet {
 	}
 }
 
-export abstract class EmmetEditorAction extends EditorAction {
+export class EmmetActionContext {
+	editor: ICommonCodeEditor;
+	emmet: typeof emmet;
+	editorAccessor: EditorAccessor;
 
-	protected editorAccessor: EditorAccessor;
-	private configurationService: IConfigurationService = null;
+	constructor(editor: ICommonCodeEditor, _emmet: typeof emmet, editorAccessor: EditorAccessor) {
+		this.editor = editor;
+		this.emmet = _emmet;
+		this.editorAccessor = editorAccessor;
+	}
+}
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, configurationService: IConfigurationService) {
-		super(descriptor, editor, Behaviour.Writeable);
-		this.editorAccessor = new EditorAccessor(editor);
-		this.configurationService = configurationService;
+export abstract class EmmetEditorAction extends EditorAction2 {
+
+	constructor(id:string, label:string, alias:string) {
+		super(id, label, alias, true);
 	}
 
-	abstract runEmmetAction(_emmet: typeof emmet);
+	abstract runEmmetAction(accessor:ServicesAccessor, ctx:EmmetActionContext);
 
-	protected noExpansionOccurred() {
+	protected noExpansionOccurred(editor:ICommonCodeEditor) {
 		// default do nothing
 	}
 
-	public run(): TPromise<void> {
-		if (!this.editorAccessor.isEmmetEnabledMode()) {
-			this.noExpansionOccurred();
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		let editorAccessor = new EditorAccessor(editor);
+		if (!editorAccessor.isEmmetEnabledMode()) {
+			this.noExpansionOccurred(editor);
 			return ;
 		}
 
-		return LazyEmmet.withConfiguredEmmet(this.configurationService, (_emmet) => {
-			this.editorAccessor.onBeforeEmmetAction();
-			this.runEmmetAction(_emmet);
-			this.editorAccessor.onAfterEmmetAction();
+		return LazyEmmet.withConfiguredEmmet(configurationService, (_emmet) => {
+			editorAccessor.onBeforeEmmetAction();
+			instantiationService.invokeFunction((accessor) => {
+				this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
+			});
+			editorAccessor.onAfterEmmetAction();
 		});
 	}
 }
@@ -120,15 +133,14 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 
 	private emmetActionName: string;
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService, actionName: string) {
-		super(descriptor, editor, configurationService);
-		this.editorAccessor = new EditorAccessor(editor);
+	constructor(id:string, label:string, alias:string, actionName: string) {
+		super(id, label, alias);
 		this.emmetActionName = actionName;
 	}
 
-	public runEmmetAction(_emmet: typeof emmet) {
-		if (!_emmet.run(this.emmetActionName, this.editorAccessor)) {
-			this.noExpansionOccurred();
+	public runEmmetAction(accessor:ServicesAccessor, ctx:EmmetActionContext) {
+		if (!ctx.emmet.run(this.emmetActionName, ctx.editorAccessor)) {
+			this.noExpansionOccurred(ctx.editor);
 		}
 	}
 }

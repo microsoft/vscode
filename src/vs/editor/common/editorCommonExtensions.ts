@@ -7,6 +7,7 @@
 import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
@@ -374,17 +375,37 @@ export abstract class EditorAction2 {
 		return true;
 	}
 
-	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void;
+	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;
 }
 
 export let EditorKbExpr: {
 	TextFocus: KbExpr;
 	Focus: KbExpr;
+
 	ReadOnly: KbExpr;
 	Writable: KbExpr;
+
+	HasNonEmptySelection: KbExpr;
+	HasOnlyEmptySelection: KbExpr;
+
+	HasMultipleSelections: KbExpr;
+	HasSingleSelection: KbExpr;
+
+	TabMovesFocus: KbExpr;
+	TabDoesNotMoveFocus: KbExpr;
 } = {
 	TextFocus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 	Focus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS),
+
 	ReadOnly: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY),
 	Writable: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY),
+
+	HasNonEmptySelection: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
+	HasOnlyEmptySelection: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
+
+	HasMultipleSelections: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
+	HasSingleSelection: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
+
+	TabMovesFocus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
+	TabDoesNotMoveFocus: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
 };
