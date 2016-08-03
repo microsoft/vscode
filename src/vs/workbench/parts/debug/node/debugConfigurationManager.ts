@@ -5,32 +5,32 @@
 
 import path = require('path');
 import nls = require('vs/nls');
-import { sequence } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {sequence} from 'vs/base/common/async';
+import {TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
+import {isLinux, isMacintosh, isWindows} from 'vs/base/common/platform';
+import Event, {Emitter} from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
+import {Schemas} from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import editor = require('vs/editor/common/editorCommon');
 import extensionsRegistry = require('vs/platform/extensions/common/extensionsRegistry');
 import platform = require('vs/platform/platform');
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IFileService} from 'vs/platform/files/common/files';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
-import { ISystemVariables } from 'vs/base/common/parsers';
+import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {ConfigVariables} from 'vs/workbench/parts/lib/node/configVariables';
+import {ISystemVariables} from 'vs/base/common/parsers';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {

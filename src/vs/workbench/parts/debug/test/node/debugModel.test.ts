@@ -8,7 +8,7 @@ import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 import * as sinon from 'sinon';
-import { MockDebugService } from 'vs/workbench/parts/debug/test/common/mockDebugService';
+import {MockDebugService} from 'vs/workbench/parts/debug/test/common/mockDebugService';
 
 suite('Debug - Model', () => {
 	var model: debugmodel.Model;

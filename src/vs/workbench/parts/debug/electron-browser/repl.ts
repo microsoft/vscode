@@ -5,7 +5,7 @@
 
 import 'vs/css!./../browser/media/repl';
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import actions = require('vs/base/common/actions');
@@ -16,18 +16,18 @@ import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
+import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
-import { Panel } from 'vs/workbench/browser/panel';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import {Panel} from 'vs/workbench/browser/panel';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 

@@ -5,9 +5,9 @@
 
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
 	private session: MockRawSession;

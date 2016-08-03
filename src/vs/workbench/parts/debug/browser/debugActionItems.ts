@@ -5,11 +5,11 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction } from 'vs/base/common/actions';
-import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IAction} from 'vs/base/common/actions';
+import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IDebugService} from 'vs/workbench/parts/debug/common/debug';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export class DebugSelectActionItem extends SelectActionItem {
 

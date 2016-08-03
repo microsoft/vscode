@@ -7,23 +7,23 @@ import nls = require('vs/nls');
 import cp = require('child_process');
 import fs = require('fs');
 import net = require('net');
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
-import { Action } from 'vs/base/common/actions';
+import {Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import stdfork = require('vs/base/node/stdFork');
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
+import {IOutputService} from 'vs/workbench/parts/output/common/output';
+import {ExtensionsChannelId} from 'vs/platform/extensionManagement/common/extensionManagement';
 
-import { shell } from 'electron';
+import {shell} from 'electron';
 
 export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
 	body: {

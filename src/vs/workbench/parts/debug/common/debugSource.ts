@@ -5,7 +5,7 @@
 
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IModel } from 'vs/workbench/parts/debug/common/debug';
+import {IModel} from 'vs/workbench/parts/debug/common/debug';
 
 export class Source {
 

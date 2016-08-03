@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import { isMacintosh } from 'vs/base/common/platform';
+import {isMacintosh} from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import labels = require('vs/base/common/labels');
@@ -25,12 +25,12 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {CopyValueAction} from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
