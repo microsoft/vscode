@@ -10,6 +10,7 @@
 	"autoSaveDelay": "Steuert die Verzögerung in Millisekunden, nach der eine geänderte Datei automatisch gespeichert wird. Nur gültig, wenn \"files.autoSave\" auf \"{0}\" festgelegt ist.",
 	"binaryFileEditor": "Binärdatei-Editor",
 	"dynamicHeight": "Steuert, ob sich die Höhe des Abschnitts \"Geöffnete Editoren\" dynamisch an die Anzahl der Elemente anpassen soll.",
+	"enableDragAndDrop": "Steuert, ob der Explorer das Verschieben von Dateien und Ordnern mithilfe von Drag & Drop zulassen soll.",
 	"encoding": "Die Standardzeichensatz-Codierung, die beim Lesen und Schreiben von Dateien verwendet werden soll.",
 	"eol": "Das Zeilenende-Standardzeichen.",
 	"exclude": "Konfiguriert die Globmuster zum Ausschließen von Dateien und Ordnern.",

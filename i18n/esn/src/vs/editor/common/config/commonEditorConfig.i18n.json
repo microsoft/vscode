@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "Controla si las sugerencias deben aceptarse (\"Entrar\" además de \"TAB\"). Ayuda a evitar la ambigüedad entre insertar nuevas líneas o aceptar sugerencias.",
 	"autoClosingBrackets": "Controla si el editor debe cerrar automáticamente los corchetes después de abrirlos",
-	"cursorBlinking": "Controla la animación intermitente del cursor. Los valores aceptados son \"blink\", \"visible\" y \"hidden\".",
-	"cursorStyle": "Controla el estilo del cursor. Los valores aceptados son \"block\" y \"line\".",
+	"cursorBlinking": "Controlar el estilo de animación del cursor. Los valores posibles son \"blink\", \"smooth\", \"phase\", \"expand\" y \"solid\".",
+	"cursorStyle": "Controla el estilo del cursor. Los valores aceptados son \"block\", \"line\" y \"underline\".",
 	"detectIndentation": "Al abrir un archivo, se detectarán `editor.tabSize` y `editor.insertSpaces` en función del contenido del archivo.",
 	"editorConfigurationTitle": "Configuración del editor",
 	"folding": "Controla si el editor tiene habilitado el plegado de código.",
@@ -23,6 +23,7 @@
 	"lineHeight": "Controla la altura de línea.",
 	"lineNumbers": "Controla la visibilidad de los números de línea",
 	"mouseWheelScrollSensitivity": "Se utilizará un multiplicador en los eventos de desplazamiento de la rueda del mouse `deltaX` y `deltaY`",
+	"mouseWheelZoom": "Ampliar la fuente del editor cuando se use la rueda del mouse mientras se presiona Ctrl",
 	"overviewRulerLanes": "Controla el número de decoraciones que pueden aparecer en la misma posición en la regla de visión general",
 	"parameterHints": "Habilita sugerencias de parámetro",
 	"quickSuggestions": "Controla si van a aparecer sugerencias rápidas mientras se escribe",

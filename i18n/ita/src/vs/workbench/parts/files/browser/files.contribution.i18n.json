@@ -10,6 +10,7 @@
 	"autoSaveDelay": "Controlla il ritardo in ms dopo il quale un file modificato ma non salvato viene salvato automaticamente. Si applica solo quando \"files.autoSave\" è impostato su \"{0}\"",
 	"binaryFileEditor": "Editor file binari",
 	"dynamicHeight": "Controlla se l'altezza della sezione dei file di lavoro deve essere adattata o meno dinamicamente al numero di elementi.",
+	"enableDragAndDrop": "Controlla se Esplora risorse deve consentire lo spostamento di file e cartelle tramite trascinamento della selezione.",
 	"encoding": "Codifica del set di caratteri predefinita da usare durante la lettura e la scrittura di file.",
 	"eol": "Carattere di fine riga predefinito.",
 	"exclude": "Consente di configurare i criteri di ricerca GLOB per escludere file e cartelle.",
