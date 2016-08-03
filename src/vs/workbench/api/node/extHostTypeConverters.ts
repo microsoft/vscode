@@ -319,14 +319,14 @@ export namespace SignatureHelp {
 
 export namespace DocumentLink {
 
-	export function from(link: types.DocumentLink): modes.ILink {
+	export function from(link: vscode.DocumentLink): modes.ILink {
 		return {
 			range: fromRange(link.range),
 			url: link.target && link.target.toString()
 		};
 	}
 
-	export function to(link: modes.ILink):types.DocumentLink {
+	export function to(link: modes.ILink): vscode.DocumentLink {
 		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
 	}
 }

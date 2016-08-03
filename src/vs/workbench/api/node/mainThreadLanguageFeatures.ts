@@ -209,7 +209,10 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.LinkProviderRegistry.register(selector, <modes.LinkProvider>{
 			provideLinks: (model, token) => {
-				return wireCancellationToken(token, this._proxy.$providDocumentLinks(handle, model.uri));
+				return wireCancellationToken(token, this._proxy.$provideDocumentLinks(handle, model.uri));
+			},
+			resolveLink: (link, token) => {
+				return wireCancellationToken(token, this._proxy.$resolveDocumentLink(handle, link));
 			}
 		});
 		return undefined;
