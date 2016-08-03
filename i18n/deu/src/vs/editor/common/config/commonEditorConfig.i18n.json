@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "Steuert, ob Vorschläge über die EINGABETASTE (zusätzlich zur TAB-TASTE) angenommen werden sollen. Vermeidet Mehrdeutigkeit zwischen dem Einfügen neuer Zeilen oder dem Annehmen von Vorschlägen.",
 	"autoClosingBrackets": "Steuert, ob der Editor Klammern automatisch nach dem Öffnen schließt.",
-	"cursorBlinking": "Steuert das Blinken der Cursoranimation. Gültige Werte sind \"blink\", \"visible\" und \"hidden\".",
-	"cursorStyle": "Steuert den Cursorstil. Gültige Werte sind \"block\" und \"line\".",
+	"cursorBlinking": "Steuert den Cursoranimationsstil. Gültige Werte sind \"blink\", \"smooth\", \"phase\", \"expand\" und \"solid\".",
+	"cursorStyle": "Steuert den Cursorstil. Gültige Werte sind \"block\", \"line\" und \"underline\".",
 	"detectIndentation": "Beim Öffnen einer Datei werden \"editor.tabSize\" und \"editor.insertSpaces\" basierend auf den Dateiinhalten erkannt.",
 	"editorConfigurationTitle": "Editor",
 	"folding": "Steuert, ob für den Editor Codefaltung aktiviert ist.",
@@ -23,6 +23,7 @@
 	"lineHeight": "Steuert die Zeilenhöhe.",
 	"lineNumbers": "Steuert die Sichtbarkeit der Zeilennummern.",
 	"mouseWheelScrollSensitivity": "Ein Multiplikator, der für die Mausrad-Bildlaufereignisse \"deltaX\" und \"deltaY\" verwendet werden soll.",
+	"mouseWheelZoom": "Schriftart des Editors vergrößern, wenn das Mausrad verwendet und die STRG-TASTE gedrückt wird",
 	"overviewRulerLanes": "Steuert die Anzahl von Dekorationen, die an derselben Position im Übersichtslineal angezeigt werden.",
 	"parameterHints": "Aktiviert Parameterhinweise.",
 	"quickSuggestions": "Steuert, ob Schnellvorschläge während der Eingabe angezeigt werden.",

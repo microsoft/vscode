@@ -10,6 +10,7 @@
 	"autoSaveDelay": "控制延迟(以秒为单位)，在该延迟后将自动保存更新后的文件。仅在 \"files.autoSave\" 设置为“{0}”时适用。",
 	"binaryFileEditor": "二进制文件编辑器",
 	"dynamicHeight": "控制打开的编辑器部分的高度是否应动态适应元素数量。",
+	"enableDragAndDrop": "控制资源管理器是否应该允许通过拖放移动文件和文件夹。",
 	"encoding": "读取和编写文件时将使用的默认字符集编码。",
 	"eol": "默认行尾字符。",
 	"exclude": "配置 glob 模式以排除文件和文件夹。",

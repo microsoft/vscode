@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "控制除了 \"Tab\" 以外，是否还应在 \"Enter\" 时接受建议。帮助避免“插入新行”或“接受建议”之间的歧义。",
 	"autoClosingBrackets": "控制编辑器是否应该在左括号后自动插入右括号",
-	"cursorBlinking": "控制光标闪烁动画，接受的值为'blink'、'visible' 和 'hidden'",
-	"cursorStyle": "控制光标样式，接受的值为 'block' 和 'line'",
+	"cursorBlinking": "控制光标动画样式，可能的值为 \"blink\"、\"smooth\"、\"phase\"、\"expand\" 和 \"solid\"",
+	"cursorStyle": "控制光标样式，接受的值为 \"block\"、\"line\" 和 \"underline\"",
 	"detectIndentation": "当打开文件时，将基于文件内容检测 \"editor.tabSize\" 和 \"editor.insertSpaces\"。",
 	"editorConfigurationTitle": "编辑器配置",
 	"folding": "控制编辑器是否启用代码折叠功能",
@@ -23,6 +23,7 @@
 	"lineHeight": "控制行高。",
 	"lineNumbers": "控制行号的可见性",
 	"mouseWheelScrollSensitivity": "要对鼠标滚轮滚动事件的 \"deltaX\" 和 \"deltaY\" 使用的乘数 ",
+	"mouseWheelZoom": "通过使用鼠标滚轮同时按住 Ctrl 可缩放编辑器的字体",
 	"overviewRulerLanes": "控制可在概述标尺同一位置显示的效果数量",
 	"parameterHints": "启用参数提示",
 	"quickSuggestions": "控制键入时是否应显示快速建议",

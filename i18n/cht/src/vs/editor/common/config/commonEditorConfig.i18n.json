@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "控制除了 'Tab' 外，是否也藉由按下 'Enter' 接受建議。如此可避免混淆要插入新行或接受建議。",
 	"autoClosingBrackets": "控制編輯器是否應在左括號後自動插入右括號",
-	"cursorBlinking": "控制游標閃爍動畫，接受的值為 'blink'、'visible' 和 'hidden'",
-	"cursorStyle": "控制游標樣式，接受的值為 'block' 和 'line'",
+	"cursorBlinking": "控制游標動畫樣式，可能的值為 'blink'、'smooth'、'phase'、'expand' 和 'solid'",
+	"cursorStyle": "控制游標樣式，接受的值為 'block'、'line' 和 'underline'",
 	"detectIndentation": "開啟檔案時，會依據檔案內容來偵測 `editor.tabSize` 及 `editor.insertSpaces`。",
 	"editorConfigurationTitle": "編輯器組態",
 	"folding": "控制編輯器是否已啟用程式碼摺疊功能",
@@ -23,6 +23,7 @@
 	"lineHeight": "控制行高。",
 	"lineNumbers": "控制是否顯示行號",
 	"mouseWheelScrollSensitivity": "滑鼠滾輪捲動事件的 'deltaX' 與 'deltaY' 所使用的乘數",
+	"mouseWheelZoom": "使用滑鼠滾輪並按住 Ctrl 時，縮放編輯器的字型",
 	"overviewRulerLanes": "控制可在概觀尺規中相同位置顯示的裝飾項目數",
 	"parameterHints": "啟用參數提示",
 	"quickSuggestions": "控制輸入時是否應顯示快速建議",
