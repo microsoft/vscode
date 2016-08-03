@@ -544,13 +544,15 @@ export class Location {
 	uri: URI;
 	range: Range;
 
-	constructor(uri: URI, range: Range | Position) {
+	constructor(uri: URI, rangeOrPosition: Range | Position) {
 		this.uri = uri;
 
-		if (range instanceof Range) {
-			this.range = range;
-		} else if (range instanceof Position) {
-			this.range = new Range(range, range);
+		if (!rangeOrPosition) {
+			//that's OK
+		} else if (rangeOrPosition instanceof Range) {
+			this.range = rangeOrPosition;
+		} else if (rangeOrPosition instanceof Position) {
+			this.range = new Range(rangeOrPosition, rangeOrPosition);
 		} else {
 			throw new Error('Illegal argument');
 		}
@@ -663,11 +665,22 @@ export class SymbolInformation {
 	kind: SymbolKind;
 	containerName: string;
 
-	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string) {
+	constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
+	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
+	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | Range, locationOrUri?: Location | URI, containerName?: string) {
 		this.name = name;
 		this.kind = kind;
-		this.location = new Location(uri, range);
 		this.containerName = containerName;
+
+		if (typeof rangeOrContainer === 'string') {
+			this.containerName = rangeOrContainer;
+		}
+
+		if (locationOrUri instanceof Location) {
+			this.location = locationOrUri;
+		} else if (rangeOrContainer instanceof Range) {
+			this.location = new Location(<URI> locationOrUri, rangeOrContainer);
+		}
 	}
 
 	toJSON(): any {

@@ -1742,6 +1742,18 @@ declare namespace vscode {
 		 *
 		 * @param name The name of the symbol.
 		 * @param kind The kind of the symbol.
+		 * @param containerName The name of the symbol containing the symbol.
+		 * @param location The the location of the symbol.
+		 */
+		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
+
+		/**
+		 * @deprecated Please use the constructor taking a [location](#Location) object.
+		 *
+		 * Creates a new symbol information object.
+		 *
+		 * @param name The name of the symbol.
+		 * @param kind The kind of the symbol.
 		 * @param range The range of the location of the symbol.
 		 * @param uri The resource of the location of symbol, defaults to the current document.
 		 * @param containerName The name of the symbol containing the symbol.
@@ -1774,7 +1786,9 @@ declare namespace vscode {
 
 		/**
 		 * Project-wide search for a symbol matching the given query string. It is up to the provider
-		 * how to search given the query string, like substring, indexOf etc.
+		 * how to search given the query string, like substring, indexOf etc. To improve performance implementors can
+		 * skip the [location](#SymbolInformation.location) of symbols and implement `resolveWorkspaceSymbol` to do that
+		 * later.
 		 *
 		 * @param query A non-empty query string.
 		 * @param token A cancellation token.
@@ -1782,6 +1796,20 @@ declare namespace vscode {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideWorkspaceSymbols(query: string, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
+
+		/**
+		 * Given a symbol fill in its [location](#SymbolInformation.location). This method is called whenever a symbol
+		 * is selected in the UI. Providers can implement this method and return incomplete symbols from
+		 * [`provideWorkspaceSymbols`](#WorkspaceSymbolProvider.provideWorkspaceSymbols) which often helps to improve
+		 * performance.
+		 *
+		 * @param symbol The symbol that is to be resolved. Guaranteed to be an instance of an object returned from an
+		 * earlier call to `provideWorkspaceSymbols`.
+		 * @param token A cancellation token.
+		 * @return The resolved symbol or a thenable that resolves to that. When no result is returned,
+		 * the given `symbol` is used.
+		 */
+		resolveWorkspaceSymbol?: (symbol: SymbolInformation, token: CancellationToken) => SymbolInformation | Thenable<SymbolInformation>;
 	}
 
 	/**
@@ -3710,9 +3738,9 @@ declare namespace vscode {
 		/**
 		 * Register a workspace symbol provider.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Multiple providers can be registered. In that case providers are asked in parallel and
+		 * the results are merged. A failing provider (rejected promise or exception) will not cause
+		 * a failure of the whole operation.
 		 *
 		 * @param provider A workspace symbol provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.

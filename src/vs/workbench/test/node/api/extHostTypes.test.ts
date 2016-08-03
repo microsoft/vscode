@@ -409,4 +409,11 @@ suite('ExtHostTypes', function () {
 		assertToJSON(item, { label: 'complete', kind: 'Interface' });
 
 	});
+
+	test('SymbolInformation, old ctor', function () {
+
+		let info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
+		assert.ok(info.location instanceof types.Location);
+		assert.equal(info.location.uri, undefined);
+	});
 });
