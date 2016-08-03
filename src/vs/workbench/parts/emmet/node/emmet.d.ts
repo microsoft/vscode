@@ -11,13 +11,49 @@ declare module 'emmet' {
 	}
 
 	export interface Preferences {
-		set(key:string, value: string);
-		define(key:string, value: string);
-		remove(key:string);
+		reset();
 	}
 
 	export interface Profiles {
 		reset();
+	}
+
+	export interface File {
+		/**
+		 * Locate <code>file_name</code> file that relates to <code>editor_file</code>.
+		 * File name may be absolute or relative path
+		 *
+		 * @param {String} parent
+		 * @param {String} filename
+		 * @return {String} Returns null if <code>filename</code> cannot be located
+		 */
+		locateFile(parent: string, filename: string, callback: any): void;
+
+		/**
+		 * Creates absolute path by concatenating <code>parent</code> and <code>filename</code>.
+		 * If <code>parent</code> points to file, its parent directory is used
+		 *
+		 * @param {String} parent
+		 * @param {String} filename
+		 * @return {String}
+		 */
+		createPath(parent: string, filename: string, callback: any): void;
+
+		/**
+		 * Reads binary file content and return it
+		 *
+		 * @param {String} path File's relative or absolute path
+		 * @return {String}
+		 */
+		read(path: string, callback: any): void;
+
+		/**
+		 * Saves <code>content</code> as <code>file</code>
+		 *
+		 * @param {String} file File's absolute path
+		 * @param {String} content File content
+		 */
+		save(file: string, content: string, callback: any): void;
 	}
 
 	export interface Editor {
@@ -150,5 +186,18 @@ declare module 'emmet' {
 
 	export const profile: Profiles;
 
-	export function loadProfiles(profiles: any);
+	/**
+	 * Extends the standard set of methods for working with files
+	 */
+	export function file(io: File): void;
+
+	/**
+	 * Loads preferences from JSON object
+	 */
+	export function loadPreferences(preferences: any): void;
+
+	/**
+	 * Loads named profiles from JSON object
+	 */
+	export function loadProfiles(profiles: any): void;
 }

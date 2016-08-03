@@ -9,10 +9,10 @@ import nls = require('vs/nls');
 
 import * as emmet from 'emmet';
 import {fileExists} from 'vs/base/node/pfs';
-import fs = require('fs');
-import {dirname, join, normalize, isValidBasename} from 'vs/base/common/paths';
+import {normalize, isValidBasename, isEqualOrParent} from 'vs/base/common/paths';
 
 import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
+import {FileAccessor, getFullPath} from 'vs/workbench/parts/emmet/node/fileAccessor';
 import {Action} from 'vs/base/common/actions';
 
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -27,25 +27,18 @@ import {IFileService} from 'vs/platform/files/common/files';
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	static ID = 'editor.emmet.action.encodeDecodeDataUrl';
+
+	protected fileAccessor: FileAccessor = null;
 	private imageFilePath: string = null;
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContext: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService) {
 		super(descriptor, editor, configurationService);
 	}
-
-	private createPath(parent: string, fileName: string): string {
-		// TO DO replace with IFileService
-		var stat = fs.statSync(parent);
-		if (stat && !stat.isDirectory()) {
-			parent = dirname(parent);
-		}
-		return join(parent, fileName);
-	};
 
 	public runEmmetAction(_emmet: typeof emmet) {
 		const currentLine = this.editorAccessor.getCurrentLine();
@@ -54,7 +47,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			return;
 		}
 
-		if (!this.workspaceContext.getWorkspace()) {
+		if (!this.contextService.getWorkspace()) {
 			const message = nls.localize('noWorkspace', "Decoding a data:URL image is only available inside a workspace folder.");
 			this.messageService.show(Severity.Info, message);
 			return;
@@ -67,21 +60,29 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 		const quickPromise = this.quickOpenService.input(options)
 			.then(path => {
-				if (!this.isValidInput(path)) {
+				if (path === undefined) {
+					quickPromise.cancel();
+				}
+
+				// The full path to a new file relative an open file in the editor
+				const editorFile = this.editorAccessor.getFilePath();
+				const fullpath = getFullPath(editorFile, path);
+
+				if (!this.isValidInput(path, fullpath)) {
 					quickPromise.cancel();
 				}
 
 				this.imageFilePath = path;
-				const fullpath = this.createPath(this.editorAccessor.getFilePath(), path);
 				return fileExists(fullpath);
 			})
-			.then(status => {
-				if (!status) {
+			.then(fileExist => {
+				if (!fileExist) {
 					this.encodeDecode(_emmet, this.imageFilePath);
 					return;
 				}
 
-				const message = nls.localize('warnEscalation', "File **{0}** already exists.  Do you want to overwrite the existing file?", this.imageFilePath);
+				// If a file with the same name and location specified by path exists, give the user a choice
+				const message = nls.localize('warnEscalation', "File **{0}** already exists. Do you want to overwrite the existing file?", this.imageFilePath);
 				const actions = [
 					new Action('cancel', nls.localize('cancel', "Cancel"), '', true),
 					new Action('ok', nls.localize('ok', "OK"), '', true, () => {
@@ -93,18 +94,24 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			});
 	}
 
-	public encodeDecode(_emmet: any, filepath?: string) {
-		this.editorAccessor.prompt = (): string => {
-			return filepath;
-		};
+	public encodeDecode(_emmet: typeof emmet, filepath?: string) {
+		// Create layer for working with files only when it is needed
+		this.fileAccessor = new FileAccessor(this.messageService, this.fileService);
 
-		if (!_emmet.run('encode_decode_data_url', this.editorAccessor)) {
+		// Setting layer Emmet for working with files
+		_emmet.file(this.fileAccessor.listOfMethods);
+
+		if (!_emmet.run('encode_decode_data_url', this.editorAccessor, filepath)) {
 			this.noExpansionOccurred();
 		}
 	}
 
-	private isValidInput(input: any): boolean {
-		if (input === undefined) {
+	private isValidInput(input: any, fullpath: string): boolean {
+		// If the user wants to save a file outside the current workspace
+		const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;
+		if (!isEqualOrParent(fullpath, workspaceRoot)) {
+			const message = nls.localize('outsideOfWorkspace', "The path **{0}** is located outside the current workspace.", input);
+			this.messageService.show(Severity.Error, message);
 			return false;
 		}
 
@@ -123,7 +130,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		}
 
 		if (!isValidFilePath) {
-			const message = nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", input);
+			const message = nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file name. Please choose a different name.", input);
 			this.messageService.show(Severity.Error, message);
 			return false;
 		}
