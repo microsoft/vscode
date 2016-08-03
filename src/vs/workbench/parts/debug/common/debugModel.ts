@@ -800,12 +800,6 @@ export class Model implements debug.IModel {
 	}
 
 	public dispose(): void {
-		this.threads = null;
-		this.breakpoints = null;
-		this.exceptionBreakpoints = null;
-		this.functionBreakpoints = null;
-		this.watchExpressions = null;
-		this.replElements = null;
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
