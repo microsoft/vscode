@@ -680,7 +680,6 @@ export class OneCursorOp {
 		let inSelectionMode = !!moveParams.select;
 		let validatedViewPosition = cursor.getValidViewPosition();
 		let viewLineNumber = validatedViewPosition.lineNumber;
-		let noOfLines = moveParams.isPaged ? (moveParams.pageSize || cursor.getPageSize()) : moveParams.value;
 		let viewColumn;
 		switch (moveParams.to) {
 			case editorCommon.CursorMovePosition.Left:
@@ -688,15 +687,9 @@ export class OneCursorOp {
 			case editorCommon.CursorMovePosition.Right:
 				return this.moveRight(cursor, inSelectionMode, editorCommon.CursorMoveByUnit.HalfLine === moveParams.by ? cursor.getViewHalfLineSize(viewLineNumber) : moveParams.value, ctx);
 			case editorCommon.CursorMovePosition.Up:
-				if (editorCommon.CursorMoveByUnit.WrappedLine === moveParams.by) {
-					return this.moveUp(cursor, inSelectionMode, noOfLines, ctx);
-				}
-				return false;
+				return this.moveUp(cursor, moveParams, ctx);
 			case editorCommon.CursorMovePosition.Down:
-				if (editorCommon.CursorMoveByUnit.WrappedLine === moveParams.by) {
-					return this.moveDown(cursor, inSelectionMode, noOfLines, ctx);
-				}
-				return false;
+				return this.moveDown(cursor, moveParams, ctx);
 			case editorCommon.CursorMovePosition.WrappedLineStart:
 				viewColumn = cursor.getViewLineMinColumn(viewLineNumber);
 				break;
@@ -915,9 +908,15 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveDown(cursor:OneCursor, inSelectionMode: boolean, noOfLines: number, ctx: IOneCursorOperationContext): boolean {
-		let linesCount = noOfLines > 0 ? noOfLines : 1;
+	public static moveDown(cursor: OneCursor, moveArguments: CursorMoveArguments, ctx: IOneCursorOperationContext): boolean {
+		let linesCount = (moveArguments.isPaged ? (moveArguments.pageSize || cursor.getPageSize()) : moveArguments.value) || 1;
+		if (editorCommon.CursorMoveByUnit.WrappedLine === moveArguments.by) {
+			return this._moveDownByViewLines(cursor, moveArguments.select, linesCount, ctx);
+		}
+		return this._moveDownByModelLines(cursor, moveArguments.select, linesCount, ctx);
+	}
 
+	private static _moveDownByViewLines(cursor:OneCursor, inSelectionMode: boolean, linesCount: number, ctx: IOneCursorOperationContext): boolean {
 		let viewLineNumber:number,
 			viewColumn:number;
 
@@ -939,6 +938,27 @@ export class OneCursorOp {
 		return true;
 	}
 
+	private static _moveDownByModelLines(cursor:OneCursor, inSelectionMode: boolean, linesCount: number, ctx: IOneCursorOperationContext): boolean {
+		let lineNumber:number,
+			column:number;
+
+		if (cursor.hasSelection() && !inSelectionMode) {
+			// If we are in selection mode, move down acts relative to the end of selection
+			let selection = cursor.getSelection();
+			lineNumber = selection.endLineNumber;
+			column = selection.endColumn;
+		} else {
+			let position = cursor.getPosition();
+			lineNumber = position.lineNumber;
+			column = position.column;
+		}
+
+		let r = cursor.getPositionDown(lineNumber, column, cursor.getLeftoverVisibleColumns(), linesCount, true);
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
+		cursor.moveModelPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
+		return true;
+	}
+
 	public static translateDown(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 
 		let selection = cursor.getViewSelection();
@@ -956,8 +976,15 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveUp(cursor:OneCursor, inSelectionMode: boolean, noOfLines: number, ctx: IOneCursorOperationContext): boolean {
-		let linesCount = noOfLines > 0 ? noOfLines : 1;
+	public static moveUp(cursor: OneCursor, moveArguments: CursorMoveArguments, ctx: IOneCursorOperationContext): boolean {
+		let linesCount = (moveArguments.isPaged ? (moveArguments.pageSize || cursor.getPageSize()) : moveArguments.value) || 1;
+		if (editorCommon.CursorMoveByUnit.WrappedLine === moveArguments.by) {
+			return this._moveUpByViewLines(cursor, moveArguments.select, linesCount, ctx);
+		}
+		return this._moveUpByModelLines(cursor, moveArguments.select, linesCount, ctx);
+	}
+
+	private static _moveUpByViewLines(cursor: OneCursor, inSelectionMode: boolean, linesCount: number, ctx: IOneCursorOperationContext): boolean {
 
 		let viewLineNumber:number,
 			viewColumn:number;
@@ -977,6 +1004,28 @@ export class OneCursorOp {
 		let r = cursor.getViewPositionUp(viewLineNumber, viewColumn, cursor.getLeftoverVisibleColumns(), linesCount, true);
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
 		cursor.moveViewPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
+
+		return true;
+	}
+
+	private static _moveUpByModelLines(cursor: OneCursor, inSelectionMode: boolean, linesCount: number, ctx: IOneCursorOperationContext): boolean {
+		let lineNumber:number,
+			column:number;
+
+		if (cursor.hasSelection() && !inSelectionMode) {
+			// If we are in selection mode, move up acts relative to the beginning of selection
+			let selection = cursor.getSelection();
+			lineNumber = selection.startLineNumber;
+			column = selection.startColumn;
+		} else {
+			let position = cursor.getPosition();
+			lineNumber = position.lineNumber;
+			column = position.column;
+		}
+
+		let r = cursor.getPositionUp(lineNumber, column, cursor.getLeftoverVisibleColumns(), linesCount, true);
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Explicit;
+		cursor.moveModelPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
 
 		return true;
 	}

@@ -273,6 +273,32 @@ suite('Cursor move command test', () => {
 		cursorEqual(thisCursor, 1, 1);
 	});
 
+	test('move up by model line cursor move command', () => {
+		thisCursor= aCursor();
+
+		moveTo(thisCursor, 3, 5);
+		cursorEqual(thisCursor, 3, 5);
+
+		moveUpByModelLine(thisCursor, 2);
+		cursorEqual(thisCursor, 1, 5);
+
+		moveUpByModelLine(thisCursor, 1);
+		cursorEqual(thisCursor, 1, 1);
+	});
+
+	test('move down by model line cursor move command', () => {
+		thisCursor= aCursor();
+
+		moveTo(thisCursor, 3, 5);
+		cursorEqual(thisCursor, 3, 5);
+
+		moveDownByModelLine(thisCursor, 2);
+		cursorEqual(thisCursor, 5, 2);
+
+		moveDownByModelLine(thisCursor, 1);
+		cursorEqual(thisCursor, 5, 2);
+	});
+
 	test('move up with selection by cursor move command', () => {
 		thisCursor= aCursor();
 
@@ -488,8 +514,16 @@ function moveUp(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
 	move(cursor, {to: CursorMovePosition.Up, by:CursorMoveByUnit.WrappedLine, value: noOfLines, select: select});
 }
 
+function moveUpByModelLine(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
+	move(cursor, {to: CursorMovePosition.Up, value: noOfLines, select: select});
+}
+
 function moveDown(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
 	move(cursor, {to: CursorMovePosition.Down, by:CursorMoveByUnit.WrappedLine, value: noOfLines, select: select});
+}
+
+function moveDownByModelLine(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
+	move(cursor, {to: CursorMovePosition.Down, value: noOfLines, select: select});
 }
 
 function moveToTop(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
