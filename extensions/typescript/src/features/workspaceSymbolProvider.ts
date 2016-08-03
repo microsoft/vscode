@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, CancellationToken } from 'vscode';
+import { workspace, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
 
 import * as Proto  from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -65,8 +65,8 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 					if (item.kind === 'method' || item.kind === 'function') {
 						label += '()';
 					}
-					result.push(new SymbolInformation(label, _kindMapping[item.kind], range,
-						this.client.asUrl(item.file), item.containerName));
+					result.push(new SymbolInformation(label, _kindMapping[item.kind], item.containerName,
+						new Location(this.client.asUrl(item.file), range)));
 				}
 				return result;
 			} else {

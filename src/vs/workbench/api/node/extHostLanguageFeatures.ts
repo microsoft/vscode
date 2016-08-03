@@ -16,7 +16,7 @@ import * as modes from 'vs/editor/common/modes';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import {IWorkspaceSymbolProvider, IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 import {MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape} from './extHost.protocol';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
@@ -394,19 +394,48 @@ class OnTypeFormattingAdapter {
 	}
 }
 
-class NavigateTypeAdapter implements INavigateTypesSupport {
+interface MyWorkspaceSymbol extends IWorkspaceSymbol {
+	idx: number;
+}
+
+class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 
 	private _provider: vscode.WorkspaceSymbolProvider;
+	private _cache: vscode.SymbolInformation[];
 
 	constructor(provider: vscode.WorkspaceSymbolProvider) {
 		this._provider = provider;
 	}
 
-	getNavigateToItems(search: string): TPromise<ITypeBearing[]> {
+	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]> {
+
+		this._cache = [];
+
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.fromSymbolInformation);
+				this._cache = value;
+				return value.map((item, idx) => {
+					const result = <MyWorkspaceSymbol>TypeConverters.fromSymbolInformation(item);
+					result.idx = idx;
+					return result;
+				});
 			}
+		});
+	}
+
+	resolveWorkspaceSymbol(item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+
+		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
+			return;
+		}
+
+		const idx = (<MyWorkspaceSymbol>item).idx;
+		if(typeof idx !== 'number') {
+			return;
+		}
+
+		return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(this._cache[idx], token)).then(value => {
+			return value && TypeConverters.fromSymbolInformation(value);
 		});
 	}
 }
@@ -795,8 +824,12 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$getNavigateToItems(handle: number, search: string): TPromise<ITypeBearing[]> {
-		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.getNavigateToItems(search));
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
+	}
+
+	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
 	}
 
 	// --- rename

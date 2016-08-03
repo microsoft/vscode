@@ -12,7 +12,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 
@@ -190,23 +190,22 @@ export namespace SymbolInformation {
 	}
 }
 
-export function fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
-	return <ITypeBearing>{
+export function fromSymbolInformation(info: vscode.SymbolInformation): IWorkspaceSymbol {
+	return <IWorkspaceSymbol>{
 		name: info.name,
 		type: types.SymbolKind[info.kind || types.SymbolKind.Property].toLowerCase(),
-		range: fromRange(info.location.range),
-		resourceUri: info.location.uri,
 		containerName: info.containerName,
-		parameters: '',
+		range: info.location && fromRange(info.location.range),
+		resource: info.location && info.location.uri,
 	};
 }
 
-export function toSymbolInformation(bearing: ITypeBearing): types.SymbolInformation {
+export function toSymbolInformation(bearing: IWorkspaceSymbol): types.SymbolInformation {
 	return new types.SymbolInformation(bearing.name,
 		types.SymbolKind[bearing.type.charAt(0).toUpperCase() + bearing.type.substr(1)],
-		toRange(bearing.range),
-		bearing.resourceUri,
-		bearing.containerName);
+		bearing.containerName,
+		new types.Location(bearing.resource, toRange(bearing.range))
+	);
 }
 
 
