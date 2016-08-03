@@ -111,7 +111,6 @@ declare module monaco {
      *
      */
     export class Uri {
-        static isUri(thing: any): thing is Uri;
         constructor();
         /**
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
