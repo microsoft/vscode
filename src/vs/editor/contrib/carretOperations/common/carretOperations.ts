@@ -5,58 +5,55 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {EditorAction2, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {MoveCarretCommand} from './moveCarretCommand';
 
-class MoveCarretAction extends EditorAction {
+class MoveCarretAction extends EditorAction2 {
 
 	private left:boolean;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, left:boolean) {
-		super(descriptor, editor);
+	constructor(id:string, label:string, alias:string, left:boolean) {
+		super(id, label, alias, false);
 		this.left = left;
 	}
 
-	public run():TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 
 		var commands:ICommand[] = [];
-		var selections = this.editor.getSelections();
+		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new MoveCarretCommand(selections[i], this.left));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(true);
+		editor.executeCommands(this.id, commands);
 	}
 }
 
 class MoveCarretLeftAction extends MoveCarretAction {
-	static ID = 'editor.action.moveCarretLeftAction';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, true);
+	constructor() {
+		super(
+			'editor.action.moveCarretLeftAction',
+			nls.localize('carret.moveLeft', "Move Carret Left"),
+			'Move Carret Left',
+			true
+		);
 	}
 }
 
 class MoveCarretRightAction extends MoveCarretAction {
-	static ID = 'editor.action.moveCarretRightAction';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, false);
+	constructor() {
+		super(
+			'editor.action.moveCarretRightAction',
+			nls.localize('carret.moveRight', "Move Carret Right"),
+			'Move Carret Right',
+			false
+		);
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveCarretLeftAction, MoveCarretLeftAction.ID, nls.localize('carret.moveLeft', "Move Carret Left"), {
-	context: ContextKey.EditorTextFocus,
-	primary: 0
-}, 'Move Carret Left'));
-
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveCarretRightAction, MoveCarretRightAction.ID, nls.localize('carret.moveRight', "Move Carret Right"), {
-	context: ContextKey.EditorTextFocus,
-	primary: 0
-}, 'Move Carret Right'));
+CommonEditorRegistry.registerEditorAction2(new MoveCarretLeftAction());
+CommonEditorRegistry.registerEditorAction2(new MoveCarretRightAction());

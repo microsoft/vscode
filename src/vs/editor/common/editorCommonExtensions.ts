@@ -351,7 +351,7 @@ export abstract class EditorAction2 {
 	public kbOpts: IEditorActionKeybindingOptions2;
 	public menuOpts: IEditorCommandMenuOptions;
 
-	constructor(id:string, label:string, alias:string = null, needsWritableEditor:boolean = false) {
+	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean) {
 		this.id = id;
 		this.label = label;
 		this.alias = alias;
