@@ -22,6 +22,69 @@ interface IEmmetConfiguration {
 	};
 }
 
+class LazyEmmet {
+
+	private static _INSTANCE = new LazyEmmet();
+
+	public static withConfiguredEmmet(configurationService:IConfigurationService, callback:(_emmet: typeof emmet) => void): TPromise<void> {
+		return LazyEmmet._INSTANCE.withEmmetPreferences(configurationService, callback);
+	}
+
+	private _emmetPromise: TPromise<typeof emmet>;
+
+	constructor() {
+		this._emmetPromise = null;
+	}
+
+	public withEmmetPreferences(configurationService:IConfigurationService, callback:(_emmet: typeof emmet) => void): TPromise<void> {
+		return this._loadEmmet().then((_emmet: typeof emmet) => {
+			this._withEmmetPreferences(configurationService, _emmet, callback);
+		});
+	}
+
+	private _loadEmmet(): TPromise<typeof emmet> {
+		if (!this._emmetPromise) {
+			this._emmetPromise = new TPromise<typeof emmet>((c, e) => {
+				require(['emmet'], c, e);
+			});
+		}
+		return this._emmetPromise;
+	}
+
+	private updateEmmetPreferences(configurationService:IConfigurationService, _emmet: typeof emmet) {
+		let preferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
+		for (let key in preferences) {
+			try {
+				_emmet.preferences.set(key, preferences[key]);
+			} catch (err) {
+				_emmet.preferences.define(key, preferences[key]);
+			}
+		}
+		let syntaxProfile = configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
+		_emmet.profile.reset();
+		_emmet.loadProfiles(syntaxProfile);
+	}
+
+	private resetEmmetPreferences(configurationService:IConfigurationService, _emmet: typeof emmet) {
+		let preferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
+		for (let key in preferences) {
+			try {
+				_emmet.preferences.remove(key);
+			} catch (err) {
+			}
+		}
+	}
+
+	private _withEmmetPreferences(configurationService:IConfigurationService, _emmet:typeof emmet, callback:(_emmet: typeof emmet) => void): void {
+		try {
+			this.updateEmmetPreferences(configurationService, _emmet);
+			callback(_emmet);
+		} finally {
+			this.resetEmmetPreferences(configurationService, _emmet);
+		}
+	}
+}
+
 export abstract class EmmetEditorAction extends EditorAction {
 
 	protected editorAccessor: EditorAccessor;
@@ -33,66 +96,23 @@ export abstract class EmmetEditorAction extends EditorAction {
 		this.configurationService = configurationService;
 	}
 
-	private updateEmmetPreferences(_emmet: typeof emmet) {
-		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.set(key, preferences[key]);
-			} catch (err) {
-				_emmet.preferences.define(key, preferences[key]);
-			}
-		}
-		let syntaxProfile = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
-		_emmet.profile.reset();
-		_emmet.loadProfiles(syntaxProfile);
-	}
-
-	private resetEmmetPreferences(_emmet: typeof emmet) {
-		let preferences = this.configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.remove(key);
-			} catch (err) {
-			}
-		}
-	}
-
 	abstract runEmmetAction(_emmet: typeof emmet);
 
 	protected noExpansionOccurred() {
 		// default do nothing
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): TPromise<void> {
 		if (!this.editorAccessor.isEmmetEnabledMode()) {
 			this.noExpansionOccurred();
 			return ;
 		}
 
-		return this._withEmmet().then((_emmet) => {
-			this._withEmmetPreferences(_emmet, () => {
-				this.editorAccessor.onBeforeEmmetAction();
-				this.runEmmetAction(_emmet);
-				this.editorAccessor.onAfterEmmetAction();
-			});
-
-			return true;
+		return LazyEmmet.withConfiguredEmmet(this.configurationService, (_emmet) => {
+			this.editorAccessor.onBeforeEmmetAction();
+			this.runEmmetAction(_emmet);
+			this.editorAccessor.onAfterEmmetAction();
 		});
-	}
-
-	private _withEmmet(): TPromise<typeof emmet> {
-		return new TPromise<typeof emmet>((c, e) => {
-			require(['emmet'], c, e);
-		});
-	}
-
-	private _withEmmetPreferences(_emmet:typeof emmet, callback:() => void): void {
-		try {
-			this.updateEmmetPreferences(_emmet);
-			callback();
-		} finally {
-			this.resetEmmetPreferences(_emmet);
-		}
 	}
 }
 
