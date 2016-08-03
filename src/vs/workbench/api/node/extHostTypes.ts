@@ -509,13 +509,15 @@ export class Location {
 	uri: URI;
 	range: Range;
 
-	constructor(uri: URI, range: Range | Position) {
+	constructor(uri: URI, rangeOrPosition: Range | Position) {
 		this.uri = uri;
 
-		if (range instanceof Range) {
-			this.range = range;
-		} else if (range instanceof Position) {
-			this.range = new Range(range, range);
+		if (!rangeOrPosition) {
+			//that's OK
+		} else if (rangeOrPosition instanceof Range) {
+			this.range = rangeOrPosition;
+		} else if (rangeOrPosition instanceof Position) {
+			this.range = new Range(rangeOrPosition, rangeOrPosition);
 		} else {
 			throw new Error('Illegal argument');
 		}
