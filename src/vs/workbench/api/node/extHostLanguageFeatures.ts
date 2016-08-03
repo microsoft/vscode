@@ -636,6 +636,16 @@ class LinkProviderAdapter {
 			}
 		});
 	}
+
+	resolveLink(link: modes.ILink): TPromise<modes.ILink> {
+		if (typeof this._provider.resolveDocumentLink === 'function') {
+			return asWinJsPromise(token => this._provider.resolveDocumentLink(TypeConverters.DocumentLink.to(link), token)).then(value => {
+				if (value) {
+					return TypeConverters.DocumentLink.from(value);
+				}
+			});
+		}
+	}
 }
 
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
@@ -884,8 +894,12 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$providDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> {
+	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(resource));
+	}
+
+	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link));
 	}
 
 	// --- configuration
