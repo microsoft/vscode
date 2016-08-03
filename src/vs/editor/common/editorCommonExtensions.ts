@@ -7,8 +7,7 @@
 import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
 import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -19,6 +18,8 @@ import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
+
+export type ServicesAccessor = ServicesAccessor;
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export enum ContextKey {
@@ -71,6 +72,14 @@ export module CommonEditorRegistry {
 
 	export function registerEditorAction(desc:EditorActionDescriptor) {
 		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction(desc);
+	}
+
+	export function registerEditorAction2(desc:EditorAction2) {
+		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction2(desc);
+	}
+
+	export function getEditorActions(): EditorAction2[] {
+		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorActions2();
 	}
 
 	// --- Editor Contributions
@@ -171,13 +180,53 @@ var Extensions = {
 class EditorContributionRegistry {
 
 	private editorContributions: editorCommon.ICommonEditorContributionDescriptor[];
+	private editorActions: EditorAction2[];
 
 	constructor() {
 		this.editorContributions = [];
+		this.editorActions = [];
 	}
 
 	public registerEditorContribution2(ctor:editorCommon.ICommonEditorContributionCtor): void {
 		this.editorContributions.push(new SimpleEditorContributionDescriptor(ctor));
+	}
+
+	public registerEditorAction2(action:EditorAction2) {
+
+		if (action.menuOpts) {
+			let {menu, kbExpr, group, order} = action.menuOpts;
+			MenuRegistry.appendMenuItem(menu || MenuId.EditorContext, {
+				command: {
+					id: action.id,
+					title: action.label
+				},
+				when: kbExpr,
+				group,
+				order
+			});
+		}
+
+		if (!action.kbOpts) {
+			action.kbOpts = {
+				primary: 0
+			};
+		}
+
+		let commandDesc: ICommandDescriptor = {
+			id: action.id,
+			handler: triggerEditorActionGlobal.bind(null, action.id),
+			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+			when: action.kbOpts.kbExpr,
+			primary: action.kbOpts.primary,
+			secondary: action.kbOpts.secondary,
+			win: action.kbOpts.win,
+			linux: action.kbOpts.linux,
+			mac: action.kbOpts.mac,
+		};
+
+		KeybindingsRegistry.registerCommandDesc(commandDesc);
+
+		this.editorActions.push(action);
 	}
 
 	public registerEditorAction(desc:EditorActionDescriptor): void {
@@ -235,6 +284,10 @@ class EditorContributionRegistry {
 	public getEditorContributions2(): editorCommon.ICommonEditorContributionDescriptor[] {
 		return this.editorContributions.slice(0);
 	}
+
+	public getEditorActions2(): EditorAction2[] {
+		return this.editorActions.slice(0);
+	}
 }
 Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
 
@@ -283,3 +336,55 @@ function createCommandHandler(commandId: string, handler: IEditorCommandHandler)
 		});
 	};
 }
+
+export interface IEditorActionKeybindingOptions2 extends IKeybindings {
+	kbExpr?: KbExpr;
+}
+
+export abstract class EditorAction2 {
+
+	private _needsWritableEditor: boolean;
+
+	public id: string;
+	public label: string;
+	public alias: string;
+	public kbOpts: IEditorActionKeybindingOptions2;
+	public menuOpts: IEditorCommandMenuOptions;
+
+	constructor(id:string, label:string, alias:string = null, needsWritableEditor:boolean = false) {
+		this.id = id;
+		this.label = label;
+		this.alias = alias;
+		this._needsWritableEditor = needsWritableEditor;
+		this.kbOpts = null;
+		this.menuOpts = null;
+	}
+
+	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
+		if (this._needsWritableEditor) {
+			return !editor.getConfiguration().readOnly;
+		}
+		return true;
+	}
+
+	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
+		if (this._needsWritableEditor) {
+			return !editor.getConfiguration().readOnly;
+		}
+		return true;
+	}
+
+	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void;
+}
+
+export let EditorKbExpr: {
+	TextFocus: KbExpr;
+	Focus: KbExpr;
+	ReadOnly: KbExpr;
+	Writable: KbExpr;
+} = {
+	TextFocus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	Focus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS),
+	ReadOnly: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY),
+	Writable: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY),
+};
