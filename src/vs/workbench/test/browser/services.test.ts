@@ -123,7 +123,7 @@ class TestViewletService implements IViewletService {
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): Promise {
-		return TPromise.as(null).then();
+		return TPromise.as(null);
 	}
 
 	public getActiveViewlet(): IViewlet {
