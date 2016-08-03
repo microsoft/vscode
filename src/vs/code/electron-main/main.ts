@@ -144,6 +144,12 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 		dispose();
 	});
 
+	app.setAsDefaultProtocolClient('vscode');
+
+	app.on('open-url', url => {
+		console.log(url);
+	});
+
 	// Dispose on vscode:exit
 	ipc.on('vscode:exit', (event, code: number) => {
 		logService.log('IPC#vscode:exit', code);
