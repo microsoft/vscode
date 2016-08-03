@@ -592,6 +592,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		} else {
 			const currentWord = e.currentWord;
 			const currentWordLowerCase = currentWord.toLowerCase();
+			let snippetCount = 0;
+			let textCount = 0;
 			let bestSuggestionIndex = -1;
 			let bestScore = -1;
 
@@ -602,6 +604,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 					bestScore = score;
 					bestSuggestionIndex = index;
 				}
+
+				switch (item.suggestion.type) {
+					case 'snippet': snippetCount++; break;
+					case 'text': textCount++; break;
+				}
 			});
 
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
@@ -609,8 +616,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.list.reveal(bestSuggestionIndex, 0);
 
 			this.setState(State.Open);
+
 			this.telemetryService.publicLog('suggestWidget', {
 				suggestionCount: visibleCount,
+				snippetCount,
+				textCount,
 				wasAutomaticallyTriggered: !!e.auto
 			});
 		}
