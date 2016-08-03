@@ -44,7 +44,7 @@ export class Link implements ILink {
 
 		if (typeof this._provider.resolveLink === 'function') {
 			return asWinJsPromise(token => this._provider.resolveLink(this._link, token)).then(value => {
-				this._link = value;
+				this._link = value || this._link;
 				if (this._link.url) {
 					// recurse
 					return this.resolve();
