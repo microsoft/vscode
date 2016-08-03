@@ -2,36 +2,32 @@ sudo: false
 language: cpp
 
 os:
-- linux
-- osx
+  - linux
+  - osx
 
 env:
-- VSCODE_BUILD_VERBOSE=true
-notifications:
-  email: false
-  slack:
-    secure: sE9Rng0E8vd9p1HIB7/9PmzoMg0iNMorb88fbyKHAZIqi2Wne7e5ZsLeflEOB9NMVzNQcmzBLjKeNLXIJw5JJZ6p2ev6JSBVSqXvrulDw279a4+zhiZkWqxq1XssGyhprp0ewroPRYzDwCFSD1VtBNiAYip/8ggYgLNnpNDB10NOxAuTkW00i8pUBtly7z7FKkclhD2k0aaSieBDCHg+5/G5r9jMDbJEAKys0V0onfitxRWSsdMhEMsQy5VFE6DbS73oYPIfYIkcddGRJ3cksVG+ISZGlID/SOArSXZHxxW3aQetbS1KZC5vNmyCKBmjC0aMdjCxwil3UtstykWUXWQUzENfcHH1Mw2ekZ92AN13QQ2Rn54oMQRsP87iZFP7v5YR+4R1gg6p6sCBHv6XFW6SEz9sAxwyKtmYrCoomMzVtCWRw5EsIxh1VHjny0g73+0OE89dYzmgRMOCJMus2vVnfXYydlAfVVrjsjUFGqY2tV/4b3Jvme2JsELKemNWVbw2aUwfUNChMD3ofMQitnssYrgBXNgJw+1jEYG1jASHUmQbtxmykchNyEWDJhDDZ0SwZQPUAR/UQrN2uYVM03D4Z+TDHoPq7CHBytjT4LkRgcUbd9MKnK7jni50PhXbtyqEtmyPIy4oR8+rHJpwdKa6MaSM6Z5Bj21UVkeV0tE=
+  - VSCODE_BUILD_VERBOSE=true
 
 addons:
   apt:
     sources:
-    - ubuntu-toolchain-r-test
+      - ubuntu-toolchain-r-test
     packages:
-    - gcc-4.9
-    - g++-4.9
-    - gcc-4.9-multilib
-    - g++-4.9-multilib
-    - zip
-    - libgtk2.0-0
+      - gcc-4.9
+      - g++-4.9
+      - gcc-4.9-multilib
+      - g++-4.9-multilib
+      - zip
+      - libgtk2.0-0
 
 before_install:
-- git submodule update --init --recursive
-- git clone https://github.com/creationix/nvm.git ./.nvm
-- source ./.nvm/nvm.sh
-- nvm install 5.10
-- nvm use 5.10
-- npm config set python `which python`
-- npm install -g gulp
+  - git submodule update --init --recursive
+  - git clone https://github.com/creationix/nvm.git ./.nvm
+  - source ./.nvm/nvm.sh
+  - nvm install 5.10
+  - nvm use 5.10
+  - npm config set python `which python`
+  - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
       export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
       sh -e /etc/init.d/xvfb start;
@@ -42,9 +38,9 @@ install:
   - ./scripts/npm.sh install
 
 script:
-- gulp hygiene
-- gulp electron
-- gulp compile
-- gulp optimize-vscode
-- ./scripts/test.sh
-- ./scripts/test-integration.sh
+  - gulp hygiene
+  - gulp electron
+  - gulp compile
+  - gulp optimize-vscode
+  - ./scripts/test.sh
+  - ./scripts/test-integration.sh
