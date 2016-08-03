@@ -11,9 +11,10 @@ var url = require('url');
 function getOptions(urlString) {
 	var _url = url.parse(urlString);
 	return {
+		protocol: _url.protocol,
 		host: _url.host,
 		port: _url.port,
-		path: _url.pathname,
+		path: _url.path,
 		headers: {
 			'User-Agent': 'NodeJS'
 		}

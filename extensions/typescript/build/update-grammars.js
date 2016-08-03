@@ -4,35 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-var download = require('../../../build/lib/download');
-var fs = require('fs');
-var plist = require('plist');
-
-var contentBaseLocation = 'https://raw.githubusercontent.com/Microsoft/TypeScript-TmLanguage/master/';
-
-var lastCommit = 'https://api.github.com/repos/Microsoft/TypeScript-TmLanguage/git/refs/heads/master';
-download.toString(lastCommit).then(function (content) {
-	var commitSha = JSON.parse(content).object.sha;
-	function writeJSON(fileName, modifyGrammar) {
-		return function(content) {
-			var grammar = plist.parse(content);
-			grammar.version = 'https://github.com/Microsoft/TypeScript-TmLanguage/commit/' + commitSha;
-			if (modifyGrammar) {
-				modifyGrammar(grammar);
-			}
-			fs.writeFileSync(fileName, JSON.stringify(grammar, null, '\t'));
-		}
-	}
-
-	return Promise.all([
-		download.toString(contentBaseLocation + 'TypeScript.tmLanguage').then(writeJSON('./syntaxes/TypeScript.tmLanguage.json'), console.error),
-		download.toString(contentBaseLocation + 'TypeScriptReact.tmLanguage').then(writeJSON('./syntaxes/TypeScriptReact.tmLanguage.json'), console.error),
-		download.toString(contentBaseLocation + 'TypeScriptReact.tmLanguage').then(writeJSON('../javascript/syntaxes/JavaScript.tmLanguage.json', adaptToJavaScript), console.error)
-	]).then(function() {
-		console.log('Update complete.');
-		console.log('[typescript] update grammar (Microsoft/TypeScript-TmLanguage@' + commitSha.substr(0, 7) + ')');
-	});
-}, console.error);
+var updateGrammar = require('../../../build/npm/update-grammar');
 
 function adaptToJavaScript(grammar) {
 	grammar.name = 'JavaScript (with React support)';
@@ -60,6 +32,11 @@ function adaptToJavaScript(grammar) {
 		repository['type-parameters']['begin'] = 'DO_NOT_MATCH';
 	}
 }
+var tsGrammarRepo = 'Microsoft/TypeScript-TmLanguage';
+updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json');
+updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json');
+updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScript.tmLanguage.json', adaptToJavaScript);
+
 
 
 
