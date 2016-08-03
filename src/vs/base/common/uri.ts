@@ -39,6 +39,20 @@ function encodeNoop(str: string): string {
  */
 export default class URI {
 
+	static isUri(thing: any): thing is URI {
+		if (thing instanceof URI) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<URI>thing).authority === 'string'
+			&& typeof (<URI>thing).fragment === 'string'
+			&& typeof (<URI>thing).path === 'string'
+			&& typeof (<URI>thing).query === 'string'
+			&& typeof (<URI>thing).scheme === 'string';
+	}
+
 	private static _empty = '';
 	private static _slash = '/';
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
