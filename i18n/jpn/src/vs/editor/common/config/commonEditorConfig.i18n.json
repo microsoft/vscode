@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "'Tab' キーに加えて 'Enter' キーで候補を受け入れるかどうかを制御します。改行の挿入や候補の反映の間であいまいさを解消するのに役立ちます。",
 	"autoClosingBrackets": "エディターで左角かっこの後に自動的に右角かっこを挿入するかどうかを制御します",
-	"cursorBlinking": "カーソルのアニメーションの点滅を制御します。指定できる値は 'blink'、'visible'、'hidden' です",
-	"cursorStyle": "カーソルのスタイルを制御します。指定できる値は 'block' と 'line' です",
+	"cursorBlinking": "カーソルのアニメーション スタイルを制御します。指定できる値は 'blink'、'smooth'、'phase'、'expand'、'solid' です",
+	"cursorStyle": "カーソルのスタイルを制御します。指定できる値は 'block'、'line'、'underline' です",
 	"detectIndentation": "ファイルを開くと、そのファイルの内容に基づいて `editor.tabSize` と `editor.insertSpaces` が検出されます。",
 	"editorConfigurationTitle": "エディターの構成",
 	"folding": "エディターでコードの折りたたみを有効にするかどうかを制御します",
@@ -23,6 +23,7 @@
 	"lineHeight": "行の高さを制御します。",
 	"lineNumbers": "行番号の表示を制御します",
 	"mouseWheelScrollSensitivity": "マウス ホイール スクロール イベントの `deltaX` と `deltaY` で使用される乗数",
+	"mouseWheelZoom": "Ctrl キーを押しながらマウス ホイールを使用してエディターのフォントをズームします",
 	"overviewRulerLanes": "概要ルーラーの同じ位置に表示できる装飾の数を制御します",
 	"parameterHints": "パラメーター ヒントを有効にする",
 	"quickSuggestions": "入力中にクイック候補を表示するかどうかを制御します",
