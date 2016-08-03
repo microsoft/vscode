@@ -5,8 +5,8 @@
 
 import stream = require('stream');
 import uuid = require('vs/base/common/uuid');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { canceled } from 'vs/base/common/errors';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {canceled} from 'vs/base/common/errors';
 
 export abstract class V8Protocol {
 

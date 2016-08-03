@@ -5,10 +5,10 @@
 
 import nls = require('vs/nls');
 import actions = require('vs/base/common/actions');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { clipboard } from 'electron';
-import { Variable, getFullExpressionName } from 'vs/workbench/parts/debug/common/debugModel';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {clipboard} from 'electron';
+import {Variable, getFullExpressionName} from 'vs/workbench/parts/debug/common/debugModel';
+import {IDebugService} from 'vs/workbench/parts/debug/common/debug';
 
 export class CopyValueAction extends actions.Action {
 	static ID = 'workbench.debug.viewlet.action.copyValue';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
+import {ReplHistory} from 'vs/workbench/parts/debug/common/replHistory';
 
 suite('Debug - Repl History', () => {
 	var history: ReplHistory;

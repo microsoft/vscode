@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionRunner } from 'vs/base/common/actions';
-import { IViewletView } from 'vs/workbench/browser/viewlet';
+import {IActionRunner} from 'vs/base/common/actions';
+import {IViewletView} from 'vs/workbench/browser/viewlet';
 
 // Debug view registration
 

@@ -6,33 +6,33 @@
 import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {TPromise} from 'vs/base/common/winjs.base';
 import editorcommon = require('vs/editor/common/editorCommon');
-import { CommonEditorRegistry, ContextKey, EditorActionDescriptor, defaultEditorActionKeybindingOptions } from 'vs/editor/common/editorCommonExtensions';
-import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor, defaultEditorActionKeybindingOptions} from 'vs/editor/common/editorCommonExtensions';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KbExpr, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import panel = require('vs/workbench/browser/panel');
-import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
-import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
+import {DebugViewRegistry} from 'vs/workbench/parts/debug/browser/debugViewRegistry';
+import {VariablesView, WatchExpressionsView, CallStackView, BreakpointsView} from 'vs/workbench/parts/debug/electron-browser/debugViews';
 import wbext = require('vs/workbench/common/contributions');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
-import { ToggleBreakpointAction, EditorConditionalBreakpointAction, ShowDebugHoverAction, SelectionToReplAction, RunToCursorAction, StepOverDebugAction,
+import {DebugEditorModelManager} from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
+import {ToggleBreakpointAction, EditorConditionalBreakpointAction, ShowDebugHoverAction, SelectionToReplAction, RunToCursorAction, StepOverDebugAction,
 	StepIntoDebugAction, StepOutDebugAction, StartDebugAction, StepBackDebugAction, RestartDebugAction, ContinueAction, StopDebugAction, PauseAction, AddFunctionBreakpointAction,
-	ConfigureAction, ToggleReplAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
+	ConfigureAction, ToggleReplAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction} from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
-import { DebugEditorContribution } from 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import {DebugEditorContribution} from 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
+import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 import IDebugService = debug.IDebugService;
 

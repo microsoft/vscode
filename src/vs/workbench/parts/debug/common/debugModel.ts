@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
 import objects = require('vs/base/common/objects');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 
 const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");

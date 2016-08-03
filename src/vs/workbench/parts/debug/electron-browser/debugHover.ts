@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import lifecycle = require('vs/base/common/lifecycle');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import dom = require('vs/base/browser/dom');
 import * as nls from 'vs/nls';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import {ITree} from 'vs/base/parts/tree/browser/tree';
+import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
+import {DefaultController, ICancelableEvent} from 'vs/base/parts/tree/browser/treeDefaults';
+import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');

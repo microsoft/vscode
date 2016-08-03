@@ -6,20 +6,20 @@
 import nls = require('vs/nls');
 import actions = require('vs/base/common/actions');
 import lifecycle = require('vs/base/common/lifecycle');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Range } from 'vs/editor/common/core/range';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {Range} from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { EditorAction } from 'vs/editor/common/editorAction';
-import { Behaviour } from 'vs/editor/common/editorActionEnablement';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {

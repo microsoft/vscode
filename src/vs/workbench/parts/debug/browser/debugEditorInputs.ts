@@ -6,7 +6,7 @@
 import mime = require('vs/base/common/mime');
 import strinput = require('vs/workbench/common/editor/stringEditorInput');
 import uri from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class DebugStringEditorInput extends strinput.StringEditorInput {
 

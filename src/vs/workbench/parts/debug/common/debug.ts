@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { Range } from 'vs/editor/common/core/range';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
+import {Range} from 'vs/editor/common/core/range';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
