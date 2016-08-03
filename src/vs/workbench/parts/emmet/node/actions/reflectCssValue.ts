@@ -8,19 +8,17 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class ReflectCSSValueAction extends BasicEmmetEditorAction {
-
-	static ID = 'editor.emmet.action.reflectCSSValue';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService, 'reflect_css_value');
+	constructor() {
+		super(
+			'editor.emmet.action.reflectCSSValue',
+			nls.localize('reflectCSSValue', "Emmet: Reflect CSS Value"),
+			'Emmet: Reflect CSS Value',
+			'reflect_css_value'
+		);
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ReflectCSSValueAction,
-	ReflectCSSValueAction.ID,
-	nls.localize('reflectCSSValue', "Emmet: Reflect CSS Value"), void 0, 'Emmet: Reflect CSS Value'));
+CommonEditorRegistry.registerEditorAction2(new ReflectCSSValueAction());
