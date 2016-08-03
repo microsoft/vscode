@@ -44,7 +44,7 @@ export class DebugSelectActionItem extends SelectActionItem {
 				return changeDebugConfiguration ? this.actionRunner.run(this._action, null) : null;
 			}
 
-			const configurationNames = config.configurations.map(cfg => cfg.name);
+			const configurationNames = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
 			const configurationName = this.debugService.getConfigurationManager().configurationName;
 			let selected = configurationNames.indexOf(configurationName);
 
