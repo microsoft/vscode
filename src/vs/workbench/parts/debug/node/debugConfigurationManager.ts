@@ -297,7 +297,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
 			return () => {
-				var commandId = null;
+				let commandId = null;
 				if (this.adapter !== null) {
 					commandId = this.adapter.variables ? this.adapter.variables[interactiveVariable] : null;
 				}
