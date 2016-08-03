@@ -1748,6 +1748,8 @@ declare namespace vscode {
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
 		/**
+		 * @deprecated Please use the constructor taking a [location](#Location) object.
+		 *
 		 * Creates a new symbol information object.
 		 *
 		 * @param name The name of the symbol.

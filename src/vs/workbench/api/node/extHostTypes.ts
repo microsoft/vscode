@@ -641,8 +641,8 @@ export class SymbolInformation {
 
 		if (locationOrUri instanceof Location) {
 			this.location = locationOrUri;
-		} else if(locationOrUri instanceof URI && rangeOrContainer instanceof Range) {
-			this.location = new Location(locationOrUri, rangeOrContainer);
+		} else if (rangeOrContainer instanceof Range) {
+			this.location = new Location(<URI> locationOrUri, rangeOrContainer);
 		}
 	}
 
