@@ -12,5 +12,6 @@ export const ID = 'urlService';
 export const IURLService = createDecorator<IURLService>(ID);
 
 export interface IURLService {
-	onOpenUrl: Event<string>;
+	_serviceBrand: any;
+	onOpenURL: Event<string>;
 }

@@ -70,9 +70,13 @@ import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
 import {getDelayedChannel} from 'vs/base/parts/ipc/common/ipc';
-import {connect} from 'vs/base/parts/ipc/node/ipc.net';
+import {connect as connectNet} from 'vs/base/parts/ipc/node/ipc.net';
+import {Client as ElectronIPCClient} from 'vs/base/parts/ipc/common/ipc.electron';
+import {ipcRenderer} from 'electron';
 import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import {IExtensionManagementService} from 'vs/platform/extensionManagement/common/extensionManagement';
+import {URLChannelClient} from 'vs/platform/url/common/urlIpc';
+import {IURLService} from 'vs/platform/url/common/url';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 
 // self registering services
@@ -202,7 +206,7 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
-		const sharedProcess = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+		const sharedProcess = connectNet(process.env['VSCODE_SHARED_IPC_HOOK']);
 		sharedProcess.done(service => {
 			service.onClose(() => {
 				this.messageService.show(Severity.Error, {
@@ -211,6 +215,8 @@ export class WorkbenchShell {
 				});
 			});
 		}, errors.onUnexpectedError);
+
+		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
 
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IEventService, this.eventService);
@@ -313,6 +319,10 @@ export class WorkbenchShell {
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = instantiationService.createInstance(ExtensionManagementChannelClient, extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
+
+		const urlChannel = mainProcessClient.getChannel('url');
+		const urlChannelClient = instantiationService.createInstance(URLChannelClient, urlChannel);
+		serviceCollection.set(IURLService, urlChannelClient);
 
 		return [instantiationService, serviceCollection];
 	}
