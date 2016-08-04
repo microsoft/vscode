@@ -21,7 +21,7 @@ interface ReadLinesOptions {
 	encoding: string;
 }
 
-export class Engine implements ISearchEngine {
+export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
@@ -88,8 +88,8 @@ export class Engine implements ISearchEngine {
 		};
 
 		// Walk over the file system
-		this.walker.walk(this.rootFolders, this.extraFiles, (result, size) => {
-			size = size ||  1;
+		this.walker.walk(this.rootFolders, this.extraFiles, result => {
+			const size = result.size ||  1;
 			this.total += size;
 
 			// If the result is empty or we have reached the limit or we are canceled, ignore it
@@ -126,7 +126,7 @@ export class Engine implements ISearchEngine {
 					}
 
 					if (fileMatch === null) {
-						fileMatch = new FileMatch(result.path);
+						fileMatch = new FileMatch(result.absolutePath);
 					}
 
 					if (lineMatch === null) {
@@ -141,7 +141,7 @@ export class Engine implements ISearchEngine {
 			};
 
 			// Read lines buffered to support large files
-			this.readlinesAsync(result.path, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
+			this.readlinesAsync(result.absolutePath, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
 		}, (error, isLimitHit) => {
 			this.walkerIsDone = true;
 			this.walkerError = error;
