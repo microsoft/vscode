@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { Server as IPCServer, Client as IPCClient, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
@@ -12,24 +11,26 @@ const Hello = 'ipc:hello';
 const Goodbye = 'ipc:goodbye';
 const Message = 'ipc:message';
 
-export interface IPC extends NodeJS.EventEmitter {
+export interface Sender {
 	send(channel: string, ...args: any[]): void;
 }
+
+export interface IPC extends Sender, NodeJS.EventEmitter {}
 
 class Protocol implements IMessagePassingProtocol {
 
 	private listener: IDisposable;
 
-	constructor(private ipc: IPC) {}
+	constructor(private sender: Sender, private receiver: NodeJS.EventEmitter) {}
 
 	send(message: any): void {
-		this.ipc.send(Message, message);
+		this.sender.send(Message, message);
 	}
 
 	onMessage(callback: (message: any) => void): void {
 		const cb = (_, m) => callback(m);
-		this.ipc.on(Message, cb);
-		this.listener = toDisposable(() => this.ipc.removeListener(Message, cb));
+		this.receiver.on(Message, cb);
+		this.listener = toDisposable(() => this.receiver.removeListener(Message, cb));
 	}
 
 	dispose(): void {
@@ -41,11 +42,11 @@ export class Server implements IServer, IDisposable {
 
 	private channels: { [name: string]: IChannel };
 
-	constructor(ipc: IPC) {
+	constructor(ipc: NodeJS.EventEmitter) {
 		this.channels = Object.create(null);
 
 		ipc.on(Hello, ({ sender }) => {
-			const protocol = new Protocol(sender);
+			const protocol = new Protocol(sender, ipc);
 			const ipcServer = new IPCServer(protocol);
 
 			Object.keys(this.channels)
@@ -55,8 +56,6 @@ export class Server implements IServer, IDisposable {
 				ipcServer.dispose();
 				protocol.dispose();
 			});
-
-			sender.send(Hello);
 		});
 	}
 
@@ -75,7 +74,8 @@ export class Client implements IClient, IDisposable {
 	private ipcClient: IPCClient;
 
 	constructor(private ipc: IPC) {
-		this.protocol = new Protocol(ipc);
+		ipc.send(Hello);
+		this.protocol = new Protocol(ipc, ipc);
 		this.ipcClient = new IPCClient(this.protocol);
 	}
 
@@ -87,16 +87,4 @@ export class Client implements IClient, IDisposable {
 		this.ipc.send(Goodbye);
 		this.protocol = dispose(this.protocol);
 	}
-}
-
-export function connect(ipc: IPC): TPromise<Client> {
-	return new TPromise<Client>((c, e) => {
-		ipc.once(Hello, () => {
-			ipc.removeListener('error', e);
-			c(new Client(ipc));
-		});
-
-		ipc.once('error', e);
-		ipc.send(Hello);
-	});
 }
