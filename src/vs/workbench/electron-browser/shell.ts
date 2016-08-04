@@ -323,7 +323,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		const urlChannel = mainProcessClient.getChannel('url');
-		const urlChannelClient = instantiationService.createInstance(URLChannelClient, urlChannel);
+		const urlChannelClient = instantiationService.createInstance(URLChannelClient, urlChannel, this.windowService.getWindowId());
 		serviceCollection.set(IURLService, urlChannelClient);
 
 		return [instantiationService, serviceCollection];

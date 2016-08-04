@@ -110,7 +110,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 	// Register Electron IPC services
 	const urlService = instantiationService.createInstance(URLService);
-	const urlChannel = new URLChannel(urlService);
+	const urlChannel = new URLChannel(urlService, id => {
+		const window = windowsService.getFocusedWindow() || windowsService.getLastActiveWindow();
+		return window ? window.id === id : false;
+	});
 	electronIpcServer.registerChannel('url', urlChannel);
 
 	// Used by sub processes to communicate back to the main instance

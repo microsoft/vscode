@@ -319,12 +319,12 @@ export function eventToCall(event: Event<any>): TPromise<any> {
 	);
 }
 
-export function eventFromCall<T>(channel: IChannel, name: string): Event<T> {
+export function eventFromCall<T>(channel: IChannel, name: string, arg: any = null): Event<T> {
 	let promise: Promise;
 
 	const emitter = new Emitter<any>({
 		onFirstListenerAdd: () => {
-			promise = channel.call(name, null).then(null, err => null, e => emitter.fire(e));
+			promise = channel.call(name, arg).then(null, err => null, e => emitter.fire(e));
 		},
 		onLastListenerRemove: () => {
 			promise.cancel();
