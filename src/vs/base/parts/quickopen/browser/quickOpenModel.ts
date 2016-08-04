@@ -16,12 +16,11 @@ import paths = require('vs/base/common/paths');
 import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {Action, IAction, IActionRunner} from 'vs/base/common/actions';
-import {compareAnything, compareByPrefix} from 'vs/base/common/comparers';
+import {compareAnything, compareByScore as doCompareByScore} from 'vs/base/common/comparers';
 import {ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {LegacyRenderer, ILegacyTemplateData} from 'vs/base/parts/tree/browser/treeDefaults';
 import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
-import scorer = require('vs/base/common/scorer');
 
 export interface IContext {
 	event: any;
@@ -34,6 +33,18 @@ export interface IHighlight {
 }
 
 let IDS = 0;
+
+class EntryAccessor {
+
+	public static getLabel(entry: QuickOpenEntry) {
+		return entry.getLabel();
+	}
+
+	public static getResourcePath(entry: QuickOpenEntry) {
+		const resource = entry.getResource();
+		return resource && resource.fsPath;
+	}
+}
 
 export class QuickOpenEntry {
 	private id: string;
@@ -183,58 +194,7 @@ export class QuickOpenEntry {
 	}
 
 	public static compareByScore(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, lookForNormalizedLower: string, scorerCache?: { [key: string]: number }): number {
-		const labelA = elementA.getLabel();
-		const labelB = elementB.getLabel();
-
-		// treat prefix matches highest in any case
-		const prefixCompare = compareByPrefix(labelA, labelB, lookFor);
-		if (prefixCompare) {
-			return prefixCompare;
-		}
-
-		// Give higher importance to label score
-		const labelAScore = scorer.score(labelA, lookFor, scorerCache);
-		const labelBScore = scorer.score(labelB, lookFor, scorerCache);
-
-		// Useful for understanding the scoring
-		// elementA.setPrefix(labelAScore + ' ');
-		// elementB.setPrefix(labelBScore + ' ');
-
-		if (labelAScore !== labelBScore) {
-			return labelAScore > labelBScore ? -1 : 1;
-		}
-
-		// Score on full resource path comes next (if available)
-		let resourceA = elementA.getResource();
-		let resourceB = elementB.getResource();
-		if (resourceA && resourceB) {
-			const resourceAScore = scorer.score(resourceA.fsPath, lookFor, scorerCache);
-			const resourceBScore = scorer.score(resourceB.fsPath, lookFor, scorerCache);
-
-			// Useful for understanding the scoring
-			// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-			// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
-
-			if (resourceAScore !== resourceBScore) {
-				return resourceAScore > resourceBScore ? -1 : 1;
-			}
-		}
-
-		// At this place, the scores are identical so we check for string lengths and favor shorter ones
-		if (labelA.length !== labelB.length) {
-			return labelA.length < labelB.length ? -1 : 1;
-		}
-
-		if (resourceA && resourceB && resourceA.fsPath.length !== resourceB.fsPath.length) {
-			return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
-		}
-
-		// Finally compare by label or resource path
-		if (labelA === labelB && resourceA && resourceB) {
-			return compareAnything(resourceA.fsPath, resourceB.fsPath, lookForNormalizedLower);
-		}
-
-		return compareAnything(labelA, labelB, lookForNormalizedLower);
+		return doCompareByScore(elementA, elementB, EntryAccessor, lookFor, lookForNormalizedLower, scorerCache);
 	}
 
 	/**

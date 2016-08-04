@@ -12,6 +12,7 @@ import {join, normalize} from 'vs/base/common/paths';
 import {LineMatch} from 'vs/platform/search/common/search';
 
 import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
+import {IRawFileMatch} from 'vs/workbench/services/search/node/search';
 import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';
 
 function count(lineMatches: LineMatch[]): number {
@@ -149,7 +150,7 @@ suite('Search', () => {
 		});
 
 		let count = 0;
-		let res;
+		let res: IRawFileMatch;
 		engine.search((result) => {
 			if (result) {
 				count++;
@@ -158,7 +159,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.ok(path.basename(res.path) === 'site.less');
+			assert.strictEqual(path.basename(res.absolutePath), 'site.less');
 			done();
 		});
 	});
@@ -246,7 +247,7 @@ suite('Search', () => {
 		});
 
 		let count = 0;
-		let res;
+		let res: IRawFileMatch;
 		engine.search((result) => {
 			if (result) {
 				count++;
@@ -255,7 +256,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), '汉语.txt');
+			assert.equal(path.basename(res.absolutePath), '汉语.txt');
 			done();
 		});
 	});
@@ -286,7 +287,7 @@ suite('Search', () => {
 		});
 
 		let count = 0;
-		let res;
+		let res: IRawFileMatch;
 		engine.search((result) => {
 			if (result) {
 				count++;
@@ -295,7 +296,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'site.css');
+			assert.equal(path.basename(res.absolutePath), 'site.css');
 			done();
 		});
 	});
@@ -308,7 +309,7 @@ suite('Search', () => {
 		});
 
 		let count = 0;
-		let res;
+		let res: IRawFileMatch;
 		engine.search((result) => {
 			if (result) {
 				count++;
@@ -317,7 +318,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'company.js');
+			assert.equal(path.basename(res.absolutePath), 'company.js');
 			done();
 		});
 	});
@@ -334,7 +335,7 @@ suite('Search', () => {
 		});
 
 		let count = 0;
-		let res;
+		let res: IRawFileMatch;
 		engine.search((result) => {
 			if (result) {
 				count++;
@@ -343,7 +344,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'company.js');
+			assert.equal(path.basename(res.absolutePath), 'company.js');
 			done();
 		});
 	});
@@ -361,7 +362,7 @@ suite('Search', () => {
 		});
 
 		let count = 0;
-		let res;
+		let res: IRawFileMatch;
 		engine.search((result) => {
 			if (result) {
 				count++;
@@ -370,7 +371,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'site.css');
+			assert.equal(path.basename(res.absolutePath), 'site.css');
 			done();
 		});
 	});

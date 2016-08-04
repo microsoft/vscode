@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {PPromise} from 'vs/base/common/winjs.base';
+import {PPromise, TPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import objects = require('vs/base/common/objects');
@@ -189,6 +189,10 @@ export class SearchService implements ISearchService {
 
 		return true;
 	}
+
+	public clearCache(cacheKey: string): TPromise<void> {
+		return this.diskSearch.clearCache(cacheKey);
+	}
 }
 
 export class DiskSearch {
@@ -223,7 +227,9 @@ export class DiskSearch {
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
 			includePattern: query.includePattern,
-			maxResults: query.maxResults
+			maxResults: query.maxResults,
+			sortByScore: query.sortByScore,
+			cacheKey: query.cacheKey
 		};
 
 		if (query.type === QueryType.Text) {
@@ -281,5 +287,9 @@ export class DiskSearch {
 			}
 		}
 		return fileMatch;
+	}
+
+	public clearCache(cacheKey: string): TPromise<void> {
+		return this.raw.clearCache(cacheKey);
 	}
 }
