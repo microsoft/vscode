@@ -15,10 +15,8 @@ import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
@@ -220,28 +218,27 @@ class ContextMenuController implements IEditorContribution {
 	}
 }
 
-class ShowContextMenu extends EditorAction {
+class ShowContextMenu extends EditorAction2 {
 
-	public static ID = 'editor.action.showContextMenu';
+	constructor() {
+		super(
+			'editor.action.showContextMenu',
+			nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
+			'Show Editor Context Menu',
+			false
+		);
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyMod.Shift | KeyCode.F10
+		};
 	}
 
-	public run(): TPromise<boolean> {
-		var contribution = <ContextMenuController>this.editor.getContribution(ContextMenuController.ID);
-		if (!contribution) {
-			return TPromise.as(null);
-		}
-
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		var contribution = <ContextMenuController>editor.getContribution(ContextMenuController.ID);
 		contribution.showContextMenu();
-
-		return TPromise.as(null);
 	}
 }
 
 EditorBrowserRegistry.registerEditorContribution(ContextMenuController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowContextMenu, ShowContextMenu.ID, nls.localize('action.showContextMenu.label', "Show Editor Context Menu"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyCode.F10
-}, 'Show Editor Context Menu'));
+CommonEditorRegistry.registerEditorAction2(new ShowContextMenu());

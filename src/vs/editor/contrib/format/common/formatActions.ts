@@ -9,11 +9,9 @@ import * as arrays from 'vs/base/common/arrays';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
@@ -134,40 +132,45 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
-export class FormatAction extends EditorAction {
+export class FormatAction extends EditorAction2 {
 
-	public static ID = 'editor.action.format';
+	constructor() {
+		super(
+			'editor.action.format',
+			nls.localize('formatAction.label', "Format Code"),
+			'Format Code',
+			true
+		);
 
-	private _disposables: IDisposable[];
+		this.kbOpts = {
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
+		};
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange);
-		this._disposables = [
-			DocumentFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState()),
-			DocumentRangeFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState())
-		];
+		this.menuOpts = {
+			group: '1_modification',
+			order: 1.3,
+			kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasFormattingProvider)
+		};
 	}
 
-	public dispose() {
-		super.dispose();
-		this._disposables = dispose(this._disposables);
-	}
-	public isSupported(): boolean {
+	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
+			return false;
+		}
 		return (
-			(
-				DocumentFormattingEditProviderRegistry.has(this.editor.getModel())
-				|| DocumentRangeFormattingEditProviderRegistry.has(this.editor.getModel())
-			)
-			&& super.isSupported()
+			DocumentFormattingEditProviderRegistry.has(editor.getModel())
+			|| DocumentRangeFormattingEditProviderRegistry.has(editor.getModel())
 		);
 	}
 
-	public run(): TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
 
-		const model = this.editor.getModel(),
-			editorSelection = this.editor.getSelection(),
-			modelOpts = model.getOptions(),
-			options = {
+		const model = editor.getModel();
+		const editorSelection = editor.getSelection();
+		const modelOpts = model.getOptions();
+		const options = {
 				tabSize: modelOpts.tabSize,
 				insertSpaces: modelOpts.insertSpaces,
 			};
@@ -181,26 +184,26 @@ export class FormatAction extends EditorAction {
 		}
 
 		if (!formattingPromise) {
-			return TPromise.as(false);
+			return TPromise.as(void 0);
 		}
 
 		// Capture the state of the editor
-		var state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+		var state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
 		return formattingPromise.then((result: editorCommon.ISingleEditOperation[]) => {
 
-			if (!state.validate(this.editor)) {
-				return false;
+			if (!state.validate(editor)) {
+				return;
 			}
 
 			if (!result || result.length === 0) {
-				return false;
+				return;
 			}
 
-			this.apply(this.editor, editorSelection, result);
-			this.editor.focus();
-			return true;
+			this.apply(editor, editorSelection, result);
+
+			editor.focus();
 		});
 	}
 
@@ -220,20 +223,5 @@ export class FormatAction extends EditorAction {
 }
 
 // register action
-CommonEditorRegistry.registerEditorAction({
-	ctor: FormatAction,
-	id: FormatAction.ID,
-	label: nls.localize('formatAction.label', "Format Code"),
-	alias: 'Format Code',
-	kbOpts: {
-		context: ContextKey.EditorTextFocus,
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
-	},
-	menuOpts: {
-		group: '1_modification',
-		order: 1.3,
-		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasFormattingProvider)
-	}
-});
+CommonEditorRegistry.registerEditorAction2(new FormatAction());
 CommonEditorRegistry.registerEditorContribution(FormatOnType);

@@ -11,11 +11,9 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
@@ -648,130 +646,187 @@ export class FoldingController implements editorCommon.IEditorContribution {
 	}
 }
 
-abstract class FoldingAction extends EditorAction {
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+abstract class FoldingAction2 extends EditorAction2 {
+
+	constructor(id:string, label:string, alias:string, keybinding:number) {
+		super(id, label, alias, false);
+
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.Focus,
+			primary: keybinding
+		};
 	}
 
-	abstract invoke(foldingController: FoldingController): void;
+	abstract invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void;
 
-	public run(): TPromise<boolean> {
-		let foldingController = FoldingController.getFoldingController(this.editor);
-		this.invoke(foldingController);
-		return TPromise.as(true);
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		let foldingController = FoldingController.getFoldingController(editor);
+		this.invoke(foldingController, editor);
 	}
-
 }
 
-class UnfoldAction extends FoldingAction {
-	public static ID = 'editor.unfold';
+class UnfoldAction extends FoldingAction2 {
 
-	invoke(foldingController: FoldingController): void {
+	constructor() {
+		super(
+			'editor.unfold',
+			nls.localize('unfoldAction.label', "Unfold"),
+			'Unfold',
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+		);
+	}
+
+	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void {
 		foldingController.unfold();
 	}
 }
 
-class UnFoldRecursivelyAction extends FoldingAction {
-	public static ID = 'editor.unFoldRecursively';
+class UnFoldRecursivelyAction extends FoldingAction2 {
 
-	invoke(foldingController: FoldingController): void {
+	constructor() {
+		super(
+			'editor.unFoldRecursively',
+			nls.localize('unFoldRecursivelyAction.label', "Unfold Recursively"),
+			'Unfold Recursively',
+			KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET)
+		);
+	}
+
+	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void {
 		foldingController.foldUnfoldRecursively(false);
 	}
 }
 
-class FoldAction extends FoldingAction {
-	public static ID = 'editor.fold';
+class FoldAction extends FoldingAction2 {
 
-	invoke(foldingController: FoldingController): void {
+	constructor() {
+		super(
+			'editor.fold',
+			nls.localize('foldAction.label', "Fold"),
+			'Fold',
+			KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+		);
+	}
+
+	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void {
 		foldingController.fold();
 	}
 }
 
-class FoldRecursivelyAction extends FoldingAction {
-	public static ID = 'editor.foldRecursively';
+class FoldRecursivelyAction extends FoldingAction2 {
 
-	invoke(foldingController: FoldingController): void {
+	constructor() {
+		super(
+			'editor.foldRecursively',
+			nls.localize('foldRecursivelyAction.label', "Fold Recursively"),
+			'Fold Recursively',
+			KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET)
+		);
+	}
+
+	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void {
 		foldingController.foldUnfoldRecursively(true);
 	}
 }
 
-class FoldAllAction extends FoldingAction {
-	public static ID = 'editor.foldAll';
+class FoldAllAction extends FoldingAction2 {
 
-	invoke(foldingController: FoldingController): void {
+	constructor() {
+		super(
+			'editor.foldAll',
+			nls.localize('foldAllAction.label', "Fold All"),
+			'Fold All',
+			KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0)
+		);
+	}
+
+	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void {
 		foldingController.changeAll(true);
 	}
 }
 
-class UnfoldAllAction extends FoldingAction {
-	public static ID = 'editor.unfoldAll';
+class UnfoldAllAction extends FoldingAction2 {
 
-	invoke(foldingController: FoldingController): void {
+	constructor() {
+		super(
+			'editor.unfoldAll',
+			nls.localize('unfoldAllAction.label', "Unfold All"),
+			'Unfold All',
+			KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J)
+		);
+	}
+
+	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void {
 		foldingController.changeAll(false);
 	}
 }
 
-class FoldLevelAction extends FoldingAction {
+class FoldLevelAction extends FoldingAction2 {
 	private static ID_PREFIX = 'editor.foldLevel';
 	public static ID = (level:number) => FoldLevelAction.ID_PREFIX + level;
+
+	constructor(id:string, label:string, alias:string, keybinding:number) {
+		super(id, label, alias, keybinding);
+	}
 
 	private getFoldingLevel() {
 		return parseInt(this.id.substr(FoldLevelAction.ID_PREFIX.length));
 	}
 
-	private getSelectedLines() {
-		return this.editor.getSelections().map(s => s.startLineNumber);
+	private getSelectedLines(editor:editorCommon.ICommonCodeEditor) {
+		return editor.getSelections().map(s => s.startLineNumber);
 	}
 
-	invoke(foldingController: FoldingController): void {
-		foldingController.foldLevel(this.getFoldingLevel(), this.getSelectedLines());
+	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void {
+		foldingController.foldLevel(this.getFoldingLevel(), this.getSelectedLines(editor));
 	}
 }
 
-
 EditorBrowserRegistry.registerEditorContribution(FoldingController);
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAction, UnfoldAction.ID, nls.localize('unfoldAction.label', "Unfold"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
-}, 'Unfold'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnFoldRecursivelyAction, UnFoldRecursivelyAction.ID, nls.localize('unFoldRecursivelyAction.label', "Unfold Recursively"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET)
-}, 'Unfold Recursively'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAction, FoldAction.ID, nls.localize('foldAction.label', "Fold"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
-}, 'Fold'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldRecursivelyAction, FoldRecursivelyAction.ID, nls.localize('foldRecursivelyAction.label', "Fold Recursively"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET)
-}, 'Fold Recursively'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAllAction, FoldAllAction.ID, nls.localize('foldAllAction.label', "Fold All"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0)
-}, 'Fold All'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAllAction, UnfoldAllAction.ID, nls.localize('unfoldAllAction.label', "Unfold All"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J)
-}, 'Unfold All'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(1), nls.localize('foldLevel1Action.label', "Fold Level 1"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
-}, 'Fold Level 1'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(2), nls.localize('foldLevel2Action.label', "Fold Level 2"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
-}, 'Fold Level 2'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(3), nls.localize('foldLevel3Action.label', "Fold Level 3"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
-}, 'Fold Level 3'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(4), nls.localize('foldLevel4Action.label', "Fold Level 4"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
-}, 'Fold Level 4'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(5), nls.localize('foldLevel5Action.label', "Fold Level 5"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_5)
-}, 'Fold Level 5'));
+CommonEditorRegistry.registerEditorAction2(new UnfoldAction());
+CommonEditorRegistry.registerEditorAction2(new UnFoldRecursivelyAction());
+CommonEditorRegistry.registerEditorAction2(new FoldAction());
+CommonEditorRegistry.registerEditorAction2(new FoldRecursivelyAction());
+CommonEditorRegistry.registerEditorAction2(new FoldAllAction());
+CommonEditorRegistry.registerEditorAction2(new UnfoldAllAction());
+CommonEditorRegistry.registerEditorAction2(
+	new FoldLevelAction(
+		FoldLevelAction.ID(1),
+		nls.localize('foldLevel1Action.label', "Fold Level 1"),
+		'Fold Level 1',
+		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
+	)
+);
+CommonEditorRegistry.registerEditorAction2(
+	new FoldLevelAction(
+		FoldLevelAction.ID(2),
+		nls.localize('foldLevel2Action.label', "Fold Level 2"),
+		'Fold Level 2',
+		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
+	)
+);
+CommonEditorRegistry.registerEditorAction2(
+	new FoldLevelAction(
+		FoldLevelAction.ID(3),
+		nls.localize('foldLevel3Action.label', "Fold Level 3"),
+		'Fold Level 3',
+		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
+	)
+);
+CommonEditorRegistry.registerEditorAction2(
+	new FoldLevelAction(
+		FoldLevelAction.ID(4),
+		nls.localize('foldLevel4Action.label', "Fold Level 4"),
+		'Fold Level 4',
+		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
+	)
+);
+CommonEditorRegistry.registerEditorAction2(
+	new FoldLevelAction(
+		FoldLevelAction.ID(5),
+		nls.localize('foldLevel5Action.label', "Fold Level 5"),
+		'Fold Level 5',
+		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_5)
+	)
+);
