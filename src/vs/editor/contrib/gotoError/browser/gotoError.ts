@@ -22,10 +22,8 @@ import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
@@ -408,21 +406,20 @@ class MarkerNavigationWidget extends ZoneWidget {
 	}
 }
 
-class MarkerNavigationAction extends EditorAction {
+class MarkerNavigationAction extends EditorAction2 {
 
 	private _isNext: boolean;
 
-	private telemetryService: ITelemetryService;
-
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, next: boolean, @ITelemetryService telemetryService: ITelemetryService) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange);
-		this.telemetryService = telemetryService;
+	constructor(id:string, label:string, alias:string, next: boolean) {
+		super(id, label, alias, true);
 		this._isNext = next;
 	}
 
-	public run(): TPromise<boolean> {
-		var model = MarkerController.getMarkerController(this.editor).getOrCreateModel();
-		this.telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		const telemetryService = accessor.get(ITelemetryService);
+
+		let model = MarkerController.getMarkerController(editor).getOrCreateModel();
+		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
 		if (model) {
 			if (this._isNext) {
 				model.next();
@@ -431,7 +428,6 @@ class MarkerNavigationAction extends EditorAction {
 			}
 			model.reveal();
 		}
-		return TPromise.as(true);
 	}
 }
 
@@ -515,32 +511,42 @@ class MarkerController implements editorCommon.IEditorContribution {
 }
 
 class NextMarkerAction extends MarkerNavigationAction {
-	public static ID = 'editor.action.marker.next';
+	constructor() {
+		super(
+			'editor.action.marker.next',
+			nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
+			'Go to Next Error or Warning',
+			true
+		);
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @ITelemetryService telemetryService: ITelemetryService) {
-		super(descriptor, editor, true, telemetryService);
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.Focus,
+			primary: KeyCode.F8
+		};
 	}
 }
 
 class PrevMarkerAction extends MarkerNavigationAction {
-	public static ID = 'editor.action.marker.prev';
+	constructor() {
+		super(
+			'editor.action.marker.prev',
+			nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
+			'Go to Previous Error or Warning',
+			false
+		);
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @ITelemetryService telemetryService: ITelemetryService) {
-		super(descriptor, editor, false, telemetryService);
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.Focus,
+			primary: KeyMod.Shift | KeyCode.F8
+		};
 	}
 }
 
 var CONTEXT_MARKERS_NAVIGATION_VISIBLE = 'markersNavigationVisible';
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextMarkerAction, NextMarkerAction.ID, nls.localize('markerAction.next.label', "Go to Next Error or Warning"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyCode.F8
-}, 'Go to Next Error or Warning'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PrevMarkerAction, PrevMarkerAction.ID, nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.Shift | KeyCode.F8
-}, 'Go to Previous Error or Warning'));
+CommonEditorRegistry.registerEditorAction2(new NextMarkerAction());
+CommonEditorRegistry.registerEditorAction2(new PrevMarkerAction());
 CommonEditorRegistry.registerEditorCommand('closeMarkersNavigation', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_MARKERS_NAVIGATION_VISIBLE, (ctx, editor, args) => {
 	var controller = MarkerController.getMarkerController(editor);
 	controller.closeMarkersNavigation();
