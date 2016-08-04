@@ -174,7 +174,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = <HTMLTextAreaElement>document.createElement('textarea');
 		this._keybindingService = keybindingService.createScoped(this.textArea);
-		this._editorTextFocusContextKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS, undefined);
+		this._editorTextFocusContextKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS.bindTo(this._keybindingService, undefined);
 		this.textArea.className = editorBrowser.ClassNames.TEXTAREA;
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');

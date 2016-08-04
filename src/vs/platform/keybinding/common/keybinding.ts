@@ -383,8 +383,12 @@ export class KbCtxKey extends KbDefinedExpression {
 		return target.getContextValue<T>(this.key);
 	}
 
-	public negate(): KbExpr {
+	public toNegated(): KbExpr {
 		return KbExpr.not(this.key);
+	}
+
+	public isEqualTo(value:string): KbExpr {
+		return KbExpr.equals(this.key, value);
 	}
 }
 

@@ -9,7 +9,6 @@ import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
@@ -106,7 +105,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSele
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 	// Don't apply to Mac since cmd+c works
 	mac: { primary: null }
-}, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
@@ -118,7 +117,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAct
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V,
 	// Don't apply to Mac since cmd+v works
 	mac: { primary: null }
-}, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), RunSelectedTextInTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,

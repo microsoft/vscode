@@ -34,7 +34,7 @@ export interface IFindStartOptions {
 }
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new KbCtxKey('findWidgetVisible');
-export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.negate();
+export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 

@@ -32,7 +32,7 @@ import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/p
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent} from 'vs/workbench/parts/search/common/searchModel';
 import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
+import {VIEWLET_ID, SearchViewletVisible} from 'vs/workbench/parts/search/common/constants';
 import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import {ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -105,7 +105,7 @@ export class SearchViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.toDispose = [];
-		this.viewletVisible = keybindingService.createKey<boolean>('searchViewletVisible', true);
+		this.viewletVisible = SearchViewletVisible.bindTo(keybindingService, true);
 		this.callOnModelChange = [];
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);

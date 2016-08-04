@@ -19,7 +19,7 @@ import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInpu
 import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import {TextCompareEditorVisible, TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -94,7 +94,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.compareEditor.nextChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: KbExpr.has('textCompareEditorVisible'),
+	when: TextCompareEditorVisible,
 	primary: null,
 	handler: accessor => navigateInDiffEditor(accessor, true)
 });
@@ -102,7 +102,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.compareEditor.previousChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: KbExpr.has('textCompareEditorVisible'),
+	when: TextCompareEditorVisible,
 	primary: null,
 	handler: accessor => navigateInDiffEditor(accessor, false)
 });
