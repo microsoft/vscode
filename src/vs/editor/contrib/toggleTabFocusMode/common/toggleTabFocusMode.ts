@@ -6,36 +6,32 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {ServicesAccessor, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export class ToggleTabFocusModeAction extends EditorAction {
+export class ToggleTabFocusModeAction extends EditorAction2 {
 
 	public static ID = 'editor.action.toggleTabFocusMode';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super(
+			ToggleTabFocusModeAction.ID,
+			nls.localize('toggle.tabfocusmode', "Toggle Use of Tab Key for Setting Focus"),
+			'Toggle Use of Tab Key for Setting Focus',
+			false
+		);
 	}
 
-	public run():TPromise<boolean> {
-
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 		let oldValue = TabFocus.getTabFocusMode();
 		TabFocus.setTabFocusMode(!oldValue);
-
-		return TPromise.as(true);
 	}
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleTabFocusModeAction, ToggleTabFocusModeAction.ID, nls.localize('toggle.tabfocusmode', "Toggle Use of Tab Key for Setting Focus"), {
-	primary: null,
-	context: null
-}, 'Toggle Use of Tab Key for Setting Focus'));
+CommonEditorRegistry.registerEditorAction2(new ToggleTabFocusModeAction());
 
 KeybindingsRegistry.registerCommandRule({
 	id: ToggleTabFocusModeAction.ID,
