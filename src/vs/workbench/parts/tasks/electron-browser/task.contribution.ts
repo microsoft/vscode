@@ -1210,12 +1210,12 @@ let schema : IJSONSchema =
 					'echoCommand': {
 						'type': 'boolean',
 						'description': nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-						'default': false
+						'default': true
 					},
 					'suppressTaskName': {
 						'type': 'boolean',
 						'description': nls.localize('JsonSchema.suppressTaskName', 'Controls whether the task name should be suppressed as an argument to the command. Only valid when there is a tasks property. Default is false.'),
-						'default': false
+						'default': true
 					},
 					'taskSelector': {
 						'type': 'string',
@@ -1254,7 +1254,7 @@ let schema : IJSONSchema =
 					'suppressTaskName': {
 						'type': 'boolean',
 						'description': nls.localize('JsonSchema.tasks.suppressTaskName', 'Controls whether the task name should be suppressed as an argument to the command. If omitted the globally defined value is used.'),
-						'default': false
+						'default': true
 					},
 					'showOutput': {
 						'$ref': '#/definitions/showOutputType',
@@ -1263,7 +1263,7 @@ let schema : IJSONSchema =
 					'echoCommand': {
 						'type': 'boolean',
 						'description': nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-						'default': false
+						'default': true
 					},
 					'isWatching': {
 						'type': 'boolean',
