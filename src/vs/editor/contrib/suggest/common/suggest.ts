@@ -7,6 +7,7 @@
 import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {compare} from 'vs/base/common/strings';
+import {assign} from 'vs/base/common/objects';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
@@ -27,6 +28,7 @@ export interface ISuggestionItem {
 	suggestion: ISuggestion;
 	container: ISuggestResult;
 	support: ISuggestSupport;
+	resolve(): TPromise<void>;
 }
 
 export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none' | 'only';
@@ -75,7 +77,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 					return;
 				}
 
-				let oldLen = result.length;
+				const len = result.length;
 
 				for (let container of values) {
 					if (container && !isFalsyOrEmpty(container.suggestions)) {
@@ -87,14 +89,15 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 								result.push({
 									container,
 									suggestion,
-									support
+									support,
+									resolve: createSuggestionResolver(support, suggestion, model, position)
 								});
 							}
 						}
 					}
 				}
 
-				if (oldLen !== result.length && support !== snippetSuggestSupport) {
+				if (len !== result.length && support !== snippetSuggestSupport) {
 					hasResult = true;
 				}
 
@@ -112,6 +115,16 @@ function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestRes
 	if (typeof suggestion.overwriteAfter !== 'number' || suggestion.overwriteAfter < 0) {
 		suggestion.overwriteAfter = 0;
 	}
+}
+
+function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: IReadOnlyModel, position: Position): () => TPromise<void> {
+	return () => {
+		if (typeof provider.resolveCompletionItem === 'function') {
+			return asWinJsPromise(token => provider.resolveCompletionItem(model, position, suggestion, token))
+				.then(value => { assign(suggestion, value); });
+		}
+		return TPromise.as(void 0);
+	};
 }
 
 function createSuggesionFilter(options: ISuggestOptions): (candidate: ISuggestion) => boolean {

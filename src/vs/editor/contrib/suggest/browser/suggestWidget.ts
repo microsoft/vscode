@@ -477,10 +477,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 
-		const position = this.model.getRequestPosition() || this.editor.getPosition();
-		this.currentSuggestionDetails = item.resolveDetails(this.editor.getModel(), position)
-			.then(details => {
-				item.updateDetails(details);
+		this.currentSuggestionDetails = item.resolve()
+			.then(() => {
 				this.list.setFocus(index);
 				this.updateWidgetHeight();
 				this.list.reveal(index);

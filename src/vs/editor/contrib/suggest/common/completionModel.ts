@@ -6,14 +6,10 @@
 'use strict';
 
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {assign} from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {ISuggestion} from 'vs/editor/common/modes';
 import {ISuggestionItem} from './suggest';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {Position} from 'vs/editor/common/core/position';
 
 export class CompletionItem {
 
@@ -21,26 +17,13 @@ export class CompletionItem {
 	highlights: IMatch[];
 	filter: IFilter;
 
-	private _support: ISuggestSupport;
-
-	constructor(item: ISuggestionItem) {
-		this.suggestion = item.suggestion;
-		this.filter = item.support && item.support.filter || fuzzyContiguousFilter;
-		this._support = item.support;
+	constructor(private _item: ISuggestionItem) {
+		this.suggestion = _item.suggestion;
+		this.filter = _item.support && _item.support.filter || fuzzyContiguousFilter;
 	}
 
-	resolveDetails(model:IReadOnlyModel, position:Position): TPromise<ISuggestion> {
-		if (!this._support || typeof this._support.resolveCompletionItem !== 'function') {
-			return TPromise.as(this.suggestion);
-		}
-
-		return asWinJsPromise((token) => {
-			return this._support.resolveCompletionItem(model, position, this.suggestion, token);
-		});
-	}
-
-	updateDetails(value: ISuggestion): void {
-		this.suggestion = assign(this.suggestion, value);
+	resolve(): TPromise<this> {
+		return this._item.resolve().then(() => this);
 	}
 }
 
