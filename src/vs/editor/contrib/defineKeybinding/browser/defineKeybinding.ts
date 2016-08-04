@@ -11,7 +11,6 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {MarkedString} from 'vs/base/common/htmlContent';
 import {CommonKeybindings, KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -19,10 +18,8 @@ import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CodeSnippet, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
@@ -30,7 +27,6 @@ import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/sm
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
-const NLS_DEFINE_ACTION_LABEL = nls.localize('DefineKeybindingAction',"Define Keybinding");
 const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutInfoMessage', "For your current keyboard layout press ");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
@@ -447,25 +443,34 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	}
 }
 
-export class DefineKeybindingAction extends EditorAction {
+export class DefineKeybindingAction extends EditorAction2 {
 
 	static ID = 'editor.action.defineKeybinding';
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.UpdateOnModelChange | Behaviour.Writeable);
+	constructor() {
+		super(
+			DefineKeybindingAction.ID,
+			nls.localize('DefineKeybindingAction',"Define Keybinding"),
+			'Define Keybinding',
+			true
+		);
+
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.Focus,
+			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
+		};
 	}
 
-	public isSupported(): boolean {
-		if (!super.isSupported()) {
+	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
 			return false;
 		}
-		return isInterestingEditorModel(this.editor);
+		return isInterestingEditorModel(editor);
 	}
 
-	public run(): TPromise<boolean> {
-		var controller = DefineKeybindingController.get(this.editor);
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		var controller = DefineKeybindingController.get(editor);
 		controller.launch();
-		return TPromise.as(true);
 	}
 
 }
@@ -483,7 +488,4 @@ function isInterestingEditorModel(editor:editorCommon.ICommonCodeEditor): boolea
 }
 
 EditorBrowserRegistry.registerEditorContribution(DefineKeybindingController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DefineKeybindingAction, DefineKeybindingAction.ID, NLS_DEFINE_ACTION_LABEL, {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
-}, 'Define Keybinding'));
+CommonEditorRegistry.registerEditorAction2(new DefineKeybindingAction());

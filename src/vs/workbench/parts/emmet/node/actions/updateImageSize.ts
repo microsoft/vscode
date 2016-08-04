@@ -8,19 +8,17 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class UpdateImageSizeAction extends BasicEmmetEditorAction {
-
-	static ID = 'editor.emmet.action.updateImageSize';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService, 'update_image_size');
+	constructor() {
+		super(
+			'editor.emmet.action.updateImageSize',
+			nls.localize('updateImageSize', "Emmet: Update Image Size"),
+			'Emmet: Update Image Size',
+			'update_image_size'
+		);
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UpdateImageSizeAction,
-	UpdateImageSizeAction.ID,
-	nls.localize('updateImageSize', "Emmet: Update Image Size"), void 0, 'Emmet: Update Image Size'));
+CommonEditorRegistry.registerEditorAction2(new UpdateImageSizeAction());

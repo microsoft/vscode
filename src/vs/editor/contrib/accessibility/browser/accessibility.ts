@@ -10,7 +10,6 @@ import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {clearNode} from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
@@ -19,15 +18,12 @@ import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor, IEditorContribution, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, EditorKbExpr, EditorAction2} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
-const NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL = nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help");
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = 'accessibilityHelpWidgetVisible';
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
@@ -193,24 +189,30 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 }
 
-class ShowAccessibilityHelpAction extends EditorAction {
+class ShowAccessibilityHelpAction extends EditorAction2 {
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.WidgetFocus);
+	constructor() {
+		super(
+			SHOW_ACCESSIBILITY_HELP_ACTION_ID,
+			nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help"),
+			'Show Accessibility Help',
+			false
+		);
+
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.Focus,
+			primary: KeyMod.Alt | KeyCode.F1
+		};
 	}
 
-	public run(): TPromise<boolean> {
-		let controller = AccessibilityHelpController.get(this.editor);
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		let controller = AccessibilityHelpController.get(editor);
 		controller.show();
-		return TPromise.as(true);
 	}
 }
 
 EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowAccessibilityHelpAction, SHOW_ACCESSIBILITY_HELP_ACTION_ID, NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL, {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.Alt | KeyCode.F1
-}, 'Show Accessibility Help'));
+CommonEditorRegistry.registerEditorAction2(new ShowAccessibilityHelpAction());
 CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
 	AccessibilityHelpController.get(editor).hide();
 });

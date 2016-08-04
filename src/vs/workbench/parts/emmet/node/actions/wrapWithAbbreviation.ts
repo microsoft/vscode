@@ -6,41 +6,38 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
-import * as emmet from 'emmet';
+import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ServicesAccessor, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 class WrapWithAbbreviationAction extends EmmetEditorAction {
 
-	static ID = 'editor.emmet.action.wrapWithAbbreviation';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService);
+	constructor() {
+		super(
+			'editor.emmet.action.wrapWithAbbreviation',
+			nls.localize('wrapWithAbbreviationAction', "Emmet: Wrap with Abbreviation"),
+			'Emmet: Wrap with Abbreviation'
+		);
 	}
 
-	public runEmmetAction(_emmet: typeof emmet) {
+	public runEmmetAction(accessor:ServicesAccessor, ctx: EmmetActionContext) {
+		const quickOpenService = accessor.get(IQuickOpenService);
+
 		let options: IInputOptions = {
 			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
 			placeHolder: nls.localize('abbreviation', "Abbreviation")
 		};
-		this.quickOpenService.input(options).then(abbreviation => {
-			this.wrapAbbreviation(_emmet, abbreviation);
+		quickOpenService.input(options).then(abbreviation => {
+			this.wrapAbbreviation(ctx, abbreviation);
 		});
 	}
 
-	private wrapAbbreviation(_emmet: typeof emmet, abbreviation) {
-		if (abbreviation && !_emmet.run('wrap_with_abbreviation', this.editorAccessor, abbreviation)) {
-			this.noExpansionOccurred();
+	private wrapAbbreviation(ctx: EmmetActionContext, abbreviation:string) {
+		if (abbreviation && !ctx.emmet.run('wrap_with_abbreviation', ctx.editorAccessor, abbreviation)) {
+			this.noExpansionOccurred(ctx.editor);
 		}
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(WrapWithAbbreviationAction,
-	WrapWithAbbreviationAction.ID,
-	nls.localize('wrapWithAbbreviationAction', "Emmet: Wrap with Abbreviation"), void 0, 'Emmet: Wrap with Abbreviation'));
+CommonEditorRegistry.registerEditorAction2(new WrapWithAbbreviationAction());

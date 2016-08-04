@@ -8,42 +8,38 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {CommonEditorRegistry, EditorKbExpr} from 'vs/editor/common/editorCommonExtensions';
+import {Handler, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 
-import editorCommon = require('vs/editor/common/editorCommon');
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 
-	static ID = 'editor.emmet.action.expandAbbreviation';
+	constructor() {
+		super(
+			'editor.emmet.action.expandAbbreviation',
+			nls.localize('expandAbbreviationAction', "Emmet: Expand Abbreviation"),
+			'Emmet: Expand Abbreviation',
+			'expand_abbreviation'
+		);
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService, 'expand_abbreviation');
+		this.kbOpts = {
+			primary: KeyCode.Tab,
+			kbExpr: KbExpr.and(
+				EditorKbExpr.TextFocus,
+				EditorKbExpr.HasOnlyEmptySelection,
+				EditorKbExpr.HasSingleSelection,
+				EditorKbExpr.TabDoesNotMoveFocus,
+				KbExpr.has('config.emmet.triggerExpansionOnTab')
+			)
+		};
 	}
 
-	protected noExpansionOccurred(): void {
+	protected noExpansionOccurred(editor:ICommonCodeEditor): void {
 		// forward the tab key back to the editor
-		this.editor.trigger('emmet', editorCommon.Handler.Tab, {});
+		editor.trigger('emmet', Handler.Tab, {});
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ExpandAbbreviationAction,
-	ExpandAbbreviationAction.ID,
-	nls.localize('expandAbbreviationAction', "Emmet: Expand Abbreviation"), void 0, 'Emmet: Expand Abbreviation'));
-
-
-KeybindingsRegistry.registerCommandRule({
-	id: ExpandAbbreviationAction.ID,
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-	when: KbExpr.and(
-		KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-		KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
-		KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
-		KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
-		KbExpr.has('config.emmet.triggerExpansionOnTab')
-	),
-	primary: KeyCode.Tab
-});
+CommonEditorRegistry.registerEditorAction2(new ExpandAbbreviationAction());

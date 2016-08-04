@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "{",
-		"t": "begin.meta.property-list.punctuation.scss.section",
+		"t": "begin.bracket.curly.meta.property-list.punctuation.scss.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": ":",
-		"t": "key-value.meta.property-list.property-value.punctuation.scss.separator",
+		"t": "key-value.meta.property-list.punctuation.scss.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.property-list.property-value.scss",
+		"t": "meta.property-list.scss",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": ";",
-		"t": "meta.property-list.property-value.punctuation.rule.scss.terminator",
+		"t": "meta.property-list.punctuation.rule.scss.terminator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -144,7 +144,7 @@
 	},
 	{
 		"c": ":",
-		"t": "key-value.meta.property-list.property-value.punctuation.scss.separator",
+		"t": "key-value.meta.property-list.punctuation.scss.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -154,7 +154,18 @@
 		}
 	},
 	{
-		"c": " (",
+		"c": " ",
+		"t": "meta.property-list.scss",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "(",
 		"t": "meta.property-list.property-value.scss",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -176,7 +187,29 @@
 		}
 	},
 	{
-		"c": " * ",
+		"c": " ",
+		"t": "meta.property-list.property-value.scss",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "*",
+		"t": "css.keyword.meta.operator.property-list.property-value.scss",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
+		}
+	},
+	{
+		"c": " ",
 		"t": "meta.property-list.property-value.scss",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -243,7 +276,7 @@
 	},
 	{
 		"c": ";",
-		"t": "meta.property-list.property-value.punctuation.rule.scss.terminator",
+		"t": "meta.property-list.punctuation.rule.scss.terminator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -254,7 +287,7 @@
 	},
 	{
 		"c": "}",
-		"t": "end.meta.property-list.punctuation.scss.section",
+		"t": "bracket.curly.end.meta.property-list.punctuation.scss.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -287,7 +320,7 @@
 	},
 	{
 		"c": "{",
-		"t": "begin.meta.property-list.punctuation.scss.section",
+		"t": "begin.bracket.curly.meta.property-list.punctuation.scss.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -320,7 +353,7 @@
 	},
 	{
 		"c": ":",
-		"t": "key-value.meta.property-list.property-value.punctuation.scss.separator",
+		"t": "key-value.meta.property-list.punctuation.scss.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -331,7 +364,7 @@
 	},
 	{
 		"c": " ",
-		"t": "meta.property-list.property-value.scss",
+		"t": "meta.property-list.scss",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -386,13 +419,13 @@
 	},
 	{
 		"c": "*",
-		"t": "meta.parameter.property-list.property-value.scss.url.variable",
+		"t": "css.keyword.meta.operator.property-list.property-value.scss",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter rgb(156, 220, 254)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter rgb(0, 16, 128)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator rgb(212, 212, 212)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator rgb(0, 0, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator rgb(212, 212, 212)"
 		}
 	},
 	{
@@ -441,7 +474,7 @@
 	},
 	{
 		"c": ",",
-		"t": "meta.property-list.property-value.punctuation.scss",
+		"t": "delimiter.meta.property-list.property-value.punctuation.scss.separator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -496,7 +529,7 @@
 	},
 	{
 		"c": ";",
-		"t": "meta.property-list.property-value.punctuation.rule.scss.terminator",
+		"t": "meta.property-list.punctuation.rule.scss.terminator",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -507,7 +540,7 @@
 	},
 	{
 		"c": "}",
-		"t": "end.meta.property-list.punctuation.scss.section",
+		"t": "bracket.curly.end.meta.property-list.punctuation.scss.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",

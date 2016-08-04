@@ -9,16 +9,12 @@ import 'vs/css!./hover';
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ModesContentHoverWidget} from './modesContentHover';
@@ -145,25 +141,28 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 }
 
-class ShowHoverAction extends EditorAction {
-	static ID = 'editor.action.showHover';
+class ShowHoverAction extends EditorAction2 {
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super(
+			'editor.action.showHover',
+			nls.localize('showHover', "Show Hover"),
+			'Show Hover',
+			false
+		);
+
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+		};
 	}
 
-	public run(): TPromise<any> {
-		const position = this.editor.getPosition();
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		(<ModesHoverController>this.editor.getContribution(ModesHoverController.ID)).showContentHover(range, true);
-
-		return TPromise.as(null);
+		(<ModesHoverController>editor.getContribution(ModesHoverController.ID)).showContentHover(range, true);
 	}
 }
 
 EditorBrowserRegistry.registerEditorContribution(ModesHoverController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowHoverAction, ShowHoverAction.ID, nls.localize('showHover', "Show Hover"), {
-	context: ContextKey.EditorTextFocus,
-	kbExpr: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
-}, 'Show Hover'));
+CommonEditorRegistry.registerEditorAction2(new ShowHoverAction());

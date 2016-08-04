@@ -8,19 +8,17 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class GoToMatchingPairAction extends BasicEmmetEditorAction {
-
-	static ID = 'editor.emmet.action.matchingPair';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService, 'matching_pair');
+	constructor() {
+		super(
+			'editor.emmet.action.matchingPair',
+			nls.localize('matchingPair', "Emmet: Go to Matching Pair"),
+			'Emmet: Go to Matching Pair',
+			'matching_pair'
+		);
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToMatchingPairAction,
-	GoToMatchingPairAction.ID,
-	nls.localize('matchingPair', "Emmet: Go to Matching Pair"), void 0, 'Emmet: Go to Matching Pair'));
+CommonEditorRegistry.registerEditorAction2(new GoToMatchingPairAction());

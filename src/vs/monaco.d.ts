@@ -4484,6 +4484,7 @@ declare module monaco.languages {
      */
     export interface LinkProvider {
         provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+        resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
     }
 
     export interface IResourceEdit {

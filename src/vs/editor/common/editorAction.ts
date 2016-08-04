@@ -10,6 +10,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Behaviour, IEnablementState, createActionEnablement} from 'vs/editor/common/editorActionEnablement';
 import {IActionDescriptor, IActionEnablement, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {ILineContext} from 'vs/editor/common/modes';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {EditorAction2} from 'vs/editor/common/editorCommonExtensions';
 
 var defaultBehaviour = Behaviour.TextFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange;
 
@@ -92,6 +94,37 @@ export class EditorAction extends Action implements IEditorContribution {
 
 	public getAlias(): string {
 		return this._descriptor.alias;
+	}
+}
+
+export class NewEditorAction extends EditorAction {
+
+	private _actual: EditorAction2;
+	private _instantiationService:IInstantiationService;
+
+	constructor(actual:EditorAction2, editor:ICommonCodeEditor, instantiationService:IInstantiationService) {
+		super({ id: actual.id, label: actual.label, alias: actual.alias }, editor, 0);
+		this._actual = actual;
+		this._instantiationService = instantiationService;
+	}
+
+	public get enabled():boolean {
+		return this._instantiationService.invokeFunction((accessor) => {
+			return this._actual.enabled(accessor, this.editor);
+		});
+	}
+
+	public isSupported():boolean {
+		return this._instantiationService.invokeFunction((accessor) => {
+			return this._actual.supported(accessor, this.editor);
+		});
+	}
+
+	public run(): TPromise<void> {
+		return this._instantiationService.invokeFunction((accessor) => {
+			this._actual.run(accessor, this.editor);
+			return TPromise.as(void 0);
+		});
 	}
 }
 

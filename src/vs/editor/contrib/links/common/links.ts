@@ -9,21 +9,65 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {ILink, LinkProviderRegistry} from 'vs/editor/common/modes';
+import {IReadOnlyModel, IRange} from 'vs/editor/common/editorCommon';
+import {ILink, LinkProvider, LinkProviderRegistry} from 'vs/editor/common/modes';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
-export function getLinks(model: IReadOnlyModel): TPromise<ILink[]> {
+export class Link implements ILink {
 
-	let links: ILink[] = [];
+	private _link: ILink;
+	private _provider: LinkProvider;
+
+	constructor(link: ILink, provider: LinkProvider) {
+		this._link = link;
+		this._provider = provider;
+	}
+
+	get range(): IRange {
+		return this._link.range;
+	}
+
+	get url(): string {
+		return this._link.url;
+	}
+
+	resolve(): TPromise<URI> {
+		if (this._link.url) {
+			try {
+				return TPromise.as(URI.parse(this._link.url));
+			} catch (e) {
+				return TPromise.wrapError('invalid');
+			}
+		}
+
+		if (typeof this._provider.resolveLink === 'function') {
+			return asWinJsPromise(token => this._provider.resolveLink(this._link, token)).then(value => {
+				this._link = value || this._link;
+				if (this._link.url) {
+					// recurse
+					return this.resolve();
+				}
+
+				return TPromise.wrapError('missing');
+			});
+		}
+
+		return TPromise.wrapError('missing');
+	}
+}
+
+export function getLinks(model: IReadOnlyModel): TPromise<Link[]> {
+
+	let links: Link[] = [];
 
 	// ask all providers for links in parallel
-	const promises = LinkProviderRegistry.ordered(model).reverse().map(support => {
-		return asWinJsPromise(token => support.provideLinks(model, token)).then(result => {
+	const promises = LinkProviderRegistry.ordered(model).reverse().map(provider => {
+		return asWinJsPromise(token => provider.provideLinks(model, token)).then(result => {
 			if (Array.isArray(result)) {
-				links = union(links, result);
+				const newLinks = result.map(link => new Link(link, provider));
+				links = union(links, newLinks);
 			}
 		}, onUnexpectedError);
 	});
@@ -33,15 +77,15 @@ export function getLinks(model: IReadOnlyModel): TPromise<ILink[]> {
 	});
 }
 
-function union(oldLinks: ILink[], newLinks: ILink[]): ILink[] {
+function union(oldLinks: Link[], newLinks: Link[]): Link[] {
 	// reunite oldLinks with newLinks and remove duplicates
-	var result: ILink[] = [],
+	var result: Link[] = [],
 		oldIndex: number,
 		oldLen: number,
 		newIndex: number,
 		newLen: number,
-		oldLink: ILink,
-		newLink: ILink,
+		oldLink: Link,
+		newLink: Link,
 		comparisonResult: number;
 
 	for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {

@@ -6,111 +6,122 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {EditorKbExpr, EditorAction2, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LineCommentCommand, Type} from './lineCommentCommand';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
-class CommentLineAction extends EditorAction {
-
-	static ID = 'editor.action.commentLine';
+abstract class CommentLineAction extends EditorAction2 {
 
 	private _type: Type;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, type: Type) {
-		super(descriptor, editor);
+	constructor(id:string, label:string, alias:string, type:Type) {
+		super(id, label, alias, true);
 		this._type = type;
 	}
 
-	public run(): TPromise<void> {
-		let model = this.editor.getModel();
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		let model = editor.getModel();
 		if (!model) {
 			return;
 		}
 
 		var commands: ICommand[] = [];
-		var selections = this.editor.getSelections();
+		var selections = editor.getSelections();
 		var opts = model.getOptions();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(null);
+		editor.executeCommands(this.id, commands);
 	}
+
 }
 
 class ToggleCommentLineAction extends CommentLineAction {
 
-	static ID = 'editor.action.commentLine';
+	constructor() {
+		super(
+			'editor.action.commentLine',
+			nls.localize('comment.line', "Toggle Line Comment"),
+			'Toggle Line Comment',
+			Type.Toggle
+		);
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Type.Toggle);
+		this.kbOpts = {
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
+		};
 	}
 }
 
 class AddLineCommentAction extends CommentLineAction {
 
-	static ID = 'editor.action.addCommentLine';
+	constructor() {
+		super(
+			'editor.action.addCommentLine',
+			nls.localize('comment.line.add', "Add Line Comment"),
+			'Add Line Comment',
+			Type.ForceAdd
+		);
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Type.ForceAdd);
+		this.kbOpts = {
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
+		};
 	}
-
 }
 
 class RemoveLineCommentAction extends CommentLineAction {
 
-	static ID = 'editor.action.removeCommentLine';
+	constructor() {
+		super(
+			'editor.action.removeCommentLine',
+			nls.localize('comment.line.remove', "Remove Line Comment"),
+			'Remove Line Comment',
+			Type.ForceRemove
+		);
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Type.ForceRemove);
+		this.kbOpts = {
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
+		};
 	}
-
 }
 
-class BlockCommentAction extends EditorAction {
+class BlockCommentAction extends EditorAction2 {
 
-	static ID = 'editor.action.blockComment';
+	constructor() {
+		super(
+			'editor.action.blockComment',
+			nls.localize('comment.block', "Toggle Block Comment"),
+			'Toggle Block Comment',
+			true
+		);
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
+		this.kbOpts = {
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
+		};
 	}
 
-	public run(): TPromise<boolean> {
-
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 		var commands: ICommand[] = [];
-		var selections = this.editor.getSelections();
+		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(null);
+		editor.executeCommands(this.id, commands);
 	}
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleCommentLineAction, ToggleCommentLineAction.ID, nls.localize('comment.line', "Toggle Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
-}, 'Toggle Line Comment'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddLineCommentAction, AddLineCommentAction.ID, nls.localize('comment.line.add', "Add Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
-}, 'Add Line Comment'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RemoveLineCommentAction, RemoveLineCommentAction.ID, nls.localize('comment.line.remove', "Remove Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
-}, 'Remove Line Comment'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BlockCommentAction, BlockCommentAction.ID, nls.localize('comment.block', "Toggle Block Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
-}, 'Toggle Block Comment'));
+CommonEditorRegistry.registerEditorAction2(new ToggleCommentLineAction());
+CommonEditorRegistry.registerEditorAction2(new AddLineCommentAction());
+CommonEditorRegistry.registerEditorAction2(new RemoveLineCommentAction());
+CommonEditorRegistry.registerEditorAction2(new BlockCommentAction());
