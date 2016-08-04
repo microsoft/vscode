@@ -91,7 +91,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, Chang
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
 
 // Register keybinding for "Next Change" & "Previous Change" in visible diff editor
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.compareEditor.nextChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: KbExpr.has('textCompareEditorVisible'),
@@ -99,7 +99,7 @@ KeybindingsRegistry.registerCommandDesc({
 	handler: accessor => navigateInDiffEditor(accessor, true)
 });
 
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.compareEditor.previousChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: KbExpr.has('textCompareEditorVisible'),
@@ -116,7 +116,7 @@ function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
 	}
 }
 
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: '_workbench.printStacksModel',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor) {
@@ -126,7 +126,7 @@ KeybindingsRegistry.registerCommandDesc({
 	primary: undefined
 });
 
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: '_workbench.validateStacksModel',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor) {
@@ -338,7 +338,7 @@ for (let i = 0; i < 9; i++) {
 	const editorIndex = i;
 	const visibleIndex = i + 1;
 
-	KeybindingsRegistry.registerCommandDesc({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.openEditorAtIndex' + visibleIndex,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,

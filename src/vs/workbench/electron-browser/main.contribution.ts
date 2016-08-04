@@ -42,7 +42,7 @@ if (platform.isWindows || platform.isLinux) {
 }
 
 // close the window when the last editor is closed by reusing the same keybinding
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeWindow',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: KbExpr.not('editorIsOpen'),

@@ -38,7 +38,6 @@ abstract class ExecCommandAction extends EditorAction {
 		}
 
 		document.execCommand(this.browserCommand);
-
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {

@@ -190,9 +190,10 @@ export class RenameAction extends EditorAction {
 EditorBrowserRegistry.registerEditorContribution(RenameController);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(
-	RenameController.get,
-	CommonEditorRegistry.commandWeight(99),
-	KbExpr.and(EditorKbExpr.Focus, CONTEXT_RENAME_INPUT_VISIBLE)
+	RenameController.get, {
+		weight: CommonEditorRegistry.commandWeight(99),
+		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_RENAME_INPUT_VISIBLE)
+	}
 );
 
 CommonEditorRegistry.registerEditorAction(new RenameAction());

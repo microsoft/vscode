@@ -8,20 +8,20 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {ICommandHandler} from 'vs/platform/commands/common/commands';
-import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {findFocusedEditor, getActiveEditor, withCodeEditorFromCommandHandler} from 'vs/editor/common/config/config';
+import {Command as ConfigBasicCommand, EditorCommand as ConfigEditorCommand} from 'vs/editor/common/config/config';
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
-
 export type ServicesAccessor = ServicesAccessor;
+export const Command = ConfigBasicCommand;
+export const EditorCommand = ConfigEditorCommand;
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export interface IEditorCommandMenuOptions {
@@ -32,10 +32,6 @@ export interface IEditorCommandMenuOptions {
 }
 
 // --- Editor Actions
-
-export interface IEditorCommandHandler {
-	(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void;
-}
 
 export module CommonEditorRegistry {
 
@@ -60,36 +56,12 @@ export module CommonEditorRegistry {
 		return KeybindingsRegistry.WEIGHT.editorContrib(importance);
 	}
 
-	export function registerEditorCommand(commandId: string, weight: number, keybinding:IKeybindings, needsTextFocus: boolean, needsKey: string, handler: IEditorCommandHandler): void {
-		var commandDesc: ICommandDescriptor = {
-			id: commandId,
-			handler: createCommandHandler(commandId, handler),
-			weight: weight,
-			when: whenRule(needsTextFocus, needsKey),
-			primary: keybinding.primary,
-			secondary: keybinding.secondary,
-			win: keybinding.win,
-			linux: keybinding.linux,
-			mac: keybinding.mac,
-		};
-
-		KeybindingsRegistry.registerCommandDesc(commandDesc);
-	}
-
-	export function registerEditorCommand2(desc: EditorCommand): void {
-		KeybindingsRegistry.registerCommandDesc(desc.toCommandDescriptor(KeybindingsRegistry.WEIGHT.editorContrib()));
+	export function registerEditorCommand2(desc: ConfigBasicCommand): void {
+		KeybindingsRegistry.registerCommandAndKeybindingRule(desc.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 	}
 
 	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
-		KeybindingsRegistry.registerCommandDesc({
-			id,
-			handler(accessor, args: any) {
-				return handler(accessor, args || {});
-			},
-			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-			primary: undefined,
-			when: undefined,
-		});
+		CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 	}
 
 	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
@@ -157,7 +129,7 @@ class EditorContributionRegistry {
 			});
 		}
 
-		KeybindingsRegistry.registerCommandDesc(action.toCommandDescriptor(KeybindingsRegistry.WEIGHT.editorContrib()));
+		KeybindingsRegistry.registerCommandAndKeybindingRule(action.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 		this.editorActions.push(action);
 	}
@@ -172,109 +144,7 @@ class EditorContributionRegistry {
 }
 Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
 
-export function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
-
-	let base = (needsTextFocus ? EditorKbExpr.TextFocus : EditorKbExpr.Focus);
-
-	if (needsKey) {
-		return KbExpr.and(base, KbExpr.has(needsKey));
-	}
-
-	return base;
-}
-
-function createCommandHandler(commandId: string, handler: IEditorCommandHandler): ICommandHandler {
-	return (accessor, args) => {
-		withCodeEditorFromCommandHandler(commandId, accessor, (editor) => {
-			handler(accessor, editor, args||{});
-		});
-	};
-}
-
-export interface IEditorActionKeybindingOptions2 extends IKeybindings {
-	kbExpr?: KbExpr;
-	weight?: number;
-}
-
-export abstract class Command {
-	public id: string;
-	public kbOpts: IEditorActionKeybindingOptions2;
-
-	constructor(id:string) {
-		this.id = id;
-		this.kbOpts = null;
-	}
-
-	public abstract runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void>;
-
-	public toCommandDescriptor(defaultWeight:number): ICommandDescriptor {
-		const kbOpts = this.kbOpts || { primary: 0 };
-		return {
-			id: this.id,
-			handler: (accessor, args) => this.runCommand(accessor, args),
-			weight: kbOpts.weight || defaultWeight,
-			when: kbOpts.kbExpr,
-			primary: kbOpts.primary,
-			secondary: kbOpts.secondary,
-			win: kbOpts.win,
-			linux: kbOpts.linux,
-			mac: kbOpts.mac,
-		};
-	}
-}
-
-export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
-	new(id:string, callback:(controller:T)=>void, keybindings:IKeybindings): EditorCommand;
-}
-
-export abstract class EditorCommand extends Command {
-
-	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter:(editor:editorCommon.ICommonCodeEditor) => T, weight: number, kbExpr: KbExpr): EditorControllerCommand<T> {
-		return class EditorControllerCommandImpl extends EditorCommand {
-			private _callback:(controller:T)=>void;
-
-			constructor(id:string, callback:(controller:T)=>void, keybindings:IKeybindings) {
-				super(id);
-
-				this._callback = callback;
-
-				this.kbOpts = {
-					weight: weight,
-					kbExpr: kbExpr,
-					primary: keybindings.primary,
-					secondary: keybindings.secondary,
-					win: keybindings.win,
-					linux: keybindings.linux,
-					mac: keybindings.mac,
-				};
-			}
-
-			protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
-				this._callback(controllerGetter(editor));
-			}
-		};
-	}
-
-	constructor(id:string) {
-		super(id);
-	}
-
-	public runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void> {
-		let editor = findFocusedEditor(this.id, accessor, false);
-		if (!editor) {
-			editor = getActiveEditor(accessor);
-		}
-		if (!editor) {
-			// well, at least we tried...
-			return;
-		}
-		return this.runEditorCommand(accessor, editor, args);
-	}
-
-	protected abstract runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
-}
-
-export abstract class EditorAction extends EditorCommand {
+export abstract class EditorAction extends ConfigEditorCommand {
 
 	private _needsWritableEditor: boolean;
 

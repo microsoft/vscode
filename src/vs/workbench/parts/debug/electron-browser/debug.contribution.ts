@@ -113,7 +113,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveAllBreakpointsAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL), 'Debug: Enable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
 
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: '_workbench.startDebug',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor, configuration: any) {

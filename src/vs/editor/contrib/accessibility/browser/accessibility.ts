@@ -19,7 +19,7 @@ import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/pl
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, EditorKbExpr, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorAction, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
@@ -216,8 +216,10 @@ CommonEditorRegistry.registerEditorAction(new ShowAccessibilityHelpAction());
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(
 	AccessibilityHelpController.get,
-	CommonEditorRegistry.commandWeight(100),
-	KbExpr.and(EditorKbExpr.Focus, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE)
+	{
+		weight: CommonEditorRegistry.commandWeight(100),
+		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE)
+	}
 );
 
 CommonEditorRegistry.registerEditorCommand2(new AccessibilityHelpCommand(
@@ -227,13 +229,22 @@ CommonEditorRegistry.registerEditorCommand2(new AccessibilityHelpCommand(
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 ));
-KeybindingsRegistry.registerCommandDesc({
-	id: TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID,
-	handler: (accessor: ServicesAccessor) => {
+
+class ToggleExperimentalScreenReaderSupportCommand extends Command {
+	constructor() {
+		super(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID);
+
+		this.kbOpts = {
+			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			kbExpr: null,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
+		};
+	}
+
+	public runCommand(accessor:ServicesAccessor, args: any): void {
 		let currentValue = GlobalScreenReaderNVDA.getValue();
 		GlobalScreenReaderNVDA.setValue(!currentValue);
-	},
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: null,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
-});
+	}
+}
+
+CommonEditorRegistry.registerEditorCommand2(new ToggleExperimentalScreenReaderSupportCommand());

@@ -4,19 +4,129 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+import {ICommandAndKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {ICommandHandler} from 'vs/platform/commands/common/commands';
+import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 
 import H = editorCommon.Handler;
 import D = editorCommon.CommandDescription;
 import EditorKbExpr = editorCommon.EditorKbExpr;
+
+export interface IKeybindingsOptions {
+	kbExpr?: KbExpr;
+	weight?: number;
+}
+
+export interface ICommandKeybindingsOptions extends IKeybindings, IKeybindingsOptions {
+}
+
+export abstract class Command {
+	public id: string;
+	public kbOpts: ICommandKeybindingsOptions;
+
+	constructor(id:string) {
+		this.id = id;
+		this.kbOpts = null;
+	}
+
+	public abstract runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void>;
+
+	public toCommandAndKeybindingRule(defaultWeight:number): ICommandAndKeybindingRule {
+		const kbOpts = this.kbOpts || { primary: 0 };
+		return {
+			id: this.id,
+			handler: (accessor, args) => this.runCommand(accessor, args),
+			weight: kbOpts.weight || defaultWeight,
+			when: kbOpts.kbExpr,
+			primary: kbOpts.primary,
+			secondary: kbOpts.secondary,
+			win: kbOpts.win,
+			linux: kbOpts.linux,
+			mac: kbOpts.mac,
+		};
+	}
+}
+
+export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
+	new(id:string, callback:(controller:T)=>void, keybindings:ICommandKeybindingsOptions): EditorCommand;
+}
+
+export abstract class EditorCommand extends Command {
+
+	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter:(editor:editorCommon.ICommonCodeEditor) => T, defaults?:IKeybindingsOptions): EditorControllerCommand<T> {
+
+		const defaultWeight = defaults ? defaults.weight || 0 : 0;
+		const defaultKbExpr = defaults ? defaults.kbExpr || null : null;
+
+		return class EditorControllerCommandImpl extends EditorCommand {
+			private _callback:(controller:T)=>void;
+
+			constructor(id:string, callback:(controller:T)=>void, keybindings:ICommandKeybindingsOptions) {
+				super(id);
+
+				this._callback = callback;
+
+				this.kbOpts = {
+					weight: keybindings.weight || defaultWeight,
+					kbExpr: keybindings.kbExpr || defaultKbExpr,
+					primary: keybindings.primary,
+					secondary: keybindings.secondary,
+					win: keybindings.win,
+					linux: keybindings.linux,
+					mac: keybindings.mac,
+				};
+			}
+
+			protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+				this._callback(controllerGetter(editor));
+			}
+		};
+	}
+
+	constructor(id:string) {
+		super(id);
+	}
+
+	public runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void> {
+		let editor = findFocusedEditor(this.id, accessor, false);
+		if (!editor) {
+			editor = getActiveEditor(accessor);
+		}
+		if (!editor) {
+			// well, at least we tried...
+			return;
+		}
+		return this.runEditorCommand(accessor, editor, args);
+	}
+
+	protected abstract runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
+}
+
+class CoreCommand extends Command {
+	constructor(handlerId:string, weight: number, kbExpr: KbExpr, kb: IKeybindings) {
+		super(handlerId);
+
+		this.kbOpts = {
+			weight: weight,
+			kbExpr: kbExpr,
+			primary: kb.primary,
+			secondary: kb.secondary,
+			win: kb.win,
+			linux: kb.linux,
+			mac: kb.mac,
+		};
+	}
+
+	public runCommand(accessor:ServicesAccessor, args: any): void {
+		triggerEditorHandler(this.id, accessor, args);
+	}
+}
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
 	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
@@ -29,14 +139,14 @@ export function findFocusedEditor(commandId: string, accessor: ServicesAccessor,
 	return editor;
 }
 
-export function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, callback: (editor:editorCommon.ICommonCodeEditor) => void): void {
+function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, callback: (editor:editorCommon.ICommonCodeEditor) => void): void {
 	let editor = findFocusedEditor(commandId, accessor, true);
 	if (editor) {
 		callback(editor);
 	}
 }
 
-export function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
 	let editorService = accessor.get(IEditorService);
 	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 	if (activeEditor) {
@@ -58,40 +168,26 @@ function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, arg
 	});
 }
 
-function registerCoreCommand(handlerId: string, kb: IKeybindings, weight?: number, when?: KbExpr, description?: ICommandHandlerDescription): void {
-	let desc: ICommandDescriptor = {
-		id: handlerId,
+function registerCoreCommand(handlerId: string, kb: IKeybindings, weight?: number, when?: KbExpr): void {
+	let command = new CoreCommand(
+		handlerId,
+		weight,
+		when ? when : EditorKbExpr.TextFocus,
+		kb
+	);
+	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorCore()));
+}
+
+function registerCoreAPICommand(handlerId: string, description: ICommandHandlerDescription): void {
+	CommandsRegistry.registerCommand(handlerId, {
 		handler: triggerEditorHandler.bind(null, handlerId),
-		weight: weight ? weight : KeybindingsRegistry.WEIGHT.editorCore(),
-		when: (when ? when : EditorKbExpr.TextFocus),
-		primary: kb.primary,
-		secondary: kb.secondary,
-		win: kb.win,
-		mac: kb.mac,
-		linux: kb.linux,
 		description: description
-	};
-	KeybindingsRegistry.registerCommandDesc(desc);
+	});
 }
 
 function registerOverwritableCommand(handlerId:string, handler:ICommandHandler): void {
-	let desc: ICommandDescriptor = {
-		id: handlerId,
-		handler: handler,
-		weight: KeybindingsRegistry.WEIGHT.editorCore(),
-		when: null,
-		primary: 0
-	};
-	KeybindingsRegistry.registerCommandDesc(desc);
-
-	let desc2: ICommandDescriptor = {
-		id: 'default:' + handlerId,
-		handler: handler,
-		weight: KeybindingsRegistry.WEIGHT.editorCore(),
-		when: null,
-		primary: 0
-	};
-	KeybindingsRegistry.registerCommandDesc(desc2);
+	CommandsRegistry.registerCommand(handlerId, handler);
+	CommandsRegistry.registerCommand('default:' + handlerId, handler);
 }
 
 function registerCoreDispatchCommand(handlerId: string): void {
@@ -163,7 +259,7 @@ function getWordNavigationKB(shift:boolean, key:KeyCode): number {
 // Control+Command+shift+d => noop
 
 // Register cursor commands
-registerCoreCommand(H.CursorMove, { primary: null }, null, null, D.CursorMove);
+registerCoreAPICommand(H.CursorMove, D.CursorMove);
 
 registerCoreCommand(H.CursorLeft, {
 	primary: KeyCode.LeftArrow,
@@ -232,7 +328,7 @@ registerCoreCommand(H.ExpandLineSelection, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_I
 });
 
-registerCoreCommand(H.EditorScroll, { primary: null }, null, null, D.EditorScroll);
+registerCoreAPICommand(H.EditorScroll, D.EditorScroll);
 
 registerCoreCommand(H.ScrollLineUp, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
@@ -415,7 +511,7 @@ function selectAll(accessor: ServicesAccessor, args: any): void {
 		return;
 	}
 }
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'editor.action.selectAll',
 	handler: selectAll,
 	weight: KeybindingsRegistry.WEIGHT.editorCore(),

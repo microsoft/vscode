@@ -938,9 +938,10 @@ class SnippetController implements ISnippetController {
 export var CONTEXT_SNIPPET_MODE = new KbCtxKey('inSnippetMode');
 
 const SnippetCommand = EditorCommand.bindToContribution<ISnippetController>(
-	getSnippetController,
-	CommonEditorRegistry.commandWeight(30),
-	KbExpr.and(EditorKbExpr.TextFocus, CONTEXT_SNIPPET_MODE)
+	getSnippetController, {
+		weight: CommonEditorRegistry.commandWeight(30),
+		kbExpr: KbExpr.and(EditorKbExpr.TextFocus, CONTEXT_SNIPPET_MODE)
+	}
 );
 
 CommonEditorRegistry.registerEditorContribution(SnippetController);
