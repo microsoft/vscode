@@ -12,6 +12,8 @@ import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
+import {EditorKbExpr, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 interface ParseResult {
 	position: editorCommon.IPosition;
@@ -147,23 +149,32 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
-	public static ID = 'editor.action.gotoLine';
+	constructor() {
+		super(
+			'editor.action.gotoLine',
+			nls.localize('GotoLineAction.label', "Go to Line..."),
+			'Go to Line...',
+			nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to")
+		);
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, nls.localize('GotoLineAction.label', "Go to Line..."));
-	}
-
-	_getModel(value: string): QuickOpenModel {
-		return new QuickOpenModel([new GotoLineEntry(value, this.editor, this.controller)]);
-	}
-
-	_getAutoFocus(searchValue: string): IAutoFocus {
-		return {
-			autoFocusFirstEntry: searchValue.length > 0
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.Focus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
 		};
 	}
 
-	_getInputAriaLabel(): string {
-		return nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to");
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		this._show(this.getController(editor), {
+			getModel: (value:string):QuickOpenModel => {
+				return new QuickOpenModel([new GotoLineEntry(value, editor, this.getController(editor))]);
+			},
+
+			getAutoFocus: (searchValue:string):IAutoFocus => {
+				return {
+					autoFocusFirstEntry: searchValue.length > 0
+				};
+			}
+		});
 	}
 }

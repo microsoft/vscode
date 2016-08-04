@@ -12,8 +12,11 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {ICommonCodeEditor, IEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
+import {EditorKbExpr, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import * as browser from 'vs/base/browser/browser';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
@@ -69,38 +72,61 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 
 export class QuickCommandAction extends BaseEditorQuickOpenAction {
 
-	public static ID = 'editor.action.quickCommand';
+	constructor() {
+		super(
+			'editor.action.quickCommand',
+			nls.localize('QuickCommandAction.label', "Command Palette"),
+			'Command Palette',
+			nls.localize('quickCommandActionInput', "Type the name of an action you want to execute")
+		);
 
-	private _keybindingService: IKeybindingService;
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.Focus,
+			primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
+		};
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
-		super(descriptor, editor, nls.localize('QuickCommandAction.label', "Command Palette"));
-		this._keybindingService = keybindingService;
+		this.menuOpts = {
+			kbExpr: EditorKbExpr.Focus
+		};
 	}
 
-	_getModel(value: string): QuickOpenModel {
-		return new QuickOpenModel(this._editorActionsToEntries(this.editor.getSupportedActions(), value));
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		const keybindingService = accessor.get(IKeybindingService);
+
+		this._show(this.getController(editor), {
+			getModel: (value:string):QuickOpenModel => {
+				return new QuickOpenModel(this._editorActionsToEntries(keybindingService, editor, value));
+			},
+
+			getAutoFocus: (searchValue:string):IAutoFocus => {
+				return {
+					autoFocusFirstEntry: true,
+					autoFocusPrefixMatch: searchValue
+				};
+			}
+		});
 	}
 
-	_sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
+	private _sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
 		let elementAName = elementA.getLabel().toLowerCase();
 		let elementBName = elementB.getLabel().toLowerCase();
 
 		return elementAName.localeCompare(elementBName);
 	}
 
-	_editorActionsToEntries(actions: IAction[], searchValue: string): EditorActionCommandEntry[] {
+	private _editorActionsToEntries(keybindingService:IKeybindingService, editor:ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
+		let actions: IAction[] = editor.getSupportedActions();
 		let entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let keys = this._keybindingService.lookupKeybindings(action.id).map(k => this._keybindingService.getLabelFor(k));
+			let keys = keybindingService.lookupKeybindings(action.id).map(k => keybindingService.getLabelFor(k));
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);
 				if (highlights) {
-					entries.push(new EditorActionCommandEntry(keys.length > 0 ? keys.join(', ') : '', highlights, action, this.editor));
+					entries.push(new EditorActionCommandEntry(keys.length > 0 ? keys.join(', ') : '', highlights, action, editor));
 				}
 			}
 		}
@@ -109,16 +135,5 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		entries = entries.sort(this._sort);
 
 		return entries;
-	}
-
-	_getAutoFocus(searchValue: string): IAutoFocus {
-		return {
-			autoFocusFirstEntry: true,
-			autoFocusPrefixMatch: searchValue
-		};
-	}
-
-	_getInputAriaLabel(): string {
-		return nls.localize('quickCommandActionInput', "Type the name of an action you want to execute");
 	}
 }
