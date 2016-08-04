@@ -154,7 +154,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 	}
 
 	_getModel(value: string): QuickOpenModel {
-		return new QuickOpenModel([new GotoLineEntry(value, this.editor, this)]);
+		return new QuickOpenModel([new GotoLineEntry(value, this.editor, this.controller)]);
 	}
 
 	_getAutoFocus(searchValue: string): IAutoFocus {

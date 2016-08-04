@@ -19,8 +19,7 @@ export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
 	getModel(value:string):QuickOpenModel;
 	getAutoFocus(searchValue:string):IAutoFocus;
-	onOk():void;
-	onCancel():void;
+	onClose(canceled:boolean):void;
 }
 
 export class QuickOpenController implements editorCommon.IEditorContribution {
@@ -33,6 +32,8 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 
 	private editor:ICodeEditor;
 	private widget:QuickOpenEditorWidget;
+	private lineHighlightDecorationId:string;
+	private lastKnownEditorSelection:Selection;
 
 	constructor(editor:ICodeEditor) {
 		this.editor = editor;
@@ -57,10 +58,25 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 		}
 		// Create goto line widget
 		if (!this.widget) {
+			let onClose = (canceled:boolean) => {
+				// Clear Highlight Decorations if present
+				this.clearDecorations();
+
+				// Restore selection if canceled
+				if (canceled && this.lastKnownEditorSelection) {
+					this.editor.setSelection(this.lastKnownEditorSelection);
+					this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection);
+				}
+
+				this.lastKnownEditorSelection = null;
+				this.editor.focus();
+
+				opts.onClose(canceled);
+			};
 			this.widget = new QuickOpenEditorWidget(
 				this.editor,
-				()=>opts.onOk(),
-				()=>opts.onCancel(),
+				() => onClose(false),
+				() => onClose(true),
 				(value:string)=>{
 					this.widget.setInput(opts.getModel(value), opts.getAutoFocus(value));
 				},
@@ -72,75 +88,12 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 			// Show
 			this.widget.show('');
 		}
-	}
-}
-
-/**
- * Base class for providing quick open in the editor.
- */
-export class BaseEditorQuickOpenAction extends EditorAction {
-	private lineHighlightDecorationId:string;
-	private lastKnownEditorSelection:Selection;
-
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, label:string, condition:Behaviour = Behaviour.WidgetFocus) {
-		super(descriptor, editor, condition);
-
-		this.label = label;
-	}
-
-	public run():TPromise<boolean> {
-		QuickOpenController.get(this.editor).run({
-			inputAriaLabel: this._getInputAriaLabel(),
-			getModel: (value:string):QuickOpenModel => this._getModel(value),
-			getAutoFocus: (searchValue:string):IAutoFocus => this._getAutoFocus(searchValue),
-			onOk: ():void => this._onClose(false),
-			onCancel: ():void => this._onClose(true)
-		});
-		// }
-		// 	()=>this._onClose(false),
-		// 	()=>this._onClose(true),
-		// 	(value:string)=>this.onType(value),
-		// )
-		// this._getInputAriaLabel()
-		// this.widget = new QuickOpenEditorWidget(
-		// 		this.editor,
-		// 		()=>this._onClose(false),
-		// 		()=>this._onClose(true),
-		// 		(value:string)=>this.onType(value),
-		// 		{
-		// 			inputAriaLabel: this._getInputAriaLabel()
-		// 		}
-		// 	);
 
 		// Remember selection to be able to restore on cancel
 		if (!this.lastKnownEditorSelection) {
 			this.lastKnownEditorSelection = this.editor.getSelection();
 		}
-
-
-
-		return TPromise.as(true);
 	}
-
-	/**
-	 * Subclasses to override to provide the quick open model for the given search value.
-	 */
-	_getModel(value:string):QuickOpenModel {
-		throw new Error('Subclasses to implement');
-	}
-
-	/**
-	 * Subclasses to override to provide the quick open auto focus mode for the given search value.
-	 */
-	_getAutoFocus(searchValue:string):IAutoFocus {
-		throw new Error('Subclasses to implement');
-	}
-
-	_getInputAriaLabel(): string {
-		throw new Error('Subclasses to implement');
-	}
-
-
 
 	public decorateLine(range:editorCommon.IRange, editor:ICodeEditor):void {
 		editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>{
@@ -173,29 +126,57 @@ export class BaseEditorQuickOpenAction extends EditorAction {
 			});
 		}
 	}
+}
+
+// export abstract class
+
+/**
+ * Base class for providing quick open in the editor.
+ */
+export class BaseEditorQuickOpenAction extends EditorAction {
+
+	protected controller:QuickOpenController;
+
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, label:string, condition:Behaviour = Behaviour.WidgetFocus) {
+		super(descriptor, editor, condition);
+
+		this.label = label;
+		this.controller = QuickOpenController.get(this.editor);
+	}
+
+	public run():TPromise<boolean> {
+		QuickOpenController.get(this.editor).run({
+			inputAriaLabel: this._getInputAriaLabel(),
+			getModel: (value:string):QuickOpenModel => this._getModel(value),
+			getAutoFocus: (searchValue:string):IAutoFocus => this._getAutoFocus(searchValue),
+			onClose: (canceled) => this._onClose(canceled)
+		});
+
+		return TPromise.as(true);
+	}
+
+	/**
+	 * Subclasses to override to provide the quick open model for the given search value.
+	 */
+	_getModel(value:string):QuickOpenModel {
+		throw new Error('Subclasses to implement');
+	}
+
+	/**
+	 * Subclasses to override to provide the quick open auto focus mode for the given search value.
+	 */
+	_getAutoFocus(searchValue:string):IAutoFocus {
+		throw new Error('Subclasses to implement');
+	}
+
+	_getInputAriaLabel(): string {
+		throw new Error('Subclasses to implement');
+	}
 
 	/**
 	 * Subclasses can override this to participate in the close of quick open.
 	 */
 	_onClose(canceled:boolean):void {
-
-		// Clear Highlight Decorations if present
-		this.clearDecorations();
-
-		// Restore selection if canceled
-		if (canceled && this.lastKnownEditorSelection) {
-			this.editor.setSelection(this.lastKnownEditorSelection);
-			this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection);
-		}
-
-		this.lastKnownEditorSelection = null;
-		this.editor.focus();
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-
 	}
 }
 

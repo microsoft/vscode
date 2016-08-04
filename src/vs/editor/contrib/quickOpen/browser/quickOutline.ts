@@ -189,7 +189,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, SymbolKind.from(element.kind), description, element.location.range, highlights, this.editor, this));
+				results.push(new SymbolEntry(label, SymbolKind.from(element.kind), description, element.location.range, highlights, this.editor, this.controller));
 			}
 		}
 
