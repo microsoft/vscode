@@ -20,7 +20,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 /**
  * @internal
@@ -3099,47 +3099,47 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasCompletionItemProvider = 'editorHasCompletionItemProvider';
+	export const hasCompletionItemProvider = new KbCtxKey('editorHasCompletionItemProvider');
 	/**
 	 * @internal
 	 */
-	export const hasCodeActionsProvider = 'editorHasCodeActionsProvider';
+	export const hasCodeActionsProvider = new KbCtxKey('editorHasCodeActionsProvider');
 	/**
 	 * @internal
 	 */
-	export const hasCodeLensProvider = 'editorHasCodeLensProvider';
+	export const hasCodeLensProvider = new KbCtxKey('editorHasCodeLensProvider');
 	/**
 	 * @internal
 	 */
-	export const hasDefinitionProvider = 'editorHasDefinitionProvider';
+	export const hasDefinitionProvider = new KbCtxKey('editorHasDefinitionProvider');
 	/**
 	 * @internal
 	 */
-	export const hasHoverProvider = 'editorHasHoverProvider';
+	export const hasHoverProvider = new KbCtxKey('editorHasHoverProvider');
 	/**
 	 * @internal
 	 */
-	export const hasDocumentHighlightProvider = 'editorHasDocumentHighlightProvider';
+	export const hasDocumentHighlightProvider = new KbCtxKey('editorHasDocumentHighlightProvider');
 	/**
 	 * @internal
 	 */
-	export const hasDocumentSymbolProvider = 'editorHasDocumentSymbolProvider';
+	export const hasDocumentSymbolProvider = new KbCtxKey('editorHasDocumentSymbolProvider');
 	/**
 	 * @internal
 	 */
-	export const hasReferenceProvider = 'editorHasReferenceProvider';
+	export const hasReferenceProvider = new KbCtxKey('editorHasReferenceProvider');
 	/**
 	 * @internal
 	 */
-	export const hasRenameProvider = 'editorHasRenameProvider';
+	export const hasRenameProvider = new KbCtxKey('editorHasRenameProvider');
 	/**
 	 * @internal
 	 */
-	export const hasFormattingProvider = 'editorHasFormattingProvider';
+	export const hasFormattingProvider = new KbCtxKey('editorHasFormattingProvider');
 	/**
 	 * @internal
 	 */
-	export const hasSignatureHelpProvider = 'editorHasSignatureHelpProvider';
+	export const hasSignatureHelpProvider = new KbCtxKey('editorHasSignatureHelpProvider');
 }
 
 export class BareFontInfo {

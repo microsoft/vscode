@@ -178,8 +178,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	constructor(private editor: ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		this.model = new ParameterHintsModel(editor);
-		this.keyVisible = keybindingService.createKey(Context.Visible, false);
-		this.keyMultipleSignatures = keybindingService.createKey(Context.MultipleSignatures, false);
+		this.keyVisible = Context.Visible.bindTo(keybindingService, false);
+		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(keybindingService, false);
 		this.visible = false;
 		this.disposables = [];
 

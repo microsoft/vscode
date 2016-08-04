@@ -32,17 +32,17 @@ export class EditorModeContext {
 	) {
 		this._editor = editor;
 
-		this._hasCompletionItemProvider = keybindingService.createKey(ModeContextKeys.hasCompletionItemProvider, undefined);
-		this._hasCodeActionsProvider = keybindingService.createKey(ModeContextKeys.hasCodeActionsProvider, undefined);
-		this._hasCodeLensProvider = keybindingService.createKey(ModeContextKeys.hasCodeLensProvider, undefined);
-		this._hasDefinitionProvider = keybindingService.createKey(ModeContextKeys.hasDefinitionProvider, undefined);
-		this._hasHoverProvider = keybindingService.createKey(ModeContextKeys.hasHoverProvider, undefined);
-		this._hasDocumentHighlightProvider = keybindingService.createKey(ModeContextKeys.hasDocumentHighlightProvider, undefined);
-		this._hasDocumentSymbolProvider = keybindingService.createKey(ModeContextKeys.hasDocumentSymbolProvider, undefined);
-		this._hasReferenceProvider = keybindingService.createKey(ModeContextKeys.hasReferenceProvider, undefined);
-		this._hasRenameProvider = keybindingService.createKey(ModeContextKeys.hasRenameProvider, undefined);
-		this._hasFormattingProvider = keybindingService.createKey(ModeContextKeys.hasFormattingProvider, undefined);
-		this._hasSignatureHelpProvider = keybindingService.createKey(ModeContextKeys.hasSignatureHelpProvider, undefined);
+		this._hasCompletionItemProvider = ModeContextKeys.hasCompletionItemProvider.bindTo(keybindingService, undefined);
+		this._hasCodeActionsProvider = ModeContextKeys.hasCodeActionsProvider.bindTo(keybindingService, undefined);
+		this._hasCodeLensProvider = ModeContextKeys.hasCodeLensProvider.bindTo(keybindingService, undefined);
+		this._hasDefinitionProvider = ModeContextKeys.hasDefinitionProvider.bindTo(keybindingService, undefined);
+		this._hasHoverProvider = ModeContextKeys.hasHoverProvider.bindTo(keybindingService, undefined);
+		this._hasDocumentHighlightProvider = ModeContextKeys.hasDocumentHighlightProvider.bindTo(keybindingService, undefined);
+		this._hasDocumentSymbolProvider = ModeContextKeys.hasDocumentSymbolProvider.bindTo(keybindingService, undefined);
+		this._hasReferenceProvider = ModeContextKeys.hasReferenceProvider.bindTo(keybindingService, undefined);
+		this._hasRenameProvider = ModeContextKeys.hasRenameProvider.bindTo(keybindingService, undefined);
+		this._hasFormattingProvider = ModeContextKeys.hasFormattingProvider.bindTo(keybindingService, undefined);
+		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(keybindingService, undefined);
 
 		// update when model/mode changes
 		this._disposables.push(editor.onDidChangeModel(() => this._update()));

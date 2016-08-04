@@ -15,11 +15,12 @@ import {ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/
 import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegistry';
 import {Position} from 'vs/editor/common/core/position';
 import {Registry} from 'vs/platform/platform';
+import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 export const Context = {
-	Visible: 'suggestWidgetVisible',
-	MultipleSuggestions: 'suggestWidgetMultipleSuggestions',
-	AcceptOnKey: 'suggestionSupportsAcceptOnKey'
+	Visible: new KbCtxKey('suggestWidgetVisible'),
+	MultipleSuggestions: new KbCtxKey('suggestWidgetMultipleSuggestions'),
+	AcceptOnKey: new KbCtxKey('suggestionSupportsAcceptOnKey')
 };
 
 export interface ISuggestionItem {

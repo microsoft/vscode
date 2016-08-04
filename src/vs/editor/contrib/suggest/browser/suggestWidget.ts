@@ -366,9 +366,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.model.onDidCancel(e => this.onDidCancel(e))
 		];
 
-		this.suggestWidgetVisible = keybindingService.createKey(SuggestContext.Visible, false);
-		this.suggestWidgetMultipleSuggestions = keybindingService.createKey(SuggestContext.MultipleSuggestions, false);
-		this.suggestionSupportsAutoAccept = keybindingService.createKey(SuggestContext.AcceptOnKey, true);
+		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(keybindingService, false);
+		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(keybindingService, false);
+		this.suggestionSupportsAutoAccept = SuggestContext.AcceptOnKey.bindTo(keybindingService, true);
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);

@@ -70,7 +70,7 @@ function cmp(a:KbExpr, b:KbExpr): number {
 }
 
 export class KbDefinedExpression implements KbExpr {
-	constructor(private key: string) {
+	constructor(protected key: string) {
 	}
 
 	public getType(): KbExprType {
@@ -369,6 +369,16 @@ export class KbAndExpression implements KbExpr {
 	}
 }
 
+export class KbCtxKey extends KbDefinedExpression {
+
+	constructor(key:string) {
+		super(key);
+	}
+
+	public bindTo<T>(target:IKeybindingService, defaultValue:T): IKeybindingContextKey<T> {
+		return target.createKey(this.key, defaultValue);
+	}
+}
 
 export let KbExpr = {
 	has: (key: string) => new KbDefinedExpression(key),

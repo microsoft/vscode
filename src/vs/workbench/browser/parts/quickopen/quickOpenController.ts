@@ -39,11 +39,11 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, KbCtxKey, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
-const QUICK_OPEN_MODE = 'inQuickOpen';
+const QUICK_OPEN_MODE = new KbCtxKey('inQuickOpen');
 
 interface IPickOpenEntryItem extends IPickOpenEntry {
 	height?: number;
@@ -103,7 +103,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.promisesToCompleteOnHide = [];
 
-		this.inQuickOpenMode = keybindingService.createKey(QUICK_OPEN_MODE, false);
+		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(keybindingService, false);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();

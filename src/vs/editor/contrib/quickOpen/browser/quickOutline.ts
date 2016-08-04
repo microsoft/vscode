@@ -19,7 +19,6 @@ import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 let SCOPE_PREFIX = ':';
 
@@ -126,7 +125,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		this.menuOpts = {
 			group: 'navigation',
 			order: 3,
-			kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasDocumentSymbolProvider))
+			kbExpr: ModeContextKeys.hasDocumentSymbolProvider
 		};
 	}
 

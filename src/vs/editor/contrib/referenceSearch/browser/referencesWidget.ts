@@ -38,6 +38,7 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {FileReferences, OneReference, ReferencesModel} from './referencesModel';
+import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 class DecorationsManager implements IDisposable {
 
@@ -484,7 +485,7 @@ export interface SelectionEvent {
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	public static INNER_EDITOR_CONTEXT_KEY = 'inReferenceSearchEditor';
+	public static INNER_EDITOR_CONTEXT_KEY = new KbCtxKey('inReferenceSearchEditor');
 
 	private _model: ReferencesModel;
 	private _decorationsManager: DecorationsManager;

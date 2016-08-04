@@ -17,6 +17,9 @@ import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFo
 import {EditOperationsCommand} from './formatCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 
+const ModeContextKeys = editorCommon.ModeContextKeys;
+const EditorKbExpr = editorCommon.EditorKbExpr;
+
 class FormatOnType implements editorCommon.IEditorContribution {
 
 	public static ID = 'editor.contrib.autoFormat';
@@ -143,7 +146,7 @@ export class FormatAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(editorCommon.EditorKbExpr.TextFocus, editorCommon.EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
 		};
@@ -151,7 +154,7 @@ export class FormatAction extends EditorAction {
 		this.menuOpts = {
 			group: '1_modification',
 			order: 1.3,
-			kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasFormattingProvider)
+			kbExpr: ModeContextKeys.hasFormattingProvider
 		};
 	}
 

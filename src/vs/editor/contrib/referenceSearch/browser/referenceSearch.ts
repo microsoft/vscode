@@ -24,6 +24,9 @@ import {ReferenceWidget} from './referencesWidget';
 import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from './referencesController';
 import {ReferencesModel} from './referencesModel';
 
+const ModeContextKeys = editorCommon.ModeContextKeys;
+const EditorKbExpr = editorCommon.EditorKbExpr;
+
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
 		return model.references.length > 1 && nls.localize('meta.titleReference', " – {0} references", model.references.length);
@@ -40,7 +43,7 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 		@optional(IPeekViewService) peekViewService: IPeekViewService
 	) {
 		if (peekViewService) {
-			keybindingService.createKey(peekViewService.contextKey, true);
+			peekViewService.contextKey.bindTo(keybindingService, true);
 		}
 	}
 
@@ -63,12 +66,12 @@ export class ReferenceAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.TextFocus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: KeyMod.Shift | KeyCode.F12
 		};
 
 		this.menuOpts = {
-			kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasReferenceProvider),
+			kbExpr: ModeContextKeys.hasReferenceProvider,
 			group: 'navigation',
 			order: 1.3
 		};
@@ -190,7 +193,7 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: CommonEditorRegistry.commandWeight(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(KbExpr.has(ctxReferenceSearchVisible), KbExpr.not('config.editor.stablePeek')),
+	when: KbExpr.and(ctxReferenceSearchVisible, KbExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });
 
@@ -199,6 +202,6 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: CommonEditorRegistry.commandWeight(-101),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(KbExpr.has(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY), KbExpr.not('config.editor.stablePeek')),
+	when: KbExpr.and(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, KbExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });
