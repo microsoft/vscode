@@ -231,6 +231,8 @@ registerCoreCommand(H.ExpandLineSelection, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_I
 });
 
+registerCoreCommand(H.EditorScroll, { primary: null }, null, null, D.EditorScroll);
+
 registerCoreCommand(H.ScrollLineUp, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp}

@@ -440,6 +440,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EditorType: editorCommon.EditorType,
 		CursorMoveByUnit: editorCommon.CursorMoveByUnit,
 		CursorMovePosition: editorCommon.CursorMovePosition,
+		EditorScrollDirection: editorCommon.EditorScrollDirection,
+		EditorScrollByUnit: editorCommon.EditorScrollByUnit,
 		Handler: editorCommon.Handler,
 
 		// consts

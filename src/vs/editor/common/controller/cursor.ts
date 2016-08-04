@@ -1003,6 +1003,8 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.Outdent] =						(ctx) => this._outdent(ctx);
 		this._handlers[H.Paste] =						(ctx) => this._paste(ctx);
 
+		this._handlers[H.EditorScroll] = 				(ctx) => this._editorScroll(ctx);
+
 		this._handlers[H.ScrollLineUp] =				(ctx) => this._scrollUp(false, ctx);
 		this._handlers[H.ScrollLineDown] =				(ctx) => this._scrollDown(false, ctx);
 		this._handlers[H.ScrollPageUp] =				(ctx) => this._scrollUp(true, ctx);
@@ -1451,14 +1453,29 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? -this.cursors.getAll()[0].getPageSize() : -1;
+	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
+		let editorScrollArg: editorCommon.EditorScrollArguments = ctx.eventData;
+		let value = editorScrollArg.value || 1;
+		switch (editorScrollArg.to) {
+			case editorCommon.EditorScrollDirection.Up:
+				value = -(value);
+			case editorCommon.EditorScrollDirection.Down:
+				ctx.requestScrollDeltaLines = value * (editorCommon.EditorScrollByUnit.Page === editorScrollArg.by ? this.cursors.getAll()[0].getPageSize() : 1);
+				break;
+		}
 		return true;
 	}
 
+	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Up, value: 1 };
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.Line;
+		return this._editorScroll(ctx);
+	}
+
 	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? this.cursors.getAll()[0].getPageSize() : 1;
-		return true;
+		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Down, value: 1 };
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.Line;
+		return this._editorScroll(ctx);
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {

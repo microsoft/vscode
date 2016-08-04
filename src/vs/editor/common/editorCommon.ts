@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
 import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
@@ -4265,16 +4264,99 @@ let isCursorMoveArgs= function(arg): boolean  {
 };
 
 /**
+ * Directions in the view for editor scroll command.
+ */
+export const EditorScrollDirection = {
+	Up: 'up',
+	Down: 'down',
+};
+
+/**
+ * Units for editor scroll 'by' argument
+ */
+export const EditorScrollByUnit = {
+	Line: 'line',
+	Page: 'page'
+};
+
+/**
+ * Arguments for editor scroll command
+ */
+export interface EditorScrollArguments {
+	to: string;
+	by?: string;
+	value?: number;
+};
+
+/**
+ * @internal
+ */
+let isEditorScrollArgs= function(arg): boolean  {
+	if (!types.isObject(arg)) {
+		return false;
+	}
+
+	let scrollArg: EditorScrollArguments = arg;
+
+	if (!types.isString(scrollArg.to)) {
+		return false;
+	}
+
+	if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
+		return false;
+	}
+
+	if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
+		return false;
+	}
+
+	return true;
+};
+
+/**
  * @internal
  */
 export var CommandDescription = {
 	CursorMove: <ICommandHandlerDescription>{
-		description: nls.localize('editorCommand.cursorMove.description', "Move cursor to a logical position in the view"),
+		description: 'Move cursor to a logical position in the view',
 		args: [
 			{
-				name: nls.localize('editorCommand.cursorMove.arg.name', "Cursor move argument"),
-				description: nls.localize('editorCommand.cursorMove.arg.description', "Argument containing mandatory 'to' value and an optional 'inSelectionMode' value. Value of 'to' has to be a defined value in `CursorMoveViewPosition`."),
+				name: 'Cursor move argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					'to': A mandatory logical position value providing where to move the cursor.
+					\`\`\`
+						'left', 'right', 'up', 'down',
+						'wrappedLineStart', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineColumnCenter', 'wrappedLineEnd' ,'wrappedLineLastNonWhitespaceCharacter',
+						'viewPortTop', 'viewPortCenter', 'viewPortBottom'
+					\`\`\`
+					'by': Unit to move. Default is computed based on 'to' value.
+					\`\`\`
+						'line', 'wrappedLine', 'character', 'halfLine'
+					\`\`\`
+					'value': Number of units to move. Default is '1'.
+					'select': If 'true' makes the selection. Default is 'false'.
+				`,
 				constraint: isCursorMoveArgs
+			}
+		]
+	},
+	EditorScroll: <ICommandHandlerDescription>{
+		description: 'Scroll editor in the given direction',
+		args: [
+			{
+				name: 'Editor scroll argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					'to': A mandatory direction value.
+					\`\`\`
+						'up', 'down'
+					\`\`\`
+					'by': Unit to move. Default is computed based on 'to' value.
+					\`\`\`
+						'line', 'page'
+					\`\`\`
+					'value': Number of units to move. Default is '1'.
+				`,
+				constraint: isEditorScrollArgs
 			}
 		]
 	}
@@ -4397,6 +4479,8 @@ export var Handler = {
 	LineBreakInsert:			'lineBreakInsert',
 
 	SelectAll:					'selectAll',
+
+	EditorScroll:				'editorScroll',
 
 	ScrollLineUp:				'scrollLineUp',
 	ScrollLineDown:				'scrollLineDown',
