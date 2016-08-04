@@ -32,6 +32,8 @@ import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
 import {hash} from 'vs/base/common/hash';
 import {EditorModeContext} from 'vs/editor/common/modes/editorModeContext';
 
+import EditorContextKeys = editorCommon.EditorContextKeys;
+
 var EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
@@ -145,12 +147,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._commandService = commandService;
 		this._keybindingService = keybindingService;
 		this._editorIdContextKey = this._keybindingService.createKey('editorId', this.getId());
-		this._editorFocusContextKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS.bindTo(this._keybindingService);
-		this._editorTabMovesFocusKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS.bindTo(this._keybindingService);
-		this._editorReadonly = editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY.bindTo(this._keybindingService);
-		this._hasMultipleSelectionsKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS.bindTo(this._keybindingService);
-		this._hasNonEmptySelectionKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION.bindTo(this._keybindingService);
-		this._langIdKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID.bindTo(this._keybindingService);
+		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(this._keybindingService);
+		this._editorTabMovesFocusKey = EditorContextKeys.TabMovesFocus.bindTo(this._keybindingService);
+		this._editorReadonly = EditorContextKeys.ReadOnly.bindTo(this._keybindingService);
+		this._hasMultipleSelectionsKey = EditorContextKeys.HasMultipleSelections.bindTo(this._keybindingService);
+		this._hasNonEmptySelectionKey = EditorContextKeys.HasNonEmptySelection.bindTo(this._keybindingService);
+		this._langIdKey = EditorContextKeys.LanguageId.bindTo(this._keybindingService);
 		this._lifetimeDispose.push(new EditorModeContext(this, this._keybindingService));
 
 		this._decorationTypeKeysToIds = {};

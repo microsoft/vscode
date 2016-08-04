@@ -13,7 +13,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {CommonEditorRegistry, ServicesAccessor, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
-import {EditorKbExpr, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {EditorContextKeys, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -127,7 +127,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 
 		this.kbOpts = {
 			weight: CommonEditorRegistry.commandWeight(8),
-			kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_BREAKPOINT_WIDGET_VISIBLE),
+			kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_BREAKPOINT_WIDGET_VISIBLE),
 			primary: KeyCode.Escape,
 			secondary: [KeyMod.Shift | KeyCode.Escape]
 		};

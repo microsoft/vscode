@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import {EditorKbExpr, Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {EditorContextKeys, Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {CopyLinesCommand} from './copyLinesCommand';
 import {DeleteLinesCommand} from './deleteLinesCommand';
@@ -48,7 +48,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
 		};
@@ -65,7 +65,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
 		};
@@ -106,7 +106,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Alt | KeyCode.UpArrow,
 			linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
 		};
@@ -123,7 +123,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Alt | KeyCode.DownArrow,
 			linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
 		};
@@ -160,7 +160,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
 		};
 	}
@@ -176,7 +176,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
 		};
 	}
@@ -195,7 +195,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
 		};
 	}
@@ -274,7 +274,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
 		};
 	}
@@ -303,7 +303,7 @@ class IndentLinesAction extends HandlerEditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
 		};
 	}
@@ -320,7 +320,7 @@ class OutdentLinesAction extends HandlerEditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
 		};
 	}
@@ -337,7 +337,7 @@ class InsertLineBeforeAction extends HandlerEditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 		};
 	}
@@ -354,7 +354,7 @@ class InsertLineAfterAction extends HandlerEditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.Enter
 		};
 	}

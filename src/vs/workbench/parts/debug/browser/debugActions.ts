@@ -22,7 +22,7 @@ import {ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExten
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import IDebugService = debug.IDebugService;
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 export class AbstractDebugAction extends actions.Action {
 
@@ -528,7 +528,7 @@ export class ToggleBreakpointAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyCode.F9
 		};
 	}
@@ -673,7 +673,7 @@ export class SelectionToReplAction extends EditorAction {
 		);
 
 		this.menuOpts = {
-			kbExpr: KbExpr.and(EditorKbExpr.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+			kbExpr: KbExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
 			group: 'debug'
 		};
 	}
@@ -711,7 +711,7 @@ export class ShowDebugHoverAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(debug.CONTEXT_IN_DEBUG_MODE, EditorKbExpr.TextFocus),
+			kbExpr: KbExpr.and(debug.CONTEXT_IN_DEBUG_MODE, EditorContextKeys.TextFocus),
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 		};
 	}

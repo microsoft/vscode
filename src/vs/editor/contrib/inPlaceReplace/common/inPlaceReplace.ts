@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {EditorKbExpr, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
+import {EditorContextKeys, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -136,7 +136,7 @@ class InPlaceReplaceUp extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
 		};
 	}
@@ -157,7 +157,7 @@ class InPlaceReplaceDown extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
 		};
 	}

@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IEditorAction, ICommonCodeEditor, IEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {IEditorAction, ICommonCodeEditor, IEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
 import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
@@ -80,12 +80,12 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
 		};
 
 		this.menuOpts = {
-			kbExpr: EditorKbExpr.Focus
+			kbExpr: EditorContextKeys.Focus
 		};
 	}
 

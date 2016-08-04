@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Handler, ICommonCodeEditor, EditorKbExpr, ISelection} from 'vs/editor/common/editorCommon';
+import {Handler, ICommonCodeEditor, EditorContextKeys, ISelection} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class InsertCursorAbove extends HandlerEditorAction {
@@ -20,7 +20,7 @@ class InsertCursorAbove extends HandlerEditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 			linux: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
@@ -41,7 +41,7 @@ class InsertCursorBelow extends HandlerEditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 			linux: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
@@ -62,7 +62,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 		};
 	}

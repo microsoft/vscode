@@ -33,7 +33,7 @@ import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWid
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 export class DefinitionActionConfig {
 
@@ -173,7 +173,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: goToDeclarationKb
 		};
 
@@ -198,7 +198,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 		};
 	}
@@ -215,7 +215,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Alt | KeyCode.F12,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
 		};

@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Handler, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {Handler, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class SelectBracketAction extends HandlerEditorAction {
@@ -23,7 +23,7 @@ class SelectBracketAction extends HandlerEditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
 		};
 	}

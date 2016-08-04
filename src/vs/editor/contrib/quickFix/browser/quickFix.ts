@@ -13,7 +13,7 @@ import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/pl
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ICommonCodeEditor, EditorKbExpr, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, EditorContextKeys, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
@@ -126,7 +126,7 @@ export class QuickFixAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.US_DOT
 		};
 	}
@@ -148,7 +148,7 @@ var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new KbCtxKey<boolean>('quickFixWidgetVisi
 const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(
 	QuickFixController.getQuickFixController, {
 		weight: CommonEditorRegistry.commandWeight(80),
-		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_QUICK_FIX_WIDGET_VISIBLE)
+		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_QUICK_FIX_WIDGET_VISIBLE)
 	}
 );
 

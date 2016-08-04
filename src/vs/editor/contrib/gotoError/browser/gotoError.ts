@@ -29,7 +29,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 class MarkerModel {
 
@@ -522,7 +522,7 @@ class NextMarkerAction extends MarkerNavigationAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyCode.F8
 		};
 	}
@@ -538,7 +538,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.Shift | KeyCode.F8
 		};
 	}
@@ -549,7 +549,7 @@ var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey<boolean>('markersNavigatio
 const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(
 	MarkerController.getMarkerController, {
 		weight: CommonEditorRegistry.commandWeight(50),
-		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_MARKERS_NAVIGATION_VISIBLE)
+		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_MARKERS_NAVIGATION_VISIBLE)
 	}
 );
 

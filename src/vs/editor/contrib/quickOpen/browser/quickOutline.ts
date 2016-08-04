@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {ICommonCodeEditor, IRange, ModeContextKeys, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry} from 'vs/editor/common/modes';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
@@ -118,7 +118,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
 		};
 

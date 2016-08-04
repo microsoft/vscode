@@ -25,7 +25,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CodeSnippet, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
 import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
@@ -458,7 +458,7 @@ export class DefineKeybindingAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
 		};
 	}

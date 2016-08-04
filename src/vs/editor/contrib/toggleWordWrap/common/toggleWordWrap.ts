@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {ICommonCodeEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class ToggleWordWrapAction extends EditorAction {
@@ -20,7 +20,7 @@ class ToggleWordWrapAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Alt | KeyCode.KEY_Z
 		};
 	}

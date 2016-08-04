@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 interface IParsedLinePlaceHolderInfo {
 	id: string;
@@ -940,7 +940,7 @@ export var CONTEXT_SNIPPET_MODE = new KbCtxKey<boolean>('inSnippetMode', false);
 const SnippetCommand = EditorCommand.bindToContribution<ISnippetController>(
 	getSnippetController, {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: KbExpr.and(EditorKbExpr.TextFocus, CONTEXT_SNIPPET_MODE)
+		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, CONTEXT_SNIPPET_MODE)
 	}
 );
 
