@@ -369,17 +369,20 @@ export class KbAndExpression implements KbExpr {
 	}
 }
 
-export class KbCtxKey extends KbDefinedExpression {
+export class KbCtxKey<T> extends KbDefinedExpression {
 
-	constructor(key:string) {
+	private _defaultValue: T;
+
+	constructor(key:string, defaultValue:T) {
 		super(key);
+		this._defaultValue = defaultValue;
 	}
 
-	public bindTo<T>(target:IKeybindingService, defaultValue:T): IKeybindingContextKey<T> {
-		return target.createKey(this.key, defaultValue);
+	public bindTo(target:IKeybindingService): IKeybindingContextKey<T> {
+		return target.createKey(this.key, this._defaultValue);
 	}
 
-	public getValue<T>(target:IKeybindingService): T {
+	public getValue(target:IKeybindingService): T {
 		return target.getContextValue<T>(this.key);
 	}
 

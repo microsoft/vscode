@@ -33,7 +33,7 @@ export interface IFindStartOptions {
 	shouldAnimate:boolean;
 }
 
-export const CONTEXT_FIND_WIDGET_VISIBLE = new KbCtxKey('findWidgetVisible');
+export const CONTEXT_FIND_WIDGET_VISIBLE = new KbCtxKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
@@ -52,7 +52,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	constructor(editor:editorCommon.ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		super();
 		this._editor = editor;
-		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(keybindingService, false);
+		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(keybindingService);
 
 		this._state = this._register(new FindReplaceState());
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));

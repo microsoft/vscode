@@ -485,7 +485,7 @@ export interface SelectionEvent {
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	public static INNER_EDITOR_CONTEXT_KEY = new KbCtxKey('inReferenceSearchEditor');
+	public static INNER_EDITOR_CONTEXT_KEY = new KbCtxKey<boolean>('inReferenceSearchEditor', true);
 
 	private _model: ReferencesModel;
 	private _decorationsManager: DecorationsManager;

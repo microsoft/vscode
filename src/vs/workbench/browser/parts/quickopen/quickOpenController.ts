@@ -43,7 +43,7 @@ import {IKeybindingService, KbCtxKey, IKeybindingContextKey} from 'vs/platform/k
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
-const QUICK_OPEN_MODE = new KbCtxKey('inQuickOpen');
+const QUICK_OPEN_MODE = new KbCtxKey<boolean>('inQuickOpen', false);
 
 interface IPickOpenEntryItem extends IPickOpenEntry {
 	height?: number;
@@ -103,7 +103,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.promisesToCompleteOnHide = [];
 
-		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(keybindingService, false);
+		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(keybindingService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();

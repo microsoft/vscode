@@ -38,7 +38,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
-export const TextCompareEditorVisible = new KbCtxKey('textCompareEditorVisible');
+export const TextCompareEditorVisible = new KbCtxKey<boolean>('textCompareEditorVisible', false);
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -68,7 +68,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, modeService, themeService);
 
-		this.textDiffEditorVisible = TextCompareEditorVisible.bindTo(keybindingService, false);
+		this.textDiffEditorVisible = TextCompareEditorVisible.bindTo(keybindingService);
 	}
 
 	public getTitle(): string {

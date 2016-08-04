@@ -11,9 +11,9 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 export class ResourceContextKey implements IKeybindingContextKey<URI> {
 
 
-	static Scheme = new KbCtxKey('resourceScheme');
-	static LangId = new KbCtxKey('resourceLangId');
-	static Resource = new KbCtxKey('resource');
+	static Scheme = new KbCtxKey<string>('resourceScheme', undefined);
+	static LangId = new KbCtxKey<string>('resourceLangId', undefined);
+	static Resource = new KbCtxKey<URI>('resource', undefined);
 
 	private _resourceKey: IKeybindingContextKey<URI>;
 	private _schemeKey: IKeybindingContextKey<string>;
@@ -23,9 +23,9 @@ export class ResourceContextKey implements IKeybindingContextKey<URI> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService private _modeService: IModeService
 	) {
-		this._schemeKey = ResourceContextKey.Scheme.bindTo(keybindingService, undefined);
-		this._langIdKey = ResourceContextKey.LangId.bindTo(keybindingService, undefined);
-		this._resourceKey = ResourceContextKey.Resource.bindTo(keybindingService, undefined);
+		this._schemeKey = ResourceContextKey.Scheme.bindTo(keybindingService);
+		this._langIdKey = ResourceContextKey.LangId.bindTo(keybindingService);
+		this._resourceKey = ResourceContextKey.Resource.bindTo(keybindingService);
 	}
 
 	set(value: URI) {

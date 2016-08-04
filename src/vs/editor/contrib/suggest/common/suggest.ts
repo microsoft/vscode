@@ -19,9 +19,9 @@ import {Registry} from 'vs/platform/platform';
 import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 export const Context = {
-	Visible: new KbCtxKey('suggestWidgetVisible'),
-	MultipleSuggestions: new KbCtxKey('suggestWidgetMultipleSuggestions'),
-	AcceptOnKey: new KbCtxKey('suggestionSupportsAcceptOnKey')
+	Visible: new KbCtxKey<boolean>('suggestWidgetVisible', false),
+	MultipleSuggestions: new KbCtxKey<boolean>('suggestWidgetMultipleSuggestions', false),
+	AcceptOnKey: new KbCtxKey<boolean>('suggestionSupportsAcceptOnKey', true)
 };
 
 export interface ISuggestionItem {

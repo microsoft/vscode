@@ -46,7 +46,7 @@ export class QuickFixController implements IEditorContribution {
 		this.editor = editor;
 		this.model = new QuickFixModel(this.editor, this._markerService, this.onAccept.bind(this));
 
-		this.quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(this._keybindingService, false);
+		this.quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(this._keybindingService);
 		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService,() => {
 			this.quickFixWidgetVisible.set(true);
 		},() => {
@@ -143,7 +143,7 @@ export class QuickFixAction extends EditorAction {
 	}
 }
 
-var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new KbCtxKey('quickFixWidgetVisible');
+var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new KbCtxKey<boolean>('quickFixWidgetVisible', false);
 
 const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(
 	QuickFixController.getQuickFixController, {

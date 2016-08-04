@@ -14,8 +14,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { KbCtxKey } from 'vs/platform/keybinding/common/keybinding';
 
 export const Context = {
-	Visible: new KbCtxKey('parameterHintsVisible'),
-	MultipleSignatures: new KbCtxKey('parameterHintsMultipleSignatures'),
+	Visible: new KbCtxKey<boolean>('parameterHintsVisible', false),
+	MultipleSignatures: new KbCtxKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
 export function provideSignatureHelp(model:IReadOnlyModel, position:Position): TPromise<SignatureHelp> {

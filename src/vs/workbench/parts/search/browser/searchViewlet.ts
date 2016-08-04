@@ -105,7 +105,7 @@ export class SearchViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.toDispose = [];
-		this.viewletVisible = SearchViewletVisible.bindTo(keybindingService, true);
+		this.viewletVisible = SearchViewletVisible.bindTo(keybindingService);
 		this.callOnModelChange = [];
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);

@@ -25,7 +25,7 @@ import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
 import {Range} from 'vs/editor/common/core/range';
 
-export const ctxReferenceSearchVisible = new KbCtxKey('referenceSearchVisible');
+export const ctxReferenceSearchVisible = new KbCtxKey<boolean>('referenceSearchVisible', false);
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
@@ -62,7 +62,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
 		this._editor = editor;
-		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(keybindingService, false);
+		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(keybindingService);
 	}
 
 	public getId(): string {

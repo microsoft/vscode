@@ -7,4 +7,4 @@ import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 export const VIEWLET_ID = 'workbench.view.search';
 
-export const SearchViewletVisible = new KbCtxKey('searchViewletVisible');
+export const SearchViewletVisible = new KbCtxKey<boolean>('searchViewletVisible', true);

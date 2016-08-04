@@ -49,7 +49,7 @@ export class TerminalService implements ITerminalService {
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 		this._onInstanceTitleChanged = new Emitter<string>();
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.keybindingService, undefined);
+		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.keybindingService);
 	}
 
 	public get onActiveInstanceChanged(): Event<string> {

@@ -21,7 +21,7 @@ import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
 
-export const ExplorerViewletVisible = new KbCtxKey('explorerViewletVisible');
+export const ExplorerViewletVisible = new KbCtxKey<boolean>('explorerViewletVisible', true);
 
 /**
  * File editor input id.

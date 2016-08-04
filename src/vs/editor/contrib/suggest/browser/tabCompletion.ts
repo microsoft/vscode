@@ -22,7 +22,7 @@ let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 class TabCompletionController implements editorCommon.IEditorContribution {
 
 	static Id = 'editor.tabCompletionController';
-	static ContextKey = new KbCtxKey('hasSnippetCompletions');
+	static ContextKey = new KbCtxKey<boolean>('hasSnippetCompletions', undefined);
 
 	private _snippetController: ISnippetController;
 	private _cursorChangeSubscription: IDisposable;
@@ -33,7 +33,7 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this._snippetController = getSnippetController(editor);
-		const hasSnippets = TabCompletionController.ContextKey.bindTo(keybindingService, undefined);
+		const hasSnippets = TabCompletionController.ContextKey.bindTo(keybindingService);
 		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 
 			this._currentSnippets.length = 0;

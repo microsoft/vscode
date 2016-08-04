@@ -63,7 +63,7 @@ class ReplaceAllAction extends Action {
 
 export class SearchWidget extends Widget {
 
-	static REPLACE_ACTIVE_CONTEXT_KEY= new KbCtxKey('replaceActive');
+	static REPLACE_ACTIVE_CONTEXT_KEY= new KbCtxKey<boolean>('replaceActive', false);
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService: IKeybindingService):string=>{
 		let keybindings = keyBindingService.lookupKeybindings(ReplaceAllAction.ID);
@@ -103,7 +103,7 @@ export class SearchWidget extends Widget {
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
 					private keyBindingService: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
-		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService, false);
+		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService);
 		this.render(container, options);
 	}
 
