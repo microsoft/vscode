@@ -14,7 +14,6 @@ import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/mo
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestionItem, provideSuggestionItems} from './suggest';
 import {CompletionModel} from './completionModel';
-import {Position} from 'vs/editor/common/core/position';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -217,14 +216,6 @@ export class SuggestModel implements IDisposable {
 		}
 
 		return actuallyCanceled;
-	}
-
-	getRequestPosition(): Position {
-		if (!this.context) {
-			return null;
-		}
-
-		return new Position(this.context.lineNumber, this.context.column);
 	}
 
 	private isAutoSuggest(): boolean {
