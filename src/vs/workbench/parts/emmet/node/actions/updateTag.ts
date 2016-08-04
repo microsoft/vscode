@@ -41,4 +41,4 @@ class UpdateTagAction extends EmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new UpdateTagAction());
+CommonEditorRegistry.registerEditorAction(new UpdateTagAction());

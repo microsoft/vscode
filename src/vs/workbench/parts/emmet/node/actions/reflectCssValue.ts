@@ -21,4 +21,4 @@ class ReflectCSSValueAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new ReflectCSSValueAction());
+CommonEditorRegistry.registerEditorAction(new ReflectCSSValueAction());

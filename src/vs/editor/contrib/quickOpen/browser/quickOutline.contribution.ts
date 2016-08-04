@@ -8,4 +8,4 @@ import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {QuickOutlineAction} from './quickOutline';
 
 // Contribute "Quick Outline" to context menu
-CommonEditorRegistry.registerEditorAction2(new QuickOutlineAction());
+CommonEditorRegistry.registerEditorAction(new QuickOutlineAction());

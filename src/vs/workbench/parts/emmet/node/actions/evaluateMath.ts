@@ -21,4 +21,4 @@ class EvaluateMathAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new EvaluateMathAction());
+CommonEditorRegistry.registerEditorAction(new EvaluateMathAction());

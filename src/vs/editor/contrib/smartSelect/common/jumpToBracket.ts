@@ -7,9 +7,9 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Handler} from 'vs/editor/common/editorCommon';
-import {EditorKbExpr, HandlerEditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorKbExpr, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
-class SelectBracketAction extends HandlerEditorAction2 {
+class SelectBracketAction extends HandlerEditorAction {
 
 	static ID = 'editor.action.jumpToBracket';
 
@@ -30,4 +30,4 @@ class SelectBracketAction extends HandlerEditorAction2 {
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction2(new SelectBracketAction());
+CommonEditorRegistry.registerEditorAction(new SelectBracketAction());

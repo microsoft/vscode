@@ -40,4 +40,4 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new WrapWithAbbreviationAction());
+CommonEditorRegistry.registerEditorAction(new WrapWithAbbreviationAction());

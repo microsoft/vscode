@@ -8,4 +8,4 @@ import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {QuickCommandAction} from './quickCommand';
 
 // Contribute "Quick Command" to context menu
-CommonEditorRegistry.registerEditorAction2(new QuickCommandAction());
+CommonEditorRegistry.registerEditorAction(new QuickCommandAction());

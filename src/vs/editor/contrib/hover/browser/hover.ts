@@ -14,7 +14,7 @@ import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ModesContentHoverWidget} from './modesContentHover';
@@ -141,7 +141,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 }
 
-class ShowHoverAction extends EditorAction2 {
+class ShowHoverAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -165,4 +165,4 @@ class ShowHoverAction extends EditorAction2 {
 }
 
 EditorBrowserRegistry.registerEditorContribution(ModesHoverController);
-CommonEditorRegistry.registerEditorAction2(new ShowHoverAction());
+CommonEditorRegistry.registerEditorAction(new ShowHoverAction());

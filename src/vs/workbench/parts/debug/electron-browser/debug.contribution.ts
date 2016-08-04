@@ -50,11 +50,11 @@ class OpenDebugViewletAction extends viewlet.ToggleViewletAction {
 }
 
 EditorBrowserRegistry.registerEditorContribution(DebugEditorContribution);
-CommonEditorRegistry.registerEditorAction2(new ToggleBreakpointAction());
-CommonEditorRegistry.registerEditorAction2(new ShowDebugHoverAction());
-CommonEditorRegistry.registerEditorAction2(new EditorConditionalBreakpointAction());
-CommonEditorRegistry.registerEditorAction2(new SelectionToReplAction());
-CommonEditorRegistry.registerEditorAction2(new RunToCursorAction());
+CommonEditorRegistry.registerEditorAction(new ToggleBreakpointAction());
+CommonEditorRegistry.registerEditorAction(new ShowDebugHoverAction());
+CommonEditorRegistry.registerEditorAction(new EditorConditionalBreakpointAction());
+CommonEditorRegistry.registerEditorAction(new SelectionToReplAction());
+CommonEditorRegistry.registerEditorAction(new RunToCursorAction());
 
 // register viewlet
 (<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(

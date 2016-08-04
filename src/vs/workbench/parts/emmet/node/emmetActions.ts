@@ -7,7 +7,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {EditorAction2, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
@@ -97,7 +97,7 @@ export class EmmetActionContext {
 	}
 }
 
-export abstract class EmmetEditorAction extends EditorAction2 {
+export abstract class EmmetEditorAction extends EditorAction {
 
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, true);

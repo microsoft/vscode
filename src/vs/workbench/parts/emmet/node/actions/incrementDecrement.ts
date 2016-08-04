@@ -76,9 +76,9 @@ class DecrementNumberByTenAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new IncrementNumberByOneTenthAction());
-CommonEditorRegistry.registerEditorAction2(new IncrementNumberByOneAction());
-CommonEditorRegistry.registerEditorAction2(new IncrementNumberByTenAction());
-CommonEditorRegistry.registerEditorAction2(new DecrementNumberByOneTenthAction());
-CommonEditorRegistry.registerEditorAction2(new DecrementNumberByOneAction());
-CommonEditorRegistry.registerEditorAction2(new DecrementNumberByTenAction());
+CommonEditorRegistry.registerEditorAction(new IncrementNumberByOneTenthAction());
+CommonEditorRegistry.registerEditorAction(new IncrementNumberByOneAction());
+CommonEditorRegistry.registerEditorAction(new IncrementNumberByTenAction());
+CommonEditorRegistry.registerEditorAction(new DecrementNumberByOneTenthAction());
+CommonEditorRegistry.registerEditorAction(new DecrementNumberByOneAction());
+CommonEditorRegistry.registerEditorAction(new DecrementNumberByTenAction());

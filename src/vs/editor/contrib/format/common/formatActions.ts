@@ -11,7 +11,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
@@ -132,7 +132,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
-export class FormatAction extends EditorAction2 {
+export class FormatAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -223,5 +223,5 @@ export class FormatAction extends EditorAction2 {
 }
 
 // register action
-CommonEditorRegistry.registerEditorAction2(new FormatAction());
+CommonEditorRegistry.registerEditorAction(new FormatAction());
 CommonEditorRegistry.registerEditorContribution(FormatOnType);

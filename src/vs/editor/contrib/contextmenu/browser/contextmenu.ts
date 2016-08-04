@@ -16,7 +16,7 @@ import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {ICommonCodeEditor, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
@@ -218,7 +218,7 @@ class ContextMenuController implements IEditorContribution {
 	}
 }
 
-class ShowContextMenu extends EditorAction2 {
+class ShowContextMenu extends EditorAction {
 
 	constructor() {
 		super(
@@ -241,4 +241,4 @@ class ShowContextMenu extends EditorAction2 {
 }
 
 EditorBrowserRegistry.registerEditorContribution(ContextMenuController);
-CommonEditorRegistry.registerEditorAction2(new ShowContextMenu());
+CommonEditorRegistry.registerEditorAction(new ShowContextMenu());

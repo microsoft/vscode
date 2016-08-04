@@ -21,4 +21,4 @@ class GoToMatchingPairAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new GoToMatchingPairAction());
+CommonEditorRegistry.registerEditorAction(new GoToMatchingPairAction());

@@ -32,5 +32,5 @@ class BalanceOutwardAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new BalanceInwardAction());
-CommonEditorRegistry.registerEditorAction2(new BalanceOutwardAction());
+CommonEditorRegistry.registerEditorAction(new BalanceInwardAction());
+CommonEditorRegistry.registerEditorAction(new BalanceOutwardAction());

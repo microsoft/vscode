@@ -7,9 +7,9 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Handler, ICommonCodeEditor, ISelection} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, HandlerEditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
-class InsertCursorAbove extends HandlerEditorAction2 {
+class InsertCursorAbove extends HandlerEditorAction {
 	constructor() {
 		super(
 			'editor.action.insertCursorAbove',
@@ -30,7 +30,7 @@ class InsertCursorAbove extends HandlerEditorAction2 {
 	}
 }
 
-class InsertCursorBelow extends HandlerEditorAction2 {
+class InsertCursorBelow extends HandlerEditorAction {
 	constructor() {
 		super(
 			'editor.action.insertCursorBelow',
@@ -51,7 +51,7 @@ class InsertCursorBelow extends HandlerEditorAction2 {
 	}
 }
 
-class InsertCursorAtEndOfEachLineSelected extends EditorAction2 {
+class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 
 	constructor() {
 		super(
@@ -101,6 +101,6 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction2 {
 
 
 // register actions
-CommonEditorRegistry.registerEditorAction2(new InsertCursorAbove());
-CommonEditorRegistry.registerEditorAction2(new InsertCursorBelow());
-CommonEditorRegistry.registerEditorAction2(new InsertCursorAtEndOfEachLineSelected());
+CommonEditorRegistry.registerEditorAction(new InsertCursorAbove());
+CommonEditorRegistry.registerEditorAction(new InsertCursorBelow());
+CommonEditorRegistry.registerEditorAction(new InsertCursorAtEndOfEachLineSelected());

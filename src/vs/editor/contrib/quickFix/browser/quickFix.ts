@@ -14,7 +14,7 @@ import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ICommonCodeEditor, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -115,7 +115,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 }
 
-export class QuickFixAction extends EditorAction2 {
+export class QuickFixAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -148,7 +148,7 @@ var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = 'quickFixWidgetVisible';
 var weight = CommonEditorRegistry.commandWeight(80);
 
 // register action
-CommonEditorRegistry.registerEditorAction2(new QuickFixAction());
+CommonEditorRegistry.registerEditorAction(new QuickFixAction());
 CommonEditorRegistry.registerEditorCommand('acceptQuickFixSuggestion', weight, { primary: KeyCode.Enter, secondary: [KeyCode.Tab] }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.acceptSelectedSuggestion();

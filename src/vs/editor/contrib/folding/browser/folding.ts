@@ -13,7 +13,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
@@ -646,7 +646,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 	}
 }
 
-abstract class FoldingAction2 extends EditorAction2 {
+abstract class FoldingAction2 extends EditorAction {
 
 	constructor(id:string, label:string, alias:string, keybinding:number) {
 		super(id, label, alias, false);
@@ -784,13 +784,13 @@ class FoldLevelAction extends FoldingAction2 {
 
 EditorBrowserRegistry.registerEditorContribution(FoldingController);
 
-CommonEditorRegistry.registerEditorAction2(new UnfoldAction());
-CommonEditorRegistry.registerEditorAction2(new UnFoldRecursivelyAction());
-CommonEditorRegistry.registerEditorAction2(new FoldAction());
-CommonEditorRegistry.registerEditorAction2(new FoldRecursivelyAction());
-CommonEditorRegistry.registerEditorAction2(new FoldAllAction());
-CommonEditorRegistry.registerEditorAction2(new UnfoldAllAction());
-CommonEditorRegistry.registerEditorAction2(
+CommonEditorRegistry.registerEditorAction(new UnfoldAction());
+CommonEditorRegistry.registerEditorAction(new UnFoldRecursivelyAction());
+CommonEditorRegistry.registerEditorAction(new FoldAction());
+CommonEditorRegistry.registerEditorAction(new FoldRecursivelyAction());
+CommonEditorRegistry.registerEditorAction(new FoldAllAction());
+CommonEditorRegistry.registerEditorAction(new UnfoldAllAction());
+CommonEditorRegistry.registerEditorAction(
 	new FoldLevelAction(
 		FoldLevelAction.ID(1),
 		nls.localize('foldLevel1Action.label', "Fold Level 1"),
@@ -798,7 +798,7 @@ CommonEditorRegistry.registerEditorAction2(
 		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
 	)
 );
-CommonEditorRegistry.registerEditorAction2(
+CommonEditorRegistry.registerEditorAction(
 	new FoldLevelAction(
 		FoldLevelAction.ID(2),
 		nls.localize('foldLevel2Action.label', "Fold Level 2"),
@@ -806,7 +806,7 @@ CommonEditorRegistry.registerEditorAction2(
 		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
 	)
 );
-CommonEditorRegistry.registerEditorAction2(
+CommonEditorRegistry.registerEditorAction(
 	new FoldLevelAction(
 		FoldLevelAction.ID(3),
 		nls.localize('foldLevel3Action.label', "Fold Level 3"),
@@ -814,7 +814,7 @@ CommonEditorRegistry.registerEditorAction2(
 		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
 	)
 );
-CommonEditorRegistry.registerEditorAction2(
+CommonEditorRegistry.registerEditorAction(
 	new FoldLevelAction(
 		FoldLevelAction.ID(4),
 		nls.localize('foldLevel4Action.label', "Fold Level 4"),
@@ -822,7 +822,7 @@ CommonEditorRegistry.registerEditorAction2(
 		KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
 	)
 );
-CommonEditorRegistry.registerEditorAction2(
+CommonEditorRegistry.registerEditorAction(
 	new FoldLevelAction(
 		FoldLevelAction.ID(5),
 		nls.localize('foldLevel5Action.label', "Fold Level 5"),

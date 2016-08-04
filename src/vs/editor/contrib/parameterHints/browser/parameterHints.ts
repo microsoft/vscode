@@ -12,7 +12,7 @@ import { ICommonCodeEditor, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { withCodeEditorFromCommandHandler } from 'vs/editor/common/config/config';
-import { ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
@@ -60,7 +60,7 @@ class ParameterHintsController implements IEditorContribution {
 	}
 }
 
-export class TriggerParameterHintsAction extends EditorAction2 {
+export class TriggerParameterHintsAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -98,7 +98,7 @@ function handler(id: string, fn: (controller: ParameterHintsController) => void)
 
 EditorBrowserRegistry.registerEditorContribution(ParameterHintsController);
 
-CommonEditorRegistry.registerEditorAction2(new TriggerParameterHintsAction());
+CommonEditorRegistry.registerEditorAction(new TriggerParameterHintsAction());
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'closeParameterHints',

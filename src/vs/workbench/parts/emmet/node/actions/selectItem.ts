@@ -32,5 +32,5 @@ class SelectNextItemAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new SelectPreviousItemAction());
-CommonEditorRegistry.registerEditorAction2(new SelectNextItemAction());
+CommonEditorRegistry.registerEditorAction(new SelectPreviousItemAction());
+CommonEditorRegistry.registerEditorAction(new SelectNextItemAction());
