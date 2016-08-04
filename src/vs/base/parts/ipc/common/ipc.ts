@@ -148,15 +148,17 @@ export class Server {
 	}
 }
 
-export class Client implements IClient {
+export class Client implements IClient, IDisposable {
 
 	private state: State;
+	private activeRequests: Promise[];
 	private bufferedRequests: IRequest[];
 	private handlers: { [id: number]: IHandler; };
 	private lastRequestId: number;
 
 	constructor(private protocol: IMessagePassingProtocol) {
 		this.state = State.Uninitialized;
+		this.activeRequests = [];
 		this.bufferedRequests = [];
 		this.handlers = Object.create(null);
 		this.lastRequestId = 0;
@@ -179,11 +181,17 @@ export class Client implements IClient {
 			}
 		};
 
-		if (this.state === State.Uninitialized) {
-			return this.bufferRequest(request);
-		}
+		const activeRequest = this.state === State.Uninitialized
+			? this.bufferRequest(request)
+			: this.doRequest(request);
 
-		return this.doRequest(request);
+		this.activeRequests.push(activeRequest);
+
+		activeRequest
+			.then(null, _ => null)
+			.done(() => this.activeRequests = this.activeRequests.filter(i => i !== activeRequest));
+
+		return activeRequest;
 	}
 
 	private doRequest(request: IRequest): Promise {
@@ -273,6 +281,11 @@ export class Client implements IClient {
 		} catch (err) {
 			// noop
 		}
+	}
+
+	dispose(): void {
+		this.activeRequests.forEach(r => r.cancel());
+		this.activeRequests = [];
 	}
 }
 

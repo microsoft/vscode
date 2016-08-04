@@ -206,6 +206,8 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
+		const disposables = new Disposables();
+
 		const sharedProcess = connectNet(process.env['VSCODE_SHARED_IPC_HOOK']);
 		sharedProcess.done(service => {
 			service.onClose(() => {
@@ -217,6 +219,7 @@ export class WorkbenchShell {
 		}, errors.onUnexpectedError);
 
 		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
+		disposables.add(mainProcessClient);
 
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IEventService, this.eventService);
@@ -224,7 +227,6 @@ export class WorkbenchShell {
 		serviceCollection.set(IConfigurationService, this.configurationService);
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
-		const disposables = new Disposables();
 
 		this.windowService = instantiationService.createInstance(WindowService);
 		serviceCollection.set(IWindowService, this.windowService);

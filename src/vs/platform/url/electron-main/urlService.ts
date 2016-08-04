@@ -5,32 +5,25 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
+import Event, {mapEvent} from 'vs/base/common/event';
+import {fromEventEmitter} from 'vs/base/node/event';
 import {IURLService} from 'vs/platform/url/common/url';
 import {app} from 'electron';
 
-export class URLService implements IURLService, IDisposable {
+export class URLService implements IURLService {
 
 	_serviceBrand: any;
 
-	private _onOpenURL = new Emitter<string>();
-	onOpenURL: Event<string> = this._onOpenURL.event;
-	private disposables: IDisposable[] = [];
+	onOpenURL: Event<string>;
 
 	constructor() {
-		const handler = (e: Electron.Event, url: string) => {
-			e.preventDefault();
-			this._onOpenURL.fire(url);
-		};
+		const rawOnOpenUrl = fromEventEmitter(app, 'open-url', (event: Electron.Event, url: string) => ({ event, url }));
 
-		app.on('open-url', handler);
-		this.disposables.push(toDisposable(() => app.removeListener('open-url', handler)));
+		this.onOpenURL = mapEvent(rawOnOpenUrl, ({ event, url }) => {
+			event.preventDefault();
+			return url;
+		});
 
 		// app.setAsDefaultProtocolClient('vscode');
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
