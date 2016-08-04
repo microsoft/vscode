@@ -9,7 +9,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {InPlaceReplaceCommand} from './inPlaceReplaceCommand';
@@ -125,7 +125,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	}
 }
 
-class InPlaceReplaceUp extends EditorAction2 {
+class InPlaceReplaceUp extends EditorAction {
 
 	constructor() {
 		super(
@@ -146,7 +146,7 @@ class InPlaceReplaceUp extends EditorAction2 {
 	}
 }
 
-class InPlaceReplaceDown extends EditorAction2 {
+class InPlaceReplaceDown extends EditorAction {
 
 	constructor() {
 		super(
@@ -168,5 +168,5 @@ class InPlaceReplaceDown extends EditorAction2 {
 }
 
 CommonEditorRegistry.registerEditorContribution(InPlaceReplaceController);
-CommonEditorRegistry.registerEditorAction2(new InPlaceReplaceUp());
-CommonEditorRegistry.registerEditorAction2(new InPlaceReplaceDown());
+CommonEditorRegistry.registerEditorAction(new InPlaceReplaceUp());
+CommonEditorRegistry.registerEditorAction(new InPlaceReplaceDown());

@@ -32,5 +32,5 @@ class NextEditPointAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new PreviousEditPointAction());
-CommonEditorRegistry.registerEditorAction2(new NextEditPointAction());
+CommonEditorRegistry.registerEditorAction(new PreviousEditPointAction());
+CommonEditorRegistry.registerEditorAction(new NextEditPointAction());

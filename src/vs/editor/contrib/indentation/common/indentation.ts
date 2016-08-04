@@ -6,12 +6,12 @@
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
-export class IndentationToSpacesAction extends EditorAction2 {
+export class IndentationToSpacesAction extends EditorAction {
 	static ID = 'editor.action.indentationToSpaces';
 
 	constructor() {
@@ -37,7 +37,7 @@ export class IndentationToSpacesAction extends EditorAction2 {
 	}
 }
 
-export class IndentationToTabsAction extends EditorAction2 {
+export class IndentationToTabsAction extends EditorAction {
 	static ID = 'editor.action.indentationToTabs';
 
 	constructor() {
@@ -63,7 +63,7 @@ export class IndentationToTabsAction extends EditorAction2 {
 	}
 }
 
-export class ChangeIndentationSizeAction extends EditorAction2 {
+export class ChangeIndentationSizeAction extends EditorAction {
 
 	constructor(id: string, label: string, alias: string, private insertSpaces: boolean) {
 		super(id, label, alias, false);
@@ -130,7 +130,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 	}
 }
 
-export class DetectIndentation extends EditorAction2 {
+export class DetectIndentation extends EditorAction {
 
 	static ID = 'editor.action.detectIndentation';
 
@@ -156,7 +156,7 @@ export class DetectIndentation extends EditorAction2 {
 	}
 }
 
-export class ToggleRenderWhitespaceAction extends EditorAction2 {
+export class ToggleRenderWhitespaceAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -174,7 +174,7 @@ export class ToggleRenderWhitespaceAction extends EditorAction2 {
 	}
 }
 
-export class ToggleRenderControlCharacterAction extends EditorAction2 {
+export class ToggleRenderControlCharacterAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -193,10 +193,10 @@ export class ToggleRenderControlCharacterAction extends EditorAction2 {
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction2(new IndentationToSpacesAction());
-CommonEditorRegistry.registerEditorAction2(new IndentationToTabsAction());
-CommonEditorRegistry.registerEditorAction2(new IndentUsingSpaces());
-CommonEditorRegistry.registerEditorAction2(new IndentUsingTabs());
-CommonEditorRegistry.registerEditorAction2(new DetectIndentation());
-CommonEditorRegistry.registerEditorAction2(new ToggleRenderWhitespaceAction());
-CommonEditorRegistry.registerEditorAction2(new ToggleRenderControlCharacterAction());
+CommonEditorRegistry.registerEditorAction(new IndentationToSpacesAction());
+CommonEditorRegistry.registerEditorAction(new IndentationToTabsAction());
+CommonEditorRegistry.registerEditorAction(new IndentUsingSpaces());
+CommonEditorRegistry.registerEditorAction(new IndentUsingTabs());
+CommonEditorRegistry.registerEditorAction(new DetectIndentation());
+CommonEditorRegistry.registerEditorAction(new ToggleRenderWhitespaceAction());
+CommonEditorRegistry.registerEditorAction(new ToggleRenderControlCharacterAction());

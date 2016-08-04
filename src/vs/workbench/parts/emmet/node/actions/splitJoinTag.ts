@@ -21,4 +21,4 @@ class SplitJoinTagAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new SplitJoinTagAction());
+CommonEditorRegistry.registerEditorAction(new SplitJoinTagAction());

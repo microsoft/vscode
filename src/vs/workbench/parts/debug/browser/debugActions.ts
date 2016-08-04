@@ -18,7 +18,7 @@ import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidge
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ServicesAccessor, EditorKbExpr, EditorAction2} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import IDebugService = debug.IDebugService;
 
@@ -516,7 +516,7 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleBreakpointAction extends EditorAction2 {
+export class ToggleBreakpointAction extends EditorAction {
 	constructor() {
 		super(
 			'editor.debug.action.toggleBreakpoint',
@@ -546,7 +546,7 @@ export class ToggleBreakpointAction extends EditorAction2 {
 	}
 }
 
-export class EditorConditionalBreakpointAction extends EditorAction2 {
+export class EditorConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -590,7 +590,7 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 }
 
-export class RunToCursorAction extends EditorAction2 {
+export class RunToCursorAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -660,7 +660,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-export class SelectionToReplAction extends EditorAction2 {
+export class SelectionToReplAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -698,7 +698,7 @@ export class SelectionToReplAction extends EditorAction2 {
 	}
 }
 
-export class ShowDebugHoverAction extends EditorAction2 {
+export class ShowDebugHoverAction extends EditorAction {
 
 	constructor() {
 		super(

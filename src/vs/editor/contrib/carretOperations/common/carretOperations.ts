@@ -6,10 +6,10 @@
 
 import * as nls from 'vs/nls';
 import {ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {EditorAction2, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {MoveCarretCommand} from './moveCarretCommand';
 
-class MoveCarretAction extends EditorAction2 {
+class MoveCarretAction extends EditorAction {
 
 	private left:boolean;
 
@@ -55,5 +55,5 @@ class MoveCarretRightAction extends MoveCarretAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new MoveCarretLeftAction());
-CommonEditorRegistry.registerEditorAction2(new MoveCarretRightAction());
+CommonEditorRegistry.registerEditorAction(new MoveCarretLeftAction());
+CommonEditorRegistry.registerEditorAction(new MoveCarretRightAction());

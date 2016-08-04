@@ -11,7 +11,7 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {QuickOpenEditorWidget} from './quickOpenEditorWidget';
 import {Selection} from 'vs/editor/common/core/selection';
-import {EditorAction2} from 'vs/editor/common/editorCommonExtensions';
+import {EditorAction} from 'vs/editor/common/editorCommonExtensions';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -138,7 +138,7 @@ export interface IQuickOpenOpts {
 /**
  * Base class for providing quick open in the editor.
  */
-export abstract class BaseEditorQuickOpenAction extends EditorAction2 {
+export abstract class BaseEditorQuickOpenAction extends EditorAction {
 
 	private _inputAriaLabel:string;
 

@@ -16,7 +16,7 @@ import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/key
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRange, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {KEYBINDING_CONTEXT_EDITOR_READONLY, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
@@ -147,7 +147,7 @@ class RenameController implements IEditorContribution {
 
 // ---- action implementation
 
-export class RenameAction extends EditorAction2 {
+export class RenameAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -192,7 +192,7 @@ EditorBrowserRegistry.registerEditorContribution(RenameController);
 
 const weight = CommonEditorRegistry.commandWeight(99);
 
-CommonEditorRegistry.registerEditorAction2(new RenameAction());
+CommonEditorRegistry.registerEditorAction(new RenameAction());
 
 CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
 	RenameController.get(editor).acceptRenameInput();

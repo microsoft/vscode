@@ -19,7 +19,7 @@ import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorKbExpr, EditorAction2} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, EditorKbExpr, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
@@ -189,7 +189,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 }
 
-class ShowAccessibilityHelpAction extends EditorAction2 {
+class ShowAccessibilityHelpAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -212,7 +212,7 @@ class ShowAccessibilityHelpAction extends EditorAction2 {
 }
 
 EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
-CommonEditorRegistry.registerEditorAction2(new ShowAccessibilityHelpAction());
+CommonEditorRegistry.registerEditorAction(new ShowAccessibilityHelpAction());
 CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
 	AccessibilityHelpController.get(editor).hide();
 });

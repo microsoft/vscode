@@ -42,4 +42,4 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new ExpandAbbreviationAction());
+CommonEditorRegistry.registerEditorAction(new ExpandAbbreviationAction());

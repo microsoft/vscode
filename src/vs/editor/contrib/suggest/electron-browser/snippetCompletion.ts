@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {Registry} from 'vs/platform/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {getSnippetController, CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {ISnippetsRegistry, Extensions, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
@@ -17,7 +17,7 @@ interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
 }
 
-class ShowSnippetsActions extends EditorAction2 {
+class ShowSnippetsActions extends EditorAction {
 
 	constructor() {
 		super(
@@ -53,4 +53,4 @@ class ShowSnippetsActions extends EditorAction2 {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new ShowSnippetsActions());
+CommonEditorRegistry.registerEditorAction(new ShowSnippetsActions());

@@ -22,7 +22,7 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -45,7 +45,7 @@ export class DefinitionActionConfig {
 	}
 }
 
-export class DefinitionAction extends EditorAction2 {
+export class DefinitionAction extends EditorAction {
 
 	private _configuration: DefinitionActionConfig;
 
@@ -517,8 +517,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 // register actions
 
-CommonEditorRegistry.registerEditorAction2(new PeekDefinitionAction());
-CommonEditorRegistry.registerEditorAction2(new GoToDefinitionAction());
-CommonEditorRegistry.registerEditorAction2(new OpenDefinitionToSideAction());
+CommonEditorRegistry.registerEditorAction(new PeekDefinitionAction());
+CommonEditorRegistry.registerEditorAction(new GoToDefinitionAction());
+CommonEditorRegistry.registerEditorAction(new OpenDefinitionToSideAction());
 
 EditorBrowserRegistry.registerEditorContribution(GotoDefinitionWithMouseEditorContribution);

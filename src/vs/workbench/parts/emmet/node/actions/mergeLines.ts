@@ -21,4 +21,4 @@ class MergeLinesAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new MergeLinesAction());
+CommonEditorRegistry.registerEditorAction(new MergeLinesAction());

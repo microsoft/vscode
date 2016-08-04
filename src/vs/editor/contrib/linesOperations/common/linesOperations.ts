@@ -9,14 +9,14 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, HandlerEditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {CopyLinesCommand} from './copyLinesCommand';
 import {DeleteLinesCommand} from './deleteLinesCommand';
 import {MoveLinesCommand} from './moveLinesCommand';
 
 // copy lines
 
-abstract class AbstractCopyLinesAction extends EditorAction2 {
+abstract class AbstractCopyLinesAction extends EditorAction {
 
 	private down:boolean;
 
@@ -74,7 +74,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 
 // move lines
 
-abstract class AbstractMoveLinesAction extends EditorAction2 {
+abstract class AbstractMoveLinesAction extends EditorAction {
 
 	private down:boolean;
 
@@ -130,7 +130,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 	}
 }
 
-abstract class AbstractSortLinesAction extends EditorAction2 {
+abstract class AbstractSortLinesAction extends EditorAction {
 	private descending:boolean;
 
 	constructor(id:string, label:string, alias:string, descending:boolean) {
@@ -182,7 +182,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 	}
 }
 
-export class TrimTrailingWhitespaceAction extends EditorAction2 {
+export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	static ID = 'editor.action.trimTrailingWhitespace';
 
@@ -216,7 +216,7 @@ interface IDeleteLinesOperation {
 	positionColumn:number;
 }
 
-abstract class AbstractRemoveLinesAction extends EditorAction2 {
+abstract class AbstractRemoveLinesAction extends EditorAction {
 
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, true);
@@ -292,7 +292,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 	}
 }
 
-class IndentLinesAction extends HandlerEditorAction2 {
+class IndentLinesAction extends HandlerEditorAction {
 	constructor() {
 		super(
 			'editor.action.indentLines',
@@ -309,7 +309,7 @@ class IndentLinesAction extends HandlerEditorAction2 {
 	}
 }
 
-class OutdentLinesAction extends HandlerEditorAction2 {
+class OutdentLinesAction extends HandlerEditorAction {
 	constructor() {
 		super(
 			'editor.action.outdentLines',
@@ -326,7 +326,7 @@ class OutdentLinesAction extends HandlerEditorAction2 {
 	}
 }
 
-class InsertLineBeforeAction extends HandlerEditorAction2 {
+class InsertLineBeforeAction extends HandlerEditorAction {
 	constructor() {
 		super(
 			'editor.action.insertLineBefore',
@@ -343,7 +343,7 @@ class InsertLineBeforeAction extends HandlerEditorAction2 {
 	}
 }
 
-class InsertLineAfterAction extends HandlerEditorAction2 {
+class InsertLineAfterAction extends HandlerEditorAction {
 	constructor() {
 		super(
 			'editor.action.insertLineAfter',
@@ -361,15 +361,15 @@ class InsertLineAfterAction extends HandlerEditorAction2 {
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction2(new DeleteLinesAction());
-CommonEditorRegistry.registerEditorAction2(new SortLinesAscendingAction());
-CommonEditorRegistry.registerEditorAction2(new SortLinesDescendingAction());
-CommonEditorRegistry.registerEditorAction2(new TrimTrailingWhitespaceAction());
-CommonEditorRegistry.registerEditorAction2(new MoveLinesDownAction());
-CommonEditorRegistry.registerEditorAction2(new MoveLinesUpAction());
-CommonEditorRegistry.registerEditorAction2(new CopyLinesDownAction());
-CommonEditorRegistry.registerEditorAction2(new CopyLinesUpAction());
-CommonEditorRegistry.registerEditorAction2(new IndentLinesAction());
-CommonEditorRegistry.registerEditorAction2(new OutdentLinesAction());
-CommonEditorRegistry.registerEditorAction2(new InsertLineBeforeAction());
-CommonEditorRegistry.registerEditorAction2(new InsertLineAfterAction());
+CommonEditorRegistry.registerEditorAction(new DeleteLinesAction());
+CommonEditorRegistry.registerEditorAction(new SortLinesAscendingAction());
+CommonEditorRegistry.registerEditorAction(new SortLinesDescendingAction());
+CommonEditorRegistry.registerEditorAction(new TrimTrailingWhitespaceAction());
+CommonEditorRegistry.registerEditorAction(new MoveLinesDownAction());
+CommonEditorRegistry.registerEditorAction(new MoveLinesUpAction());
+CommonEditorRegistry.registerEditorAction(new CopyLinesDownAction());
+CommonEditorRegistry.registerEditorAction(new CopyLinesUpAction());
+CommonEditorRegistry.registerEditorAction(new IndentLinesAction());
+CommonEditorRegistry.registerEditorAction(new OutdentLinesAction());
+CommonEditorRegistry.registerEditorAction(new InsertLineBeforeAction());
+CommonEditorRegistry.registerEditorAction(new InsertLineAfterAction());

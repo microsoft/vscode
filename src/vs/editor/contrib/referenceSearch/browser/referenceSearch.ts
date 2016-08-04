@@ -16,7 +16,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
 import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {provideReferences} from '../common/referenceSearch';
@@ -52,7 +52,7 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 	}
 }
 
-export class ReferenceAction extends EditorAction2 {
+export class ReferenceAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -151,7 +151,7 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 // register action
 
 CommonEditorRegistry.registerEditorContribution(ReferenceController);
-CommonEditorRegistry.registerEditorAction2(new ReferenceAction());
+CommonEditorRegistry.registerEditorAction(new ReferenceAction());
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.findReferences',

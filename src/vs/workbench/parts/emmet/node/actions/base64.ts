@@ -133,4 +133,4 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new EncodeDecodeDataUrlAction());
+CommonEditorRegistry.registerEditorAction(new EncodeDecodeDataUrlAction());

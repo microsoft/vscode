@@ -21,4 +21,4 @@ class RemoveTagAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new RemoveTagAction());
+CommonEditorRegistry.registerEditorAction(new RemoveTagAction());

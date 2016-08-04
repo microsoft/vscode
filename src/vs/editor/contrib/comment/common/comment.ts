@@ -7,12 +7,12 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {EditorKbExpr, EditorAction2, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {EditorKbExpr, EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LineCommentCommand, Type} from './lineCommentCommand';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
-abstract class CommentLineAction extends EditorAction2 {
+abstract class CommentLineAction extends EditorAction {
 
 	private _type: Type;
 
@@ -91,7 +91,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 	}
 }
 
-class BlockCommentAction extends EditorAction2 {
+class BlockCommentAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -121,7 +121,7 @@ class BlockCommentAction extends EditorAction2 {
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction2(new ToggleCommentLineAction());
-CommonEditorRegistry.registerEditorAction2(new AddLineCommentAction());
-CommonEditorRegistry.registerEditorAction2(new RemoveLineCommentAction());
-CommonEditorRegistry.registerEditorAction2(new BlockCommentAction());
+CommonEditorRegistry.registerEditorAction(new ToggleCommentLineAction());
+CommonEditorRegistry.registerEditorAction(new AddLineCommentAction());
+CommonEditorRegistry.registerEditorAction(new RemoveLineCommentAction());
+CommonEditorRegistry.registerEditorAction(new BlockCommentAction());

@@ -19,7 +19,7 @@ import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CodeSnippet, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
@@ -443,7 +443,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	}
 }
 
-export class DefineKeybindingAction extends EditorAction2 {
+export class DefineKeybindingAction extends EditorAction {
 
 	static ID = 'editor.action.defineKeybinding';
 
@@ -488,4 +488,4 @@ function isInterestingEditorModel(editor:editorCommon.ICommonCodeEditor): boolea
 }
 
 EditorBrowserRegistry.registerEditorContribution(DefineKeybindingController);
-CommonEditorRegistry.registerEditorAction2(new DefineKeybindingAction());
+CommonEditorRegistry.registerEditorAction(new DefineKeybindingAction());

@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IActionDescriptor, ICommonCodeEditor, IEditorAction} from 'vs/editor/common/editorCommon';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {EditorAction2} from 'vs/editor/common/editorCommonExtensions';
+import {EditorAction} from 'vs/editor/common/editorCommonExtensions';
 
 export abstract class AbstractInternalEditorAction {
 
@@ -25,10 +25,10 @@ export abstract class AbstractInternalEditorAction {
 
 export class InternalEditorAction extends AbstractInternalEditorAction implements IEditorAction {
 
-	private _actual: EditorAction2;
+	private _actual: EditorAction;
 	private _instantiationService:IInstantiationService;
 
-	constructor(actual:EditorAction2, editor:ICommonCodeEditor, instantiationService:IInstantiationService) {
+	constructor(actual:EditorAction, editor:ICommonCodeEditor, instantiationService:IInstantiationService) {
 		super(actual.id, actual.label, actual.alias, editor);
 		this._actual = actual;
 		this._instantiationService = instantiationService;

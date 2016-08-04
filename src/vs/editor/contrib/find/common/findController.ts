@@ -12,7 +12,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
@@ -230,7 +230,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 }
 
-export class StartFindAction extends EditorAction2 {
+export class StartFindAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -257,7 +257,7 @@ export class StartFindAction extends EditorAction2 {
 	}
 }
 
-export abstract class MatchFindAction extends EditorAction2 {
+export abstract class MatchFindAction extends EditorAction {
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, false);
 	}
@@ -320,7 +320,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 	}
 }
 
-export abstract class SelectionMatchFindAction extends EditorAction2 {
+export abstract class SelectionMatchFindAction extends EditorAction {
 
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, false);
@@ -386,7 +386,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 	}
 }
 
-export class StartFindReplaceAction extends EditorAction2 {
+export class StartFindReplaceAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -472,7 +472,7 @@ function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearch
 	};
 }
 
-export abstract class SelectNextFindMatchAction extends EditorAction2 {
+export abstract class SelectNextFindMatchAction extends EditorAction {
 
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, false);
@@ -500,7 +500,7 @@ export abstract class SelectNextFindMatchAction extends EditorAction2 {
 	}
 }
 
-export abstract class SelectPreviousFindMatchAction extends EditorAction2 {
+export abstract class SelectPreviousFindMatchAction extends EditorAction {
 
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, false);
@@ -632,7 +632,7 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 	}
 }
 
-export abstract class AbstractSelectHighlightsAction extends EditorAction2 {
+export abstract class AbstractSelectHighlightsAction extends EditorAction {
 
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, false);
@@ -856,22 +856,22 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 }
 
 
-CommonEditorRegistry.registerEditorAction2(new SelectHighlightsAction());
+CommonEditorRegistry.registerEditorAction(new SelectHighlightsAction());
 // register SelectHighlightsAction again to replace the now removed Change All action
-CommonEditorRegistry.registerEditorAction2(new CompatChangeAll());
+CommonEditorRegistry.registerEditorAction(new CompatChangeAll());
 
 // register actions
-CommonEditorRegistry.registerEditorAction2(new StartFindAction());
-CommonEditorRegistry.registerEditorAction2(new NextMatchFindAction());
-CommonEditorRegistry.registerEditorAction2(new PreviousMatchFindAction());
-CommonEditorRegistry.registerEditorAction2(new NextSelectionMatchFindAction());
-CommonEditorRegistry.registerEditorAction2(new PreviousSelectionMatchFindAction());
-CommonEditorRegistry.registerEditorAction2(new StartFindReplaceAction());
-CommonEditorRegistry.registerEditorAction2(new MoveSelectionToNextFindMatchAction());
-CommonEditorRegistry.registerEditorAction2(new MoveSelectionToPreviousFindMatchAction());
+CommonEditorRegistry.registerEditorAction(new StartFindAction());
+CommonEditorRegistry.registerEditorAction(new NextMatchFindAction());
+CommonEditorRegistry.registerEditorAction(new PreviousMatchFindAction());
+CommonEditorRegistry.registerEditorAction(new NextSelectionMatchFindAction());
+CommonEditorRegistry.registerEditorAction(new PreviousSelectionMatchFindAction());
+CommonEditorRegistry.registerEditorAction(new StartFindReplaceAction());
+CommonEditorRegistry.registerEditorAction(new MoveSelectionToNextFindMatchAction());
+CommonEditorRegistry.registerEditorAction(new MoveSelectionToPreviousFindMatchAction());
 
-CommonEditorRegistry.registerEditorAction2(new AddSelectionToNextFindMatchAction());
-CommonEditorRegistry.registerEditorAction2(new AddSelectionToPreviousFindMatchAction());
+CommonEditorRegistry.registerEditorAction(new AddSelectionToNextFindMatchAction());
+CommonEditorRegistry.registerEditorAction(new AddSelectionToPreviousFindMatchAction());
 
 function registerFindCommand(id:string, callback:(controller:CommonFindController)=>void, keybindings:IKeybindings, needsKey:string = null): void {
 	CommonEditorRegistry.registerEditorCommand(id, CommonEditorRegistry.commandWeight(5), keybindings, false, needsKey, (ctx, editor, args) => {

@@ -23,7 +23,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
@@ -406,7 +406,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 	}
 }
 
-class MarkerNavigationAction extends EditorAction2 {
+class MarkerNavigationAction extends EditorAction {
 
 	private _isNext: boolean;
 
@@ -545,8 +545,8 @@ class PrevMarkerAction extends MarkerNavigationAction {
 var CONTEXT_MARKERS_NAVIGATION_VISIBLE = 'markersNavigationVisible';
 
 // register actions
-CommonEditorRegistry.registerEditorAction2(new NextMarkerAction());
-CommonEditorRegistry.registerEditorAction2(new PrevMarkerAction());
+CommonEditorRegistry.registerEditorAction(new NextMarkerAction());
+CommonEditorRegistry.registerEditorAction(new PrevMarkerAction());
 CommonEditorRegistry.registerEditorCommand('closeMarkersNavigation', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_MARKERS_NAVIGATION_VISIBLE, (ctx, editor, args) => {
 	var controller = MarkerController.getMarkerController(editor);
 	controller.closeMarkersNavigation();

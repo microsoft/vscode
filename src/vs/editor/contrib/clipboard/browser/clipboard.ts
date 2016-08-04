@@ -13,12 +13,12 @@ import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {MenuId} from 'vs/platform/actions/common/actions';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
-abstract class ClipboardWritingAction extends EditorAction2 {
+abstract class ClipboardWritingAction extends EditorAction {
 
 	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean) {
 		super(id, label, alias, needsWritableEditor);
@@ -120,7 +120,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 	}
 }
 
-class ExecCommandPasteAction extends EditorAction2 {
+class ExecCommandPasteAction extends EditorAction {
 
 	constructor() {
 		super(
@@ -159,13 +159,13 @@ class ExecCommandPasteAction extends EditorAction2 {
 }
 
 if (browser.supportsExecCommand('cut')) {
-	CommonEditorRegistry.registerEditorAction2(new ExecCommandCutAction());
+	CommonEditorRegistry.registerEditorAction(new ExecCommandCutAction());
 }
 if (browser.supportsExecCommand('copy')) {
-	CommonEditorRegistry.registerEditorAction2(new ExecCommandCopyAction());
+	CommonEditorRegistry.registerEditorAction(new ExecCommandCopyAction());
 }
 if (browser.supportsExecCommand('paste')) {
-	CommonEditorRegistry.registerEditorAction2(new ExecCommandPasteAction());
+	CommonEditorRegistry.registerEditorAction(new ExecCommandPasteAction());
 }
 
 function execCommandToHandler(actionId: string, browserCommand: string, accessor: ServicesAccessor, args: any): void {

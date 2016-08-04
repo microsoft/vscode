@@ -6,7 +6,6 @@
 
 import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
@@ -38,20 +37,20 @@ export interface IEditorCommandHandler {
 
 export module CommonEditorRegistry {
 
-	export function registerEditorAction2(desc:EditorAction2) {
-		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction2(desc);
+	export function registerEditorAction(desc:EditorAction) {
+		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction(desc);
 	}
 
-	export function getEditorActions(): EditorAction2[] {
-		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorActions2();
+	export function getEditorActions(): EditorAction[] {
+		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorActions();
 	}
 
 	// --- Editor Contributions
 	export function registerEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
-		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorContribution2(ctor);
+		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorContribution(ctor);
 	}
 	export function getEditorContributions(): editorCommon.ICommonEditorContributionDescriptor[] {
-		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorContributions2();
+		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorContributions();
 	}
 
 	// --- Editor Commands
@@ -119,23 +118,6 @@ class SimpleEditorContributionDescriptor implements editorCommon.ICommonEditorCo
 	}
 }
 
-class InternalEditorActionDescriptor implements editorCommon.ICommonEditorContributionDescriptor {
-
-	private _descriptor: SyncDescriptor1<editorCommon.ICommonCodeEditor, editorCommon.IEditorContribution>;
-
-	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, alias:string) {
-		this._descriptor = createSyncDescriptor(ctor, {
-			id,
-			label,
-			alias
-		});
-	}
-
-	public createInstance(instService:IInstantiationService, editor:editorCommon.ICommonCodeEditor): editorCommon.IEditorContribution {
-		return instService.createInstance(this._descriptor, editor);
-	}
-}
-
 // Editor extension points
 var Extensions = {
 	EditorCommonContributions: 'editor.commonContributions'
@@ -144,18 +126,18 @@ var Extensions = {
 class EditorContributionRegistry {
 
 	private editorContributions: editorCommon.ICommonEditorContributionDescriptor[];
-	private editorActions: EditorAction2[];
+	private editorActions: EditorAction[];
 
 	constructor() {
 		this.editorContributions = [];
 		this.editorActions = [];
 	}
 
-	public registerEditorContribution2(ctor:editorCommon.ICommonEditorContributionCtor): void {
+	public registerEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
 		this.editorContributions.push(new SimpleEditorContributionDescriptor(ctor));
 	}
 
-	public registerEditorAction2(action:EditorAction2) {
+	public registerEditorAction(action:EditorAction) {
 
 		if (action.menuOpts) {
 			MenuRegistry.appendMenuItem(action.menuOpts.menu || MenuId.EditorContext, {
@@ -192,11 +174,11 @@ class EditorContributionRegistry {
 		this.editorActions.push(action);
 	}
 
-	public getEditorContributions2(): editorCommon.ICommonEditorContributionDescriptor[] {
+	public getEditorContributions(): editorCommon.ICommonEditorContributionDescriptor[] {
 		return this.editorContributions.slice(0);
 	}
 
-	public getEditorActions2(): EditorAction2[] {
+	public getEditorActions(): EditorAction[] {
 		return this.editorActions.slice(0);
 	}
 }
@@ -245,7 +227,7 @@ export interface IEditorActionKeybindingOptions2 extends IKeybindings {
 	commandHandler?: ICommandHandler;
 }
 
-export abstract class EditorAction2 {
+export abstract class EditorAction {
 
 	private _needsWritableEditor: boolean;
 
@@ -281,7 +263,7 @@ export abstract class EditorAction2 {
 	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;
 }
 
-export abstract class HandlerEditorAction2 extends EditorAction2 {
+export abstract class HandlerEditorAction extends EditorAction {
 	private _handlerId: string;
 
 	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean, handlerId: string) {

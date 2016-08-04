@@ -21,4 +21,4 @@ class ToggleCommentAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new ToggleCommentAction());
+CommonEditorRegistry.registerEditorAction(new ToggleCommentAction());

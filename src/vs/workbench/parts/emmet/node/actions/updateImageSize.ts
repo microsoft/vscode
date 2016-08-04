@@ -21,4 +21,4 @@ class UpdateImageSizeAction extends BasicEmmetEditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction2(new UpdateImageSizeAction());
+CommonEditorRegistry.registerEditorAction(new UpdateImageSizeAction());
