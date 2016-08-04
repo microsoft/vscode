@@ -195,15 +195,14 @@ class EditorContributionRegistry {
 	public registerEditorAction2(action:EditorAction2) {
 
 		if (action.menuOpts) {
-			let {menu, kbExpr, group, order} = action.menuOpts;
-			MenuRegistry.appendMenuItem(menu || MenuId.EditorContext, {
+			MenuRegistry.appendMenuItem(action.menuOpts.menu || MenuId.EditorContext, {
 				command: {
 					id: action.id,
 					title: action.label
 				},
-				when: kbExpr,
-				group,
-				order
+				when: action.menuOpts.kbExpr,
+				group: action.menuOpts.group,
+				order: action.menuOpts.order
 			});
 		}
 
@@ -215,7 +214,7 @@ class EditorContributionRegistry {
 
 		let commandDesc: ICommandDescriptor = {
 			id: action.id,
-			handler: triggerEditorActionGlobal.bind(null, action.id),
+			handler: action.kbOpts.commandHandler || triggerEditorActionGlobal.bind(null, action.id),
 			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 			when: action.kbOpts.kbExpr,
 			primary: action.kbOpts.primary,
@@ -340,6 +339,7 @@ function createCommandHandler(commandId: string, handler: IEditorCommandHandler)
 
 export interface IEditorActionKeybindingOptions2 extends IKeybindings {
 	kbExpr?: KbExpr;
+	commandHandler?: ICommandHandler;
 }
 
 export abstract class EditorAction2 {
