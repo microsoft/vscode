@@ -16,13 +16,38 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {MenuId} from 'vs/platform/actions/common/actions';
 
+import EditorKbExpr = editorCommon.EditorKbExpr;
+
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
-abstract class ClipboardWritingAction extends EditorAction {
+abstract class ExecCommandAction extends EditorAction {
 
-	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean) {
+	private browserCommand:string;
+
+	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean, browserCommand:string) {
 		super(id, label, alias, needsWritableEditor);
+		this.browserCommand = browserCommand;
 	}
+
+	public runCommand(accessor:ServicesAccessor, args: any): void {
+		let focusedEditor = findFocusedEditor(this.id, accessor, false);
+		// Only if editor text focus (i.e. not if editor has widget focus).
+		if (focusedEditor && focusedEditor.isFocused()) {
+			focusedEditor.trigger('keyboard', this.id, args);
+			return;
+		}
+
+		document.execCommand(this.browserCommand);
+
+	}
+
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		editor.focus();
+		document.execCommand(this.browserCommand);
+	}
+}
+
+abstract class ClipboardWritingAction extends ExecCommandAction {
 
 	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
 		if (!super.enabled(accessor, editor)) {
@@ -58,18 +83,18 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 			'editor.action.clipboardCutAction',
 			nls.localize('actions.clipboard.cutLabel', "Cut"),
 			'Cut',
-			true
+			true,
+			'cut'
 		);
 
 		this.kbOpts = {
-			commandHandler: execCommandToHandler.bind(null, this.id, 'cut'),
-			kbExpr: KbExpr.and(editorCommon.EditorKbExpr.TextFocus, editorCommon.EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 		};
 
 		this.menuOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Writable,
+			kbExpr: EditorKbExpr.Writable,
 			menu: MenuId.EditorContext,
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 1
@@ -82,11 +107,6 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 		}
 		return editorCursorIsInEditableRange(editor);
 	}
-
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		editor.focus();
-		document.execCommand('cut');
-	}
 }
 
 class ExecCommandCopyAction extends ClipboardWritingAction {
@@ -96,12 +116,12 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 			'editor.action.clipboardCopyAction',
 			nls.localize('actions.clipboard.copyLabel', "Copy"),
 			'Copy',
-			false
+			false,
+			'copy'
 		);
 
 		this.kbOpts = {
-			commandHandler: execCommandToHandler.bind(null, this.id, 'copy'),
-			kbExpr: editorCommon.EditorKbExpr.TextFocus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 		};
@@ -113,32 +133,27 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 			order: 2
 		};
 	}
-
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		editor.focus();
-		document.execCommand('copy');
-	}
 }
 
-class ExecCommandPasteAction extends EditorAction {
+class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
 		super(
 			'editor.action.clipboardPasteAction',
 			nls.localize('actions.clipboard.pasteLabel', "Paste"),
 			'Paste',
-			true
+			true,
+			'paste'
 		);
 
 		this.kbOpts = {
-			commandHandler: execCommandToHandler.bind(null, this.id, 'paste'),
-			kbExpr: KbExpr.and(editorCommon.EditorKbExpr.TextFocus, editorCommon.EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 		};
 
 		this.menuOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Writable,
+			kbExpr: EditorKbExpr.Writable,
 			menu: MenuId.EditorContext,
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 3
@@ -151,11 +166,6 @@ class ExecCommandPasteAction extends EditorAction {
 		}
 		return editorCursorIsInEditableRange(editor);
 	}
-
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		editor.focus();
-		document.execCommand('paste');
-	}
 }
 
 if (browser.supportsExecCommand('cut')) {
@@ -166,15 +176,4 @@ if (browser.supportsExecCommand('copy')) {
 }
 if (browser.supportsExecCommand('paste')) {
 	CommonEditorRegistry.registerEditorAction(new ExecCommandPasteAction());
-}
-
-function execCommandToHandler(actionId: string, browserCommand: string, accessor: ServicesAccessor, args: any): void {
-	let focusedEditor = findFocusedEditor(actionId, accessor, false);
-	// Only if editor text focus (i.e. not if editor has widget focus).
-	if (focusedEditor && focusedEditor.isFocused()) {
-		focusedEditor.trigger('keyboard', actionId, args);
-		return;
-	}
-
-	document.execCommand(browserCommand);
 }

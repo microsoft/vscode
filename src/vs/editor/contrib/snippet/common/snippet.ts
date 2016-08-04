@@ -8,13 +8,15 @@
 import * as collections from 'vs/base/common/collections';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 interface IParsedLinePlaceHolderInfo {
 	id: string;
@@ -742,7 +744,7 @@ class SnippetController implements ISnippetController {
 	constructor(editor: editorCommon.ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		this._editor = editor;
 		this._currentController = null;
-		this._inSnippetMode = keybindingService.createKey(CONTEXT_SNIPPET_MODE, false);
+		this._inSnippetMode = CONTEXT_SNIPPET_MODE.bindTo(keybindingService, false);
 	}
 
 	public dispose(): void {
@@ -933,20 +935,41 @@ class SnippetController implements ISnippetController {
 	}
 }
 
-export var CONTEXT_SNIPPET_MODE = 'inSnippetMode';
+export var CONTEXT_SNIPPET_MODE = new KbCtxKey('inSnippetMode');
 
-var weight = CommonEditorRegistry.commandWeight(30);
+const SnippetCommand = EditorCommand.bindToContribution<ISnippetController>(
+	getSnippetController,
+	CommonEditorRegistry.commandWeight(30),
+	KbExpr.and(EditorKbExpr.TextFocus, CONTEXT_SNIPPET_MODE)
+);
 
 CommonEditorRegistry.registerEditorContribution(SnippetController);
-CommonEditorRegistry.registerEditorCommand('jumpToNextSnippetPlaceholder', weight, { primary: KeyCode.Tab }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
-	getSnippetController(editor).jumpToNextPlaceholder();
-});
-CommonEditorRegistry.registerEditorCommand('jumpToPrevSnippetPlaceholder', weight, { primary: KeyMod.Shift | KeyCode.Tab }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
-	getSnippetController(editor).jumpToPrevPlaceholder();
-});
-CommonEditorRegistry.registerEditorCommand('acceptSnippet', weight, { primary: KeyCode.Enter }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
-	getSnippetController(editor).acceptSnippet();
-});
-CommonEditorRegistry.registerEditorCommand('leaveSnippet', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
-	getSnippetController(editor).leaveSnippet();
-});
+CommonEditorRegistry.registerEditorCommand2(new SnippetCommand(
+	'jumpToNextSnippetPlaceholder',
+	x => x.jumpToNextPlaceholder(),
+	{
+		primary: KeyCode.Tab
+	}
+));
+CommonEditorRegistry.registerEditorCommand2(new SnippetCommand(
+	'jumpToPrevSnippetPlaceholder',
+	x => x.jumpToPrevPlaceholder(),
+	{
+		primary: KeyMod.Shift | KeyCode.Tab
+	}
+));
+CommonEditorRegistry.registerEditorCommand2(new SnippetCommand(
+	'acceptSnippet',
+	x => x.acceptSnippet(),
+	{
+		primary: KeyCode.Enter
+	}
+));
+CommonEditorRegistry.registerEditorCommand2(new SnippetCommand(
+	'leaveSnippet',
+	x => x.leaveSnippet(),
+	{
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+));

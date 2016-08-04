@@ -20,6 +20,8 @@ import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
 import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import {Selection} from 'vs/editor/common/core/selection';
 
+import EditorKbExpr = editorCommon.EditorKbExpr;
+
 class CollapsibleRegion {
 
 	private decorationIds: string[];
@@ -652,7 +654,7 @@ abstract class FoldingAction2 extends EditorAction {
 		super(id, label, alias, false);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: keybinding
 		};
 	}

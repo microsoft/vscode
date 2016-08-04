@@ -12,10 +12,10 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IRange, ICommonCodeEditor, EditorKbExpr, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
@@ -26,7 +26,7 @@ import RenameInputField from './renameInputField';
 
 // ---  register actions and commands
 
-const CONTEXT_RENAME_INPUT_VISIBLE = 'renameInputVisible';
+const CONTEXT_RENAME_INPUT_VISIBLE = new KbCtxKey('renameInputVisible');
 
 class RenameController implements IEditorContribution {
 
@@ -48,7 +48,7 @@ class RenameController implements IEditorContribution {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this._renameInputField = new RenameInputField(editor);
-		this._renameInputVisible = keybindingService.createKey(CONTEXT_RENAME_INPUT_VISIBLE, false);
+		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(keybindingService, false);
 	}
 
 	public dispose(): void {
@@ -189,14 +189,27 @@ export class RenameAction extends EditorAction {
 
 EditorBrowserRegistry.registerEditorContribution(RenameController);
 
-const weight = CommonEditorRegistry.commandWeight(99);
+const RenameCommand = EditorCommand.bindToContribution<RenameController>(
+	RenameController.get,
+	CommonEditorRegistry.commandWeight(99),
+	KbExpr.and(EditorKbExpr.Focus, CONTEXT_RENAME_INPUT_VISIBLE)
+);
 
 CommonEditorRegistry.registerEditorAction(new RenameAction());
 
-CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	RenameController.get(editor).acceptRenameInput();
-});
+CommonEditorRegistry.registerEditorCommand2(new RenameCommand(
+	'acceptRenameInput',
+	x => x.acceptRenameInput(),
+	{
+		primary: KeyCode.Enter
+	}
+));
 
-CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	RenameController.get(editor).cancelRenameInput();
-});
+CommonEditorRegistry.registerEditorCommand2(new RenameCommand(
+	'cancelRenameInput',
+	x => x.cancelRenameInput(),
+	{
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+));

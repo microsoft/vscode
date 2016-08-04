@@ -7,18 +7,18 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {IKeybindingContextKey, IKeybindingService, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler} from 'vs/base/common/async';
 
-const EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 export enum FindStartFocusAction {
 	NoFocusChange,
@@ -33,7 +33,8 @@ export interface IFindStartOptions {
 	shouldAnimate:boolean;
 }
 
-export const CONTEXT_FIND_WIDGET_VISIBLE = 'findWidgetVisible';
+export const CONTEXT_FIND_WIDGET_VISIBLE = new KbCtxKey('findWidgetVisible');
+export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.negate();
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -51,7 +52,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	constructor(editor:editorCommon.ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		super();
 		this._editor = editor;
-		this._findWidgetVisible = keybindingService.createKey(CONTEXT_FIND_WIDGET_VISIBLE, false);
+		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(keybindingService, false);
 
 		this._state = this._register(new FindReplaceState());
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
@@ -290,7 +291,7 @@ export class NextMatchFindAction extends MatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyCode.F3,
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
 		};
@@ -311,7 +312,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.Shift | KeyCode.F3,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
 		};
@@ -358,7 +359,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.F3
 		};
 	}
@@ -378,7 +379,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3
 		};
 	}
@@ -540,7 +541,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_D
 		};
 	}
@@ -591,7 +592,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)
 		};
 	}
@@ -674,7 +675,7 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L
 		};
 	}
@@ -689,7 +690,7 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.TextFocus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.F2
 		};
 
@@ -875,34 +876,74 @@ CommonEditorRegistry.registerEditorAction(new MoveSelectionToPreviousFindMatchAc
 CommonEditorRegistry.registerEditorAction(new AddSelectionToNextFindMatchAction());
 CommonEditorRegistry.registerEditorAction(new AddSelectionToPreviousFindMatchAction());
 
-function registerFindCommand(id:string, callback:(controller:CommonFindController)=>void, keybindings:IKeybindings, needsKey:string = null): void {
-	CommonEditorRegistry.registerEditorCommand(id, CommonEditorRegistry.commandWeight(5), keybindings, false, needsKey, (ctx, editor, args) => {
-		callback(CommonFindController.getFindController(editor));
-	});
-}
+const FindCommand = EditorCommand.bindToContribution<CommonFindController>(
+	CommonFindController.getFindController,
+	CommonEditorRegistry.commandWeight(5),
+	EditorKbExpr.Focus
+);
 
-registerFindCommand(FIND_IDS.CloseFindWidgetCommand, x => x.closeFindWidget(), {
-	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape]
-}, CONTEXT_FIND_WIDGET_VISIBLE);
-registerFindCommand(FIND_IDS.ToggleCaseSensitiveCommand, x => x.toggleCaseSensitive(), {
-	primary: KeyMod.Alt | KeyCode.KEY_C,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
-});
-registerFindCommand(FIND_IDS.ToggleWholeWordCommand, x => x.toggleWholeWords(), {
-	primary: KeyMod.Alt | KeyCode.KEY_W,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
-});
-registerFindCommand(FIND_IDS.ToggleRegexCommand, x => x.toggleRegex(), {
-	primary: KeyMod.Alt | KeyCode.KEY_R,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
-});
-registerFindCommand(FIND_IDS.ReplaceOneAction, x => x.replace(), {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
-}, CONTEXT_FIND_WIDGET_VISIBLE);
-registerFindCommand(FIND_IDS.ReplaceAllAction, x => x.replaceAll(), {
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
-}, CONTEXT_FIND_WIDGET_VISIBLE);
-registerFindCommand(FIND_IDS.SelectAllMatchesAction, x => x.selectAllMatches(), {
-	primary: KeyMod.Alt | KeyCode.Enter
-}, CONTEXT_FIND_WIDGET_VISIBLE);
+const VisibleWidgetFindCommand = EditorCommand.bindToContribution(
+	CommonFindController.getFindController,
+	CommonEditorRegistry.commandWeight(5),
+	KbExpr.and(EditorKbExpr.Focus, CONTEXT_FIND_WIDGET_VISIBLE)
+);
+
+CommonEditorRegistry.registerEditorCommand2(new VisibleWidgetFindCommand(
+	FIND_IDS.CloseFindWidgetCommand,
+	x => x.closeFindWidget(),
+	{
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+));
+
+CommonEditorRegistry.registerEditorCommand2(new FindCommand(
+	FIND_IDS.ToggleCaseSensitiveCommand,
+	x => x.toggleCaseSensitive(),
+	{
+		primary: KeyMod.Alt | KeyCode.KEY_C,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+	}
+));
+
+CommonEditorRegistry.registerEditorCommand2(new FindCommand(
+	FIND_IDS.ToggleWholeWordCommand,
+	x => x.toggleWholeWords(),
+	{
+		primary: KeyMod.Alt | KeyCode.KEY_W,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+	}
+));
+
+CommonEditorRegistry.registerEditorCommand2(new FindCommand(
+	FIND_IDS.ToggleRegexCommand,
+	x => x.toggleRegex(),
+	{
+		primary: KeyMod.Alt | KeyCode.KEY_R,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+	}
+));
+
+CommonEditorRegistry.registerEditorCommand2(new VisibleWidgetFindCommand(
+	FIND_IDS.ReplaceOneAction,
+	x => x.replace(),
+	{
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
+	}
+));
+
+CommonEditorRegistry.registerEditorCommand2(new VisibleWidgetFindCommand(
+	FIND_IDS.ReplaceAllAction,
+	x => x.replaceAll(),
+	{
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+	}
+));
+
+CommonEditorRegistry.registerEditorCommand2(new VisibleWidgetFindCommand(
+	FIND_IDS.SelectAllMatchesAction,
+	x => x.selectAllMatches(),
+	{
+		primary: KeyMod.Alt | KeyCode.Enter
+	}
+));

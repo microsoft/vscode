@@ -15,16 +15,16 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, EditorKbExpr, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorAction} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, EditorAction, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
-const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = 'accessibilityHelpWidgetVisible';
+const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new KbCtxKey('accessibilityHelpWidgetVisible');
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
@@ -75,7 +75,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		this._editor = editor;
 		this._keybindingService = keybindingService;
-		this._isVisibleKey = keybindingService.createKey(CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, false);
+		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(keybindingService, false);
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'accessibilityHelpWidget';
@@ -213,9 +213,20 @@ class ShowAccessibilityHelpAction extends EditorAction {
 
 EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
 CommonEditorRegistry.registerEditorAction(new ShowAccessibilityHelpAction());
-CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
-	AccessibilityHelpController.get(editor).hide();
-});
+
+const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(
+	AccessibilityHelpController.get,
+	CommonEditorRegistry.commandWeight(100),
+	KbExpr.and(EditorKbExpr.Focus, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE)
+);
+
+CommonEditorRegistry.registerEditorCommand2(new AccessibilityHelpCommand(
+	'closeAccessibilityHelp',
+	x => x.hide(),
+	{
+		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+));
 KeybindingsRegistry.registerCommandDesc({
 	id: TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID,
 	handler: (accessor: ServicesAccessor) => {

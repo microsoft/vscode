@@ -378,6 +378,14 @@ export class KbCtxKey extends KbDefinedExpression {
 	public bindTo<T>(target:IKeybindingService, defaultValue:T): IKeybindingContextKey<T> {
 		return target.createKey(this.key, defaultValue);
 	}
+
+	public getValue<T>(target:IKeybindingService): T {
+		return target.getContextValue<T>(this.key);
+	}
+
+	public negate(): KbExpr {
+		return KbExpr.not(this.key);
+	}
 }
 
 export let KbExpr = {
@@ -447,6 +455,7 @@ export interface IKeybindingItem {
 export interface IKeybindingContextKey<T> {
 	set(value: T): void;
 	reset(): void;
+	get(): T;
 }
 
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');

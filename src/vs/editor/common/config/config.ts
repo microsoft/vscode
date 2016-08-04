@@ -14,9 +14,9 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
 
-const H = editorCommon.Handler;
-const D = editorCommon.CommandDescription;
-const EditorKbExpr = editorCommon.EditorKbExpr;
+import H = editorCommon.Handler;
+import D = editorCommon.CommandDescription;
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
 	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();

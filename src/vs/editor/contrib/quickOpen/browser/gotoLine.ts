@@ -15,6 +15,8 @@ import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
+import EditorKbExpr = editorCommon.EditorKbExpr;
+
 interface ParseResult {
 	position: editorCommon.IPosition;
 	isValid: boolean;
@@ -158,7 +160,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
 		};
