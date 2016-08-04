@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
@@ -2881,37 +2880,6 @@ export interface IDimension {
 	width:number;
 	height:number;
 }
-/**
- * Conditions describing action enablement
- */
-export interface IActionEnablement {
-	/**
-	 * The action is enabled only if text in the editor is focused (e.g. blinking cursor).
-	 * Warning: This condition will be disabled if the action is marked to be displayed in the context menu
-	 * Defaults to false.
-	 */
-	textFocus?: boolean;
-	/**
-	 * The action is enabled only if the editor or its widgets have focus (e.g. focus is in find widget).
-	 * Defaults to false.
-	 */
-	widgetFocus?: boolean;
-	/**
-	 * The action is enabled only if the editor is not in read only mode.
-	 * Defaults to false.
-	 */
-	writeableEditor?: boolean;
-	/**
-	 * The action is enabled only if the cursor position is over tokens of a certain kind.
-	 * Defaults to no tokens required.
-	 */
-	tokensAtPosition?: string[];
-	/**
-	 * The action is enabled only if the cursor position is over a word (i.e. not whitespace).
-	 * Defaults to false.
-	 */
-	wordAtPosition?: boolean;
-}
 
 /**
  * A (serializable) state of the cursors.
@@ -3441,11 +3409,6 @@ export interface IActionDescriptor {
 	 */
 	keybindingContext?: string;
 	/**
-	 * A set of enablement conditions.
-	 */
-	enablement?: IActionEnablement;
-
-	/**
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convinience
 	 */
@@ -3481,6 +3444,15 @@ export interface ICommonEditorContributionDescriptor {
 	 * Create an instance of the contribution
 	 */
 	createInstance(instantiationService:IInstantiationService, editor:ICommonCodeEditor): IEditorContribution;
+}
+
+export interface IEditorAction {
+	id: string;
+	label: string;
+	alias: string;
+	enabled: boolean;
+	isSupported():boolean;
+	run(): TPromise<void>;
 }
 
 /**
@@ -3585,12 +3557,12 @@ export interface IEditor {
 	/**
 	 * Returns all actions associated with this editor.
 	 */
-	getActions(): IAction[];
+	getActions(): IEditorAction[];
 
 	/**
 	 * Returns all actions associated with this editor.
 	 */
-	getSupportedActions(): IAction[];
+	getSupportedActions(): IEditorAction[];
 
 	/**
 	 * Saves current view state of the editor in a serializable object.
@@ -3985,7 +3957,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The action or null if action not found.
 	 */
-	getAction(id: string): IAction;
+	getAction(id: string): IEditorAction;
 
 	/**
 	 * Execute a command on the editor.

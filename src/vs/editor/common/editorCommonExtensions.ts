@@ -23,19 +23,6 @@ import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 export type ServicesAccessor = ServicesAccessor;
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
-export enum ContextKey {
-	None = 0,
-	EditorTextFocus = 1,
-	EditorFocus = 2
-}
-export interface IEditorActionKeybindingOptions extends IKeybindings {
-	handler?: ICommandHandler;
-	context: ContextKey;
-	kbExpr?: KbExpr;
-}
-export interface IEditorCommandKeybindingOptions extends IKeybindings {
-	context: ContextKey;
-}
 export interface IEditorCommandMenuOptions {
 	kbExpr: KbExpr;
 	menu?: MenuId;
@@ -44,36 +31,12 @@ export interface IEditorCommandMenuOptions {
 }
 
 // --- Editor Actions
-export class EditorActionDescriptor {
-
-	public ctor: editorCommon.IEditorActionContributionCtor;
-	public id: string;
-	public label: string;
-	public alias: string;
-	public kbOpts: IEditorActionKeybindingOptions;
-	public menuOpts: IEditorCommandMenuOptions;
-
-	constructor(ctor: editorCommon.IEditorActionContributionCtor, id: string, label: string,
-		kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions,
-		alias?: string
-	) {
-		this.ctor = ctor;
-		this.id = id;
-		this.label = label;
-		this.alias = alias;
-		this.kbOpts = kbOpts;
-	}
-}
 
 export interface IEditorCommandHandler {
 	(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void;
 }
 
 export module CommonEditorRegistry {
-
-	export function registerEditorAction(desc:EditorActionDescriptor) {
-		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction(desc);
-	}
 
 	export function registerEditorAction2(desc:EditorAction2) {
 		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction2(desc);
@@ -229,58 +192,6 @@ class EditorContributionRegistry {
 		this.editorActions.push(action);
 	}
 
-	public registerEditorAction(desc:EditorActionDescriptor): void {
-		let handler = desc.kbOpts.handler;
-		if (!handler) {
-			// here
-			if (desc.kbOpts.context === ContextKey.EditorTextFocus || desc.kbOpts.context === ContextKey.EditorFocus) {
-				handler = triggerEditorAction.bind(null, desc.id);
-			} else {
-				handler = triggerEditorActionGlobal.bind(null, desc.id);
-			}
-		}
-
-		let when: KbExpr = null;
-		if (typeof desc.kbOpts.kbExpr === 'undefined') {
-			// here
-			if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
-				when = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
-			} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
-				when = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
-			}
-		} else {
-			when = desc.kbOpts.kbExpr;
-		}
-
-		if (desc.menuOpts) {
-			let {menu, kbExpr, group, order} = desc.menuOpts;
-			MenuRegistry.appendMenuItem(menu || MenuId.EditorContext, {
-				command: {
-					id: desc.id,
-					title: desc.label
-				},
-				when: kbExpr,
-				group,
-				order
-			});
-		}
-
-		let commandDesc: ICommandDescriptor = {
-			id: desc.id,
-			handler: handler,
-			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-			when: when,
-			primary: desc.kbOpts.primary,
-			secondary: desc.kbOpts.secondary,
-			win: desc.kbOpts.win,
-			linux: desc.kbOpts.linux,
-			mac: desc.kbOpts.mac,
-		};
-
-		KeybindingsRegistry.registerCommandDesc(commandDesc);
-		this.editorContributions.push(new InternalEditorActionDescriptor(desc.ctor, desc.id, desc.label, desc.alias));
-	}
-
 	public getEditorContributions2(): editorCommon.ICommonEditorContributionDescriptor[] {
 		return this.editorContributions.slice(0);
 	}
@@ -290,12 +201,6 @@ class EditorContributionRegistry {
 	}
 }
 Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
-
-function triggerEditorAction(actionId: string, accessor: ServicesAccessor, args: any): void {
-	withCodeEditorFromCommandHandler(actionId, accessor, (editor) => {
-		editor.trigger('keyboard', actionId, args);
-	});
-}
 
 function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor, args: any): void {
 	// TODO: this is not necessarily keyboard
@@ -315,8 +220,6 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 		return;
 	}
 }
-
-export var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { primary: null, context: ContextKey.EditorTextFocus };
 
 function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 

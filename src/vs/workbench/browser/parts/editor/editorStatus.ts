@@ -16,14 +16,13 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
-import {EditorAction} from 'vs/editor/common/editorAction';
 import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
 import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
+import {IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
@@ -766,11 +765,11 @@ class ChangeIndentationAction extends Action {
 			control.getAction(IndentationToSpacesAction.ID),
 			control.getAction(IndentationToTabsAction.ID),
 			control.getAction(TrimTrailingWhitespaceAction.ID)
-		].map((a: EditorAction) => {
+		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
 				label: a.label,
-				detail: (language === LANGUAGE_DEFAULT) ? null : a.getAlias(),
+				detail: (language === LANGUAGE_DEFAULT) ? null : a.alias,
 				run: () => a.run()
 			};
 		});

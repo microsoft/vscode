@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IAction, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -24,7 +23,7 @@ import {EditorState} from 'vs/editor/common/core/editorState';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {EditorAction, DynamicEditorAction} from 'vs/editor/common/editorAction';
+import {DynamicEditorAction} from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
@@ -92,7 +91,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	_telemetryService:ITelemetryService;
 
-	protected contributions:{ [key:string]:editorCommon.IEditorContribution; };
+	protected _contributions:{ [key:string]:editorCommon.IEditorContribution; };
+	protected _actions:{ [key:string]:editorCommon.IEditorAction; };
 
 	// --- Members logically associated to a model
 	protected model:editorCommon.IModel;
@@ -180,9 +180,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 		this._attachModel(null);
 
-		// Create editor contributions
-		this.contributions = {};
-
+		this._contributions = {};
+		this._actions = {};
 
 		timerEvent.stop();
 
@@ -207,13 +206,15 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._codeEditorService.removeCodeEditor(this);
 		this._lifetimeDispose = dispose(this._lifetimeDispose);
 
-		let keys = Object.keys(this.contributions);
+		let keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let contributionId = keys[i];
-			this.contributions[contributionId].dispose();
+			this._contributions[contributionId].dispose();
 		}
+		this._contributions = {};
 
-		this.contributions = {};
+		// editor actions don't need to be disposed
+		this._actions = {};
 
 		this._postDetachModelCleanup(this._detachModel());
 		this._configuration.dispose();
@@ -545,7 +546,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public abstract hasWidgetFocus(): boolean;
 
 	public getContribution(id: string): editorCommon.IEditorContribution {
-		return this.contributions[id] || null;
+		return this._contributions[id] || null;
 	}
 
 	public addAction(descriptor:editorCommon.IActionDescriptor): void {
@@ -556,42 +557,31 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		) {
 			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
 		}
-		var action = this._instantiationService.createInstance(DynamicEditorAction, descriptor, this);
-		this.contributions[action.getId()] = action;
+		let action = new DynamicEditorAction(descriptor, this);
+		this._actions[action.id] = action;
 	}
 
-	public getActions(): IAction[] {
-		let result: IAction[] = [];
+	public getActions(): editorCommon.IEditorAction[] {
+		let result: editorCommon.IEditorAction[] = [];
 
-		let keys = Object.keys(this.contributions);
+		let keys = Object.keys(this._actions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let id = keys[i];
-			let contribution = <any>this.contributions[id];
-			// contribution instanceof IAction
-			if (isAction(contribution)) {
-				result.push(<IAction>contribution);
-			}
+			result.push(this._actions[id]);
 		}
 
 		return result;
 	}
 
-	public getSupportedActions(): IAction[] {
+	public getSupportedActions(): editorCommon.IEditorAction[] {
 		let result = this.getActions();
-		result = result.filter(action => (<EditorAction>action).isSupported());
+		result = result.filter(action => action.isSupported());
 
 		return result;
 	}
 
-	public getAction(id:string): IAction {
-		var contribution = <any>this.contributions[id];
-		if (contribution) {
-			// contribution instanceof IAction
-			if (isAction(contribution)) {
-				return <IAction>contribution;
-			}
-		}
-		return null;
+	public getAction(id:string): editorCommon.IEditorAction {
+		return this._actions[id] || null;
 	}
 
 	public trigger(source:string, handlerId:string, payload:any): void {
