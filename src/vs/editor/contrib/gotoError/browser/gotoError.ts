@@ -17,17 +17,19 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
+
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 class MarkerModel {
 
@@ -452,7 +454,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		@ICommandService private _commandService: ICommandService
 	) {
 		this._editor = editor;
-		this._markersNavigationVisible = this._keybindingService.createKey(CONTEXT_MARKERS_NAVIGATION_VISIBLE, false);
+		this._markersNavigationVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._keybindingService, false);
 	}
 
 	public getId(): string {
@@ -520,7 +522,7 @@ class NextMarkerAction extends MarkerNavigationAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyCode.F8
 		};
 	}
@@ -536,20 +538,31 @@ class PrevMarkerAction extends MarkerNavigationAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.Focus,
 			primary: KeyMod.Shift | KeyCode.F8
 		};
 	}
 }
 
-var CONTEXT_MARKERS_NAVIGATION_VISIBLE = 'markersNavigationVisible';
+var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey('markersNavigationVisible');
+
+const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(
+	MarkerController.getMarkerController,
+	CommonEditorRegistry.commandWeight(50),
+	KbExpr.and(EditorKbExpr.Focus, CONTEXT_MARKERS_NAVIGATION_VISIBLE)
+);
 
 // register actions
 CommonEditorRegistry.registerEditorAction(new NextMarkerAction());
 CommonEditorRegistry.registerEditorAction(new PrevMarkerAction());
-CommonEditorRegistry.registerEditorCommand('closeMarkersNavigation', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_MARKERS_NAVIGATION_VISIBLE, (ctx, editor, args) => {
-	var controller = MarkerController.getMarkerController(editor);
-	controller.closeMarkersNavigation();
-});
+
+CommonEditorRegistry.registerEditorCommand2(new MarkerCommand(
+	'closeMarkersNavigation',
+	x => x.closeMarkersNavigation(),
+	{
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+));
 
 EditorBrowserRegistry.registerEditorContribution(MarkerController);

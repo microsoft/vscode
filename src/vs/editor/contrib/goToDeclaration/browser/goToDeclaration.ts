@@ -32,7 +32,8 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 
-const ModeContextKeys = editorCommon.ModeContextKeys;
+import ModeContextKeys = editorCommon.ModeContextKeys;
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 export class DefinitionActionConfig {
 
@@ -172,7 +173,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.TextFocus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: goToDeclarationKb
 		};
 
@@ -197,7 +198,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.TextFocus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 		};
 	}
@@ -214,7 +215,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.TextFocus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: KeyMod.Alt | KeyCode.F12,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
 		};

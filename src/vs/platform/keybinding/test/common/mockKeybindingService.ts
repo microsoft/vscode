@@ -27,6 +27,10 @@ class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 	public reset(): void {
 		this._value = this._defaultValue;
 	}
+
+	public get(): T {
+		return this._value;
+	}
 }
 
 export class MockKeybindingService implements IKeybindingService {

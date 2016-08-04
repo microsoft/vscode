@@ -5,14 +5,15 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
 export class ResourceContextKey implements IKeybindingContextKey<URI> {
 
-	static Scheme = 'resourceScheme';
-	static LangId = 'resourceLangId';
-	static Resource = 'resource';
+
+	static Scheme = new KbCtxKey('resourceScheme');
+	static LangId = new KbCtxKey('resourceLangId');
+	static Resource = new KbCtxKey('resource');
 
 	private _resourceKey: IKeybindingContextKey<URI>;
 	private _schemeKey: IKeybindingContextKey<string>;
@@ -22,9 +23,9 @@ export class ResourceContextKey implements IKeybindingContextKey<URI> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModeService private _modeService: IModeService
 	) {
-		this._schemeKey = keybindingService.createKey(ResourceContextKey.Scheme, undefined);
-		this._langIdKey = keybindingService.createKey(ResourceContextKey.LangId, undefined);
-		this._resourceKey = keybindingService.createKey(ResourceContextKey.Resource, undefined);
+		this._schemeKey = ResourceContextKey.Scheme.bindTo(keybindingService, undefined);
+		this._langIdKey = ResourceContextKey.LangId.bindTo(keybindingService, undefined);
+		this._resourceKey = ResourceContextKey.Resource.bindTo(keybindingService, undefined);
 	}
 
 	set(value: URI) {
@@ -37,5 +38,9 @@ export class ResourceContextKey implements IKeybindingContextKey<URI> {
 		this._schemeKey.reset();
 		this._langIdKey.reset();
 		this._resourceKey.reset();
+	}
+
+	public get(): URI {
+		return this._resourceKey.get();
 	}
 }

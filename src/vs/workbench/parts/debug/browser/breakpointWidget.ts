@@ -12,17 +12,18 @@ import platform = require('vs/base/common/platform');
 import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, ServicesAccessor, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
+import {EditorKbExpr, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, KbExpr, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
-const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = 'breakpointWidgetVisible';
+const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new KbCtxKey('breakpointWidgetVisible');
 const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 
 export class BreakpointWidget extends ZoneWidget {
@@ -42,7 +43,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 		this.toDispose = [];
 		this.create();
-		this.breakpointWidgetVisible = keybindingService.createKey(CONTEXT_BREAKPOINT_WIDGET_VISIBLE, false);
+		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(keybindingService, false);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
 		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));
@@ -119,8 +120,23 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 }
 
-CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
-	if (BreakpointWidget.INSTANCE) {
-		BreakpointWidget.INSTANCE.dispose();
+class CloseBreakpointWidgetCommand extends EditorCommand {
+
+	constructor() {
+		super(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID);
+
+		this.kbOpts = {
+			weight: CommonEditorRegistry.commandWeight(8),
+			kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_BREAKPOINT_WIDGET_VISIBLE),
+			primary: KeyCode.Escape,
+			secondary: [KeyMod.Shift | KeyCode.Escape]
+		};
 	}
-});
+
+	protected runEditorCommand(accessor:ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+		if (BreakpointWidget.INSTANCE) {
+			BreakpointWidget.INSTANCE.dispose();
+		}
+	}
+}
+CommonEditorRegistry.registerEditorCommand2(new CloseBreakpointWidgetCommand());

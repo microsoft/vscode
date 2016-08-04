@@ -140,6 +140,10 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 		}
 	}
 
+	public get(): T {
+		return this._parent.getContextValue<T>(this._key);
+	}
+
 }
 
 export abstract class AbstractKeybindingService {

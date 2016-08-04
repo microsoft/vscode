@@ -24,8 +24,8 @@ import {ReferenceWidget} from './referencesWidget';
 import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from './referencesController';
 import {ReferencesModel} from './referencesModel';
 
-const ModeContextKeys = editorCommon.ModeContextKeys;
-const EditorKbExpr = editorCommon.EditorKbExpr;
+import ModeContextKeys = editorCommon.ModeContextKeys;
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {

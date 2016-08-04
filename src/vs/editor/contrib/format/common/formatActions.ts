@@ -17,8 +17,8 @@ import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFo
 import {EditOperationsCommand} from './formatCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 
-const ModeContextKeys = editorCommon.ModeContextKeys;
-const EditorKbExpr = editorCommon.EditorKbExpr;
+import ModeContextKeys = editorCommon.ModeContextKeys;
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 class FormatOnType implements editorCommon.IEditorContribution {
 

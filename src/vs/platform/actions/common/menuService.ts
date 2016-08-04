@@ -101,7 +101,7 @@ class Menu implements IMenu {
 			const activeActions: MenuItemAction[] = [];
 			for (let action of actions) {
 				if (this._keybindingService.contextMatchesRules(action.item.when)) {
-					action.resource = this._keybindingService.getContextValue<URI>(ResourceContextKey.Resource);
+					action.resource = ResourceContextKey.Resource.getValue<URI>(this._keybindingService);
 					activeActions.push(action);
 				}
 			}

@@ -11,10 +11,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
-
-const EditorKbExpr = editorCommon.EditorKbExpr;
+import { EditorKbExpr } from 'vs/editor/common/editorCommon';
 
 export function registerEditorComamnds() {
 	_registerActiveEditorMoveCommand();

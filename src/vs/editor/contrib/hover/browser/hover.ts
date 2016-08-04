@@ -21,6 +21,8 @@ import {ModesContentHoverWidget} from './modesContentHover';
 import {ModesGlyphHoverWidget} from './modesGlyphHover';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
+import EditorKbExpr = editorCommon.EditorKbExpr;
+
 class ModesHoverController implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.hover';
@@ -152,7 +154,7 @@ class ShowHoverAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: editorCommon.EditorKbExpr.TextFocus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 		};
 	}

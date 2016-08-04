@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
+import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +19,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
-const EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 export type ServicesAccessor = ServicesAccessor;
 
@@ -74,6 +74,10 @@ export module CommonEditorRegistry {
 		};
 
 		KeybindingsRegistry.registerCommandDesc(commandDesc);
+	}
+
+	export function registerEditorCommand2(desc: EditorCommand): void {
+		KeybindingsRegistry.registerCommandDesc(desc.toCommandDescriptor(KeybindingsRegistry.WEIGHT.editorContrib()));
 	}
 
 	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
@@ -153,25 +157,7 @@ class EditorContributionRegistry {
 			});
 		}
 
-		if (!action.kbOpts) {
-			action.kbOpts = {
-				primary: 0
-			};
-		}
-
-		let commandDesc: ICommandDescriptor = {
-			id: action.id,
-			handler: action.kbOpts.commandHandler || triggerEditorActionGlobal.bind(null, action.id),
-			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-			when: action.kbOpts.kbExpr,
-			primary: action.kbOpts.primary,
-			secondary: action.kbOpts.secondary,
-			win: action.kbOpts.win,
-			linux: action.kbOpts.linux,
-			mac: action.kbOpts.mac,
-		};
-
-		KeybindingsRegistry.registerCommandDesc(commandDesc);
+		KeybindingsRegistry.registerCommandDesc(action.toCommandDescriptor(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 		this.editorActions.push(action);
 	}
@@ -186,26 +172,7 @@ class EditorContributionRegistry {
 }
 Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
 
-function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor, args: any): void {
-	// TODO: this is not necessarily keyboard
-	var focusedEditor = findFocusedEditor(actionId, accessor, false);
-	if (focusedEditor) {
-		focusedEditor.trigger('keyboard', actionId, args);
-		return;
-	}
-
-	var activeEditor = getActiveEditor(accessor);
-	if (activeEditor) {
-		var action = activeEditor.getAction(actionId);
-		if (action) {
-			accessor.get(ITelemetryService).publicLog('editorActionInvoked', {name: action.label} );
-			action.run().done(null, onUnexpectedError);
-		}
-		return;
-	}
-}
-
-function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
+export function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
 	let base = (needsTextFocus ? EditorKbExpr.TextFocus : EditorKbExpr.Focus);
 
@@ -226,26 +193,110 @@ function createCommandHandler(commandId: string, handler: IEditorCommandHandler)
 
 export interface IEditorActionKeybindingOptions2 extends IKeybindings {
 	kbExpr?: KbExpr;
-	commandHandler?: ICommandHandler;
+	weight?: number;
 }
 
-export abstract class EditorAction {
+export abstract class Command {
+	public id: string;
+	public kbOpts: IEditorActionKeybindingOptions2;
+
+	constructor(id:string) {
+		this.id = id;
+		this.kbOpts = null;
+	}
+
+	public abstract runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void>;
+
+	public toCommandDescriptor(defaultWeight:number): ICommandDescriptor {
+		const kbOpts = this.kbOpts || { primary: 0 };
+		return {
+			id: this.id,
+			handler: (accessor, args) => this.runCommand(accessor, args),
+			weight: kbOpts.weight || defaultWeight,
+			when: kbOpts.kbExpr,
+			primary: kbOpts.primary,
+			secondary: kbOpts.secondary,
+			win: kbOpts.win,
+			linux: kbOpts.linux,
+			mac: kbOpts.mac,
+		};
+	}
+}
+
+export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
+	new(id:string, callback:(controller:T)=>void, keybindings:IKeybindings): EditorCommand;
+}
+
+export abstract class EditorCommand extends Command {
+
+	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter:(editor:editorCommon.ICommonCodeEditor) => T, weight: number, kbExpr: KbExpr): EditorControllerCommand<T> {
+		return class EditorControllerCommandImpl extends EditorCommand {
+			private _callback:(controller:T)=>void;
+
+			constructor(id:string, callback:(controller:T)=>void, keybindings:IKeybindings) {
+				super(id);
+
+				this._callback = callback;
+
+				this.kbOpts = {
+					weight: weight,
+					kbExpr: kbExpr,
+					primary: keybindings.primary,
+					secondary: keybindings.secondary,
+					win: keybindings.win,
+					linux: keybindings.linux,
+					mac: keybindings.mac,
+				};
+			}
+
+			protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+				this._callback(controllerGetter(editor));
+			}
+		};
+	}
+
+	constructor(id:string) {
+		super(id);
+	}
+
+	public runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void> {
+		let editor = findFocusedEditor(this.id, accessor, false);
+		if (!editor) {
+			editor = getActiveEditor(accessor);
+		}
+		if (!editor) {
+			// well, at least we tried...
+			return;
+		}
+		return this.runEditorCommand(accessor, editor, args);
+	}
+
+	protected abstract runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
+}
+
+export abstract class EditorAction extends EditorCommand {
 
 	private _needsWritableEditor: boolean;
 
-	public id: string;
 	public label: string;
 	public alias: string;
-	public kbOpts: IEditorActionKeybindingOptions2;
 	public menuOpts: IEditorCommandMenuOptions;
 
 	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean) {
-		this.id = id;
+		super(id);
 		this.label = label;
 		this.alias = alias;
 		this._needsWritableEditor = needsWritableEditor;
-		this.kbOpts = null;
 		this.menuOpts = null;
+	}
+
+	protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
+		if (!this.enabled(accessor, editor)) {
+			return;
+		}
+
+		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
+		return this.run(accessor, editor);
 	}
 
 	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {

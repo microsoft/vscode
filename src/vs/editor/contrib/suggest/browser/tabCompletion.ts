@@ -6,24 +6,23 @@
 'use strict';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
 import {CodeSnippet, ISnippetController, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
 
-const EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorKbExpr = editorCommon.EditorKbExpr;
 
 let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
 class TabCompletionController implements editorCommon.IEditorContribution {
 
 	static Id = 'editor.tabCompletionController';
-	static ContextKey = 'hasSnippetCompletions';
+	static ContextKey = new KbCtxKey('hasSnippetCompletions');
 
 	private _snippetController: ISnippetController;
 	private _cursorChangeSubscription: IDisposable;
@@ -34,7 +33,7 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this._snippetController = getSnippetController(editor);
-		const hasSnippets = keybindingService.createKey(TabCompletionController.ContextKey, undefined);
+		const hasSnippets = TabCompletionController.ContextKey.bindTo(keybindingService, undefined);
 		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 
 			this._currentSnippets.length = 0;
@@ -76,18 +75,21 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 
 CommonEditorRegistry.registerEditorContribution(TabCompletionController);
 
-KeybindingsRegistry.registerCommandDesc({
-	id: 'insertSnippet',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-	primary: KeyCode.Tab,
-	when: KbExpr.and(KbExpr.has(TabCompletionController.ContextKey),
+const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(
+	(editor) => <TabCompletionController>editor.getContribution(TabCompletionController.Id),
+	KeybindingsRegistry.WEIGHT.editorContrib(),
+	KbExpr.and(
+		TabCompletionController.ContextKey,
 		EditorKbExpr.TextFocus,
 		EditorKbExpr.TabDoesNotMoveFocus,
-		KbExpr.has('config.editor.tabCompletion')),
-	handler(accessor) {
-		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (editor) {
-			(<TabCompletionController>editor.getContribution(TabCompletionController.Id)).performSnippetCompletions();
-		}
+		KbExpr.has('config.editor.tabCompletion')
+	)
+);
+
+CommonEditorRegistry.registerEditorCommand2(new TabCompletionCommand(
+	'insertSnippet',
+	x => x.performSnippetCompletions(),
+	{
+		primary: KeyCode.Tab
 	}
-});
+));

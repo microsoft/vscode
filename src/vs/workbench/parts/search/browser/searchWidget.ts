@@ -14,8 +14,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybinding';
-import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
+import { KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybinding';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -23,7 +22,7 @@ import { Builder } from 'vs/base/browser/builder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
-import { CONTEXT_FIND_WIDGET_VISIBLE } from 'vs/editor/contrib/find/common/findController';
+import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
 
 export interface ISearchWidgetOptions {
 	value?:string;
@@ -64,7 +63,7 @@ class ReplaceAllAction extends Action {
 
 export class SearchWidget extends Widget {
 
-	static REPLACE_ACTIVE_CONTEXT_KEY= 'replaceActive';
+	static REPLACE_ACTIVE_CONTEXT_KEY= new KbCtxKey('replaceActive');
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService: IKeybindingService):string=>{
 		let keybindings = keyBindingService.lookupKeybindings(ReplaceAllAction.ID);
@@ -104,7 +103,7 @@ export class SearchWidget extends Widget {
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
 					private keyBindingService: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
-		this.replaceActive = this.keyBindingService.createKey<boolean>(SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, false);
+		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService, false);
 		this.render(container, options);
 	}
 
@@ -222,7 +221,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private isReplaceActive(): boolean {
-		return <boolean>this.keyBindingService.getContextValue(SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY);
+		return this.replaceActive.get();
 	}
 
 	private updateReplaceActiveState(): void {
@@ -334,7 +333,7 @@ export class SearchWidget extends Widget {
 export function registerContributions() {
 	KeybindingsRegistry.registerCommandDesc({id: ReplaceAllAction.ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: KbExpr.and(KbExpr.has('searchViewletVisible'), KbExpr.has(SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY), KbExpr.not(CONTEXT_FIND_WIDGET_VISIBLE)),
+		when: KbExpr.and(KbExpr.has('searchViewletVisible'), SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
 			if (isSearchViewletFocussed(accessor.get(IViewletService))) {
