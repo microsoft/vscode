@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import Event, { mapEvent, filterEvent } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
 import { Server as IPCServer, Client as IPCClient, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 const Hello = 'ipc:hello';
@@ -21,16 +23,14 @@ class Protocol implements IMessagePassingProtocol {
 
 	private listener: IDisposable;
 
-	constructor(private sender: Sender, private receiver: NodeJS.EventEmitter) {}
+	constructor(private sender: Sender, private onMessageEvent: Event<any>) {}
 
 	send(message: any): void {
 		this.sender.send(Message, message);
 	}
 
 	onMessage(callback: (message: any) => void): void {
-		const cb = (_, m) => callback(m);
-		this.receiver.on(Message, cb);
-		this.listener = toDisposable(() => this.receiver.removeListener(Message, cb));
+		this.listener = this.onMessageEvent(callback);
 	}
 
 	dispose(): void {
@@ -38,29 +38,44 @@ class Protocol implements IMessagePassingProtocol {
 	}
 }
 
+interface IIPCEvent {
+	event: any;
+	message: string;
+}
+
 export class Server implements IServer, IDisposable {
 
-	private channels: { [name: string]: IChannel };
+	private channels: { [name: string]: IChannel } = Object.create(null);
 
-	constructor(ipc: NodeJS.EventEmitter) {
-		this.channels = Object.create(null);
-
-		ipc.on(Hello, ({ sender }) => {
-			const protocol = new Protocol(sender, ipc);
-			const ipcServer = new IPCServer(protocol);
-
-			Object.keys(this.channels)
-				.forEach(name => ipcServer.registerChannel(name, this.channels[name]));
-
-			sender.once(Goodbye, () => {
-				ipcServer.dispose();
-				protocol.dispose();
-			});
-		});
+	constructor(private ipc: NodeJS.EventEmitter) {
+		ipc.on(Hello, ({ sender }) => this.onHello(sender));
 	}
 
 	registerChannel(channelName: string, channel: IChannel): void {
 		this.channels[channelName] = channel;
+	}
+
+	private onHello(sender: any): void {
+		const senderId = sender.getId();
+		const onMessage = this.createScopedEvent(Message, senderId);
+		const protocol = new Protocol(sender, onMessage);
+		const ipcServer = new IPCServer(protocol);
+
+		Object.keys(this.channels)
+			.forEach(name => ipcServer.registerChannel(name, this.channels[name]));
+
+		const onGoodbye = this.createScopedEvent(Goodbye, senderId);
+		const listener = onGoodbye(() => {
+			listener.dispose();
+			ipcServer.dispose();
+			protocol.dispose();
+		});
+	}
+
+	private createScopedEvent(eventName: string, senderId: string) {
+		const onRawMessageEvent = fromEventEmitter<IIPCEvent>(this.ipc, eventName, (event, message) => ({ event, message }));
+		const onScopedRawMessageEvent = filterEvent<IIPCEvent>(onRawMessageEvent, ({ event }) => event.sender.getId() === senderId);
+		return mapEvent<IIPCEvent,string>(onScopedRawMessageEvent, ({ message }) => message);
 	}
 
 	dispose(): void {
@@ -75,7 +90,9 @@ export class Client implements IClient, IDisposable {
 
 	constructor(private ipc: IPC) {
 		ipc.send(Hello);
-		this.protocol = new Protocol(ipc, ipc);
+
+		const receiverEvent = fromEventEmitter(ipc, Message, (_, message) => message);
+		this.protocol = new Protocol(ipc, receiverEvent);
 		this.ipcClient = new IPCClient(this.protocol);
 	}
 
@@ -86,5 +103,6 @@ export class Client implements IClient, IDisposable {
 	dispose(): void {
 		this.ipc.send(Goodbye);
 		this.protocol = dispose(this.protocol);
+		this.ipcClient = dispose(this.ipcClient);
 	}
 }
