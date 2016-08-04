@@ -8,8 +8,7 @@ import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import editorcommon = require('vs/editor/common/editorCommon');
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor, defaultEditorActionKeybindingOptions} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
@@ -51,38 +50,11 @@ class OpenDebugViewletAction extends viewlet.ToggleViewletAction {
 }
 
 EditorBrowserRegistry.registerEditorContribution(DebugEditorContribution);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleBreakpointAction, ToggleBreakpointAction.ID, nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyCode.F9
-}, 'Debug: Toggle Breakpoint'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowDebugHoverAction, ShowDebugHoverAction.ID, nls.localize('showDebugHover', "Debug: Show Hover"), {
-	context: ContextKey.EditorTextFocus,
-	kbExpr: KbExpr.and(KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE), KbExpr.has(editorcommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
-}, 'Debug: Show Hover'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(EditorConditionalBreakpointAction, EditorConditionalBreakpointAction.ID, nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint"), void 0, 'Debug: Conditional Breakpoint'));
-CommonEditorRegistry.registerEditorAction({
-	ctor: SelectionToReplAction,
-	id: SelectionToReplAction.ID,
-	label: nls.localize('debugEvaluate', "Debug: Evaluate"),
-	alias: 'Debug: Evaluate',
-	kbOpts: defaultEditorActionKeybindingOptions,
-	menuOpts: {
-		kbExpr: KbExpr.and(KbExpr.has(editorcommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION), KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)),
-		group: 'debug'
-	}
-});
-CommonEditorRegistry.registerEditorAction({
-	ctor: RunToCursorAction,
-	id: RunToCursorAction.ID,
-	label: nls.localize('runToCursor', "Debug: Run to Cursor"),
-	alias: 'Debug: Run to Cursor',
-	kbOpts: defaultEditorActionKeybindingOptions,
-	menuOpts: {
-		kbExpr: KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE),
-		group: 'debug'
-	}
-});
+CommonEditorRegistry.registerEditorAction2(new ToggleBreakpointAction());
+CommonEditorRegistry.registerEditorAction2(new ShowDebugHoverAction());
+CommonEditorRegistry.registerEditorAction2(new EditorConditionalBreakpointAction());
+CommonEditorRegistry.registerEditorAction2(new SelectionToReplAction());
+CommonEditorRegistry.registerEditorAction2(new RunToCursorAction());
 
 // register viewlet
 (<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(

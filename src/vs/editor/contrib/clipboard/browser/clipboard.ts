@@ -63,7 +63,7 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 
 		this.kbOpts = {
 			commandHandler: execCommandToHandler.bind(null, this.id, 'cut'),
-			kbExpr: KbExpr.and(EditorKbExpr.Focus, EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 		};
@@ -101,7 +101,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 
 		this.kbOpts = {
 			commandHandler: execCommandToHandler.bind(null, this.id, 'copy'),
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorKbExpr.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 		};
@@ -132,7 +132,7 @@ class ExecCommandPasteAction extends EditorAction2 {
 
 		this.kbOpts = {
 			commandHandler: execCommandToHandler.bind(null, this.id, 'paste'),
-			kbExpr: KbExpr.and(EditorKbExpr.Focus, EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 		};

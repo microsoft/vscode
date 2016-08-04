@@ -5,15 +5,12 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
-import { EditorAction } from 'vs/editor/common/editorAction';
-import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
+import { ICommonCodeEditor, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
+import { ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
@@ -119,16 +116,14 @@ export class SuggestController implements IEditorContribution {
 
 		Object.keys(triggerCharacters).forEach(ch => {
 			this.triggerCharacterListeners.push(this.editor.addTypingListener(ch, () => {
-				this.triggerSuggest(ch, triggerCharacters[ch]).done(null, onUnexpectedError);
+				this.triggerSuggest(ch, triggerCharacters[ch]);
 			}));
 		});
 	}
 
-	triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): TPromise<boolean> {
+	triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): void {
 		this.model.trigger(false, triggerCharacter, false, groups);
 		this.editor.focus();
-
-		return TPromise.as(false);
 	}
 
 	acceptSelectedSuggestion(): void {
@@ -174,34 +169,38 @@ export class SuggestController implements IEditorContribution {
 	}
 }
 
-export class TriggerSuggestAction extends EditorAction {
+export class TriggerSuggestAction extends EditorAction2 {
 
 	static ID: string = 'editor.action.triggerSuggest';
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor);
+	constructor() {
+		super(
+			'editor.action.triggerSuggest',
+			nls.localize('suggest.trigger.label', "Trigger Suggest"),
+			'Trigger Suggest',
+			true
+		);
+
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.Space,
+			mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+		};
 	}
 
-	isSupported(): boolean {
-		return SuggestRegistry.has(this.editor.getModel()) && !this.editor.getConfiguration().readOnly;
+	public supported(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
+			return false;
+		}
+		return SuggestRegistry.has(editor.getModel());
 	}
 
-	run(): TPromise<boolean> {
-		return SuggestController.getController(this.editor).triggerSuggest();
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		SuggestController.getController(editor).triggerSuggest();
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(
-	TriggerSuggestAction,
-	TriggerSuggestAction.ID,
-	nls.localize('suggest.trigger.label', "Trigger Suggest"),
-	{
-		context: ContextKey.EditorTextFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.Space,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
-	},
-	'Trigger Suggest'
-));
+CommonEditorRegistry.registerEditorAction2(new TriggerSuggestAction());
 
 const weight = CommonEditorRegistry.commandWeight(90);
 

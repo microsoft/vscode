@@ -10,9 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
@@ -20,6 +18,8 @@ import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidge
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor, EditorKbExpr, EditorAction2} from 'vs/editor/common/editorCommonExtensions';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
@@ -516,45 +516,55 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleBreakpointAction extends EditorAction {
-	static ID = 'editor.debug.action.toggleBreakpoint';
+export class ToggleBreakpointAction extends EditorAction2 {
+	constructor() {
+		super(
+			'editor.debug.action.toggleBreakpoint',
+			nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
+			'Debug: Toggle Breakpoint',
+			false
+		);
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
-		super(descriptor, editor, Behaviour.TextFocus);
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyCode.F9
+		};
 	}
 
-	public run(): TPromise<any> {
-		const lineNumber = this.editor.getPosition().lineNumber;
-		const modelUrl = this.editor.getModel().uri;
-		if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
-			const bp = this.debugService.getModel().getBreakpoints()
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+		const debugService = accessor.get(IDebugService);
+
+		const lineNumber = editor.getPosition().lineNumber;
+		const modelUrl = editor.getModel().uri;
+		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+			const bp = debugService.getModel().getBreakpoints()
 				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === modelUrl.toString()).pop();
 
-			return bp ? this.debugService.removeBreakpoints(bp.getId())
-				: this.debugService.addBreakpoints([{ uri: modelUrl, lineNumber: lineNumber }]);
+			return bp ? debugService.removeBreakpoints(bp.getId())
+				: debugService.addBreakpoints([{ uri: modelUrl, lineNumber: lineNumber }]);
 		}
 	}
 }
 
-export class EditorConditionalBreakpointAction extends EditorAction {
-	static ID = 'editor.debug.action.conditionalBreakpoint';
+export class EditorConditionalBreakpointAction extends EditorAction2 {
 
-	constructor(
-		descriptor: editorCommon.IEditorActionDescriptorData,
-		editor: editorCommon.ICommonCodeEditor,
-		@IDebugService private debugService: IDebugService,
-		@IInstantiationService private instantiationService: IInstantiationService
-	) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super(
+			'editor.debug.action.conditionalBreakpoint',
+			nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint"),
+			'Debug: Conditional Breakpoint',
+			false
+		);
 	}
 
-	public run(): TPromise<any> {
-		const lineNumber = this.editor.getPosition().lineNumber;
-		if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
-			BreakpointWidget.createInstance(<editorbrowser.ICodeEditor>this.editor, lineNumber, this.instantiationService);
-		}
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		const debugService = accessor.get(IDebugService);
+		const instantiationService = accessor.get(IInstantiationService);
 
-		return TPromise.as(null);
+		const lineNumber = editor.getPosition().lineNumber;
+		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+			BreakpointWidget.createInstance(<editorbrowser.ICodeEditor>editor, lineNumber, instantiationService);
+		}
 	}
 }
 
@@ -580,42 +590,55 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 }
 
-export class RunToCursorAction extends EditorAction {
-	static ID = 'editor.debug.action.runToCursor';
+export class RunToCursorAction extends EditorAction2 {
 
-	private debugService: IDebugService;
+	constructor() {
+		super(
+			'editor.debug.action.runToCursor',
+			nls.localize('runToCursor', "Debug: Run to Cursor"),
+			'Debug: Run to Cursor',
+			false
+		);
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IDebugService debugService: IDebugService) {
-		super(descriptor, editor, Behaviour.TextFocus);
-		this.debugService = debugService;
+		this.menuOpts = {
+			kbExpr: KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE),
+			group: 'debug'
+		};
 	}
 
-	public run(): TPromise<void> {
-		if (this.debugService.state !== debug.State.Stopped) {
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+		const debugService = accessor.get(IDebugService);
+
+		if (debugService.state !== debug.State.Stopped) {
 			return TPromise.as(null);
 		}
-		const lineNumber = this.editor.getPosition().lineNumber;
-		const uri = this.editor.getModel().uri;
+		const lineNumber = editor.getPosition().lineNumber;
+		const uri = editor.getModel().uri;
 
-		const oneTimeListener = this.debugService.getActiveSession().onDidEvent(event => {
+		const oneTimeListener = debugService.getActiveSession().onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
-				const toRemove = this.debugService.getModel().getBreakpoints()
+				const toRemove = debugService.getModel().getBreakpoints()
 					.filter(bp => bp.desiredLineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 				if (toRemove) {
-					this.debugService.removeBreakpoints(toRemove.getId());
+					debugService.removeBreakpoints(toRemove.getId());
 				}
 				oneTimeListener.dispose();
 			}
 		});
 
-		const bpExists = !!(this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
-		return (bpExists ? TPromise.as(null) : this.debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
-			this.debugService.continue(this.debugService.getViewModel().getFocusedThreadId());
+		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop());
+		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints([{ uri, lineNumber }])).then(() => {
+			debugService.continue(debugService.getViewModel().getFocusedThreadId());
 		});
 	}
 
-	public isSupported(): boolean {
-		return super.isSupported() && this.debugService.state === debug.State.Stopped;
+	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
+			return false;
+		}
+		const debugService = accessor.get(IDebugService);
+
+		return debugService.state === debug.State.Stopped;
 	}
 }
 
@@ -637,46 +660,69 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-export class SelectionToReplAction extends EditorAction {
-	static ID = 'editor.debug.action.selectionToRepl';
+export class SelectionToReplAction extends EditorAction2 {
 
-	constructor(
-		descriptor: editorCommon.IEditorActionDescriptorData,
-		editor: editorCommon.ICommonCodeEditor,
-		@IDebugService private debugService: IDebugService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(descriptor, editor, Behaviour.UpdateOnCursorPositionChange);
+	constructor() {
+		super(
+			'editor.debug.action.selectionToRepl',
+			nls.localize('debugEvaluate', "Debug: Evaluate"),
+			'Debug: Evaluate',
+			false
+		);
+
+		this.menuOpts = {
+			kbExpr: KbExpr.and(KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION), KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)),
+			group: 'debug'
+		};
 	}
 
-	public run(): TPromise<any> {
-		const text = this.editor.getModel().getValueInRange(this.editor.getSelection());
-		return this.debugService.addReplExpression(text)
-			.then(() => this.panelService.openPanel(debug.REPL_ID, true));
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+		const debugService = accessor.get(IDebugService);
+		const panelService = accessor.get(IPanelService);
+
+
+		const text = editor.getModel().getValueInRange(editor.getSelection());
+		return debugService.addReplExpression(text)
+			.then(() => panelService.openPanel(debug.REPL_ID, true))
+			.then(_ => void 0);
 	}
 
-	public isSupported(): boolean {
-		const selection = this.editor.getSelection();
-		return !!selection && !selection.isEmpty() && this.debugService.state !== debug.State.Disabled && this.debugService.state !== debug.State.Inactive;
+	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
+			return false;
+		}
+		const debugService = accessor.get(IDebugService);
+
+		const selection = editor.getSelection();
+		return !!selection && !selection.isEmpty() && debugService.state !== debug.State.Disabled && debugService.state !== debug.State.Inactive;
 	}
 }
 
-export class ShowDebugHoverAction extends EditorAction {
-	static ID = 'editor.debug.action.showDebugHover';
+export class ShowDebugHoverAction extends EditorAction2 {
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super(
+			'editor.debug.action.showDebugHover',
+			nls.localize('showDebugHover', "Debug: Show Hover"),
+			'Debug: Show Hover',
+			false
+		);
+
+		this.kbOpts = {
+			kbExpr: KbExpr.and(KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE), KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
+			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+		};
 	}
 
-	public run(): TPromise<any> {
-		const position = this.editor.getPosition();
-		const word = this.editor.getModel().getWordAtPosition(position);
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+		const position = editor.getPosition();
+		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
 			return TPromise.as(null);
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-		return (<debug.IDebugEditorContribution>this.editor.getContribution(debug.EDITOR_CONTRIBUTION_ID)).showHover(range, word.word, true);
+		return (<debug.IDebugEditorContribution>editor.getContribution(debug.EDITOR_CONTRIBUTION_ID)).showHover(range, word.word, true);
 	}
 }
 
