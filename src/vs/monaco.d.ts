@@ -3228,7 +3228,9 @@ declare module monaco.editor {
      */
     export const EditorScrollByUnit: {
         Line: string;
+        WrappedLine: string;
         Page: string;
+        HalfPage: string;
     };
 
     /**
