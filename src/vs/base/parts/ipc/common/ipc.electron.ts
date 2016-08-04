@@ -91,7 +91,7 @@ export class Client implements IClient, IDisposable {
 	constructor(private ipc: IPC) {
 		ipc.send(Hello);
 
-		const receiverEvent = fromEventEmitter(ipc, Message, (_, message) => message);
+		const receiverEvent = fromEventEmitter<string>(ipc, Message, (_, message) => message);
 		this.protocol = new Protocol(ipc, receiverEvent);
 		this.ipcClient = new IPCClient(this.protocol);
 	}
@@ -102,7 +102,7 @@ export class Client implements IClient, IDisposable {
 
 	dispose(): void {
 		this.ipc.send(Goodbye);
-		this.protocol = dispose(this.protocol);
 		this.ipcClient = dispose(this.ipcClient);
+		this.protocol = dispose(this.protocol);
 	}
 }
