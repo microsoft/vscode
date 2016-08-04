@@ -19,6 +19,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
+const EditorKbExpr = editorCommon.EditorKbExpr;
+
 export type ServicesAccessor = ServicesAccessor;
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
@@ -205,7 +207,7 @@ function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor,
 
 function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
-	let base = KbExpr.has(needsTextFocus ? editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS : editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+	let base = (needsTextFocus ? EditorKbExpr.TextFocus : EditorKbExpr.Focus);
 
 	if (needsKey) {
 		return KbExpr.and(base, KbExpr.has(needsKey));

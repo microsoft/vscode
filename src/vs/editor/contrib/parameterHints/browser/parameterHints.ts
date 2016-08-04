@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonCodeEditor, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS, EditorKbExpr } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, EditorKbExpr } from 'vs/editor/common/editorCommon';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { withCodeEditorFromCommandHandler } from 'vs/editor/common/config/config';
@@ -104,7 +104,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'closeParameterHints',
 	handler: handler('closeParameterHints', c => c.cancel()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(Context.Visible)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(Context.Visible)),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 });
@@ -113,7 +113,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'showPrevParameterHint',
 	handler: handler('showPrevParameterHint', c => c.previous()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(Context.Visible), KbExpr.has(Context.MultipleSignatures)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(Context.Visible), KbExpr.has(Context.MultipleSignatures)),
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
@@ -123,7 +123,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'showNextParameterHint',
 	handler: handler('showNextParameterHint', c => c.next()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(Context.Visible), KbExpr.has(Context.MultipleSignatures)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(Context.Visible), KbExpr.has(Context.MultipleSignatures)),
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }

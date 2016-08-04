@@ -15,10 +15,9 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {IRange, ICommonCodeEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {KEYBINDING_CONTEXT_EDITOR_READONLY, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {IRange, ICommonCodeEditor, EditorKbExpr, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {RenameProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -165,7 +164,7 @@ export class RenameAction extends EditorAction {
 		this.menuOpts = {
 			group: '1_modification',
 			order: 1.1,
-			kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
+			kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), EditorKbExpr.Writable)
 		};
 	}
 

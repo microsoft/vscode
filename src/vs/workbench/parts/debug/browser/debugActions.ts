@@ -22,6 +22,8 @@ import {ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExten
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import IDebugService = debug.IDebugService;
 
+const EditorKbExpr = editorCommon.EditorKbExpr;
+
 export class AbstractDebugAction extends actions.Action {
 
 	protected toDispose: lifecycle.IDisposable[];
@@ -671,7 +673,7 @@ export class SelectionToReplAction extends EditorAction {
 		);
 
 		this.menuOpts = {
-			kbExpr: KbExpr.and(KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION), KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)),
+			kbExpr: KbExpr.and(EditorKbExpr.HasNonEmptySelection, KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE)),
 			group: 'debug'
 		};
 	}
@@ -709,7 +711,7 @@ export class ShowDebugHoverAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE), KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
+			kbExpr: KbExpr.and(KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE), EditorKbExpr.TextFocus),
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 		};
 	}

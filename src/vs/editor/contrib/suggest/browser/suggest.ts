@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
-import { ICommonCodeEditor, IEditorContribution, EditorKbExpr, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, EditorKbExpr } from 'vs/editor/common/editorCommon';
 import { ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -214,7 +214,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'acceptSelectedSuggestion',
 	handler: handler('acceptSelectedSuggestion', c => c.acceptSelectedSuggestion()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible)),
 	primary: KeyCode.Tab
 });
 
@@ -222,7 +222,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'acceptSelectedSuggestionOnEnter',
 	handler: handler('acceptSelectedSuggestionOnEnter', c => c.acceptSelectedSuggestion()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
 	primary: KeyCode.Enter
 });
 
@@ -230,7 +230,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'hideSuggestWidget',
 	handler: handler('hideSuggestWidget', c => c.cancelSuggestWidget()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible)),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 });
@@ -239,7 +239,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'selectNextSuggestion',
 	handler: handler('selectNextSuggestion', c => c.selectNextSuggestion()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
@@ -249,7 +249,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'selectNextPageSuggestion',
 	handler: handler('selectNextPageSuggestion', c => c.selectNextPageSuggestion()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
 	primary: KeyCode.PageDown,
 	secondary: [KeyMod.Alt | KeyCode.PageDown]
 });
@@ -258,7 +258,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'selectPrevSuggestion',
 	handler: handler('selectPrevSuggestion', c => c.selectPrevSuggestion()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
@@ -268,7 +268,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'selectPrevPageSuggestion',
 	handler: handler('selectPrevPageSuggestion', c => c.selectPrevPageSuggestion()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible), KbExpr.has(SuggestContext.MultipleSuggestions)),
 	primary: KeyCode.PageUp,
 	secondary: [KeyMod.Alt | KeyCode.PageUp]
 });
@@ -277,7 +277,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'toggleSuggestionDetails',
 	handler: handler('toggleSuggestionDetails', c => c.toggleSuggestionDetails()),
 	weight,
-	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(SuggestContext.Visible)),
+	when: KbExpr.and(EditorKbExpr.TextFocus, KbExpr.has(SuggestContext.Visible)),
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 });

@@ -16,6 +16,7 @@ import {ICommandHandler} from 'vs/platform/commands/common/commands';
 
 const H = editorCommon.Handler;
 const D = editorCommon.CommandDescription;
+const EditorKbExpr = editorCommon.EditorKbExpr;
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
 	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
@@ -62,7 +63,7 @@ function registerCoreCommand(handlerId: string, kb: IKeybindings, weight?: numbe
 		id: handlerId,
 		handler: triggerEditorHandler.bind(null, handlerId),
 		weight: weight ? weight : KeybindingsRegistry.WEIGHT.editorCore(),
-		when: (when ? when : KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
+		when: (when ? when : EditorKbExpr.TextFocus),
 		primary: kb.primary,
 		secondary: kb.secondary,
 		win: kb.win,
@@ -281,14 +282,14 @@ registerCoreCommand(H.CursorColumnSelectPageDown, {
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
+	EditorKbExpr.TextFocus,
+	EditorKbExpr.TabDoesNotMoveFocus
 ));
 registerCoreCommand(H.Outdent, {
 	primary: KeyMod.Shift | KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
+	EditorKbExpr.TextFocus,
+	EditorKbExpr.TabDoesNotMoveFocus
 ));
 
 registerCoreCommand(H.DeleteLeft, {
@@ -343,15 +344,15 @@ registerCoreCommand(H.CancelSelection, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION)
+	EditorKbExpr.TextFocus,
+	EditorKbExpr.HasNonEmptySelection
 ));
 registerCoreCommand(H.RemoveSecondaryCursors, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(1), KbExpr.and(
-	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS)
+	EditorKbExpr.TextFocus,
+	EditorKbExpr.HasMultipleSelections
 ));
 
 registerCoreCommand(H.CursorTop, {
@@ -418,6 +419,6 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.selectAll',
 	handler: selectAll,
 	weight: KeybindingsRegistry.WEIGHT.editorCore(),
-	when: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	when: EditorKbExpr.TextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 });
