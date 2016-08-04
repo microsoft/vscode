@@ -36,7 +36,9 @@ suite('QuickOpen performance', () => {
 
 	test('Measure', () => {
 		const n = 3;
-		const testWorkspaceArg = minimist(process.argv)['testWorkspace'];
+		const argv = minimist(process.argv);
+		const testWorkspaceArg = argv['testWorkspace'];
+		const verboseResults = argv['verboseResults'];
 		const testWorkspacePath = testWorkspaceArg ? path.join(process.cwd(), testWorkspaceArg) : __dirname;
 
 		const telemetryService = new TestTelemetryService();
@@ -69,12 +71,15 @@ suite('QuickOpen performance', () => {
 				.then((handler: QuickOpenHandler) => {
 					return handler.getResults('a').then(result => {
 						const uncachedEvent = popEvent();
-						assert.ok(!uncachedEvent.data.fromCache);
+						assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
+						assert.strictEqual(uncachedEvent.data.files.fromCache, false, 'files.fromCache');
 						return uncachedEvent;
 					}).then(uncachedEvent => {
 						return handler.getResults('ab').then(result => {
 							const cachedEvent = popEvent();
-							assert.ok(cachedEvent.data.fromCache);
+							assert.ok(cachedEvent.data.symbols.fromCache, 'symbolsFromCache');
+							assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
+							handler.onClose(false);
 							return [uncachedEvent, cachedEvent];
 						});
 					});
@@ -90,6 +95,19 @@ suite('QuickOpen performance', () => {
 			return event;
 		}
 
+		function printResult(data) {
+			if (verboseResults) {
+				console.log(JSON.stringify(data, null, '  ') + ',');
+			} else {
+				console.log(JSON.stringify({
+					filesfromCache: data.files.fromCache,
+					searchLength: data.searchLength,
+					sortedResultDuration: data.sortedResultDuration,
+					filesResultCount: data.files.resultCount,
+				}) + ',');
+			}
+		}
+
 		return measure() // Warm-up first
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default
@@ -101,14 +119,14 @@ suite('QuickOpen performance', () => {
 						}
 						return measure()
 							.then(([uncachedEvent, cachedEvent]) => {
-								console.log(JSON.stringify(uncachedEvent.data) + ',');
+								printResult(uncachedEvent.data);
 								cachedEvents.push(cachedEvent);
 								return iterate();
 							});
 					})().then(() => {
 						console.log();
 						cachedEvents.forEach(cachedEvent => {
-							console.log(JSON.stringify(cachedEvent.data) + ',');
+							printResult(cachedEvent.data);
 						});
 					});
 				}

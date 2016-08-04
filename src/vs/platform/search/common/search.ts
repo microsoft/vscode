@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {PPromise} from 'vs/base/common/winjs.base';
+import {PPromise, TPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
@@ -19,6 +19,7 @@ export const ISearchService = createDecorator<ISearchService>(ID);
 export interface ISearchService {
 	_serviceBrand: any;
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	clearCache(cacheKey: string): TPromise<void>;
 }
 
 export interface IQueryOptions {
@@ -28,6 +29,8 @@ export interface IQueryOptions {
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	maxResults?: number;
+	sortByScore?: boolean;
+	cacheKey?: string;
 	fileEncoding?: string;
 }
 
@@ -75,6 +78,19 @@ export interface ISearchComplete {
 }
 
 export interface ISearchStats {
+	fromCache: boolean;
+	resultCount: number;
+	unsortedResultTime?: number;
+	sortedResultTime?: number;
+}
+
+export interface ICachedSearchStats extends ISearchStats {
+	cacheLookupStartTime: number;
+	cacheLookupResultTime: number;
+	cacheEntryCount: number;
+}
+
+export interface IUncachedSearchStats extends ISearchStats {
 	fileWalkStartTime: number;
 	fileWalkResultTime: number;
 	directoriesWalked: number;

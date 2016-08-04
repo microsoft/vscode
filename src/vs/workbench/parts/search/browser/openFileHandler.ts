@@ -104,7 +104,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			.then(result => result[0]);
 	}
 
-	public getResultsWithStats(searchValue: string): TPromise<[QuickOpenModel, ISearchStats]> {
+	public getResultsWithStats(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<[QuickOpenModel, ISearchStats]> {
 		searchValue = searchValue.trim();
 		let promise: TPromise<[QuickOpenEntry[], ISearchStats]>;
 
@@ -112,18 +112,23 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (!searchValue) {
 			promise = TPromise.as(<[QuickOpenEntry[], ISearchStats]>[[], undefined]);
 		} else {
-			promise = this.doFindResults(searchValue);
+			promise = this.doFindResults(searchValue, cacheKey, maxSortedResults);
 		}
 
 		return promise.then(result => [new QuickOpenModel(result[0]), result[1]]);
 	}
 
-	private doFindResults(searchValue: string): TPromise<[QuickOpenEntry[], ISearchStats]> {
+	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<[QuickOpenEntry[], ISearchStats]> {
 		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
-			filePattern: searchValue
+			filePattern: searchValue,
+			cacheKey: cacheKey
 		};
+		if (maxSortedResults) {
+			query.maxResults = maxSortedResults;
+			query.sortByScore = true;
+		}
 
 		return this.searchService.search(this.queryBuilder.file(query)).then((complete) => {
 			let results: QuickOpenEntry[] = [];
@@ -138,6 +143,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 			return [results, complete.stats];
 		});
+	}
+
+	public clearCache(cacheKey: string): TPromise<void> {
+		return this.searchService.clearCache(cacheKey);
 	}
 
 	public getGroupLabel(): string {

@@ -16,6 +16,7 @@ import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import strings = require('vs/base/common/strings');
+import uuid = require('vs/base/common/uuid');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -26,10 +27,12 @@ import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbol
 /* tslint:enable:no-unused-variable */
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ISearchStats} from 'vs/platform/search/common/search';
+import {ISearchStats, ICachedSearchStats, IUncachedSearchStats} from 'vs/platform/search/common/search';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+
+const objects_assign: <T, U>(destination: T, source: U) => T & U = objects.assign;
 
 interface ISearchWithRange {
 	search: string;
@@ -37,24 +40,39 @@ interface ISearchWithRange {
 }
 
 interface ITimerEventData {
-	fromCache: boolean;
 	searchLength: number;
 	unsortedResultDuration: number;
 	sortedResultDuration: number;
-	numberOfResultEntries: number;
-	fileWalkStartDuration?: number;
-	fileWalkResultDuration?: number;
-	directoriesWalked?: number;
-	filesWalked?: number;
+	resultCount: number;
+	symbols: {
+		fromCache: boolean;
+	};
+	files: {
+		fromCache: boolean;
+		unsortedResultDuration: number;
+		sortedResultDuration: number;
+		resultCount: number;
+	} & ({
+		fileWalkStartDuration: number;
+		fileWalkResultDuration: number;
+		directoriesWalked: number;
+		filesWalked: number;
+	} | {
+		cacheLookupStartDuration: number;
+		cacheLookupResultDuration: number;
+		cacheEntryCount: number;
+	});
 }
 
 interface ITelemetryData {
-	fromCache: boolean;
 	searchLength: number;
-	searchStats?: ISearchStats;
 	unsortedResultTime: number;
 	sortedResultTime: number;
-	numberOfResultEntries: number;
+	resultCount: number;
+	symbols: {
+		fromCache: boolean;
+	};
+	files: ISearchStats;
 }
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
@@ -71,11 +89,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
-	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
+	private symbolResultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
 	private delayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
+	private cacheKey: string;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -96,8 +115,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			skipSorting: true 		// we sort combined with file results
 		});
 
-		this.resultsToSearchCache = Object.create(null);
+		this.symbolResultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
+		this.cacheKey = uuid.generateUuid();
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
 	}
 
@@ -129,13 +149,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// Check Cache first
-		let cachedResults = this.getResultsFromCache(searchValue, searchWithRange ? searchWithRange.range : null);
-		if (cachedResults) {
-			const [viewResults, telemetry] = cachedResults;
-			timerEvent.data = this.createTimerEventData(startTime, telemetry);
-			timerEvent.stop();
-			return TPromise.as(new QuickOpenModel(viewResults));
-		}
+		let cachedSymbolResults = this.getSymbolResultsFromCache(searchValue, !!searchWithRange);
 
 		// The throttler needs a factory for its promises
 		let promiseFactory = () => {
@@ -144,7 +158,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Symbol Results (unless a range is specified)
 			let resultPromises: TPromise<QuickOpenModel>[] = [];
-			if (!searchWithRange) {
+			if (cachedSymbolResults) {
+				resultPromises.push(TPromise.as(new QuickOpenModel(cachedSymbolResults)));
+			} else if (!searchWithRange) {
 				let symbolSearchTimeoutPromiseFn: (timeout: number) => TPromise<QuickOpenModel> = (timeout) => {
 					return TPromise.timeout(timeout).then(() => {
 
@@ -172,7 +188,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue).then(([results, stats]) => {
+			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue, this.cacheKey, OpenAnythingHandler.MAX_DISPLAYED_RESULTS).then(([results, stats]) => {
 				receivedFileResults = true;
 				searchStats = stats;
 
@@ -190,10 +206,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				}
 
 				// Combine symbol results and file results
-				let result = [...results[0].entries, ...results[1].entries];
+				const symbolResults = results[0].entries;
+				let result = [...symbolResults, ...results[1].entries];
 
-				// Cache for fast lookup
-				this.resultsToSearchCache[searchValue] = result;
+				// // Cache for fast lookup
+				this.symbolResultsToSearchCache[searchValue] = symbolResults;
 
 				// Sort
 				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
@@ -211,12 +228,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				});
 
 				timerEvent.data = this.createTimerEventData(startTime, {
-					fromCache: false,
 					searchLength: searchValue.length,
-					searchStats: searchStats,
 					unsortedResultTime,
 					sortedResultTime,
-					numberOfResultEntries: result.length
+					resultCount: result.length,
+					symbols: {
+						fromCache: !!cachedSymbolResults
+					},
+					files: searchStats
 				});
 				timerEvent.stop();
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
@@ -228,8 +247,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			return this.pendingSearch;
 		};
 
-		// Trigger through delayer to prevent accumulation while the user is typing
-		return this.delayer.trigger(promiseFactory);
+		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
+		return cachedSymbolResults ? promiseFactory() : this.delayer.trigger(promiseFactory);
 	}
 
 	private extractRange(value: string): ISearchWithRange {
@@ -280,14 +299,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return null;
 	}
 
-	private getResultsFromCache(searchValue: string, range: IRange = null): [QuickOpenEntry[], ITelemetryData] {
+	private getSymbolResultsFromCache(searchValue: string, hasRange: boolean): QuickOpenEntry[] {
 		if (paths.isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
 
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];
-		for (let previousSearch in this.resultsToSearchCache) {
+		for (let previousSearch in this.symbolResultsToSearchCache) {
 
 			// If we narrow down, we might be able to reuse the cached results
 			if (searchValue.indexOf(previousSearch) === 0) {
@@ -295,7 +314,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
-				cachedEntries = this.resultsToSearchCache[previousSearch];
+				cachedEntries = this.symbolResultsToSearchCache[previousSearch];
 				break;
 			}
 		}
@@ -304,16 +323,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			return null;
 		}
 
+		if (hasRange) {
+			return [];
+		}
+
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
 		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
-
-			// Check for file entries if range is used
-			if (range && !(entry instanceof FileEntry)) {
-				continue;
-			}
 
 			// Check if this entry is a match for the search value
 			const resource = entry.getResource(); // can be null for symbol results!
@@ -324,29 +342,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			results.push(entry);
 		}
-		const unsortedResultTime = Date.now();
 
-		// Sort
-		const compare = (elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache);
-		const viewResults = arrays.top(results, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
-		const sortedResultTime = Date.now();
-
-		// Apply range and highlights
-		viewResults.forEach(entry => {
-			if (entry instanceof FileEntry) {
-				entry.setRange(range);
-			}
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
-			entry.setHighlights(labelHighlights, descriptionHighlights);
-		});
-
-		return [viewResults, {
-			fromCache: true,
-			searchLength: searchValue.length,
-			unsortedResultTime,
-			sortedResultTime,
-			numberOfResultEntries: results.length
-		}];
+		return results;
 	}
 
 	public getGroupLabel(): string {
@@ -366,8 +363,10 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.cancelPendingSearch();
 
 		// Clear Cache
-		this.resultsToSearchCache = Object.create(null);
+		this.symbolResultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
+		this.openFileHandler.clearCache(this.cacheKey);
+		this.cacheKey = uuid.generateUuid();
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);
@@ -382,19 +381,30 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private createTimerEventData(startTime: number, telemetry: ITelemetryData): ITimerEventData {
-		const data: ITimerEventData = {
-			fromCache: telemetry.fromCache,
+		const stats = telemetry.files;
+		const cached = stats as ICachedSearchStats;
+		const uncached = stats as IUncachedSearchStats;
+		return {
 			searchLength: telemetry.searchLength,
 			unsortedResultDuration: telemetry.unsortedResultTime - startTime,
 			sortedResultDuration: telemetry.sortedResultTime - startTime,
-			numberOfResultEntries: telemetry.numberOfResultEntries
+			resultCount: telemetry.resultCount,
+			symbols: telemetry.symbols,
+			files: objects_assign({
+				fromCache: stats.fromCache,
+				unsortedResultDuration: stats.unsortedResultTime - startTime,
+				sortedResultDuration: stats.sortedResultTime - startTime,
+				resultCount: stats.resultCount
+			}, stats.fromCache ? {
+				cacheLookupStartDuration: cached.cacheLookupStartTime - startTime,
+				cacheLookupResultDuration: cached.cacheLookupResultTime - startTime,
+				cacheEntryCount: cached.cacheEntryCount
+			} : {
+				fileWalkStartDuration: uncached.fileWalkStartTime - startTime,
+				fileWalkResultDuration: uncached.fileWalkResultTime - startTime,
+				directoriesWalked: uncached.directoriesWalked,
+				filesWalked: uncached.filesWalked
+			})
 		};
-		const stats = telemetry.searchStats;
-		return stats ? objects.assign(data, {
-			fileWalkStartDuration: stats.fileWalkStartTime - startTime,
-			fileWalkResultDuration: stats.fileWalkResultTime - startTime,
-			directoriesWalked: stats.directoriesWalked,
-			filesWalked: stats.filesWalked
-		}) : data;
 	}
 }
