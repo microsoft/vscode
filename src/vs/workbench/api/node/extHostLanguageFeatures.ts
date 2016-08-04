@@ -507,25 +507,27 @@ class SuggestAdapter {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
-		const ran = doc.getWordRangeAtPosition(pos);
 
 		const key = resource.toString();
 		delete this._cache[key];
 
 		return asWinJsPromise<vscode.CompletionItem[]|vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
-			let defaultSuggestions: modes.ISuggestResult = {
+			const result: modes.ISuggestResult = {
 				suggestions: [],
-				currentWord: ran ? doc.getText(new Range(ran.start.line, ran.start.character, pos.line, pos.character)) : '',
+				currentWord: ''
 			};
-			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
+
+			// the default text edit range
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
+				.with({ end: pos });
 
 			let list: CompletionList;
 			if (Array.isArray(value)) {
 				list = new CompletionList(value);
 			} else if (value instanceof CompletionList) {
 				list = value;
-				defaultSuggestions.incomplete = list.isIncomplete;
+				result.incomplete = list.isIncomplete;
 			} else if (!value) {
 				// undefined and null are valid results
 				return;
@@ -536,12 +538,13 @@ class SuggestAdapter {
 			}
 
 			for (let i = 0; i < list.items.length; i++) {
+
 				const item = list.items[i];
 				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item);
 
 				if (item.textEdit) {
 
-					let editRange = item.textEdit.range;
+					const editRange = item.textEdit.range;
 
 					// invalid text edit
 					if (!editRange.isSingleLine || editRange.start.line !== pos.line) {
@@ -555,24 +558,23 @@ class SuggestAdapter {
 					suggestion.overwriteBefore = pos.character - editRange.start.character;
 					suggestion.overwriteAfter = editRange.end.character - pos.character;
 
-					allSuggestions.push({
-						currentWord: doc.getText(editRange),
-						suggestions: [suggestion],
-						incomplete: list.isIncomplete
-					});
-
 				} else {
-					defaultSuggestions.suggestions.push(suggestion);
+					// default text edit
+					suggestion.overwriteBefore = pos.character - wordRangeBeforePos.start.character;
+					suggestion.overwriteAfter = 0;
 				}
 
 				// assign identifier to suggestion
 				suggestion.id = String(i);
+
+				// store suggestion
+				result.suggestions.push(suggestion);
 			}
 
 			// cache for details call
 			this._cache[key] = list;
 
-			return allSuggestions;
+			return [result];
 		});
 	}
 
