@@ -275,35 +275,3 @@ export abstract class HandlerEditorAction extends EditorAction {
 		editor.trigger(this.id, this._handlerId, null);
 	}
 }
-
-export let EditorKbExpr: {
-	TextFocus: KbExpr;
-	Focus: KbExpr;
-
-	ReadOnly: KbExpr;
-	Writable: KbExpr;
-
-	HasNonEmptySelection: KbExpr;
-	HasOnlyEmptySelection: KbExpr;
-
-	HasMultipleSelections: KbExpr;
-	HasSingleSelection: KbExpr;
-
-	TabMovesFocus: KbExpr;
-	TabDoesNotMoveFocus: KbExpr;
-} = {
-	TextFocus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	Focus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS),
-
-	ReadOnly: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY),
-	Writable: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY),
-
-	HasNonEmptySelection: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
-	HasOnlyEmptySelection: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
-
-	HasMultipleSelections: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
-	HasSingleSelection: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
-
-	TabMovesFocus: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
-	TabDoesNotMoveFocus: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
-};

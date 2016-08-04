@@ -12,7 +12,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
@@ -288,7 +288,7 @@ export class NextMatchFindAction extends MatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyCode.F3,
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
 		};
@@ -309,7 +309,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.Shift | KeyCode.F3,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
 		};
@@ -356,7 +356,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.F3
 		};
 	}
@@ -376,7 +376,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3
 		};
 	}
@@ -538,7 +538,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_D
 		};
 	}
@@ -589,7 +589,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)
 		};
 	}
@@ -672,7 +672,7 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L
 		};
 	}
@@ -687,7 +687,7 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: editorCommon.EditorKbExpr.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.F2
 		};
 

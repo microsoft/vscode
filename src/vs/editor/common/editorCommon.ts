@@ -20,6 +20,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 /**
  * @internal
@@ -3049,6 +3050,47 @@ export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
  * @internal
  */
 export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
+
+/**
+ * @internal
+ */
+export interface IEditorKbExpr {
+	TextFocus: KbExpr;
+	Focus: KbExpr;
+
+	ReadOnly: KbExpr;
+	Writable: KbExpr;
+
+	HasNonEmptySelection: KbExpr;
+	HasOnlyEmptySelection: KbExpr;
+
+	HasMultipleSelections: KbExpr;
+	HasSingleSelection: KbExpr;
+
+	TabMovesFocus: KbExpr;
+	TabDoesNotMoveFocus: KbExpr;
+}
+
+/**
+ * @internal
+ */
+export let EditorKbExpr: IEditorKbExpr = {
+	TextFocus: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	Focus: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_FOCUS),
+
+	ReadOnly: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_READONLY),
+	Writable: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY),
+
+	HasNonEmptySelection: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
+	HasOnlyEmptySelection: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
+
+	HasMultipleSelections: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
+	HasSingleSelection: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
+
+	TabMovesFocus: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
+	TabDoesNotMoveFocus: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
+};
+
 
 /**
  * @internal
