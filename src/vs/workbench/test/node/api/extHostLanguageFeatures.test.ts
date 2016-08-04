@@ -214,7 +214,7 @@ suite('ExtHostLanguageFeatures', function() {
 				let data = value[0];
 
 				return asWinJsPromise((token) => {
-					return data.support.resolveCodeLens(model, data.symbol, token);
+					return data.provider.resolveCodeLens(model, data.symbol, token);
 				}).then(symbol => {
 					assert.equal(symbol.command.id, 'id');
 					assert.equal(symbol.command.title, 'Title');
@@ -238,7 +238,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 				let data = value[0];
 				return asWinJsPromise((token) => {
-					return data.support.resolveCodeLens(model, data.symbol, token);
+					return data.provider.resolveCodeLens(model, data.symbol, token);
 				}).then(symbol => {
 
 					assert.equal(symbol.command.id, 'missing');
