@@ -84,6 +84,9 @@ function fillInSuggestResult(bucket: ISuggestionItem[], result: ISuggestResult, 
 	const len = bucket.length;
 	for (const suggestion of result.suggestions) {
 		if (acceptFn(suggestion)) {
+
+			fixOverwriteBeforeAfter(suggestion, result);
+
 			bucket.push({
 				support,
 				suggestion,
@@ -92,6 +95,15 @@ function fillInSuggestResult(bucket: ISuggestionItem[], result: ISuggestResult, 
 		}
 	}
 	return len !== bucket.length;
+}
+
+function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
+	if (typeof suggestion.overwriteBefore !== 'number') {
+		suggestion.overwriteBefore = container.currentWord.length;
+	}
+	if (typeof suggestion.overwriteAfter !== 'number' || suggestion.overwriteAfter < 0) {
+		suggestion.overwriteAfter = 0;
+	}
 }
 
 function createSuggesionFilter(options: ISuggestOptions): (candidate: ISuggestion) => boolean {
