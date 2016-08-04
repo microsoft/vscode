@@ -3243,6 +3243,31 @@ declare module monaco.editor {
     }
 
     /**
+     * Directions in the view for editor scroll command.
+     */
+    export const EditorScrollDirection: {
+        Up: string;
+        Down: string;
+    };
+
+    /**
+     * Units for editor scroll 'by' argument
+     */
+    export const EditorScrollByUnit: {
+        Line: string;
+        Page: string;
+    };
+
+    /**
+     * Arguments for editor scroll command
+     */
+    export interface EditorScrollArguments {
+        to: string;
+        by?: string;
+        value?: number;
+    }
+
+    /**
      * Built-in commands.
      */
     export var Handler: {
@@ -3331,6 +3356,7 @@ declare module monaco.editor {
         LineInsertAfter: string;
         LineBreakInsert: string;
         SelectAll: string;
+        EditorScroll: string;
         ScrollLineUp: string;
         ScrollLineDown: string;
         ScrollPageUp: string;
