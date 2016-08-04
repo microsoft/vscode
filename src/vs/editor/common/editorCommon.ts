@@ -3018,79 +3018,66 @@ export interface IDiffLineInformation {
 }
 
 /**
- * A context key that is set when the editor's text has focus (cursor is blinking).
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = new KbCtxKey<boolean>('editorTextFocus', undefined);
+export namespace EditorContextKeys {
+	/**
+	 * A context key that is set when the editor's text has focus (cursor is blinking).
+	 * @internal
+	 */
+	export const TextFocus = new KbCtxKey<boolean>('editorTextFocus', undefined);
+	/**
+	 * A context key that is set when the editor's text or an editor's widget has focus.
+	 * @internal
+	 */
+	export const Focus = new KbCtxKey<boolean>('editorFocus', undefined);
 
-/**
- * A context key that is set when the editor's text or an editor's widget has focus.
- * @internal
- */
-export const KEYBINDING_CONTEXT_EDITOR_FOCUS = new KbCtxKey<boolean>('editorFocus', undefined);
-/**
- * @internal
- */
-export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = new KbCtxKey<boolean>('editorTabMovesFocus', false);
-/**
- * A context key that is set when the editor's text is readonly.
- * @internal
- */
-export const KEYBINDING_CONTEXT_EDITOR_READONLY = new KbCtxKey<boolean>('editorReadonly', false);
-/**
- * A context key that is set when the editor has multiple selections (multiple cursors).
- * @internal
- */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = new KbCtxKey<boolean>('editorHasMultipleSelections', false);
-/**
- * A context key that is set when the editor has a non-collapsed selection.
- * @internal
- */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = new KbCtxKey<boolean>('editorHasSelection', false);
-/**
- * A context key that is set to the language associated with the model associated with the editor.
- * @internal
- */
-export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = new KbCtxKey<string>('editorLangId', undefined);
+	/**
+	 * A context key that is set when the editor's text is readonly.
+	 * @internal
+	 */
+	export const ReadOnly = new KbCtxKey<boolean>('editorReadonly', false);
 
-/**
- * @internal
- */
-export interface IEditorKbExpr {
-	TextFocus: KbExpr;
-	Focus: KbExpr;
+	/**
+	 * @internal
+	 */
+	export const Writable:KbExpr = ReadOnly.toNegated();
 
-	ReadOnly: KbExpr;
-	Writable: KbExpr;
+	/**
+	 * A context key that is set when the editor has a non-collapsed selection.
+	 * @internal
+	 */
+	export const HasNonEmptySelection = new KbCtxKey<boolean>('editorHasSelection', false);
+	/**
+	 * @internal
+	 */
+	export const HasOnlyEmptySelection:KbExpr = HasNonEmptySelection.toNegated();
 
-	HasNonEmptySelection: KbExpr;
-	HasOnlyEmptySelection: KbExpr;
+	/**
+	 * A context key that is set when the editor has multiple selections (multiple cursors).
+	 * @internal
+	 */
+	export const HasMultipleSelections = new KbCtxKey<boolean>('editorHasMultipleSelections', false);
+	/**
+	 * @internal
+	 */
+	export const HasSingleSelection:KbExpr = HasMultipleSelections.toNegated();
 
-	HasMultipleSelections: KbExpr;
-	HasSingleSelection: KbExpr;
+	/**
+	 * @internal
+	 */
+	export const TabMovesFocus = new KbCtxKey<boolean>('editorTabMovesFocus', false);
+	/**
+	 * @internal
+	 */
+	export const TabDoesNotMoveFocus:KbExpr = TabMovesFocus.toNegated();
 
-	TabMovesFocus: KbExpr;
-	TabDoesNotMoveFocus: KbExpr;
-}
+	/**
+	 * A context key that is set to the language associated with the model associated with the editor.
+	 * @internal
+	 */
+	export const LanguageId = new KbCtxKey<string>('editorLangId', undefined);
 
-/**
- * @internal
- */
-export let EditorKbExpr: IEditorKbExpr = {
-	TextFocus: KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS,
-	Focus: KEYBINDING_CONTEXT_EDITOR_FOCUS,
-
-	ReadOnly: KEYBINDING_CONTEXT_EDITOR_READONLY,
-	Writable: KEYBINDING_CONTEXT_EDITOR_READONLY.toNegated(),
-
-	HasNonEmptySelection: KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION,
-	HasOnlyEmptySelection: KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION.toNegated(),
-
-	HasMultipleSelections: KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS,
-	HasSingleSelection: KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS.toNegated(),
-
-	TabMovesFocus: KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS,
-	TabDoesNotMoveFocus: KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS.toNegated(),
 };
 
 

@@ -10,7 +10,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {Range} from 'vs/editor/common/core/range';
-import {ICommonCodeEditor, ICursorPositionChangedEvent, EditorKbExpr, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
@@ -166,7 +166,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
 		};
@@ -183,7 +183,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
 		};

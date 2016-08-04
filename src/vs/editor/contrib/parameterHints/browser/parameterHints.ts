@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonCodeEditor, IEditorContribution, EditorKbExpr } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -69,7 +69,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
 		};
 	}
@@ -91,13 +91,13 @@ const weight = CommonEditorRegistry.commandWeight(75);
 const ParameterHintsCommand = EditorCommand.bindToContribution(
 	ParameterHintsController.get, {
 		weight: weight,
-		kbExpr: KbExpr.and(EditorKbExpr.TextFocus, Context.Visible)
+		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, Context.Visible)
 	}
 );
 const MultipleSignaturesParameterHintsCommand = EditorCommand.bindToContribution(
 	ParameterHintsController.get, {
 		weight: weight,
-		kbExpr: KbExpr.and(EditorKbExpr.TextFocus, Context.Visible, Context.MultipleSignatures)
+		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, Context.Visible, Context.MultipleSignatures)
 	}
 );
 

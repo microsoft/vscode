@@ -17,7 +17,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {IRange, ICommonCodeEditor, EditorKbExpr, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {RenameProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -157,14 +157,14 @@ export class RenameAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyCode.F2
 		};
 
 		this.menuOpts = {
 			group: '1_modification',
 			order: 1.1,
-			kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorKbExpr.Writable)
+			kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorContextKeys.Writable)
 		};
 	}
 
@@ -192,7 +192,7 @@ EditorBrowserRegistry.registerEditorContribution(RenameController);
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(
 	RenameController.get, {
 		weight: CommonEditorRegistry.commandWeight(99),
-		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_RENAME_INPUT_VISIBLE)
+		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_RENAME_INPUT_VISIBLE)
 	}
 );
 

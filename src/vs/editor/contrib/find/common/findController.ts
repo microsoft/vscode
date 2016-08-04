@@ -18,7 +18,7 @@ import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} fr
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler} from 'vs/base/common/async';
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 export enum FindStartFocusAction {
 	NoFocusChange,
@@ -291,7 +291,7 @@ export class NextMatchFindAction extends MatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyCode.F3,
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
 		};
@@ -312,7 +312,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.Shift | KeyCode.F3,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
 		};
@@ -359,7 +359,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.F3
 		};
 	}
@@ -379,7 +379,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3
 		};
 	}
@@ -541,7 +541,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_D
 		};
 	}
@@ -592,7 +592,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)
 		};
 	}
@@ -675,7 +675,7 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L
 		};
 	}
@@ -690,14 +690,14 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.F2
 		};
 
 		this.menuOpts = {
 			group: '1_modification',
 			order: 1.2,
-			kbExpr: EditorKbExpr.Writable
+			kbExpr: EditorContextKeys.Writable
 		};
 	}
 }
@@ -879,14 +879,14 @@ CommonEditorRegistry.registerEditorAction(new AddSelectionToPreviousFindMatchAct
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(
 	CommonFindController.getFindController, {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorKbExpr.Focus
+		kbExpr: EditorContextKeys.Focus
 	}
 );
 
 const VisibleWidgetFindCommand = EditorCommand.bindToContribution(
 	CommonFindController.getFindController, {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_FIND_WIDGET_VISIBLE)
+		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_FIND_WIDGET_VISIBLE)
 	}
 );
 

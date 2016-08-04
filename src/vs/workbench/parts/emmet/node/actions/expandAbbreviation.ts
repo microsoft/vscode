@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {Handler, ICommonCodeEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {Handler, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
@@ -27,10 +27,10 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 		this.kbOpts = {
 			primary: KeyCode.Tab,
 			kbExpr: KbExpr.and(
-				EditorKbExpr.TextFocus,
-				EditorKbExpr.HasOnlyEmptySelection,
-				EditorKbExpr.HasSingleSelection,
-				EditorKbExpr.TabDoesNotMoveFocus,
+				EditorContextKeys.TextFocus,
+				EditorContextKeys.HasOnlyEmptySelection,
+				EditorContextKeys.HasSingleSelection,
+				EditorContextKeys.TabDoesNotMoveFocus,
 				KbExpr.has('config.emmet.triggerExpansionOnTab')
 			)
 		};

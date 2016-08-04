@@ -18,7 +18,7 @@ import {EditOperationsCommand} from './formatCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 class FormatOnType implements editorCommon.IEditorContribution {
 
@@ -146,7 +146,7 @@ export class FormatAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
 		};

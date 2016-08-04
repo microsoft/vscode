@@ -15,7 +15,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
 import {CodeSnippet, ISnippetController, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
@@ -80,8 +80,8 @@ const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionContr
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 		kbExpr: KbExpr.and(
 			TabCompletionController.ContextKey,
-			EditorKbExpr.TextFocus,
-			EditorKbExpr.TabDoesNotMoveFocus,
+			EditorContextKeys.TextFocus,
+			EditorContextKeys.TabDoesNotMoveFocus,
 			KbExpr.has('config.editor.tabCompletion')
 		)
 	}

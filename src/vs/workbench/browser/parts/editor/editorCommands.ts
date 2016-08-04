@@ -12,7 +12,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { EditorKbExpr } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorCommon';
 
 export function registerEditorComamnds() {
 	_registerActiveEditorMoveCommand();
@@ -45,7 +45,7 @@ function _registerActiveEditorMoveCommand() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: EditorKbExpr.TextFocus,
+		when: EditorContextKeys.TextFocus,
 		primary: null,
 		handler: (accessor, args: any) => _moveActiveEditor(args, accessor),
 		description: {

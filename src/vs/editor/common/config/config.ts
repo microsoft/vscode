@@ -16,7 +16,7 @@ import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/
 
 import H = editorCommon.Handler;
 import D = editorCommon.CommandDescription;
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 export interface IKeybindingsOptions {
 	kbExpr?: KbExpr;
@@ -172,7 +172,7 @@ function registerCoreCommand(handlerId: string, kb: IKeybindings, weight?: numbe
 	let command = new CoreCommand(
 		handlerId,
 		weight,
-		when ? when : EditorKbExpr.TextFocus,
+		when ? when : EditorContextKeys.TextFocus,
 		kb
 	);
 	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorCore()));
@@ -378,14 +378,14 @@ registerCoreCommand(H.CursorColumnSelectPageDown, {
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	EditorKbExpr.TextFocus,
-	EditorKbExpr.TabDoesNotMoveFocus
+	EditorContextKeys.TextFocus,
+	EditorContextKeys.TabDoesNotMoveFocus
 ));
 registerCoreCommand(H.Outdent, {
 	primary: KeyMod.Shift | KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	EditorKbExpr.TextFocus,
-	EditorKbExpr.TabDoesNotMoveFocus
+	EditorContextKeys.TextFocus,
+	EditorContextKeys.TabDoesNotMoveFocus
 ));
 
 registerCoreCommand(H.DeleteLeft, {
@@ -440,15 +440,15 @@ registerCoreCommand(H.CancelSelection, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	EditorKbExpr.TextFocus,
-	EditorKbExpr.HasNonEmptySelection
+	EditorContextKeys.TextFocus,
+	EditorContextKeys.HasNonEmptySelection
 ));
 registerCoreCommand(H.RemoveSecondaryCursors, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(1), KbExpr.and(
-	EditorKbExpr.TextFocus,
-	EditorKbExpr.HasMultipleSelections
+	EditorContextKeys.TextFocus,
+	EditorContextKeys.HasMultipleSelections
 ));
 
 registerCoreCommand(H.CursorTop, {
@@ -515,6 +515,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'editor.action.selectAll',
 	handler: selectAll,
 	weight: KeybindingsRegistry.WEIGHT.editorCore(),
-	when: EditorKbExpr.TextFocus,
+	when: EditorContextKeys.TextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 });

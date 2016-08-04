@@ -18,7 +18,7 @@ import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {ICommonCodeEditor, IEditorContribution, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -200,7 +200,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.Alt | KeyCode.F1
 		};
 	}
@@ -218,7 +218,7 @@ const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityH
 	AccessibilityHelpController.get,
 	{
 		weight: CommonEditorRegistry.commandWeight(100),
-		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE)
+		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE)
 	}
 );
 

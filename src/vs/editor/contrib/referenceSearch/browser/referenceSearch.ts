@@ -25,7 +25,7 @@ import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from '.
 import {ReferencesModel} from './referencesModel';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -66,7 +66,7 @@ export class ReferenceAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyCode.F12
 		};
 

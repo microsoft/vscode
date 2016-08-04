@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {MenuId} from 'vs/platform/actions/common/actions';
 
-import EditorKbExpr = editorCommon.EditorKbExpr;
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -87,13 +87,13 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 		};
 
 		this.menuOpts = {
-			kbExpr: EditorKbExpr.Writable,
+			kbExpr: EditorContextKeys.Writable,
 			menu: MenuId.EditorContext,
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 1
@@ -120,7 +120,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 		};
@@ -146,13 +146,13 @@ class ExecCommandPasteAction extends ExecCommandAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 		};
 
 		this.menuOpts = {
-			kbExpr: EditorKbExpr.Writable,
+			kbExpr: EditorContextKeys.Writable,
 			menu: MenuId.EditorContext,
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 3

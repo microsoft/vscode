@@ -47,6 +47,8 @@ import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewpo
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 
+import EditorContextKeys = editorCommon.EditorContextKeys;
+
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
 	private eventDispatcher:ViewEventDispatcher;
@@ -174,7 +176,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = <HTMLTextAreaElement>document.createElement('textarea');
 		this._keybindingService = keybindingService.createScoped(this.textArea);
-		this._editorTextFocusContextKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS.bindTo(this._keybindingService);
+		this._editorTextFocusContextKey = EditorContextKeys.TextFocus.bindTo(this._keybindingService);
 		this.textArea.className = editorBrowser.ClassNames.TEXTAREA;
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
