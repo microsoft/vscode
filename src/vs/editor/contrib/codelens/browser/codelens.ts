@@ -508,11 +508,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		if (!this._editor.getModel()) {
 			return;
 		}
-		if (!symbols) {
-			symbols = [];
-		} else {
-			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(Range.lift(a.symbol.range), Range.lift(b.symbol.range)));
-		}
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
 		let groups: ICodeLensData[][] = [];
@@ -611,7 +606,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
 				return asWinJsPromise((token) => {
-					return request.support.resolveCodeLens(model, request.symbol, token);
+					return request.provider.resolveCodeLens(model, request.symbol, token);
 				}).then(symbol => {
 					resolvedSymbols[i] = symbol;
 				});
