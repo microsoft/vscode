@@ -18,7 +18,7 @@ import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {ICommonCodeEditor, IEditorContribution, EditorKbExpr, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IEditorContribution, EditorKbExpr} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -193,7 +193,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 
 	constructor() {
 		super(
-			SHOW_ACCESSIBILITY_HELP_ACTION_ID,
+			'editor.action.showAccessibilityHelp',
 			nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help"),
 			'Show Accessibility Help',
 			false

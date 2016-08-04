@@ -3019,37 +3019,39 @@ export interface IDiffLineInformation {
 
 /**
  * A context key that is set when the editor's text has focus (cursor is blinking).
+ * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
+export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = new KbCtxKey('editorTextFocus');
 
 /**
  * A context key that is set when the editor's text or an editor's widget has focus.
+ * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
+export const KEYBINDING_CONTEXT_EDITOR_FOCUS = new KbCtxKey('editorFocus');
 /**
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
+export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = new KbCtxKey('editorTabMovesFocus');
 /**
  * A context key that is set when the editor's text is readonly.
- */
-export const KEYBINDING_CONTEXT_EDITOR_READONLY = 'editorReadonly';
-/**
- * A context key that is set when the editor has multiple selections (multiple cursors).
- */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
-/**
- * A context key that is set when the editor has a non-collapsed selection.
- */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
-/**
- * A context key that is set to the language associated with the model associated with the editor.
- */
-export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
-/**
  * @internal
  */
-export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
+export const KEYBINDING_CONTEXT_EDITOR_READONLY = new KbCtxKey('editorReadonly');
+/**
+ * A context key that is set when the editor has multiple selections (multiple cursors).
+ * @internal
+ */
+export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = new KbCtxKey('editorHasMultipleSelections');
+/**
+ * A context key that is set when the editor has a non-collapsed selection.
+ * @internal
+ */
+export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = new KbCtxKey('editorHasSelection');
+/**
+ * A context key that is set to the language associated with the model associated with the editor.
+ * @internal
+ */
+export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = new KbCtxKey('editorLangId');
 
 /**
  * @internal
@@ -3075,20 +3077,20 @@ export interface IEditorKbExpr {
  * @internal
  */
 export let EditorKbExpr: IEditorKbExpr = {
-	TextFocus: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	Focus: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_FOCUS),
+	TextFocus: KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS,
+	Focus: KEYBINDING_CONTEXT_EDITOR_FOCUS,
 
-	ReadOnly: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_READONLY),
-	Writable: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY),
+	ReadOnly: KEYBINDING_CONTEXT_EDITOR_READONLY,
+	Writable: KEYBINDING_CONTEXT_EDITOR_READONLY.toNegated(),
 
-	HasNonEmptySelection: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
-	HasOnlyEmptySelection: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
+	HasNonEmptySelection: KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION,
+	HasOnlyEmptySelection: KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION.toNegated(),
 
-	HasMultipleSelections: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
-	HasSingleSelection: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
+	HasMultipleSelections: KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS,
+	HasSingleSelection: KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS.toNegated(),
 
-	TabMovesFocus: KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
-	TabDoesNotMoveFocus: KbExpr.not(KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
+	TabMovesFocus: KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS,
+	TabDoesNotMoveFocus: KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS.toNegated(),
 };
 
 

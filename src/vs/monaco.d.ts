@@ -2707,36 +2707,6 @@ declare module monaco.editor {
         charChanges: ICharChange[];
     }
 
-    /**
-     * A context key that is set when the editor's text has focus (cursor is blinking).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text or an editor's widget has focus.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text is readonly.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_READONLY: string;
-
-    /**
-     * A context key that is set when the editor has multiple selections (multiple cursors).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: string;
-
-    /**
-     * A context key that is set when the editor has a non-collapsed selection.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION: string;
-
-    /**
-     * A context key that is set to the language associated with the model associated with the editor.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: string;
-
     export class BareFontInfo {
         _bareFontInfoBrand: void;
         fontFamily: string;

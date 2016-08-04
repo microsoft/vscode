@@ -47,7 +47,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -67,6 +67,10 @@ import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+
+export const MessagesVisibleContext = new KbCtxKey('globalMessageVisible');
+export const EditorsVisibleContext = new KbCtxKey('editorIsOpen');
+export const NoEditorsVisibleContext:KbExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;
@@ -199,8 +203,8 @@ export class Workbench implements IPartService {
 			}
 
 			// Contexts
-			this.messagesVisibleContext = this.keybindingService.createKey('globalMessageVisible', false);
-			this.editorsVisibleContext = this.keybindingService.createKey('editorIsOpen', false);
+			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.keybindingService, false);
+			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.keybindingService, false);
 
 			// Register Listeners
 			this.registerListeners();

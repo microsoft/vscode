@@ -123,7 +123,7 @@ registerAction({
 	title: nls.localize('clearOutput.label', "Clear Output"),
 	menu: {
 		menuId: MenuId.EditorContext,
-		when: KbExpr.equals(KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, OUTPUT_MODE_ID)
+		when: KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID.isEqualTo(OUTPUT_MODE_ID)
 	},
 	handler(accessor) {
 		accessor.get(IOutputService).getActiveChannel().clear();
