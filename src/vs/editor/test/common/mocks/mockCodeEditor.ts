@@ -60,7 +60,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 
 	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor:any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
-		this.contributions[r.getId()] = r;
+		this._contributions[r.getId()] = r;
 		return r;
 	}
 }

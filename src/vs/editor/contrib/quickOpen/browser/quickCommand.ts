@@ -5,14 +5,13 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {matchesFuzzy} from 'vs/base/common/filters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {ICommonCodeEditor, IEditor} from 'vs/editor/common/editorCommon';
+import {IEditorAction, ICommonCodeEditor, IEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
 import {EditorKbExpr, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
@@ -20,10 +19,10 @@ import * as browser from 'vs/base/browser/browser';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
-	private action: IAction;
+	private action: IEditorAction;
 	private editor: IEditor;
 
-	constructor(key: string, highlights: IHighlight[], action: IAction, editor: IEditor) {
+	constructor(key: string, highlights: IHighlight[], action: IEditorAction, editor: IEditor) {
 		super();
 
 		this.key = key;
@@ -115,7 +114,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 	}
 
 	private _editorActionsToEntries(keybindingService:IKeybindingService, editor:ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
-		let actions: IAction[] = editor.getSupportedActions();
+		let actions: IEditorAction[] = editor.getSupportedActions();
 		let entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {

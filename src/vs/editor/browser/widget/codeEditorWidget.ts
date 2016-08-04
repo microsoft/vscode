@@ -29,7 +29,7 @@ import {View} from 'vs/editor/browser/view/viewImpl';
 import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {NewEditorAction} from 'vs/editor/common/editorAction';
+import {InternalEditorAction} from 'vs/editor/common/editorAction';
 
 export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -98,20 +98,19 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
-		var contributionDescriptors = [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
-		for (var i = 0, len = contributionDescriptors.length; i < len; i++) {
+		let contributionDescriptors = [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
+		for (let i = 0, len = contributionDescriptors.length; i < len; i++) {
 			try {
-				var contribution = contributionDescriptors[i].createInstance(this._instantiationService, this);
-				this.contributions[contribution.getId()] = contribution;
+				let contribution = contributionDescriptors[i].createInstance(this._instantiationService, this);
+				this._contributions[contribution.getId()] = contribution;
 			} catch (err) {
-				console.error('Could not instantiate contribution ' + contribution.getId());
 				onUnexpectedError(err);
 			}
 		}
 
 		CommonEditorRegistry.getEditorActions().forEach((action) => {
-			let contribution = new NewEditorAction(action, this, this._instantiationService);
-			this.contributions[contribution.getId()] = contribution;
+			let internalAction = new InternalEditorAction(action, this, this._instantiationService);
+			this._actions[internalAction.id] = internalAction;
 		});
 	}
 
@@ -239,15 +238,18 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 			return null;
 		}
 		let contributionsState: {[key:string]:any} = {};
-		for (let id in this.contributions) {
-			let contribution = this.contributions[id];
+
+		let keys = Object.keys(this._contributions);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let id = keys[i];
+			let contribution = this._contributions[id];
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
 
-		var cursorState = this.cursor.saveState();
-		var viewState = this._view.saveState();
+		let cursorState = this.cursor.saveState();
+		let viewState = this._view.saveState();
 		return {
 			cursorState: cursorState,
 			viewState: viewState,
@@ -272,8 +274,10 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 			this._view.restoreState(codeEditorState.viewState);
 
 			let contributionsState = s.contributionsState || {};
-			for (let id in this.contributions) {
-				let contribution = this.contributions[id];
+			let keys = Object.keys(this._contributions);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let id = keys[i];
+				let contribution = this._contributions[id];
 				if (typeof contribution.restoreViewState === 'function') {
 					contribution.restoreViewState(contributionsState[id]);
 				}
