@@ -128,20 +128,6 @@ export class NewEditorAction extends EditorAction {
 	}
 }
 
-export class HandlerEditorAction extends EditorAction {
-	private _handlerId: string;
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, handlerId: string) {
-		super(descriptor, editor);
-		this._handlerId = handlerId;
-	}
-
-	public run(): TPromise<boolean> {
-		this.editor.trigger(this.getId(), this._handlerId, null);
-		return TPromise.as(true);
-	}
-}
-
 export class DynamicEditorAction extends EditorAction {
 
 	private static _transformBehaviour(behaviour:IActionEnablement): Behaviour {

@@ -6,31 +6,28 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {Handler, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {Handler} from 'vs/editor/common/editorCommon';
+import {EditorKbExpr, HandlerEditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
-class SelectBracketAction extends EditorAction {
+class SelectBracketAction extends HandlerEditorAction2 {
 
 	static ID = 'editor.action.jumpToBracket';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super(
+			'editor.action.jumpToBracket',
+			nls.localize('smartSelect.jumpBracket', "Go to Bracket"),
+			'Go to Bracket',
+			false,
+			Handler.JumpToBracket
+		);
+
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
+		};
 	}
-
-	public run():TPromise<boolean> {
-
-		this.editor.trigger(this.id, Handler.JumpToBracket, {});
-
-		return TPromise.as(true);
-	}
-
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectBracketAction, SelectBracketAction.ID, nls.localize('smartSelect.jumpBracket', "Go to Bracket"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
-}, 'Go to Bracket'));
+CommonEditorRegistry.registerEditorAction2(new SelectBracketAction());
