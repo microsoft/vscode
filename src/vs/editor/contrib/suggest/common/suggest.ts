@@ -36,25 +36,33 @@ export interface ISuggestOptions {
 	snippetConfig?: SnippetConfig;
 }
 
-let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
+
+// add suggestions from snippet registry.
+const snippetSuggestSupport: ISuggestSupport = {
+
+	triggerCharacters: [],
+
+	provideCompletionItems(model: IReadOnlyModel, position: Position): ISuggestResult[] {
+		// currentWord is irrelevant, all suggestion use overwriteBefore
+		const result: ISuggestResult = { suggestions: [], currentWord: '' };
+		Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position, result.suggestions);
+		return [result];
+	}
+};
 
 export function provideSuggestionItems(model: IReadOnlyModel, position: Position, options: ISuggestOptions = {}): TPromise<ISuggestionItem[]> {
 
 	const result: ISuggestionItem[] = [];
-	const suggestFilter = createSuggesionFilter(options);
-	const suggestCompare = createSuggesionComparator(options);
+	const acceptSuggestion = createSuggesionFilter(options);
 
-	// add suggestions from snippet registry.
-	// currentWord is irrelevant, all suggestion use overwriteBefore
-	let snippetSuggestResult : ISuggestResult = { suggestions: [], currentWord: '' };
-	snippetsRegistry.getSnippetCompletions(model, position, snippetSuggestResult.suggestions);
-	fillInSuggestResult(result, snippetSuggestResult, undefined, suggestFilter);
-
+	// get provider groups, always add snippet suggestion provider
+	const supports = (options.groups || SuggestRegistry.orderedGroups(model));
+	supports.unshift([snippetSuggestSupport]);
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	let hasResult = false;
-	const factory = (options.groups || SuggestRegistry.orderedGroups(model)).map(supports => {
+	const factory = supports.map(supports => {
 		return () => {
 			// stop when we have a result
 			if (hasResult) {
@@ -62,39 +70,39 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 			}
 			// for each support in the group ask for suggestions
 			return TPromise.join(supports.map(support => asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(values => {
-				if (!isFalsyOrEmpty(values)) {
-					for (let suggestResult of values) {
-						hasResult = fillInSuggestResult(result, suggestResult, support, suggestFilter) || hasResult;
+
+				if (isFalsyOrEmpty(values)) {
+					return;
+				}
+
+				let oldLen = result.length;
+
+				for (let container of values) {
+					if (container && !isFalsyOrEmpty(container.suggestions)) {
+						for (let suggestion of container.suggestions) {
+							if (acceptSuggestion(suggestion)) {
+
+								fixOverwriteBeforeAfter(suggestion, container);
+
+								result.push({
+									container,
+									suggestion,
+									support
+								});
+							}
+						}
 					}
 				}
+
+				if (oldLen !== result.length && support !== snippetSuggestSupport) {
+					hasResult = true;
+				}
+
 			}, onUnexpectedError)));
 		};
 	});
 
-	return sequence(factory).then(() => result.sort(suggestCompare));
-}
-
-function fillInSuggestResult(bucket: ISuggestionItem[], result: ISuggestResult, support: ISuggestSupport, acceptFn: (c: ISuggestion) => boolean): boolean {
-	if (!result) {
-		return false;
-	}
-	if (!result.suggestions) {
-		return false;
-	}
-	const len = bucket.length;
-	for (const suggestion of result.suggestions) {
-		if (acceptFn(suggestion)) {
-
-			fixOverwriteBeforeAfter(suggestion, result);
-
-			bucket.push({
-				support,
-				suggestion,
-				container: result,
-			});
-		}
-	}
-	return len !== bucket.length;
+	return sequence(factory).then(() => result.sort(createSuggesionComparator(options)));
 }
 
 function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
