@@ -144,7 +144,7 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(?:(?:(-\s*)?(\w+\s*(:)))|(-))\s*(?:((")[^"]*("))|((')[^']*('))|([^,{}&amp;#\[\]]+))\s*</string>
+			<string>(?:(?:(-\s*)?(\w+\s*(:)))|(-))\s*(?:((")[^"]*("))|((')[^']*('))|([^{}&amp;#\[\]]+))\s*</string>
 			<key>name</key>
 			<string>string.unquoted.yaml</string>
 		</dict>
