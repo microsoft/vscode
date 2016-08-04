@@ -20,6 +20,7 @@ export abstract class AbstractInternalEditorAction {
 		this.id = id;
 		this.label = label;
 		this.alias = alias;
+		this._editor = editor;
 	}
 }
 
