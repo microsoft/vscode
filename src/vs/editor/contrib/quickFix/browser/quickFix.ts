@@ -7,16 +7,14 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -69,10 +67,9 @@ export class QuickFixController implements IEditorContribution {
 		}
 	}
 
-	public run():TPromise<boolean> {
+	public run(): void {
 		this.model.triggerDialog(false, this.editor.getPosition());
 		this.editor.focus();
-		return TPromise.as(false);
 	}
 
 	public dispose(): void {
@@ -118,21 +115,31 @@ export class QuickFixController implements IEditorContribution {
 	}
 }
 
-export class QuickFixAction extends EditorAction {
+export class QuickFixAction extends EditorAction2 {
 
-	static ID = 'editor.action.quickFix';
+	constructor() {
+		super(
+			'editor.action.quickFix',
+			nls.localize('quickfix.trigger.label', "Quick Fix"),
+			'Quick Fix',
+			true
+		);
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.US_DOT
+		};
 	}
 
-	public isSupported(): boolean {
-		var model = this.editor.getModel();
-		return CodeActionProviderRegistry.has(model) && !this.editor.getConfiguration().readOnly;
+	public supported(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
+			return false;
+		}
+		return CodeActionProviderRegistry.has(editor.getModel());
 	}
 
-	public run():TPromise<boolean> {
-		return QuickFixController.getQuickFixController(this.editor).run();
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		QuickFixController.getQuickFixController(editor).run();
 	}
 }
 
@@ -141,10 +148,7 @@ var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = 'quickFixWidgetVisible';
 var weight = CommonEditorRegistry.commandWeight(80);
 
 // register action
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickFixAction, QuickFixAction.ID, nls.localize('quickfix.trigger.label', "Quick Fix"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.US_DOT
-}, 'Quick Fix'));
+CommonEditorRegistry.registerEditorAction2(new QuickFixAction());
 CommonEditorRegistry.registerEditorCommand('acceptQuickFixSuggestion', weight, { primary: KeyCode.Enter, secondary: [KeyCode.Tab] }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.acceptSelectedSuggestion();

@@ -378,6 +378,19 @@ export abstract class EditorAction2 {
 	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;
 }
 
+export abstract class HandlerEditorAction2 extends EditorAction2 {
+	private _handlerId: string;
+
+	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean, handlerId: string) {
+		super(id, label, alias, needsWritableEditor);
+		this._handlerId = handlerId;
+	}
+
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		editor.trigger(this.id, this._handlerId, null);
+	}
+}
+
 export let EditorKbExpr: {
 	TextFocus: KbExpr;
 	Focus: KbExpr;

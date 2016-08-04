@@ -15,11 +15,10 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
-import {KEYBINDING_CONTEXT_EDITOR_READONLY, ModeContextKeys} from 'vs/editor/common/editorCommon';
+import {IRange, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {KEYBINDING_CONTEXT_EDITOR_READONLY, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {RenameProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -30,37 +29,38 @@ import RenameInputField from './renameInputField';
 
 const CONTEXT_RENAME_INPUT_VISIBLE = 'renameInputVisible';
 
-// ---- action implementation
+class RenameController implements IEditorContribution {
 
-export class RenameAction extends EditorAction {
+	private static ID = 'editor.contrib.renameController';
 
-	public static ID: string = 'editor.action.rename';
+	public static get(editor:ICommonCodeEditor): RenameController {
+		return <RenameController>editor.getContribution(RenameController.ID);
+	}
 
 	private _renameInputField: RenameInputField;
 	private _renameInputVisible: IKeybindingContextKey<boolean>;
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICodeEditor,
+	constructor(
+		private editor:ICodeEditor,
 		@IMessageService private _messageService: IMessageService,
 		@IEventService private _eventService: IEventService,
 		@IEditorService private _editorService: IEditorService,
 		@IProgressService private _progressService: IProgressService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable);
-
 		this._renameInputField = new RenameInputField(editor);
 		this._renameInputVisible = keybindingService.createKey(CONTEXT_RENAME_INPUT_VISIBLE, false);
 	}
 
-	public isSupported(): boolean {
-		return RenameProviderRegistry.has(this.editor.getModel()) && !this.editor.getModel().hasEditableRange() && super.isSupported();
+	public dispose(): void {
+		this._renameInputField.dispose();
 	}
 
-	public getEnablementState(): boolean {
-		return RenameProviderRegistry.has(this.editor.getModel());
+	public getId(): string {
+		return RenameController.ID;
 	}
 
-	public run(event?: any): TPromise<any> {
+	public run(): TPromise<void> {
 
 		const selection = this.editor.getSelection(),
 			word = this.editor.getModel().getWordAtPosition(selection.getStartPosition());
@@ -145,30 +145,59 @@ export class RenameAction extends EditorAction {
 	}
 }
 
+// ---- action implementation
+
+export class RenameAction extends EditorAction2 {
+
+	constructor() {
+		super(
+			'editor.action.rename',
+			nls.localize('rename.label', "Rename Symbol"),
+			'Rename Symbol',
+			true
+		);
+
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyCode.F2
+		};
+
+		this.menuOpts = {
+			group: '1_modification',
+			order: 1.1,
+			kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
+		};
+	}
+
+	public supported(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
+			return false;
+		}
+		return RenameProviderRegistry.has(editor.getModel()) && !editor.getModel().hasEditableRange();
+	}
+
+	public enabled(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
+		if (!super.enabled(accessor, editor)) {
+			return false;
+		}
+		return RenameProviderRegistry.has(editor.getModel());
+	}
+
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+		return RenameController.get(editor).run();
+	}
+}
+
+EditorBrowserRegistry.registerEditorContribution(RenameController);
+
 const weight = CommonEditorRegistry.commandWeight(99);
 
-CommonEditorRegistry.registerEditorAction({
-	ctor: RenameAction,
-	id: RenameAction.ID,
-	label: nls.localize('rename.label', "Rename Symbol"),
-	alias: 'Rename Symbol',
-	kbOpts: {
-		context: ContextKey.EditorTextFocus,
-		primary: KeyCode.F2
-	},
-	menuOpts: {
-		group: '1_modification',
-		order: 1.1,
-		kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), KbExpr.not(KEYBINDING_CONTEXT_EDITOR_READONLY))
-	}
-});
+CommonEditorRegistry.registerEditorAction2(new RenameAction());
 
 CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	const action = <RenameAction>editor.getAction(RenameAction.ID);
-	action.acceptRenameInput();
+	RenameController.get(editor).acceptRenameInput();
 });
 
 CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
-	const action = <RenameAction>editor.getAction(RenameAction.ID);
-	action.cancelRenameInput();
+	RenameController.get(editor).cancelRenameInput();
 });

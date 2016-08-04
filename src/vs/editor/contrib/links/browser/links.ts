@@ -15,10 +15,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction2, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {LinkProviderRegistry} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IEditorMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -317,37 +315,34 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 }
 
-class OpenLinkAction extends EditorAction {
+class OpenLinkAction extends EditorAction2 {
 
-	static ID = 'editor.action.openLink';
-
-	constructor(
-		descriptor: editorCommon.IEditorActionDescriptorData,
-		editor: editorCommon.ICommonCodeEditor
-	) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
+	constructor() {
+		super(
+			'editor.action.openLink',
+			nls.localize('label', "Open Link"),
+			'Open Link',
+			false
+		);
 	}
 
-	public dispose(): void {
-		super.dispose();
-	}
-
-	public getEnablementState(): boolean {
-		if (LinkDetector.get(this.editor).isComputing()) {
+	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
+		let linkDetector = LinkDetector.get(editor);
+		if (linkDetector.isComputing()) {
 			// optimistic enablement while state is being computed
 			return true;
 		}
-		return !!LinkDetector.get(this.editor).getLinkOccurence(this.editor.getPosition());
+		return !!linkDetector.getLinkOccurence(editor.getPosition());
 	}
 
-	public run(): TPromise<any> {
-		var link = LinkDetector.get(this.editor).getLinkOccurence(this.editor.getPosition());
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		let linkDetector = LinkDetector.get(editor);
+		let link = linkDetector.getLinkOccurence(editor.getPosition());
 		if (link) {
-			LinkDetector.get(this.editor).openLinkOccurence(link, false);
+			linkDetector.openLinkOccurence(link, false);
 		}
-		return TPromise.as(null);
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OpenLinkAction, OpenLinkAction.ID, nls.localize('label', "Open Link"), void 0, 'Open Link'));
+CommonEditorRegistry.registerEditorAction2(new OpenLinkAction());
 EditorBrowserRegistry.registerEditorContribution(LinkDetector);

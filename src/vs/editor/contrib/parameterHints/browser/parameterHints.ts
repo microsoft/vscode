@@ -6,15 +6,13 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorAction } from 'vs/editor/common/editorAction';
-import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { withCodeEditorFromCommandHandler } from 'vs/editor/common/config/config';
-import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
+import { ServicesAccessor, EditorKbExpr, EditorAction2, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
@@ -62,21 +60,31 @@ class ParameterHintsController implements IEditorContribution {
 	}
 }
 
-export class TriggerParameterHintsAction extends EditorAction {
+export class TriggerParameterHintsAction extends EditorAction2 {
 
-	static ID = 'editor.action.triggerParameterHints';
+	constructor() {
+		super(
+			'editor.action.triggerParameterHints',
+			nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"),
+			'Trigger Parameter Hints',
+			false
+		);
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
+		this.kbOpts = {
+			kbExpr: EditorKbExpr.TextFocus,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
+		};
 	}
 
-	isSupported(): boolean {
-		return SignatureHelpProviderRegistry.has(this.editor.getModel()) && super.isSupported();
+	public supported(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
+		if (!super.supported(accessor, editor)) {
+			return false;
+		}
+		return SignatureHelpProviderRegistry.has(editor.getModel());
 	}
 
-	run():TPromise<boolean> {
-		ParameterHintsController.get(this.editor).trigger();
-		return TPromise.as(true);
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		ParameterHintsController.get(editor).trigger();
 	}
 }
 
@@ -90,13 +98,7 @@ function handler(id: string, fn: (controller: ParameterHintsController) => void)
 
 EditorBrowserRegistry.registerEditorContribution(ParameterHintsController);
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(
-	TriggerParameterHintsAction,
-	TriggerParameterHintsAction.ID,
-	nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"),
-	{ context: ContextKey.EditorTextFocus, primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space },
-	'Trigger Parameter Hints'
-));
+CommonEditorRegistry.registerEditorAction2(new TriggerParameterHintsAction());
 
 KeybindingsRegistry.registerCommandDesc({
 	id: 'closeParameterHints',
