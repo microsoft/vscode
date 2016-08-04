@@ -319,11 +319,11 @@ export class WorkbenchShell {
 		serviceCollection.set(ICodeEditorService, codeEditorService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = instantiationService.createInstance(ExtensionManagementChannelClient, extensionManagementChannel);
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		const urlChannel = mainProcessClient.getChannel('url');
-		const urlChannelClient = instantiationService.createInstance(URLChannelClient, urlChannel, this.windowService.getWindowId());
+		const urlChannelClient = new URLChannelClient(urlChannel, this.windowService.getWindowId());
 		serviceCollection.set(IURLService, urlChannelClient);
 
 		return [instantiationService, serviceCollection];
