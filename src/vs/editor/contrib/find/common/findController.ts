@@ -877,15 +877,17 @@ CommonEditorRegistry.registerEditorAction(new AddSelectionToNextFindMatchAction(
 CommonEditorRegistry.registerEditorAction(new AddSelectionToPreviousFindMatchAction());
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(
-	CommonFindController.getFindController,
-	CommonEditorRegistry.commandWeight(5),
-	EditorKbExpr.Focus
+	CommonFindController.getFindController, {
+		weight: CommonEditorRegistry.commandWeight(5),
+		kbExpr: EditorKbExpr.Focus
+	}
 );
 
 const VisibleWidgetFindCommand = EditorCommand.bindToContribution(
-	CommonFindController.getFindController,
-	CommonEditorRegistry.commandWeight(5),
-	KbExpr.and(EditorKbExpr.Focus, CONTEXT_FIND_WIDGET_VISIBLE)
+	CommonFindController.getFindController, {
+		weight: CommonEditorRegistry.commandWeight(5),
+		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_FIND_WIDGET_VISIBLE)
+	}
 );
 
 CommonEditorRegistry.registerEditorCommand2(new VisibleWidgetFindCommand(

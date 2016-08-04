@@ -547,9 +547,10 @@ class PrevMarkerAction extends MarkerNavigationAction {
 var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey('markersNavigationVisible');
 
 const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(
-	MarkerController.getMarkerController,
-	CommonEditorRegistry.commandWeight(50),
-	KbExpr.and(EditorKbExpr.Focus, CONTEXT_MARKERS_NAVIGATION_VISIBLE)
+	MarkerController.getMarkerController, {
+		weight: CommonEditorRegistry.commandWeight(50),
+		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_MARKERS_NAVIGATION_VISIBLE)
+	}
 );
 
 // register actions

@@ -146,9 +146,10 @@ export class QuickFixAction extends EditorAction {
 var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new KbCtxKey('quickFixWidgetVisible');
 
 const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(
-	QuickFixController.getQuickFixController,
-	CommonEditorRegistry.commandWeight(80),
-	KbExpr.and(EditorKbExpr.Focus, CONTEXT_QUICK_FIX_WIDGET_VISIBLE)
+	QuickFixController.getQuickFixController, {
+		weight: CommonEditorRegistry.commandWeight(80),
+		kbExpr: KbExpr.and(EditorKbExpr.Focus, CONTEXT_QUICK_FIX_WIDGET_VISIBLE)
+	}
 );
 
 // register action

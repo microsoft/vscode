@@ -331,7 +331,7 @@ export class SearchWidget extends Widget {
 }
 
 export function registerContributions() {
-	KeybindingsRegistry.registerCommandDesc({id: ReplaceAllAction.ID,
+	KeybindingsRegistry.registerCommandAndKeybindingRule({id: ReplaceAllAction.ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: KbExpr.and(KbExpr.has('searchViewletVisible'), SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,

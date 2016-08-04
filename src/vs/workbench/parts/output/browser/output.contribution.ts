@@ -104,7 +104,7 @@ function registerAction(desc: IActionDescriptor) {
 	// 4) keybindings
 	if (keybinding) {
 		let {when, weight, keys} = keybinding;
-		KeybindingsRegistry.registerCommandRule({
+		KeybindingsRegistry.registerKeybindingRule({
 			id,
 			when,
 			weight,

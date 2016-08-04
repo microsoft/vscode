@@ -33,7 +33,7 @@ export class ToggleTabFocusModeAction extends EditorAction {
 // register actions
 CommonEditorRegistry.registerEditorAction(new ToggleTabFocusModeAction());
 
-KeybindingsRegistry.registerCommandRule({
+KeybindingsRegistry.registerKeybindingRule({
 	id: ToggleTabFocusModeAction.ID,
 	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 	when: null,

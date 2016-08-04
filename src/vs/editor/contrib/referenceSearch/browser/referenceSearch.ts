@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandHandler} from 'vs/platform/commands/common/commands';
+import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Position} from 'vs/editor/common/core/position';
@@ -156,20 +156,10 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 CommonEditorRegistry.registerEditorContribution(ReferenceController);
 CommonEditorRegistry.registerEditorAction(new ReferenceAction());
 
-KeybindingsRegistry.registerCommandDesc({
-	id: 'editor.action.findReferences',
-	handler: findReferencesCommand,
-	weight: CommonEditorRegistry.commandWeight(50),
-	when: null,
-	primary: undefined
-});
+CommandsRegistry.registerCommand('editor.action.findReferences', findReferencesCommand);
 
-KeybindingsRegistry.registerCommandDesc({
-	id: 'editor.action.showReferences',
+CommandsRegistry.registerCommand('editor.action.showReferences', {
 	handler: showReferencesCommand,
-	weight: CommonEditorRegistry.commandWeight(50),
-	when: null,
-	primary: undefined,
 	description: {
 		description: 'Show references at a position in a file',
 		args: [
@@ -188,7 +178,7 @@ function closeActiveReferenceSearch(accessor, args) {
 	}
 }
 
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
 	weight: CommonEditorRegistry.commandWeight(50),
 	primary: KeyCode.Escape,
@@ -197,7 +187,7 @@ KeybindingsRegistry.registerCommandDesc({
 	handler: closeActiveReferenceSearch
 });
 
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearchEditor',
 	weight: CommonEditorRegistry.commandWeight(-101),
 	primary: KeyCode.Escape,

@@ -42,7 +42,7 @@ let isActiveEditorMoveArg= function(arg): boolean  {
 
 
 function _registerActiveEditorMoveCommand() {
-	KeybindingsRegistry.registerCommandDesc({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: EditorKbExpr.TextFocus,

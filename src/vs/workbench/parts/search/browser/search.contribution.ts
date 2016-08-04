@@ -33,7 +33,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 replaceContributions();
 searchWidgetContributions();
 
-KeybindingsRegistry.registerCommandDesc({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: KbExpr.has('searchViewletVisible'),

@@ -76,14 +76,15 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 CommonEditorRegistry.registerEditorContribution(TabCompletionController);
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(
-	(editor) => <TabCompletionController>editor.getContribution(TabCompletionController.Id),
-	KeybindingsRegistry.WEIGHT.editorContrib(),
-	KbExpr.and(
-		TabCompletionController.ContextKey,
-		EditorKbExpr.TextFocus,
-		EditorKbExpr.TabDoesNotMoveFocus,
-		KbExpr.has('config.editor.tabCompletion')
-	)
+	(editor) => <TabCompletionController>editor.getContribution(TabCompletionController.Id), {
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+		kbExpr: KbExpr.and(
+			TabCompletionController.ContextKey,
+			EditorKbExpr.TextFocus,
+			EditorKbExpr.TabDoesNotMoveFocus,
+			KbExpr.has('config.editor.tabCompletion')
+		)
+	}
 );
 
 CommonEditorRegistry.registerEditorCommand2(new TabCompletionCommand(
