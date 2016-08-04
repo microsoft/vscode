@@ -269,8 +269,8 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideCompletionItems(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult[]> { throw ni(); }
 	$resolveCompletionItem(handle: number, resource: URI, position: editorCommon.IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
 	$provideSignatureHelp(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
-	$providDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> { throw ni(); }
-
+	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> { throw ni(); }
+	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> { throw ni(); }
 }
 
 export abstract class ExtHostQuickOpenShape {

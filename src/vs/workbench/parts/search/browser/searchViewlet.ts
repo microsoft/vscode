@@ -142,14 +142,6 @@ export class SearchViewlet extends Viewlet {
 		let includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
 
-		let onKeyUp = (e: KeyboardEvent) => {
-			if (e.keyCode === KeyCode.Enter) {
-				this.onQueryChanged(true);
-			} else if (e.keyCode === KeyCode.Escape) {
-				this.cancelSearch();
-			}
-		};
-
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
@@ -177,7 +169,6 @@ export class SearchViewlet extends Viewlet {
 				this.inputPatternIncludes.setValue(patternIncludes);
 
 				this.inputPatternIncludes
-					.on(dom.EventType.KEY_UP, onKeyUp)
 					.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 						let keyboardEvent = new StandardKeyboardEvent(e);
 						if (keyboardEvent.equals(CommonKeybindings.UP_ARROW)) {
@@ -208,7 +199,6 @@ export class SearchViewlet extends Viewlet {
 				this.inputPatternExclusions.setValue(patternExclusions);
 
 				this.inputPatternExclusions
-					.on(dom.EventType.KEY_UP, onKeyUp)
 					.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 						let keyboardEvent = new StandardKeyboardEvent(e);
 						if (keyboardEvent.equals(CommonKeybindings.UP_ARROW)) {

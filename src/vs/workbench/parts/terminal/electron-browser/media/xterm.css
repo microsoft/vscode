@@ -49,9 +49,12 @@
 	opacity: 0 !important;
 }
 
-.monaco-workbench .panel.integrated-terminal .reverse-video { color: #1e1e1e; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .reverse-video { color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal .reverse-video { color: #FFF; }
+.monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
+.monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #CCC; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #1e1e1e; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #000; }
 
 .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
 .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #333; }

@@ -8,19 +8,17 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class MergeLinesAction extends BasicEmmetEditorAction {
-
-	static ID = 'editor.emmet.action.mergeLines';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IConfigurationService configurationService: IConfigurationService) {
-		super(descriptor, editor, configurationService, 'merge_lines');
+	constructor() {
+		super(
+			'editor.emmet.action.mergeLines',
+			nls.localize('mergeLines', "Emmet: Merge Lines"),
+			'Emmet: Merge Lines',
+			'merge_lines'
+		);
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MergeLinesAction,
-	MergeLinesAction.ID,
-	nls.localize('mergeLines', "Emmet: Merge Lines"), void 0, 'Emmet: Merge Lines'));
+CommonEditorRegistry.registerEditorAction2(new MergeLinesAction());

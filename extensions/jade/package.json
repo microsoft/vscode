@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js davidrios/jade-tmbundle Syntaxes/Jade.tmLanguage ./syntaxes/Jade.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "jade",
@@ -13,7 +16,7 @@
 		"grammars": [{
 			"language": "jade",
 			"scopeName": "text.jade",
-			"path": "./syntaxes/Jade.tmLanguage"
+			"path": "./syntaxes/Jade.json"
 		}]
 	}
 }

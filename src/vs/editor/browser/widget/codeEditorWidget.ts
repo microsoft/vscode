@@ -29,6 +29,7 @@ import {View} from 'vs/editor/browser/view/viewImpl';
 import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {NewEditorAction} from 'vs/editor/common/editorAction';
 
 export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -107,6 +108,11 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 				onUnexpectedError(err);
 			}
 		}
+
+		CommonEditorRegistry.getEditorActions().forEach((action) => {
+			let contribution = new NewEditorAction(action, this, this._instantiationService);
+			this.contributions[contribution.getId()] = contribution;
+		});
 	}
 
 	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
