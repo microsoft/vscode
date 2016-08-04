@@ -1455,26 +1455,46 @@ export class Cursor extends EventEmitter {
 
 	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
 		let editorScrollArg: editorCommon.EditorScrollArguments = ctx.eventData;
-		let value = editorScrollArg.value || 1;
+		editorScrollArg.value = editorScrollArg.value || 1;
 		switch (editorScrollArg.to) {
 			case editorCommon.EditorScrollDirection.Up:
-				value = -(value);
 			case editorCommon.EditorScrollDirection.Down:
-				ctx.requestScrollDeltaLines = value * (editorCommon.EditorScrollByUnit.Page === editorScrollArg.by ? this.cursors.getAll()[0].getPageSize() : 1);
+				return this._scrollUpOrDown(editorScrollArg, ctx);
+		}
+		return true;
+	}
+
+	private _scrollUpOrDown(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
+		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
+		let noOfLines = 1;
+		let cursor: OneCursor = this.cursors.getAll()[0];
+		switch (editorScrollArg.by) {
+			case editorCommon.EditorScrollByUnit.WrappedLine:
+				noOfLines = editorScrollArg.value;
+				break;
+			case editorCommon.EditorScrollByUnit.Line:
+				noOfLines = (up ? cursor.getDeltaViewLinesToRevealModelLineBeforeViewPortTop(editorScrollArg.value) : cursor.getDeltaViewLinesToRevealModelLineAfteriewPortBottom(editorScrollArg.value)) || 1;
+				break;
+			case editorCommon.EditorScrollByUnit.Page:
+				noOfLines = cursor.getPageSize() * editorScrollArg.value;
+				break;
+			case editorCommon.EditorScrollByUnit.HalfPage:
+				noOfLines = Math.round(this.cursors.getAll()[0].getPageSize() / 2) * editorScrollArg.value;
 				break;
 		}
+		ctx.requestScrollDeltaLines = (up ? -1 : 1) * noOfLines;
 		return true;
 	}
 
 	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Up, value: 1 };
-		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.Line;
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
 		return this._editorScroll(ctx);
 	}
 
 	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Down, value: 1 };
-		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.Line;
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
 		return this._editorScroll(ctx);
 	}
 

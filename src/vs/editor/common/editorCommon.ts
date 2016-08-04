@@ -4290,7 +4290,9 @@ export const EditorScrollDirection = {
  */
 export const EditorScrollByUnit = {
 	Line: 'line',
-	Page: 'page'
+	WrappedLine: 'wrappedLine',
+	Page: 'page',
+	HalfPage: 'halfPage'
 };
 
 /**
@@ -4366,7 +4368,7 @@ export var CommandDescription = {
 					\`\`\`
 					'by': Unit to move. Default is computed based on 'to' value.
 					\`\`\`
-						'line', 'page'
+						'line', 'wrappedLine', page', 'halfPage'
 					\`\`\`
 					'value': Number of units to move. Default is '1'.
 				`,
