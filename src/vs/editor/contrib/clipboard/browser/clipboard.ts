@@ -13,7 +13,7 @@ import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {MenuId} from 'vs/platform/actions/common/actions';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
@@ -63,13 +63,13 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 
 		this.kbOpts = {
 			commandHandler: execCommandToHandler.bind(null, this.id, 'cut'),
-			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(editorCommon.EditorKbExpr.TextFocus, editorCommon.EditorKbExpr.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 		};
 
 		this.menuOpts = {
-			kbExpr: EditorKbExpr.Writable,
+			kbExpr: editorCommon.EditorKbExpr.Writable,
 			menu: MenuId.EditorContext,
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 1
@@ -101,7 +101,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 
 		this.kbOpts = {
 			commandHandler: execCommandToHandler.bind(null, this.id, 'copy'),
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: editorCommon.EditorKbExpr.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 		};
@@ -132,13 +132,13 @@ class ExecCommandPasteAction extends EditorAction {
 
 		this.kbOpts = {
 			commandHandler: execCommandToHandler.bind(null, this.id, 'paste'),
-			kbExpr: KbExpr.and(EditorKbExpr.TextFocus, EditorKbExpr.Writable),
+			kbExpr: KbExpr.and(editorCommon.EditorKbExpr.TextFocus, editorCommon.EditorKbExpr.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 		};
 
 		this.menuOpts = {
-			kbExpr: EditorKbExpr.Writable,
+			kbExpr: editorCommon.EditorKbExpr.Writable,
 			menu: MenuId.EditorContext,
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 3

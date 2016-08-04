@@ -6,8 +6,8 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class ToggleWordWrapAction extends EditorAction {
 

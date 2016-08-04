@@ -11,9 +11,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IEditorAction, ICommonCodeEditor, IEditor} from 'vs/editor/common/editorCommon';
+import {IEditorAction, ICommonCodeEditor, IEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
-import {EditorKbExpr, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 

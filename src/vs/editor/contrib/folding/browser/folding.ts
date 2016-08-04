@@ -13,7 +13,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
-import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
@@ -652,7 +652,7 @@ abstract class FoldingAction2 extends EditorAction {
 		super(id, label, alias, false);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: keybinding
 		};
 	}

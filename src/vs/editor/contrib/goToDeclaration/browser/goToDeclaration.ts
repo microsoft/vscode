@@ -22,7 +22,7 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -172,7 +172,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: editorCommon.EditorKbExpr.TextFocus,
 			primary: goToDeclarationKb
 		};
 
@@ -197,7 +197,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: editorCommon.EditorKbExpr.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 		};
 	}
@@ -214,7 +214,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: editorCommon.EditorKbExpr.TextFocus,
 			primary: KeyMod.Alt | KeyCode.F12,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
 		};

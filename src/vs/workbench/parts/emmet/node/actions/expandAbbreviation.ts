@@ -8,8 +8,8 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry, EditorKbExpr} from 'vs/editor/common/editorCommonExtensions';
-import {Handler, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {Handler, ICommonCodeEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';

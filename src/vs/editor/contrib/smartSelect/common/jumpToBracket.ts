@@ -6,8 +6,8 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Handler} from 'vs/editor/common/editorCommon';
-import {EditorKbExpr, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {Handler, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class SelectBracketAction extends HandlerEditorAction {
 

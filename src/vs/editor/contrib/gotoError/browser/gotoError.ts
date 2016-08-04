@@ -23,7 +23,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
@@ -520,7 +520,7 @@ class NextMarkerAction extends MarkerNavigationAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyCode.F8
 		};
 	}
@@ -536,7 +536,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.Shift | KeyCode.F8
 		};
 	}

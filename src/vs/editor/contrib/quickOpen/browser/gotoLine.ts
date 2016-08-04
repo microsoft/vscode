@@ -12,7 +12,7 @@ import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
-import {EditorKbExpr, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 interface ParseResult {
@@ -158,7 +158,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.Focus,
+			kbExpr: editorCommon.EditorKbExpr.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
 		};

@@ -6,8 +6,8 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Handler, ICommonCodeEditor, ISelection} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorKbExpr, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {Handler, ICommonCodeEditor, EditorKbExpr, ISelection} from 'vs/editor/common/editorCommon';
+import {ServicesAccessor, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class InsertCursorAbove extends HandlerEditorAction {
 	constructor() {

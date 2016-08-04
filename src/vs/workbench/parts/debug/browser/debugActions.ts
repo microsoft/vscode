@@ -18,7 +18,7 @@ import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidge
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ServicesAccessor, EditorKbExpr, EditorAction} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import IDebugService = debug.IDebugService;
 
@@ -526,7 +526,7 @@ export class ToggleBreakpointAction extends EditorAction {
 		);
 
 		this.kbOpts = {
-			kbExpr: EditorKbExpr.TextFocus,
+			kbExpr: editorCommon.EditorKbExpr.TextFocus,
 			primary: KeyCode.F9
 		};
 	}

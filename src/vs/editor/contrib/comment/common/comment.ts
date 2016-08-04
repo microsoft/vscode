@@ -6,8 +6,8 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {EditorKbExpr, EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommand, ICommonCodeEditor, EditorKbExpr} from 'vs/editor/common/editorCommon';
+import {EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LineCommentCommand, Type} from './lineCommentCommand';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
