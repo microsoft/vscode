@@ -12,13 +12,15 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import * as editor from 'vs/editor/common/editorCommon';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {CodeSnippet, ISnippetController, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
 
+const EditorKbExpr = editorCommon.EditorKbExpr;
+
 let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
-class TabCompletionController implements editor.IEditorContribution {
+class TabCompletionController implements editorCommon.IEditorContribution {
 
 	static Id = 'editor.tabCompletionController';
 	static ContextKey = 'hasSnippetCompletions';
@@ -28,7 +30,7 @@ class TabCompletionController implements editor.IEditorContribution {
 	private _currentSnippets: ISnippet[] = [];
 
 	constructor(
-		editor: editor.ICommonCodeEditor,
+		editor: editorCommon.ICommonCodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this._snippetController = getSnippetController(editor);
@@ -79,8 +81,8 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 	primary: KeyCode.Tab,
 	when: KbExpr.and(KbExpr.has(TabCompletionController.ContextKey),
-		KbExpr.has(editor.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-		KbExpr.not(editor.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS),
+		EditorKbExpr.TextFocus,
+		EditorKbExpr.TabDoesNotMoveFocus,
 		KbExpr.has('config.editor.tabCompletion')),
 	handler(accessor) {
 		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();

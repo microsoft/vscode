@@ -12,8 +12,9 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
+
+const EditorKbExpr = editorCommon.EditorKbExpr;
 
 export function registerEditorComamnds() {
 	_registerActiveEditorMoveCommand();
@@ -46,7 +47,7 @@ function _registerActiveEditorMoveCommand() {
 	KeybindingsRegistry.registerCommandDesc({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+		when: EditorKbExpr.TextFocus,
 		primary: null,
 		handler: (accessor, args: any) => _moveActiveEditor(args, accessor),
 		description: {

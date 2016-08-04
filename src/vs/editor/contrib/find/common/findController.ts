@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {IKeybindingContextKey, IKeybindingService, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingService, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
@@ -17,6 +17,8 @@ import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/comm
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler} from 'vs/base/common/async';
+
+const EditorKbExpr = editorCommon.EditorKbExpr;
 
 export enum FindStartFocusAction {
 	NoFocusChange,
@@ -694,7 +696,7 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 		this.menuOpts = {
 			group: '1_modification',
 			order: 1.2,
-			kbExpr: KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY)
+			kbExpr: EditorKbExpr.Writable
 		};
 	}
 }
