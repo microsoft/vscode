@@ -164,7 +164,7 @@ export class RenameAction extends EditorAction {
 		this.menuOpts = {
 			group: '1_modification',
 			order: 1.1,
-			kbExpr: KbExpr.and(KbExpr.has(ModeContextKeys.hasRenameProvider), EditorKbExpr.Writable)
+			kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorKbExpr.Writable)
 		};
 	}
 

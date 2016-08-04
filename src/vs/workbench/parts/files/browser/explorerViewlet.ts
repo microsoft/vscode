@@ -11,7 +11,7 @@ import {IAction} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {Scope} from 'vs/workbench/common/memento';
-import {VIEWLET_ID, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID, ExplorerViewletVisible, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IViewletView, Viewlet} from 'vs/workbench/browser/viewlet';
 import {IActionRunner} from 'vs/base/common/actions';
 import {SplitView, Orientation} from 'vs/base/browser/ui/splitview/splitview';
@@ -65,7 +65,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.views = [];
 
 		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = keybindingService.createKey<boolean>('explorerViewletVisible', true);
+		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo<boolean>(keybindingService, true);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));

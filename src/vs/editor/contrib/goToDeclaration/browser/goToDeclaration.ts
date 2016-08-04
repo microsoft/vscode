@@ -7,7 +7,6 @@
 
 import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {Throttler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
@@ -33,6 +32,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 
+const ModeContextKeys = editorCommon.ModeContextKeys;
 
 export class DefinitionActionConfig {
 
@@ -179,7 +179,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 		this.menuOpts = {
 			group: 'navigation',
 			order: 1.1,
-			kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
+			kbExpr: ModeContextKeys.hasDefinitionProvider
 		};
 	}
 }
@@ -222,7 +222,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 		this.menuOpts = {
 			group: 'navigation',
 			order: 1.2,
-			kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasDefinitionProvider)
+			kbExpr: ModeContextKeys.hasDefinitionProvider
 		};
 	}
 
