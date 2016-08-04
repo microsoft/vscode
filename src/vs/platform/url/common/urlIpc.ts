@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IURLService } from './url';
-import Event from 'vs/base/common/event';
+import Event, { filterEvent } from 'vs/base/common/event';
 
 export interface IURLChannel extends IChannel {
 	call(command: 'event:onOpenURL'): TPromise<void>;
@@ -17,11 +17,11 @@ export interface IURLChannel extends IChannel {
 
 export class URLChannel implements IURLChannel {
 
-	constructor(private service: IURLService) { }
+	constructor(private service: IURLService, private eventScope: (id: number) => boolean) { }
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
-			case 'event:onOpenURL': return eventToCall(this.service.onOpenURL);
+			case 'event:onOpenURL': return eventToCall(filterEvent(this.service.onOpenURL, () => this.eventScope(arg as number)));
 		}
 	}
 }
@@ -30,8 +30,8 @@ export class URLChannelClient implements IURLService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IChannel) { }
+	constructor(private channel: IChannel, private id: number) { }
 
-	private _onOpenURL = eventFromCall<string>(this.channel, 'event:onOpenURL');
+	private _onOpenURL = eventFromCall<string>(this.channel, 'event:onOpenURL', this.id);
 	get onOpenURL(): Event<string> { return this._onOpenURL; }
 }
