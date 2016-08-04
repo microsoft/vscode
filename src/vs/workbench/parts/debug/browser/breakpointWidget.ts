@@ -23,7 +23,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
-const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new KbCtxKey('breakpointWidgetVisible');
+const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new KbCtxKey<boolean>('breakpointWidgetVisible', false);
 const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 
 export class BreakpointWidget extends ZoneWidget {
@@ -43,7 +43,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 		this.toDispose = [];
 		this.create();
-		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(keybindingService, false);
+		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(keybindingService);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
 		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));

@@ -65,7 +65,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.views = [];
 
 		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo<boolean>(keybindingService, true);
+		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo(keybindingService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));

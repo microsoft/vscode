@@ -24,7 +24,7 @@ import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/bro
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
-const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new KbCtxKey('accessibilityHelpWidgetVisible');
+const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new KbCtxKey<boolean>('accessibilityHelpWidgetVisible', false);
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
@@ -75,7 +75,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		this._editor = editor;
 		this._keybindingService = keybindingService;
-		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(keybindingService, false);
+		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(keybindingService);
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'accessibilityHelpWidget';

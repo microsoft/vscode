@@ -43,7 +43,7 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 		@optional(IPeekViewService) peekViewService: IPeekViewService
 	) {
 		if (peekViewService) {
-			peekViewService.contextKey.bindTo(keybindingService, true);
+			peekViewService.contextKey.bindTo(keybindingService);
 		}
 	}
 

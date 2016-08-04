@@ -26,7 +26,7 @@ import RenameInputField from './renameInputField';
 
 // ---  register actions and commands
 
-const CONTEXT_RENAME_INPUT_VISIBLE = new KbCtxKey('renameInputVisible');
+const CONTEXT_RENAME_INPUT_VISIBLE = new KbCtxKey<boolean>('renameInputVisible', false);
 
 class RenameController implements IEditorContribution {
 
@@ -48,7 +48,7 @@ class RenameController implements IEditorContribution {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this._renameInputField = new RenameInputField(editor);
-		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(keybindingService, false);
+		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(keybindingService);
 	}
 
 	public dispose(): void {

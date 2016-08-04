@@ -68,8 +68,8 @@ import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 
-export const MessagesVisibleContext = new KbCtxKey('globalMessageVisible');
-export const EditorsVisibleContext = new KbCtxKey('editorIsOpen');
+export const MessagesVisibleContext = new KbCtxKey<boolean>('globalMessageVisible', false);
+export const EditorsVisibleContext = new KbCtxKey<boolean>('editorIsOpen', false);
 export const NoEditorsVisibleContext:KbExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
@@ -203,8 +203,8 @@ export class Workbench implements IPartService {
 			}
 
 			// Contexts
-			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.keybindingService, false);
-			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.keybindingService, false);
+			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.keybindingService);
+			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.keybindingService);
 
 			// Register Listeners
 			this.registerListeners();

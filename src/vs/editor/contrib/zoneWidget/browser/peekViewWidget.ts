@@ -26,7 +26,7 @@ export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService
 export interface IPeekViewService {
 	_serviceBrand: any;
 	isActive: boolean;
-	contextKey: KbCtxKey;
+	contextKey: KbCtxKey<boolean>;
 }
 
 export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCodeEditor {
@@ -40,7 +40,7 @@ export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCo
 export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 	public _serviceBrand: any;
-	public contextKey: KbCtxKey;
+	public contextKey: KbCtxKey<boolean>;
 
 	private _onDidClose = new Emitter<PeekViewWidget>();
 	private _isActive = false;
@@ -52,7 +52,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 	protected _actionbarWidget: ActionBar;
 	protected _bodyElement: HTMLDivElement;
 
-	constructor(editor: ICodeEditor, contextKey: KbCtxKey, options: IOptions = {}) {
+	constructor(editor: ICodeEditor, contextKey: KbCtxKey<boolean>, options: IOptions = {}) {
 		super(editor, options);
 		this.contextKey = contextKey;
 	}

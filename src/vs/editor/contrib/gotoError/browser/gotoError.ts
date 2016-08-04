@@ -454,7 +454,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		@ICommandService private _commandService: ICommandService
 	) {
 		this._editor = editor;
-		this._markersNavigationVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._keybindingService, false);
+		this._markersNavigationVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._keybindingService);
 	}
 
 	public getId(): string {
@@ -544,7 +544,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 	}
 }
 
-var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey('markersNavigationVisible');
+var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey<boolean>('markersNavigationVisible', false);
 
 const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(
 	MarkerController.getMarkerController, {

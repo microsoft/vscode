@@ -744,7 +744,7 @@ class SnippetController implements ISnippetController {
 	constructor(editor: editorCommon.ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		this._editor = editor;
 		this._currentController = null;
-		this._inSnippetMode = CONTEXT_SNIPPET_MODE.bindTo(keybindingService, false);
+		this._inSnippetMode = CONTEXT_SNIPPET_MODE.bindTo(keybindingService);
 	}
 
 	public dispose(): void {
@@ -935,7 +935,7 @@ class SnippetController implements ISnippetController {
 	}
 }
 
-export var CONTEXT_SNIPPET_MODE = new KbCtxKey('inSnippetMode');
+export var CONTEXT_SNIPPET_MODE = new KbCtxKey<boolean>('inSnippetMode', false);
 
 const SnippetCommand = EditorCommand.bindToContribution<ISnippetController>(
 	getSnippetController, {

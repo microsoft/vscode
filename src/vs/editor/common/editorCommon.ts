@@ -3021,37 +3021,37 @@ export interface IDiffLineInformation {
  * A context key that is set when the editor's text has focus (cursor is blinking).
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = new KbCtxKey('editorTextFocus');
+export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = new KbCtxKey<boolean>('editorTextFocus', undefined);
 
 /**
  * A context key that is set when the editor's text or an editor's widget has focus.
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_FOCUS = new KbCtxKey('editorFocus');
+export const KEYBINDING_CONTEXT_EDITOR_FOCUS = new KbCtxKey<boolean>('editorFocus', undefined);
 /**
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = new KbCtxKey('editorTabMovesFocus');
+export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = new KbCtxKey<boolean>('editorTabMovesFocus', false);
 /**
  * A context key that is set when the editor's text is readonly.
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_READONLY = new KbCtxKey('editorReadonly');
+export const KEYBINDING_CONTEXT_EDITOR_READONLY = new KbCtxKey<boolean>('editorReadonly', false);
 /**
  * A context key that is set when the editor has multiple selections (multiple cursors).
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = new KbCtxKey('editorHasMultipleSelections');
+export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = new KbCtxKey<boolean>('editorHasMultipleSelections', false);
 /**
  * A context key that is set when the editor has a non-collapsed selection.
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = new KbCtxKey('editorHasSelection');
+export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = new KbCtxKey<boolean>('editorHasSelection', false);
 /**
  * A context key that is set to the language associated with the model associated with the editor.
  * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = new KbCtxKey('editorLangId');
+export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = new KbCtxKey<string>('editorLangId', undefined);
 
 /**
  * @internal
@@ -3101,47 +3101,47 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasCompletionItemProvider = new KbCtxKey('editorHasCompletionItemProvider');
+	export const hasCompletionItemProvider = new KbCtxKey<boolean>('editorHasCompletionItemProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasCodeActionsProvider = new KbCtxKey('editorHasCodeActionsProvider');
+	export const hasCodeActionsProvider = new KbCtxKey<boolean>('editorHasCodeActionsProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasCodeLensProvider = new KbCtxKey('editorHasCodeLensProvider');
+	export const hasCodeLensProvider = new KbCtxKey<boolean>('editorHasCodeLensProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDefinitionProvider = new KbCtxKey('editorHasDefinitionProvider');
+	export const hasDefinitionProvider = new KbCtxKey<boolean>('editorHasDefinitionProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasHoverProvider = new KbCtxKey('editorHasHoverProvider');
+	export const hasHoverProvider = new KbCtxKey<boolean>('editorHasHoverProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDocumentHighlightProvider = new KbCtxKey('editorHasDocumentHighlightProvider');
+	export const hasDocumentHighlightProvider = new KbCtxKey<boolean>('editorHasDocumentHighlightProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDocumentSymbolProvider = new KbCtxKey('editorHasDocumentSymbolProvider');
+	export const hasDocumentSymbolProvider = new KbCtxKey<boolean>('editorHasDocumentSymbolProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasReferenceProvider = new KbCtxKey('editorHasReferenceProvider');
+	export const hasReferenceProvider = new KbCtxKey<boolean>('editorHasReferenceProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasRenameProvider = new KbCtxKey('editorHasRenameProvider');
+	export const hasRenameProvider = new KbCtxKey<boolean>('editorHasRenameProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasFormattingProvider = new KbCtxKey('editorHasFormattingProvider');
+	export const hasFormattingProvider = new KbCtxKey<boolean>('editorHasFormattingProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasSignatureHelpProvider = new KbCtxKey('editorHasSignatureHelpProvider');
+	export const hasSignatureHelpProvider = new KbCtxKey<boolean>('editorHasSignatureHelpProvider', undefined);
 }
 
 export class BareFontInfo {

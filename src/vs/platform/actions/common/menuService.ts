@@ -5,7 +5,6 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
@@ -101,7 +100,7 @@ class Menu implements IMenu {
 			const activeActions: MenuItemAction[] = [];
 			for (let action of actions) {
 				if (this._keybindingService.contextMatchesRules(action.item.when)) {
-					action.resource = ResourceContextKey.Resource.getValue<URI>(this._keybindingService);
+					action.resource = ResourceContextKey.Resource.getValue(this._keybindingService);
 					activeActions.push(action);
 				}
 			}

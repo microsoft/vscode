@@ -145,12 +145,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._commandService = commandService;
 		this._keybindingService = keybindingService;
 		this._editorIdContextKey = this._keybindingService.createKey('editorId', this.getId());
-		this._editorFocusContextKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS.bindTo(this._keybindingService, undefined);
-		this._editorTabMovesFocusKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS.bindTo(this._keybindingService, false);
-		this._editorReadonly = editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY.bindTo(this._keybindingService, false);
-		this._hasMultipleSelectionsKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS.bindTo(this._keybindingService, false);
-		this._hasNonEmptySelectionKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION.bindTo(this._keybindingService, false);
-		this._langIdKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID.bindTo(this._keybindingService, undefined);
+		this._editorFocusContextKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS.bindTo(this._keybindingService);
+		this._editorTabMovesFocusKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS.bindTo(this._keybindingService);
+		this._editorReadonly = editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY.bindTo(this._keybindingService);
+		this._hasMultipleSelectionsKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS.bindTo(this._keybindingService);
+		this._hasNonEmptySelectionKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION.bindTo(this._keybindingService);
+		this._langIdKey = editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID.bindTo(this._keybindingService);
 		this._lifetimeDispose.push(new EditorModeContext(this, this._keybindingService));
 
 		this._decorationTypeKeysToIds = {};

@@ -16,7 +16,7 @@ import {KbCtxKey, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
-export const CONTEXT_IN_DEBUG_MODE = new KbCtxKey('inDebugMode');
+export const CONTEXT_IN_DEBUG_MODE = new KbCtxKey<boolean>('inDebugMode', false);
 export const CONTEXT_NOT_IN_DEBUG_MODE:KbExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 
