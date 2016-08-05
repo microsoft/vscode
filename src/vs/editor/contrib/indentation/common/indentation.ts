@@ -5,14 +5,15 @@
 
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 export class IndentationToSpacesAction extends EditorAction {
-	static ID = 'editor.action.indentationToSpaces';
+	public static ID = 'editor.action.indentationToSpaces';
 
 	constructor() {
 		super(
@@ -21,6 +22,8 @@ export class IndentationToSpacesAction extends EditorAction {
 			'Convert Indentation to Spaces',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -38,7 +41,7 @@ export class IndentationToSpacesAction extends EditorAction {
 }
 
 export class IndentationToTabsAction extends EditorAction {
-	static ID = 'editor.action.indentationToTabs';
+	public static ID = 'editor.action.indentationToTabs';
 
 	constructor() {
 		super(
@@ -47,6 +50,8 @@ export class IndentationToTabsAction extends EditorAction {
 			'Convert Indentation to Tabs',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -67,6 +72,8 @@ export class ChangeIndentationSizeAction extends EditorAction {
 
 	constructor(id: string, label: string, alias: string, private insertSpaces: boolean) {
 		super(id, label, alias, false);
+
+		this._precondition = null;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
@@ -104,7 +111,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 
 export class IndentUsingTabs extends ChangeIndentationSizeAction {
 
-	static ID = 'editor.action.indentUsingTabs';
+	public static ID = 'editor.action.indentUsingTabs';
 
 	constructor() {
 		super(
@@ -113,12 +120,14 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 			'Indent Using Tabs',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 	}
 }
 
 export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 
-	static ID = 'editor.action.indentUsingSpaces';
+	public static ID = 'editor.action.indentUsingSpaces';
 
 	constructor() {
 		super(
@@ -127,12 +136,14 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 			'Indent Using Spaces',
 			true
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 	}
 }
 
 export class DetectIndentation extends EditorAction {
 
-	static ID = 'editor.action.detectIndentation';
+	public static ID = 'editor.action.detectIndentation';
 
 	constructor() {
 		super(
@@ -141,6 +152,8 @@ export class DetectIndentation extends EditorAction {
 			'Detect Indentation from Content',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -165,6 +178,8 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 			'Toggle Render Whitespace',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -183,6 +198,8 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 			'Toggle Render Control Characters',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

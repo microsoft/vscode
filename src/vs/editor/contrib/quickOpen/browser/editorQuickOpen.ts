@@ -21,7 +21,7 @@ export interface IQuickOpenControllerOpts {
 
 export class QuickOpenController implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.controller.quickOpenController';
+	private static ID = 'editor.controller.quickOpenController';
 
 	public static get(editor:editorCommon.ICommonCodeEditor): QuickOpenController {
 		return <QuickOpenController>editor.getContribution(QuickOpenController.ID);

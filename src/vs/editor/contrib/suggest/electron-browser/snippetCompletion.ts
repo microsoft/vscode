@@ -7,11 +7,12 @@
 import * as nls from 'vs/nls';
 import {Registry} from 'vs/platform/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {getSnippetController, CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {ISnippetsRegistry, Extensions, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 interface ISnippetPick extends IPickOpenEntry {
 	snippet: ISnippet;
@@ -26,6 +27,8 @@ class ShowSnippetsActions extends EditorAction {
 			'Insert Snippet',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {

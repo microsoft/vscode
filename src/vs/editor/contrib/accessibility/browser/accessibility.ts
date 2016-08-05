@@ -29,7 +29,7 @@ const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimental
 
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
-	static ID = 'editor.contrib.accessibilityHelpController';
+	private static ID = 'editor.contrib.accessibilityHelpController';
 
 	static get(editor:ICommonCodeEditor): AccessibilityHelpController {
 		return <AccessibilityHelpController>editor.getContribution(AccessibilityHelpController.ID);
@@ -198,6 +198,8 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			'Show Accessibility Help',
 			false
 		);
+
+		this._precondition = EditorContextKeys.Focus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,

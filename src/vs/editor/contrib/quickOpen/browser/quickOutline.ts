@@ -117,6 +117,8 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to")
 		);
 
+		this._precondition = EditorContextKeys.Focus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O

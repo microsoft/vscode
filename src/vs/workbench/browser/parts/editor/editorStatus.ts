@@ -770,7 +770,10 @@ class ChangeIndentationAction extends Action {
 				id: a.id,
 				label: a.label,
 				detail: (language === LANGUAGE_DEFAULT) ? null : a.alias,
-				run: () => a.run()
+				run: () => {
+					control.focus();
+					a.run();
+				}
 			};
 		});
 

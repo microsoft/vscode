@@ -156,6 +156,8 @@ export class RenameAction extends EditorAction {
 			true
 		);
 
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyCode.F2

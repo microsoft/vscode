@@ -165,6 +165,8 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			true
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
@@ -181,6 +183,8 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			'Shrink Select',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

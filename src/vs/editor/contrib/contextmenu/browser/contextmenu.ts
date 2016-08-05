@@ -27,7 +27,11 @@ interface IPosition {
 
 class ContextMenuController implements IEditorContribution {
 
-	public static ID = 'editor.contrib.contextmenu';
+	private static ID = 'editor.contrib.contextmenu';
+
+	public static get(editor: ICommonCodeEditor): ContextMenuController {
+		return <ContextMenuController>editor.getContribution(ContextMenuController.ID);
+	}
 
 	private _toDispose: IDisposable[] = [];
 	private _contextMenuIsBeingShownCount: number = 0;
@@ -228,6 +232,8 @@ class ShowContextMenu extends EditorAction {
 			false
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyCode.F10
@@ -235,7 +241,7 @@ class ShowContextMenu extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		var contribution = <ContextMenuController>editor.getContribution(ContextMenuController.ID);
+		var contribution = ContextMenuController.get(editor);
 		contribution.showContextMenu();
 	}
 }

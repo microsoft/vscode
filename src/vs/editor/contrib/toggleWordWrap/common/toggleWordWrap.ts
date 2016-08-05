@@ -19,6 +19,8 @@ class ToggleWordWrapAction extends EditorAction {
 			false
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Alt | KeyCode.KEY_Z

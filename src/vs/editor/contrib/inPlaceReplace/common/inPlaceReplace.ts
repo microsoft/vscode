@@ -10,13 +10,14 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorContextKeys, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {InPlaceReplaceCommand} from './inPlaceReplaceCommand';
 
 class InPlaceReplaceController implements IEditorContribution {
 
-	static ID = 'editor.contrib.inPlaceReplaceController';
+	private static ID = 'editor.contrib.inPlaceReplaceController';
 
 	static get(editor:ICommonCodeEditor): InPlaceReplaceController {
 		return <InPlaceReplaceController>editor.getContribution(InPlaceReplaceController.ID);
@@ -135,6 +136,8 @@ class InPlaceReplaceUp extends EditorAction {
 			true
 		);
 
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
@@ -155,6 +158,8 @@ class InPlaceReplaceDown extends EditorAction {
 			'Replace with Next Value',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

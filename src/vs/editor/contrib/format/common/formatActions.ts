@@ -22,7 +22,7 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 class FormatOnType implements editorCommon.IEditorContribution {
 
-	public static ID = 'editor.contrib.autoFormat';
+	private static ID = 'editor.contrib.autoFormat';
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private callOnDispose: IDisposable[];
@@ -144,6 +144,8 @@ export class FormatAction extends EditorAction {
 			'Format Code',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),

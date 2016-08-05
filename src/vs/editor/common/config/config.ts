@@ -102,7 +102,9 @@ export abstract class EditorCommand extends Command {
 			// well, at least we tried...
 			return;
 		}
-		return this.runEditorCommand(accessor, editor, args);
+		return editor.invokeWithinContext((editorAccessor) => {
+			return this.runEditorCommand(editorAccessor, editor, args);
+		});
 	}
 
 	protected abstract runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;

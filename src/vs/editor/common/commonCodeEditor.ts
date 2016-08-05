@@ -9,7 +9,7 @@ import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingContextKey, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -227,6 +227,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public captureState(...flags:editorCommon.CodeEditorStateFlag[]): editorCommon.ICodeEditorState {
 		return new EditorState(this, flags);
+	}
+
+	public invokeWithinContext<T>(fn:(accessor:ServicesAccessor)=>T): T {
+		return this._instantiationService.invokeFunction(fn);
 	}
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {

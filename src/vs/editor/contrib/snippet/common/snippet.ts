@@ -725,7 +725,7 @@ export interface ISnippetController extends editorCommon.IEditorContribution {
 }
 
 export function getSnippetController(editor: editorCommon.ICommonCodeEditor): ISnippetController {
-	return <ISnippetController>editor.getContribution(SnippetController.ID);
+	return SnippetController.get(editor);
 }
 
 interface IPreparedSnippet {
@@ -735,7 +735,11 @@ interface IPreparedSnippet {
 
 class SnippetController implements ISnippetController {
 
-	public static ID = 'editor.contrib.snippetController';
+	private static ID = 'editor.contrib.snippetController';
+
+	public static get(editor: editorCommon.ICommonCodeEditor): ISnippetController {
+		return <ISnippetController>editor.getContribution(SnippetController.ID);
+	}
 
 	private _editor: editorCommon.ICommonCodeEditor;
 	private _currentController: InsertSnippetController;
@@ -938,7 +942,7 @@ class SnippetController implements ISnippetController {
 export var CONTEXT_SNIPPET_MODE = new KbCtxKey<boolean>('inSnippetMode', false);
 
 const SnippetCommand = EditorCommand.bindToContribution<ISnippetController>(
-	getSnippetController, {
+	SnippetController.get, {
 		weight: CommonEditorRegistry.commandWeight(30),
 		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, CONTEXT_SNIPPET_MODE)
 	}

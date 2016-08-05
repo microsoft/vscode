@@ -17,7 +17,7 @@ import {Range} from 'vs/editor/common/core/range';
 
 class SelectionClipboard extends Disposable implements IEditorContribution {
 
-	static ID = 'editor.contrib.selectionClipboard';
+	private static ID = 'editor.contrib.selectionClipboard';
 
 	constructor(editor:ICodeEditor, @IKeybindingService keybindingService:IKeybindingService) {
 		super();

@@ -172,6 +172,8 @@ export class GoToDefinitionAction extends DefinitionAction {
 			new DefinitionActionConfig()
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: goToDeclarationKb
@@ -197,6 +199,8 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			new DefinitionActionConfig(true)
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
@@ -213,6 +217,8 @@ export class PeekDefinitionAction extends DefinitionAction {
 			'Peek Definition',
 			new DefinitionActionConfig(void 0, true, false)
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -241,7 +247,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.gotodefinitionwithmouse';
+	private static ID = 'editor.contrib.gotodefinitionwithmouse';
 	static TRIGGER_MODIFIER = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 	static TRIGGER_SIDEBYSIDE_KEY_VALUE = KeyCode.Alt;
 	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;

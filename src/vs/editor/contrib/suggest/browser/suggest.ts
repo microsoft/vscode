@@ -20,7 +20,7 @@ import { SuggestModel } from '../common/suggestModel';
 import { SuggestWidget } from './suggestWidget';
 
 export class SuggestController implements IEditorContribution {
-	static ID: string = 'editor.contrib.suggestController';
+	private static ID: string = 'editor.contrib.suggestController';
 
 	static getController(editor: ICommonCodeEditor): SuggestController {
 		return <SuggestController>editor.getContribution(SuggestController.ID);
@@ -169,8 +169,6 @@ export class SuggestController implements IEditorContribution {
 
 export class TriggerSuggestAction extends EditorAction {
 
-	static ID: string = 'editor.action.triggerSuggest';
-
 	constructor() {
 		super(
 			'editor.action.triggerSuggest',
@@ -178,6 +176,8 @@ export class TriggerSuggestAction extends EditorAction {
 			'Trigger Suggest',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

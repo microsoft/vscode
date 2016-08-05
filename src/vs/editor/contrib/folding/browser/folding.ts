@@ -137,7 +137,7 @@ class CollapsibleRegion {
 
 export class FoldingController implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.folding';
+	private static ID = 'editor.contrib.folding';
 	static MAX_FOLDING_REGIONS = 5000;
 
 	static getFoldingController(editor:editorCommon.ICommonCodeEditor): FoldingController {
@@ -652,6 +652,8 @@ abstract class FoldingAction2 extends EditorAction {
 
 	constructor(id:string, label:string, alias:string, keybinding:number) {
 		super(id, label, alias, false);
+
+		this._precondition = EditorContextKeys.TextFocus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
