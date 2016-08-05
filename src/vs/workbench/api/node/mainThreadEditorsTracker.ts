@@ -590,7 +590,7 @@ export class MainThreadEditorsTracker {
 
 		allCodeEditors.forEach((codeEditor) => {
 			let model = codeEditor.getModel();
-			if (!model || model.isTooLargeForHavingARichMode()) {
+			if (!model || model.isTooLargeForHavingARichMode() || !this._modelService.getModel(model.uri)) {
 				return;
 			}
 
