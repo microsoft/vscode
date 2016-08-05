@@ -457,7 +457,7 @@ export class DefineKeybindingAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json'));
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -465,14 +465,10 @@ export class DefineKeybindingAction extends EditorAction {
 		};
 	}
 
-	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		return isInterestingEditorModel(editor);
-	}
-
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		if (!isInterestingEditorModel(editor)) {
+			return;
+		}
 		var controller = DefineKeybindingController.get(editor);
 		controller.launch();
 	}

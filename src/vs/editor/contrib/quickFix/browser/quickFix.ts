@@ -13,10 +13,9 @@ import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/pl
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ICommonCodeEditor, EditorContextKeys, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
@@ -125,19 +124,12 @@ export class QuickFixAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, ModeContextKeys.hasCodeActionsProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.US_DOT
 		};
-	}
-
-	public supported(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		return CodeActionProviderRegistry.has(editor.getModel());
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

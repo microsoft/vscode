@@ -639,15 +639,6 @@ export class RunToCursorAction extends EditorAction {
 			debugService.continue(debugService.getViewModel().getFocusedThreadId());
 		});
 	}
-
-	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		const debugService = accessor.get(IDebugService);
-
-		return debugService.state === debug.State.Stopped;
-	}
 }
 
 export class AddWatchExpressionAction extends AbstractDebugAction {
@@ -695,16 +686,6 @@ export class SelectionToReplAction extends EditorAction {
 		return debugService.addReplExpression(text)
 			.then(() => panelService.openPanel(debug.REPL_ID, true))
 			.then(_ => void 0);
-	}
-
-	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		const debugService = accessor.get(IDebugService);
-
-		const selection = editor.getSelection();
-		return !!selection && !selection.isEmpty() && debugService.state !== debug.State.Disabled && debugService.state !== debug.State.Inactive;
 	}
 }
 

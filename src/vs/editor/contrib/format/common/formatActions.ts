@@ -12,7 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
+import {OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -145,7 +145,7 @@ export class FormatAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, ModeContextKeys.hasFormattingProvider);
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
@@ -158,16 +158,6 @@ export class FormatAction extends EditorAction {
 			order: 1.3,
 			kbExpr: ModeContextKeys.hasFormattingProvider
 		};
-	}
-
-	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		return (
-			DocumentFormattingEditProviderRegistry.has(editor.getModel())
-			|| DocumentRangeFormattingEditProviderRegistry.has(editor.getModel())
-		);
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {

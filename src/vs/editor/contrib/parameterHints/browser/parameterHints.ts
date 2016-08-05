@@ -8,12 +8,11 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonCodeEditor, IEditorContribution, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
-import { SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from '../common/parameterHints';
 
@@ -68,19 +67,12 @@ export class TriggerParameterHintsAction extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasSignatureHelpProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
 		};
-	}
-
-	public supported(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		return SignatureHelpProviderRegistry.has(editor.getModel());
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

@@ -65,7 +65,7 @@ export class ReferenceAction extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasReferenceProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -77,13 +77,6 @@ export class ReferenceAction extends EditorAction {
 			group: 'navigation',
 			order: 1.3
 		};
-	}
-
-	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		return ReferenceProviderRegistry.has(editor.getModel());
 	}
 
 	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
