@@ -111,7 +111,7 @@ const config = {
 	darwinBundleURLTypes: [{
 		role: 'Viewer',
 		name: product.nameLong,
-		urlSchemes: ['vscode']
+		urlSchemes: [product.urlProtocol]
 	}],
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
 	linuxExecutableName: product.applicationName,

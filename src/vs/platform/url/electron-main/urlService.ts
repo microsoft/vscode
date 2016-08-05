@@ -8,6 +8,7 @@
 import Event, {mapEvent} from 'vs/base/common/event';
 import {fromEventEmitter} from 'vs/base/node/event';
 import {IURLService} from 'vs/platform/url/common/url';
+import product from 'vs/platform/product';
 import {app} from 'electron';
 
 export class URLService implements IURLService {
@@ -24,6 +25,6 @@ export class URLService implements IURLService {
 			return url;
 		});
 
-		// app.setAsDefaultProtocolClient('vscode');
+		app.setAsDefaultProtocolClient(product.urlProtocol);
 	}
 }
