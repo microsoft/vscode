@@ -900,6 +900,7 @@ declare module monaco.editor {
     export interface IKeybindingContextKey<T> {
         set(value: T): void;
         reset(): void;
+        get(): T;
     }
 
     export interface IEditorOverrideServices {
