@@ -9,6 +9,7 @@ import dom = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action } from 'vs/base/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -74,10 +75,11 @@ export class SearchWidget extends Widget {
 	public searchInput: FindInput;
 	private replaceInput: InputBox;
 
-	private replaceInputContainer: HTMLElement;
+	private replaceContainer: HTMLElement;
 	private toggleReplaceButton: Button;
 	private replaceAllAction: ReplaceAllAction;
 	private replaceActive: IKeybindingContextKey<boolean>;
+	private replaceActionBar: ActionBar;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
 	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
@@ -138,7 +140,7 @@ export class SearchWidget extends Widget {
 	}
 
 	public isReplaceShown(): boolean {
-		return !dom.hasClass(this.replaceInputContainer, 'disabled');
+		return !dom.hasClass(this.replaceContainer, 'disabled');
 	}
 
 	public getReplaceValue():string {
@@ -173,7 +175,7 @@ export class SearchWidget extends Widget {
 			placeholder: nls.localize('search.placeHolder', "Search")
 		};
 
-		let searchInputContainer= dom.append(parent, dom.emmet('.search-box.input-box'));
+		let searchInputContainer= dom.append(parent, dom.emmet('.search-container.input-box'));
 		this.searchInput = this._register(new FindInput(searchInputContainer, this.contextViewService, inputOptions));
 		this.searchInput.onKeyUp((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyUp(keyboardEvent));
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
@@ -184,19 +186,22 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderReplaceInput(parent: HTMLElement): void {
-		this.replaceAllAction = ReplaceAllAction.INSTANCE;
-		this.replaceAllAction.searchWidget= this;
-		this.replaceAllAction.label= SearchWidget.REPLACE_ALL_DISABLED_LABEL;
-		this.replaceInputContainer= dom.append(parent, dom.emmet('.replace-box.input-box.disabled'));
-		this.replaceInput = this._register(new InputBox(this.replaceInputContainer, this.contextViewService, {
+		this.replaceContainer = dom.append(parent, dom.emmet('.replace-container.disabled'));
+		let replaceBox= dom.append(this.replaceContainer, dom.emmet('.input-box'));
+		this.replaceInput = this._register(new InputBox(replaceBox, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
-			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			actions: [this.replaceAllAction]
+			placeholder: nls.localize('search.replace.placeHolder', "Replace")
 		}));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
 		this.onkeyup(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyUp(keyboardEvent));
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());
 		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());
+
+		this.replaceAllAction = ReplaceAllAction.INSTANCE;
+		this.replaceAllAction.searchWidget= this;
+		this.replaceAllAction.label = SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
+		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
 	}
 
 	triggerReplaceAll(): TPromise<any> {
@@ -205,7 +210,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onToggleReplaceButton():void {
-		dom.toggleClass(this.replaceInputContainer, 'disabled');
+		dom.toggleClass(this.replaceContainer, 'disabled');
 		dom.toggleClass(this.toggleReplaceButton.getElement(), 'collapse');
 		dom.toggleClass(this.toggleReplaceButton.getElement(), 'expand');
 		this.updateReplaceActiveState();
@@ -325,7 +330,7 @@ export class SearchWidget extends Widget {
 	public dispose(): void {
 		this.setReplaceAllActionState(false);
 		this.replaceAllAction.searchWidget= null;
-
+		this.replaceActionBar = null;
 		super.dispose();
 	}
 }

@@ -25,7 +25,8 @@
 	cursor: pointer;
 }
 
-.search-viewlet .search-widget .input-box {
+.search-viewlet .search-widget .search-container,
+.search-viewlet .search-widget .replace-container {
 	margin-left: 17px;
 }
 
@@ -38,12 +39,28 @@
 	vertical-align: middle;
 }
 
-.search-viewlet .search-widget .replace-box {
+.search-viewlet .search-widget .replace-container {
 	margin-top: 6px;
+	position: relative;
 }
 
-.search-viewlet .search-widget .replace-box.disabled {
+.search-viewlet .search-widget .replace-container.disabled {
 	display: none;
+}
+
+.search-viewlet .search-widget .replace-container > * {
+	display: inline-block;
+}
+
+.search-viewlet .search-widget .replace-container .monaco-action-bar {
+	position: absolute;
+	margin-left: 3px;
+}
+
+.search-viewlet .search-widget .replace-container .monaco-action-bar .action-item .icon {
+	background-repeat: no-repeat;
+	width: 20px;
+	height: 25px;
 }
 
 .search-viewlet .query-clear {
@@ -63,7 +80,7 @@
 
 .search-viewlet .query-details .more {
 	position: absolute;
-	margin-right: 0.5em;
+	margin-right: 0.3em;
 	right: 0;
 	cursor: pointer;
 	width: 16px;
@@ -193,7 +210,7 @@
 }
 
 .search-viewlet .action-replace-all {
-	background-image: url('replace-all.svg');
+	background: url('replace-all.svg') center center no-repeat;
 }
 
 .hc-black .search-viewlet .action-replace,
@@ -203,7 +220,7 @@
 
 .hc-black .search-viewlet .action-replace-all,
 .vs-dark .search-viewlet .action-replace-all {
-	background-image: url('replace-all-inverse.svg');
+	background: url('replace-all-inverse.svg') center center no-repeat;
 }
 
 .search-viewlet .label {
