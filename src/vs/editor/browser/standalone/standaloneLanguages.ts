@@ -395,14 +395,19 @@ class SuggestAdapter {
 	}
 
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
-		const ran = model.getWordUntilPosition(position);
 
 		return toThenable<CompletionItem[]|CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
-			let defaultSuggestions: modes.ISuggestResult = {
+			const result: modes.ISuggestResult = {
 				suggestions: [],
-				currentWord: ran ? ran.word : '',
+				currentWord: '',
 			};
-			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
+
+			// default text edit start
+			let wordStartPos = position.clone();
+			const word = model.getWordUntilPosition(position);
+			if (word) {
+				wordStartPos.column = word.startColumn;
+			}
 
 			let list: CompletionList;
 			if (Array.isArray(value)) {
@@ -412,7 +417,7 @@ class SuggestAdapter {
 				};
 			} else if (typeof value === 'object' && Array.isArray(value.items)) {
 				list = value;
-				defaultSuggestions.incomplete = list.isIncomplete;
+				result.incomplete = list.isIncomplete;
 			} else if (!value) {
 				// undefined and null are valid results
 				return;
@@ -442,18 +447,17 @@ class SuggestAdapter {
 					suggestion.overwriteBefore = position.column - editRange.startColumn;
 					suggestion.overwriteAfter = editRange.endColumn - position.column;
 
-					allSuggestions.push({
-						currentWord: model.getValueInRange(editRange),
-						suggestions: [suggestion],
-						incomplete: list.isIncomplete
-					});
 
 				} else {
-					defaultSuggestions.suggestions.push(suggestion);
+					result.suggestions.push(suggestion);
+					suggestion.overwriteBefore = position.column - wordStartPos.column;
+					suggestion.overwriteAfter = 0;
 				}
+
+				result.suggestions.push(suggestion);
 			}
 
-			return allSuggestions;
+			return [result];
 		});
 	}
 
