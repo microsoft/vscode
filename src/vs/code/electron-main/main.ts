@@ -102,11 +102,6 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	const askpassChannel = new AskpassChannel(askpassService);
 	ipcServer.registerChannel('askpass', askpassChannel);
 
-	// Used by sub processes to communicate back to the main instance
-	process.env['VSCODE_PID'] = '' + process.pid;
-	process.env['VSCODE_IPC_HOOK'] = envService.mainIPCHandle;
-	process.env['VSCODE_SHARED_IPC_HOOK'] = envService.sharedIPCHandle;
-
 	// Spawn shared process
 	const sharedProcess = spawnSharedProcess({
 		allowOutput: !envService.isBuilt || envService.cliArgs.verboseLogging,
@@ -332,24 +327,54 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 	return promise.then(null, () => ({}));
 }
 
+/**
+ * On Unix systems, we might need to get the environment
+ * from a user's shell. This should only be done when Code
+ * is not launched from a Terminal.
+ */
+function getUserShellEnvironment(): TPromise<IEnv> {
+	if (platform.isWindows) {
+		return TPromise.as({});
+	}
+
+	if (process.env['VSCODE_CLI'] === '1') {
+		return TPromise.as({});
+	}
+
+	return getUnixUserEnvironment();
+}
+
+/**
+ * Returns the user environment necessary for all Code processes.
+ * Such environment needs to be propagated to the renderer/shared
+ * processes.
+ */
 function getUserEnvironment(): TPromise<IEnv> {
-	return platform.isWindows ? TPromise.as({}) : getUnixUserEnvironment();
+	return getUserShellEnvironment().then(userShellEnv => {
+		return instantiationService.invokeFunction(a => {
+			const envService = a.get(IEnvironmentService);
+			const instanceEnv = {
+				VSCODE_PID: String(process.pid),
+				VSCODE_IPC_HOOK: envService.mainIPCHandle,
+				VSCODE_SHARED_IPC_HOOK: envService.sharedIPCHandle
+			};
+
+			return assign({}, userShellEnv, instanceEnv);
+		});
+	});
 }
 
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
-getUserEnvironment()
-	.then(userEnv => {
-		if (process.env['VSCODE_CLI'] !== '1') {
-			assign(process.env, userEnv);
-		}
+getUserEnvironment().then(userEnv => {
+	assign(process.env, userEnv);
 
-		// Make sure the NLS Config travels to the rendered process
-		// See also https://github.com/Microsoft/vscode/issues/4558
-		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
+	// Make sure the NLS Config travels to the rendered process
+	// See also https://github.com/Microsoft/vscode/issues/4558
+	userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
 
-		return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
-			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, userEnv));
-	})
-	.done(null, err => instantiationService.invokeFunction(quit, err));
+	return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
+		.then(() => instantiationService.invokeFunction(setupIPC))
+		.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, userEnv));
+})
+.done(null, err => instantiationService.invokeFunction(quit, err));

@@ -56,12 +56,8 @@ export interface IMainEnvironment extends IEnvironment {
 }
 
 export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
-
 	// Inherit the user environment
-	// TODO@Joao: this inheritance should **not** happen here!
-	if (process.env['VSCODE_CLI'] !== '1') {
-		assign(process.env, environment.userEnv);
-	}
+	assign(process.env, environment.userEnv);
 
 	// Shell Configuration
 	let shellConfiguration: IConfiguration = {

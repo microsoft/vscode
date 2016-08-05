@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
+import { assign, mixin } from 'vs/base/common/objects';
 import pkg from 'vs/platform/package';
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
@@ -604,7 +604,7 @@ export class WindowsManager implements IWindowsService {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
+				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
 				let browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -650,7 +650,7 @@ export class WindowsManager implements IWindowsService {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
+				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
 				let browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -667,7 +667,7 @@ export class WindowsManager implements IWindowsService {
 		// Handle empty
 		if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
-				let configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli);
+				let configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli);
 				let browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -686,6 +686,10 @@ export class WindowsManager implements IWindowsService {
 		iPathsToOpen.forEach((iPath) => this.eventEmitter.emit(EventTypes.OPEN, iPath));
 
 		return arrays.distinct(usedWindows);
+	}
+
+	private getWindowUserEnv(openConfig: IOpenConfiguration): IProcessEnvironment {
+		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
 	}
 
 	public openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
@@ -722,7 +726,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
-		let configuration: IWindowConfiguration = objects.mixin({}, cli); // inherit all properties from CLI
+		let configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
 		configuration.execPath = process.execPath;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
