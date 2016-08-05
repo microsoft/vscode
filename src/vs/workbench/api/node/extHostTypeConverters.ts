@@ -240,6 +240,7 @@ export const CompletionItemKind = {
 
 	from(kind: types.CompletionItemKind): modes.SuggestionType {
 		switch (kind) {
+			case types.CompletionItemKind.Method: return 'method';
 			case types.CompletionItemKind.Function: return 'function';
 			case types.CompletionItemKind.Constructor: return 'constructor';
 			case types.CompletionItemKind.Field: return 'field';

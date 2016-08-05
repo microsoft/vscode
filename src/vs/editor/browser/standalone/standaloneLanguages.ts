@@ -353,6 +353,7 @@ interface ISuggestion2 extends modes.ISuggestion {
 }
 function convertKind(kind: CompletionItemKind): modes.SuggestionType {
 	switch (kind) {
+		case CompletionItemKind.Method: return 'method';
 		case CompletionItemKind.Function: return 'function';
 		case CompletionItemKind.Constructor: return 'constructor';
 		case CompletionItemKind.Field: return 'field';
