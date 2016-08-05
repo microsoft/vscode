@@ -296,7 +296,7 @@ class SuggestionDetails {
 
 export class SuggestWidget implements IContentWidget, IDisposable {
 
-	static ID: string = 'editor.widget.suggestWidget';
+	private static ID: string = 'editor.widget.suggestWidget';
 	static WIDTH: number = 438;
 
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");

@@ -38,7 +38,7 @@ export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNeg
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.findController';
+	private static ID = 'editor.contrib.findController';
 
 	private _editor: editorCommon.ICommonCodeEditor;
 	private _findWidgetVisible: IKeybindingContextKey<boolean>;
@@ -243,6 +243,8 @@ export class StartFindAction extends EditorAction {
 			false
 		);
 
+		this._precondition = null;
+
 		this.kbOpts = {
 			kbExpr: null,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_F
@@ -290,6 +292,8 @@ export class NextMatchFindAction extends MatchFindAction {
 			'Find Next'
 		);
 
+		this._precondition = EditorContextKeys.Focus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: KeyCode.F3,
@@ -310,6 +314,8 @@ export class PreviousMatchFindAction extends MatchFindAction {
 			nls.localize('findPreviousMatchAction', "Find Previous"),
 			'Find Previous'
 		);
+
+		this._precondition = EditorContextKeys.Focus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -358,6 +364,8 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 			'Find Next Selection'
 		);
 
+		this._precondition = EditorContextKeys.Focus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.F3
@@ -377,6 +385,8 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 			nls.localize('previousSelectionMatchFindAction', "Find Previous Selection"),
 			'Find Previous Selection'
 		);
+
+		this._precondition = EditorContextKeys.Focus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -398,6 +408,8 @@ export class StartFindReplaceAction extends EditorAction {
 			'Replace',
 			true
 		);
+
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: null,
@@ -540,6 +552,8 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 			'Add Selection To Next Find Match'
 		);
 
+		this._precondition = EditorContextKeys.Focus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_D
@@ -567,6 +581,8 @@ export class AddSelectionToPreviousFindMatchAction extends SelectPreviousFindMat
 			nls.localize('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
 			'Add Selection To Previous Find Match'
 		);
+
+		this._precondition = EditorContextKeys.Focus;
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -591,6 +607,8 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 			'Move Last Selection To Next Find Match'
 		);
 
+		this._precondition = EditorContextKeys.Focus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)
@@ -612,14 +630,14 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 
 export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMatchAction {
 
-	static ID = FIND_IDS.MoveSelectionToPreviousFindMatchAction;
-
 	constructor() {
 		super(
 			FIND_IDS.MoveSelectionToPreviousFindMatchAction,
 			nls.localize('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"),
 			'Move Last Selection To Previous Find Match'
 		);
+
+		this._precondition = EditorContextKeys.Focus;
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -674,6 +692,8 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 			'Select All Occurences of Find Match'
 		);
 
+		this._precondition = EditorContextKeys.Focus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L
@@ -689,6 +709,8 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 			'Change All Occurrences'
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.F2
@@ -703,7 +725,7 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 }
 
 export class SelectionHighlighter extends Disposable implements editorCommon.IEditorContribution {
-	static ID = 'editor.contrib.selectionHighlighter';
+	private static ID = 'editor.contrib.selectionHighlighter';
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private decorations: string[];

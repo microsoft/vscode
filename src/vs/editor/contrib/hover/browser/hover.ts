@@ -25,7 +25,7 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 class ModesHoverController implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.hover';
+	private static ID = 'editor.contrib.hover';
 
 	private _editor: ICodeEditor;
 	private _toUnhook:IDisposable[];
@@ -153,6 +153,8 @@ class ShowHoverAction extends EditorAction {
 			false
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
@@ -162,7 +164,7 @@ class ShowHoverAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		(<ModesHoverController>editor.getContribution(ModesHoverController.ID)).showContentHover(range, true);
+		ModesHoverController.getModesHoverController(editor).showContentHover(range, true);
 	}
 }
 

@@ -79,6 +79,8 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			nls.localize('quickCommandActionInput', "Type the name of an action you want to execute")
 		);
 
+		this._precondition = EditorContextKeys.Focus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)

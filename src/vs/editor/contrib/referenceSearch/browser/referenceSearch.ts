@@ -35,7 +35,7 @@ const defaultReferenceSearchOptions: RequestOptions = {
 
 export class ReferenceController implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.referenceController';
+	private static ID = 'editor.contrib.referenceController';
 
 	constructor(
 		editor:editorCommon.ICommonCodeEditor,
@@ -64,6 +64,8 @@ export class ReferenceAction extends EditorAction {
 			'Find All References',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

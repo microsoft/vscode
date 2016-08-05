@@ -19,7 +19,7 @@ import { Context } from '../common/parameterHints';
 
 class ParameterHintsController implements IEditorContribution {
 
-	static ID = 'editor.controller.parameterHints';
+	private static ID = 'editor.controller.parameterHints';
 
 	static get(editor:ICommonCodeEditor): ParameterHintsController {
 		return <ParameterHintsController>editor.getContribution(ParameterHintsController.ID);
@@ -67,6 +67,8 @@ export class TriggerParameterHintsAction extends EditorAction {
 			'Trigger Parameter Hints',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

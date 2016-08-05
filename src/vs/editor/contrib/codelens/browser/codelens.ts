@@ -337,7 +337,7 @@ class CodeLens {
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	public static ID: string = 'css.editor.codeLens';
+	private static ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 

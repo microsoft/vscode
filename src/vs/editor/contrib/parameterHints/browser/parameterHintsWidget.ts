@@ -158,7 +158,7 @@ interface ISignatureView {
 
 export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
-	static ID = 'editor.widget.parameterHintsWidget';
+	private static ID = 'editor.widget.parameterHintsWidget';
 
 	private model: ParameterHintsModel;
 	private keyVisible: IKeybindingContextKey<boolean>;

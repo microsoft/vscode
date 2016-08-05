@@ -24,7 +24,7 @@ import {QuickFixSelectionWidget} from './quickFixSelectionWidget';
 
 export class QuickFixController implements IEditorContribution {
 
-	static ID = 'editor.contrib.quickFixController';
+	private static ID = 'editor.contrib.quickFixController';
 
 	static getQuickFixController(editor:ICommonCodeEditor): QuickFixController {
 		return <QuickFixController>editor.getContribution(QuickFixController.ID);
@@ -124,6 +124,8 @@ export class QuickFixAction extends EditorAction {
 			'Quick Fix',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

@@ -11,8 +11,6 @@ import {HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editor
 
 class SelectBracketAction extends HandlerEditorAction {
 
-	static ID = 'editor.action.jumpToBracket';
-
 	constructor() {
 		super(
 			'editor.action.jumpToBracket',
@@ -21,6 +19,8 @@ class SelectBracketAction extends HandlerEditorAction {
 			false,
 			Handler.JumpToBracket
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

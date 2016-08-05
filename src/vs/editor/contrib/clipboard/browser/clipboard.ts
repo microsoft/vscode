@@ -86,6 +86,8 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 			'cut'
 		);
 
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
@@ -119,6 +121,8 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 			'copy'
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
@@ -144,6 +148,8 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			true,
 			'paste'
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),

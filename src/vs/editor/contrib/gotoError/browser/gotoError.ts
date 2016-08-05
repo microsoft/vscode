@@ -435,7 +435,7 @@ class MarkerNavigationAction extends EditorAction {
 
 class MarkerController implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.markerController';
+	private static ID = 'editor.contrib.markerController';
 
 	static getMarkerController(editor: editorCommon.ICommonCodeEditor): MarkerController {
 		return <MarkerController>editor.getContribution(MarkerController.ID);
@@ -521,6 +521,8 @@ class NextMarkerAction extends MarkerNavigationAction {
 			true
 		);
 
+		this._precondition = KbExpr.and(EditorContextKeys.Focus, EditorContextKeys.Writable);
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
 			primary: KeyCode.F8
@@ -536,6 +538,8 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			'Go to Previous Error or Warning',
 			false
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.Focus, EditorContextKeys.Writable);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,

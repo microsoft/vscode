@@ -16,7 +16,7 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
@@ -36,7 +36,7 @@ const INTERESTING_FILE = /keybindings\.json$/;
 
 export class DefineKeybindingController implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.defineKeybinding';
+	private static ID = 'editor.contrib.defineKeybinding';
 
 	static get(editor:editorCommon.ICommonCodeEditor): DefineKeybindingController {
 		return <DefineKeybindingController>editor.getContribution(DefineKeybindingController.ID);
@@ -456,6 +456,8 @@ export class DefineKeybindingAction extends EditorAction {
 			'Define Keybinding',
 			true
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,

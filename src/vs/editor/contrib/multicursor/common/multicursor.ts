@@ -19,6 +19,8 @@ class InsertCursorAbove extends HandlerEditorAction {
 			Handler.AddCursorUp
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
@@ -40,6 +42,8 @@ class InsertCursorBelow extends HandlerEditorAction {
 			Handler.AddCursorDown
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
@@ -60,6 +64,8 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			'Create Multiple Cursors from Selected Lines',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

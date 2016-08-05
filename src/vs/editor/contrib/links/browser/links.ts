@@ -24,6 +24,8 @@ import {getLinks, Link} from 'vs/editor/contrib/links/common/links';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
+import EditorContextKeys = editorCommon.EditorContextKeys;
+
 class LinkOccurence {
 
 	public static decoration(link: Link): editorCommon.IModelDeltaDecoration {
@@ -324,6 +326,8 @@ class OpenLinkAction extends EditorAction {
 			'Open Link',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 	}
 
 	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {

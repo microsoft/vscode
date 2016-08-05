@@ -527,6 +527,8 @@ export class ToggleBreakpointAction extends EditorAction {
 			false
 		);
 
+		this._precondition = EditorContextKeys.TextFocus;
+
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyCode.F9
@@ -557,6 +559,8 @@ export class EditorConditionalBreakpointAction extends EditorAction {
 			'Debug: Conditional Breakpoint',
 			false
 		);
+
+		this._precondition = EditorContextKeys.TextFocus;
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -601,6 +605,8 @@ export class RunToCursorAction extends EditorAction {
 			'Debug: Run to Cursor',
 			false
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_IN_DEBUG_MODE);
 
 		this.menuOpts = {
 			kbExpr: debug.CONTEXT_IN_DEBUG_MODE,
@@ -672,6 +678,8 @@ export class SelectionToReplAction extends EditorAction {
 			false
 		);
 
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_IN_DEBUG_MODE);
+
 		this.menuOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
 			group: 'debug'
@@ -709,6 +717,8 @@ export class ShowDebugHoverAction extends EditorAction {
 			'Debug: Show Hover',
 			false
 		);
+
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_IN_DEBUG_MODE);
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(debug.CONTEXT_IN_DEBUG_MODE, EditorContextKeys.TextFocus),

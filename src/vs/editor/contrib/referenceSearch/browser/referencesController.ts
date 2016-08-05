@@ -34,7 +34,7 @@ export interface RequestOptions {
 
 export class ReferencesController implements editorCommon.IEditorContribution {
 
-	public static ID = 'editor.contrib.referencesController';
+	private static ID = 'editor.contrib.referencesController';
 
 	private _editor: ICodeEditor;
 	private _widget: ReferenceWidget;
