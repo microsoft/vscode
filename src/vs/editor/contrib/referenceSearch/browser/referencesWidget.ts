@@ -38,7 +38,6 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {FileReferences, OneReference, ReferencesModel} from './referencesModel';
-import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 class DecorationsManager implements IDisposable {
 
@@ -485,8 +484,6 @@ export interface SelectionEvent {
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	public static INNER_EDITOR_CONTEXT_KEY = new KbCtxKey<boolean>('inReferenceSearchEditor', true);
-
 	private _model: ReferencesModel;
 	private _decorationsManager: DecorationsManager;
 
@@ -508,7 +505,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _contextService: IWorkspaceContextService,
 		private _instantiationService: IInstantiationService
 	) {
-		super(editor, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
+		super(editor, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
 
 		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();

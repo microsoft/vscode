@@ -478,7 +478,7 @@ export interface IKeybindingService {
 
 	onDidChangeContext: Event<string[]>;
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
-	contextMatchesRules(rules: KbExpr): boolean;
+	contextMatchesRules(rules: KbExpr, overrideKeys?:any): boolean;
 	getContextValue<T>(key: string): T;
 
 	createScoped(domNode: IKeybindingScopeLocation): IKeybindingService;

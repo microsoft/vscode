@@ -19,14 +19,20 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {IOptions, ZoneWidget} from './zoneWidget';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
+
+export namespace PeekContext {
+	export const inPeekEditor = new KbCtxKey<boolean>('inReferenceSearchEditor', true);
+	export const notInPeekEditor:KbExpr = inPeekEditor.toNegated();
+}
+
+export const NOT_INNER_EDITOR_CONTEXT_KEY = new KbCtxKey<boolean>('inReferenceSearchEditor', true);
 
 export interface IPeekViewService {
 	_serviceBrand: any;
 	isActive: boolean;
-	contextKey: KbCtxKey<boolean>;
 }
 
 export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCodeEditor {
@@ -37,10 +43,9 @@ export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCo
 	return editor;
 }
 
-export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
+export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 	public _serviceBrand: any;
-	public contextKey: KbCtxKey<boolean>;
 
 	private _onDidClose = new Emitter<PeekViewWidget>();
 	private _isActive = false;
@@ -52,9 +57,8 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 	protected _actionbarWidget: ActionBar;
 	protected _bodyElement: HTMLDivElement;
 
-	constructor(editor: ICodeEditor, contextKey: KbCtxKey<boolean>, options: IOptions = {}) {
+	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		super(editor, options);
-		this.contextKey = contextKey;
 	}
 
 	public dispose(): void {

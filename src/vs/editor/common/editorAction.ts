@@ -41,9 +41,9 @@ export class InternalEditorAction extends AbstractInternalEditorAction implement
 		});
 	}
 
-	public isSupported():boolean {
+	public isSupported(forceEditorTextFocus:boolean):boolean {
 		return this._instantiationService.invokeFunction((accessor) => {
-			return this._actual.supported(accessor, this._editor);
+			return this._actual.supported(accessor, this._editor, forceEditorTextFocus);
 		});
 	}
 
@@ -68,7 +68,7 @@ export class DynamicEditorAction extends AbstractInternalEditorAction implements
 		return true;
 	}
 
-	public isSupported():boolean {
+	public isSupported(forceEditorTextFocus:boolean):boolean {
 		return true;
 	}
 

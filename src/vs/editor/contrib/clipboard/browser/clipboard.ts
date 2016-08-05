@@ -61,20 +61,6 @@ abstract class ClipboardWritingAction extends ExecCommandAction {
 	}
 }
 
-function editorCursorIsInEditableRange(editor:editorCommon.ICommonCodeEditor): boolean {
-	let model = editor.getModel();
-	if (!model) {
-		return false;
-	}
-	let hasEditableRange = model.hasEditableRange();
-	if (!hasEditableRange) {
-		return true;
-	}
-	let editableRange = model.getEditableRange();
-	let editorPosition = editor.getPosition();
-	return editableRange.containsPosition(editorPosition);
-}
-
 class ExecCommandCutAction extends ClipboardWritingAction {
 
 	constructor() {
@@ -100,13 +86,6 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 1
 		};
-	}
-
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.enabled(accessor, editor)) {
-			return false;
-		}
-		return editorCursorIsInEditableRange(editor);
 	}
 }
 
@@ -163,13 +142,6 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 3
 		};
-	}
-
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.enabled(accessor, editor)) {
-			return false;
-		}
-		return editorCursorIsInEditableRange(editor);
 	}
 }
 

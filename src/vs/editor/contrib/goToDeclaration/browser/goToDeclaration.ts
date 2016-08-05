@@ -29,8 +29,7 @@ import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/commo
 import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {optional} from 'vs/platform/instantiation/common/instantiation';
+import {PeekContext} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
@@ -196,7 +195,6 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 }
 
 export class PeekDefinitionAction extends DefinitionAction {
-
 	constructor() {
 		super(
 			'editor.action.previewDeclaration',
@@ -205,7 +203,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 			new DefinitionActionConfig(void 0, true, false)
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider);
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -218,15 +216,6 @@ export class PeekDefinitionAction extends DefinitionAction {
 			order: 1.2,
 			kbExpr: ModeContextKeys.hasDefinitionProvider
 		};
-	}
-
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.enabled(accessor, editor)) {
-			return false;
-		}
-
-		const peekViewService = accessor.get(IPeekViewService, optional);
-		return (!peekViewService || !peekViewService.isActive);
 	}
 }
 

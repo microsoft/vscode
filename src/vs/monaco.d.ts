@@ -2759,7 +2759,7 @@ declare module monaco.editor {
         label: string;
         alias: string;
         enabled: boolean;
-        isSupported(): boolean;
+        isSupported(forceEditorTextFocus: boolean): boolean;
         run(): Promise<void>;
     }
 
