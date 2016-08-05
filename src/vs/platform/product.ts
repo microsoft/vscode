@@ -13,6 +13,7 @@ export interface IProductConfiguration {
 	win32AppUserModelId: string;
 	win32MutexName: string;
 	darwinBundleIdentifier: string;
+	urlProtocol: string;
 	dataFolderName: string;
 	downloadUrl: string;
 	updateUrl?: string;
