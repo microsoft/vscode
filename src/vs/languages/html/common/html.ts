@@ -358,7 +358,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		}, true);
@@ -486,7 +486,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 	}
 
 	static $_provideCompletionItems = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideCompletionItems);
-	protected _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+	protected _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 

@@ -24,7 +24,7 @@ suite('Suggest', function () {
 		registration = SuggestRegistry.register({ pattern: 'bar/path' }, {
 			triggerCharacters: [],
 			provideCompletionItems() {
-				return [{
+				return {
 					currentWord: '',
 					incomplete: false,
 					suggestions: [{
@@ -40,7 +40,7 @@ suite('Suggest', function () {
 							type: 'property',
 							codeSnippet: 'fff'
 						}]
-				}];
+				};
 			}
 		});
 	});

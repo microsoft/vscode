@@ -18,6 +18,6 @@ export interface IEditorWorkerService {
 
 	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<ILineChange[]>;
 	computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<IChange[]>;
-	textualSuggest(resource: URI, position: IPosition): TPromise<ISuggestResult[]>;
+	textualSuggest(resource: URI, position: IPosition): TPromise<ISuggestResult>;
 	navigateValueSet(resource: URI, range:IRange, up:boolean): TPromise<IInplaceReplaceSupportResult>;
 }

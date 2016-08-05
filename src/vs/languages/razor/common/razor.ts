@@ -112,7 +112,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	protected _registerSupports(): void {
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		}, true);

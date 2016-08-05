@@ -197,7 +197,7 @@ export function registerCompletionItemProvider(languageId:string, provider:Compl
 	let adapter = new SuggestAdapter(provider);
 	return modes.SuggestRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
+		provideCompletionItems: (model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult> => {
 			return adapter.provideCompletionItems(model, position, token);
 		},
 		resolveCompletionItem: (model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
@@ -394,7 +394,7 @@ class SuggestAdapter {
 		};
 	}
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult> {
 
 		return toThenable<CompletionItem[]|CompletionList>(this._provider.provideCompletionItems(model, position, token)).then(value => {
 			const result: modes.ISuggestResult = {
@@ -457,7 +457,7 @@ class SuggestAdapter {
 				result.suggestions.push(suggestion);
 			}
 
-			return [result];
+			return result;
 		});
 	}
 
