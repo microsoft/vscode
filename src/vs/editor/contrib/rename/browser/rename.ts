@@ -156,7 +156,7 @@ export class RenameAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, ModeContextKeys.hasRenameProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -168,13 +168,6 @@ export class RenameAction extends EditorAction {
 			order: 1.1,
 			kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorContextKeys.Writable)
 		};
-	}
-
-	public supported(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		return RenameProviderRegistry.has(editor.getModel()) && !editor.getModel().hasEditableRange();
 	}
 
 	public enabled(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {

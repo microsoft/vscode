@@ -31,6 +31,7 @@ import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referen
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
+import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -53,20 +54,6 @@ export class DefinitionAction extends EditorAction {
 	constructor(id: string, label: string, alias: string, configuration: DefinitionActionConfig) {
 		super(id, label, alias, false);
 		this._configuration = configuration;
-	}
-
-	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.supported(accessor, editor)) {
-			return false;
-		}
-		return DefinitionProviderRegistry.has(editor.getModel());
-	}
-
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.enabled(accessor, editor)) {
-			return false;
-		}
-		return DefinitionProviderRegistry.has(editor.getModel());
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
@@ -172,7 +159,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 			new DefinitionActionConfig()
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -199,7 +186,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			new DefinitionActionConfig(true)
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -218,7 +205,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 			new DefinitionActionConfig(void 0, true, false)
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
