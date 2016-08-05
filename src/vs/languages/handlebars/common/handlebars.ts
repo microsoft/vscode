@@ -164,7 +164,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	protected _registerSupports(): void {
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		}, true);

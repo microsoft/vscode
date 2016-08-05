@@ -58,7 +58,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult> {
 		return this._workerManager.withWorker().then(client => client.textualSuggest(resource, position));
 	}
 
@@ -316,7 +316,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

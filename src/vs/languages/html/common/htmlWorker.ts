@@ -267,17 +267,15 @@ export class HTMLWorker {
 		});
 	}
 
-	public provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult> {
 		let model = this.resourceService.get(resource);
 		let modeIdAtPosition = model.getModeIdAtPosition(position.lineNumber, position.column);
 		if (modeIdAtPosition === this._modeId) {
 			return this.suggestHTML(resource, position);
-		} else {
-			return winjs.TPromise.as([]);
 		}
 	}
 
-	private suggestHTML(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+	private suggestHTML(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 

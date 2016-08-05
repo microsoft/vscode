@@ -44,11 +44,11 @@ const snippetSuggestSupport: ISuggestSupport = {
 
 	triggerCharacters: [],
 
-	provideCompletionItems(model: IReadOnlyModel, position: Position): ISuggestResult[] {
+	provideCompletionItems(model: IReadOnlyModel, position: Position): ISuggestResult {
 		// currentWord is irrelevant, all suggestion use overwriteBefore
 		const result: ISuggestResult = { suggestions: [], currentWord: '' };
 		Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position, result.suggestions);
-		return [result];
+		return result;
 	}
 };
 
@@ -71,28 +71,22 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 				return;
 			}
 			// for each support in the group ask for suggestions
-			return TPromise.join(supports.map(support => asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(values => {
-
-				if (isFalsyOrEmpty(values)) {
-					return;
-				}
+			return TPromise.join(supports.map(support => asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(container => {
 
 				const len = result.length;
 
-				for (let container of values) {
-					if (container && !isFalsyOrEmpty(container.suggestions)) {
-						for (let suggestion of container.suggestions) {
-							if (acceptSuggestion(suggestion)) {
+				if (container && !isFalsyOrEmpty(container.suggestions)) {
+					for (let suggestion of container.suggestions) {
+						if (acceptSuggestion(suggestion)) {
 
-								fixOverwriteBeforeAfter(suggestion, container);
+							fixOverwriteBeforeAfter(suggestion, container);
 
-								result.push({
-									container,
-									suggestion,
-									support,
-									resolve: createSuggestionResolver(support, suggestion, model, position)
-								});
-							}
+							result.push({
+								container,
+								suggestion,
+								support,
+								resolve: createSuggestionResolver(support, suggestion, model, position)
+							});
 						}
 					}
 				}

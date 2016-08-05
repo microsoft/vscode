@@ -31,28 +31,22 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		this._configurationService = configurationService;
 	}
 
-	public provideCompletionItems(model:IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]> {
+	public provideCompletionItems(model:IReadOnlyModel, position:Position, token:CancellationToken): Thenable<ISuggestResult> {
 		let config = this._configurationService.getConfiguration<{ wordBasedSuggestions: boolean }>('editor');
 		if (!config || config.wordBasedSuggestions) {
 			return wireCancellationToken(token, this._editorWorkerService.textualSuggest(model.uri, position));
 		}
-		return <ISuggestResult[]>[];
 	}
 }
 
-export function filterSuggestions(value: ISuggestResult): ISuggestResult[] {
+export function filterSuggestions(value: ISuggestResult): ISuggestResult {
 	if (!value) {
 		return;
 	}
-	// filter suggestions
-	var accept = fuzzyContiguousFilter,
-		result: ISuggestResult[] = [];
 
-	result.push({
+	return {
 		currentWord: value.currentWord,
-		suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element.label)),
+		suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(value.currentWord, element.label)),
 		incomplete: value.incomplete
-	});
-
-	return result;
+	};
 }
