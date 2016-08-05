@@ -183,7 +183,7 @@ export class Repl extends Panel {
 			this.tree.refresh().done(undefined, errors.onUnexpectedError);
 		}
 
-		this.replInput.layout({ width: dimension.width - 20, height: 22 });
+		this.replInput.layout({ width: dimension.width - 20, height: 21 });
 	}
 
 	public focus(): void {
@@ -224,9 +224,9 @@ export class Repl extends Panel {
 				horizontal: 'hidden',
 				vertical: 'hidden'
 			},
-			lineDecorationsWidth:0,
+			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			lineHeight: 20,
+			lineHeight: 21,
 			theme: this.themeService.getTheme()
 		};
 
