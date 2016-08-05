@@ -5,6 +5,7 @@
 
 import 'vs/css!./../browser/media/repl';
 import nls = require('vs/nls');
+import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -14,12 +15,16 @@ import dom = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
+import {IEditorOptions} from 'vs/editor/common/editorCommon';
+import {Model} from 'vs/editor/common/model/model';
+import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import {Panel} from 'vs/workbench/browser/panel';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -52,7 +57,7 @@ export class Repl extends Panel {
 	private renderer: viewer.ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: HTMLInputElement;
+	private replInput: CodeEditorWidget;
 	private refreshTimeoutHandle: number;
 	private actions: actions.IAction[];
 
@@ -64,7 +69,8 @@ export class Repl extends Panel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IStorageService private storageService: IStorageService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(debug.REPL_ID, telemetryService);
 
@@ -84,6 +90,7 @@ export class Repl extends Panel {
 				}
 			}
 		}));
+		this.toDispose.push(this.themeService.onDidThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
 	}
 
 	private onReplElementsUpdated(): void {
@@ -119,27 +126,32 @@ export class Repl extends Panel {
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		this.treeContainer = dom.append(container, $('.repl-tree'));
 		const replInputContainer = dom.append(container, $('.repl-input-wrapper'));
-		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));
-		this.replInput.type = 'text';
+		this.replInput = this.instantiationService.createInstance(CodeEditorWidget, replInputContainer, this.getReplInputOptions());
+		this.replInput.setModel(Model.createFromString(''));
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, 'keydown', (e: IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput.getDomNode(), 'keydown', (e: IKeyboardEvent) => {
+			// Prevent enter and up / down from moving to new lines, so we always have a one-line editor
 			if (e.equals(CommonKeybindings.ENTER)) {
-				this.debugService.addReplExpression(this.replInput.value);
-				Repl.HISTORY.evaluated(this.replInput.value);
-				this.replInput.value = '';
 				e.preventDefault();
+				e.stopPropagation();
+				this.debugService.addReplExpression(this.replInput.getValue());
+				Repl.HISTORY.evaluated(this.replInput.getValue());
+				this.replInput.setValue('');
 			} else if (e.equals(CommonKeybindings.UP_ARROW) || e.equals(CommonKeybindings.DOWN_ARROW)) {
+				e.preventDefault();
+				e.stopPropagation();
 				const historyInput = e.equals(CommonKeybindings.UP_ARROW) ? Repl.HISTORY.previous() : Repl.HISTORY.next();
 				if (historyInput) {
-					Repl.HISTORY.remember(this.replInput.value, e.equals(CommonKeybindings.UP_ARROW));
-					this.replInput.value = historyInput;
+					Repl.HISTORY.remember(this.replInput.getValue(), e.equals(CommonKeybindings.UP_ARROW));
+					this.replInput.setValue(historyInput);
 					// always leave cursor at the end.
-					e.preventDefault();
+					this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
 				}
 			}
 		}));
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus')));
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.BLUR, () => dom.removeClass(replInputContainer, 'synthetic-focus')));
+		this.toDispose.push(dom.addStandardDisposableListener(replInputContainer, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus')));
+		this.toDispose.push(dom.addStandardDisposableListener(replInputContainer, dom.EventType.BLUR, () => dom.removeClass(replInputContainer, 'synthetic-focus')));
+
 
 		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
 		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
@@ -170,6 +182,8 @@ export class Repl extends Panel {
 			// refresh the tree because layout might require some elements be word wrapped differently
 			this.tree.refresh().done(undefined, errors.onUnexpectedError);
 		}
+
+		this.replInput.layout({ width: dimension.width - 20, height: 22 });
 	}
 
 	public focus(): void {
@@ -198,10 +212,31 @@ export class Repl extends Panel {
 		this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(Repl.HISTORY.save()), StorageScope.WORKSPACE);
 	}
 
-	public dispose(): void {
-		// destroy container
-		this.toDispose = lifecycle.dispose(this.toDispose);
+	private getReplInputOptions(): IEditorOptions {
+		let baseOptions: IEditorOptions = {
+			overviewRulerLanes: 0,
+			glyphMargin: false,
+			lineNumbers: false,
+			folding: false,
+			selectOnLineNumbers: false,
+			selectionHighlight: false,
+			scrollbar: {
+				horizontal: 'hidden',
+				vertical: 'hidden'
+			},
+			lineDecorationsWidth:0,
+			scrollBeyondLastLine: false,
+			lineHeight: 20,
+			theme: this.themeService.getTheme()
+		};
 
+		// Always mixin editor options from the context into our set to allow for override
+		return objects.mixin(baseOptions, this.contextService.getOptions().editor);
+	}
+
+	public dispose(): void {
+		this.replInput.destroy();
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }
