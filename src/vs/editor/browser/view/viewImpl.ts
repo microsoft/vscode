@@ -89,7 +89,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private accumulatedModelEvents: EmitterEvent[];
 	private _renderAnimationFrame: IDisposable;
 
-	private _keybindingService: IKeybindingService;
 	private _editorTextFocusContextKey: IKeybindingContextKey<boolean>;
 
 	constructor(
@@ -175,8 +174,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private createTextArea(keybindingService: IKeybindingService): void {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = <HTMLTextAreaElement>document.createElement('textarea');
-		this._keybindingService = keybindingService.createScoped(this.textArea);
-		this._editorTextFocusContextKey = EditorContextKeys.TextFocus.bindTo(this._keybindingService);
+		this._editorTextFocusContextKey = EditorContextKeys.TextFocus.bindTo(keybindingService);
 		this.textArea.className = editorBrowser.ClassNames.TEXTAREA;
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
@@ -508,7 +506,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.viewParts = [];
 
 		this.layoutProvider.dispose();
-		this._keybindingService.dispose();
+		this._editorTextFocusContextKey.reset();
 	}
 
 	// --- begin Code Editor APIs

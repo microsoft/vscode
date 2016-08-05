@@ -581,7 +581,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public getSupportedActions(): editorCommon.IEditorAction[] {
 		let result = this.getActions();
-		result = result.filter(action => action.isSupported());
+
+		result = result.filter(action => action.isSupported(true));
 
 		return result;
 	}

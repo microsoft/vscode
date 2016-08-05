@@ -186,9 +186,14 @@ export abstract class AbstractKeybindingService {
 		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
 	}
 
-	public contextMatchesRules(rules: KbExpr): boolean {
+	public contextMatchesRules(rules: KbExpr, overrideKeys?:any): boolean {
 		const ctx = Object.create(null);
 		this.getContext(this._myContextId).fillInContext(ctx);
+		if (overrideKeys) {
+			for (let key in overrideKeys) {
+				ctx[key] = overrideKeys[key];
+			}
+		}
 		const result = KeybindingResolver.contextMatchesRules(ctx, rules);
 		// console.group(rules.serialize() + ' -> ' + result);
 		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
@@ -257,6 +262,17 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._commandService = commandService;
 		this._statusService = statusService;
 		this._messageService = messageService;
+
+		// Uncomment this to see the contexts continuously logged
+		// let lastLoggedValue: string = null;
+		// setInterval(() => {
+		// 	let values = Object.keys(this._contexts).map((key) => this._contexts[key]);
+		// 	let logValue = values.map(v => JSON.stringify(v._value, null, '\t')).join('\n');
+		// 	if (lastLoggedValue !== logValue) {
+		// 		lastLoggedValue = logValue;
+		// 		console.log(lastLoggedValue);
+		// 	}
+		// }, 2000);
 	}
 
 	protected _beginListening(domNode: HTMLElement): void {

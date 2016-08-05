@@ -17,10 +17,9 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
-import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import {Location} from 'vs/editor/common/modes';
+import {IPeekViewService, PeekContext, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {provideReferences} from '../common/referenceSearch';
-import {ReferenceWidget} from './referencesWidget';
 import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from './referencesController';
 import {ReferencesModel} from './referencesModel';
 
@@ -43,7 +42,7 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 		@optional(IPeekViewService) peekViewService: IPeekViewService
 	) {
 		if (peekViewService) {
-			peekViewService.contextKey.bindTo(keybindingService);
+			PeekContext.inPeekEditor.bindTo(keybindingService);
 		}
 	}
 
@@ -65,7 +64,7 @@ export class ReferenceAction extends EditorAction {
 			false
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasReferenceProvider);
+		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -77,18 +76,6 @@ export class ReferenceAction extends EditorAction {
 			group: 'navigation',
 			order: 1.3
 		};
-	}
-
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.enabled(accessor, editor)) {
-			return false;
-		}
-		const peekViewService = accessor.get(IPeekViewService, optional);
-		if (peekViewService && peekViewService.isActive) {
-			return false;
-		}
-
-		return ReferenceProviderRegistry.has(editor.getModel());
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -187,6 +174,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: CommonEditorRegistry.commandWeight(-101),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, KbExpr.not('config.editor.stablePeek')),
+	when: KbExpr.and(PeekContext.inPeekEditor, KbExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });

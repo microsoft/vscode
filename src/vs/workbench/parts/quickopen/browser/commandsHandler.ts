@@ -19,7 +19,7 @@ import {SyncActionDescriptor, ExecuteCommandAction, IMenuService} from 'vs/platf
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {QuickOpenHandler, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {IEditorAction} from 'vs/editor/common/editorCommon';
+import {IEditorAction, IEditor} from 'vs/editor/common/editorCommon';
 import {matchesWords, matchesPrefix, matchesContiguousSubString, or} from 'vs/base/common/filters';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -268,8 +268,11 @@ export class CommandsHandler extends QuickOpenHandler {
 		let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
 
 		let editorActions: IEditorAction[] = [];
-		if (activeEditorControl && types.isFunction(activeEditorControl.getSupportedActions)) {
-			editorActions = activeEditorControl.getSupportedActions();
+		if (activeEditorControl) {
+			let editor = <IEditor>activeEditorControl;
+			if (types.isFunction(editor.getSupportedActions)) {
+				editorActions = editor.getSupportedActions();
+			}
 		}
 
 		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);

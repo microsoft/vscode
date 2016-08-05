@@ -19,7 +19,6 @@ import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} fro
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
-import {RenameProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {rename} from '../common/rename';
 import RenameInputField from './renameInputField';
@@ -168,13 +167,6 @@ export class RenameAction extends EditorAction {
 			order: 1.1,
 			kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorContextKeys.Writable)
 		};
-	}
-
-	public enabled(accessor:ServicesAccessor, editor:ICommonCodeEditor): boolean {
-		if (!super.enabled(accessor, editor)) {
-			return false;
-		}
-		return RenameProviderRegistry.has(editor.getModel());
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {

@@ -3025,12 +3025,12 @@ export namespace EditorContextKeys {
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 * @internal
 	 */
-	export const TextFocus = new KbCtxKey<boolean>('editorTextFocus', undefined);
+	export const TextFocus = new KbCtxKey<boolean>('editorTextFocus', false);
 	/**
 	 * A context key that is set when the editor's text or an editor's widget has focus.
 	 * @internal
 	 */
-	export const Focus = new KbCtxKey<boolean>('editorFocus', undefined);
+	export const Focus = new KbCtxKey<boolean>('editorFocus', false);
 
 	/**
 	 * A context key that is set when the editor's text is readonly.
@@ -3482,7 +3482,7 @@ export interface IEditorAction {
 	label: string;
 	alias: string;
 	enabled: boolean;
-	isSupported():boolean;
+	isSupported(forceEditorTextFocus:boolean):boolean;
 	run(): TPromise<void>;
 }
 
