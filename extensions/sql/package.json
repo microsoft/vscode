@@ -6,7 +6,14 @@
 	"contributes": {
 		"languages": [{
 			"id": "sql",
-			"extensions": [ ".sql" ],
+			"extensions": [
+				".sql",
+				".ddl",
+				".dml",
+				".dsql",
+				".psql",
+				".usql"
+			],
 			"aliases": [ "SQL" ],
 			"configuration": "./language-configuration.json"
 		}],

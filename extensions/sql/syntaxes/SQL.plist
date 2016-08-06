@@ -9,6 +9,7 @@
 		<string>dml</string>
 		<string>dsql</string>
 		<string>psql</string>
+		<string>usql</string>
 	</array>
 	<key>keyEquivalent</key>
 	<string>^~S</string>
