@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "fsharp",
-			"extensions": [ ".fs", ".fsi", ".ml", ".mli", ".fsx", ".fsscript" ],
+			"extensions": [ ".fs", ".fsi", ".fsx", ".fsscript" ],
 			"aliases": [ "F#", "FSharp", "fsharp" ],
 			"configuration": "./language-configuration.json"
 		}],
