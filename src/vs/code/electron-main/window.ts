@@ -564,7 +564,7 @@ export class VSCodeWindow {
 		return null;
 	}
 
-	public getBounds(): Electron.Bounds {
+	public getBounds(): Electron.Rectangle {
 		let pos = this.win.getPosition();
 		let dimension = this.win.getSize();
 
