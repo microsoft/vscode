@@ -309,9 +309,9 @@
       "resolved": "https://registry.npmjs.org/object.omit/-/object.omit-2.0.0.tgz"
     },
     "oniguruma": {
-      "version": "6.0.1",
+      "version": "6.1.0",
       "from": "oniguruma@>=6.0.1 <7.0.0",
-      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.0.1.tgz"
+      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.1.0.tgz"
     },
     "parse-glob": {
       "version": "3.0.4",
