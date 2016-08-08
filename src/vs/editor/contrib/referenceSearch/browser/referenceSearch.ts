@@ -67,7 +67,6 @@ export class ReferenceAction extends EditorAction {
 				primary: KeyMod.Shift | KeyCode.F12
 			},
 			menuOpts: {
-				kbExpr: ModeContextKeys.hasReferenceProvider,
 				group: 'navigation',
 				order: 1.3
 			}

@@ -121,8 +121,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 3,
-				kbExpr: ModeContextKeys.hasDocumentSymbolProvider
+				order: 3
 			}
 		});
 	}

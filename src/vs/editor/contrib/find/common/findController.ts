@@ -665,15 +665,14 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: null,
+			precondition: EditorContextKeys.Writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2
 			},
 			menuOpts: {
 				group: '1_modification',
-				order: 1.2,
-				kbExpr: EditorContextKeys.Writable
+				order: 1.2
 			}
 		});
 	}

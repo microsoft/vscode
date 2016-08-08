@@ -150,8 +150,7 @@ export class FormatAction extends EditorAction {
 			},
 			menuOpts: {
 				group: '1_modification',
-				order: 1.3,
-				kbExpr: ModeContextKeys.hasFormattingProvider
+				order: 1.3
 			}
 		});
 	}
