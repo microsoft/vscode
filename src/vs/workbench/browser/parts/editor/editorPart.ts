@@ -757,6 +757,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number): void {
+		if (fromGroup.count === 1) {
+			const toGroup = this.stacks.groupAt(to);
+			if (!toGroup && this.stacks.positionOfGroup(fromGroup) < to) {
+				return; // do nothing if the group to move only has one editor and is the last group already
+			}
+		}
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for th editor to be a text editor and creating the options accordingly if so
