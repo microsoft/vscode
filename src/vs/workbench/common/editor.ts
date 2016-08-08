@@ -843,5 +843,5 @@ export interface ActiveEditorMoveArguments {
 }
 
 export var EditorCommands = {
-	MoveActiveEditor: 					'moveActiveEditor'
+	MoveActiveEditor: 'moveActiveEditor'
 };

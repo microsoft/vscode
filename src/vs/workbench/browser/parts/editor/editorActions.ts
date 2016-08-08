@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
-import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -19,6 +19,8 @@ import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import {ICommandService} from 'vs/platform/commands/common/commands';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export class SplitEditorAction extends Action {
 
@@ -1270,6 +1272,58 @@ export class FocusLastEditorInStackAction extends Action {
 				return this.editorService.openEditor(editor);
 			}
 		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorLeftInGroupAction extends Action {
+
+	public static ID = 'workbench.action.moveEditorLeftInGroup';
+	public static LABEL = nls.localize('moveEditorLeft', "Move Editor Left");
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = {
+			to: ActiveEditorMovePositioning.LEFT,
+			by: ActiveEditorMovePositioningBy.TAB,
+			value: 1
+		};
+		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorRightInGroupAction extends Action {
+
+	public static ID = 'workbench.action.moveEditorRightInGroup';
+	public static LABEL = nls.localize('moveEditorRight', "Move Editor Right");
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = {
+			to: ActiveEditorMovePositioning.RIGHT,
+			by: ActiveEditorMovePositioningBy.TAB,
+			value: 1
+		};
+		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
 
 		return TPromise.as(true);
 	}
