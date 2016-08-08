@@ -145,7 +145,7 @@ export class FormatAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, ModeContextKeys.hasFormattingProvider);
+		this._precondition = KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasFormattingProvider);
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),

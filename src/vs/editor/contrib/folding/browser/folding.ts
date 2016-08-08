@@ -653,10 +653,10 @@ abstract class FoldingAction2 extends EditorAction {
 	constructor(id:string, label:string, alias:string, keybinding:number) {
 		super(id, label, alias, false);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: keybinding
 		};
 	}

@@ -17,7 +17,7 @@ class MoveCarretAction extends EditorAction {
 	constructor(id:string, label:string, alias:string, left:boolean) {
 		super(id, label, alias, true);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = KbExpr.and(EditorContextKeys.Writable);
 
 		this.left = left;
 	}

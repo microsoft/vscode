@@ -9,7 +9,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -103,7 +102,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 	constructor(id:string, label:string, alias:string) {
 		super(id, label, alias, true);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 	}
 

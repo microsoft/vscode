@@ -292,7 +292,7 @@ export class NextMatchFindAction extends MatchFindAction {
 			'Find Next'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -315,7 +315,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 			'Find Previous'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -364,7 +364,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 			'Find Next Selection'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -386,7 +386,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 			'Find Previous Selection'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -552,7 +552,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 			'Add Selection To Next Find Match'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -582,7 +582,7 @@ export class AddSelectionToPreviousFindMatchAction extends SelectPreviousFindMat
 			'Add Selection To Previous Find Match'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -607,7 +607,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 			'Move Last Selection To Next Find Match'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -637,7 +637,7 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 			'Move Last Selection To Previous Find Match'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -692,7 +692,7 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 			'Select All Occurences of Find Match'
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -709,7 +709,7 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 			'Change All Occurrences'
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

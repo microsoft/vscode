@@ -50,7 +50,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 			Type.Toggle
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
@@ -69,7 +69,7 @@ class AddLineCommentAction extends CommentLineAction {
 			Type.ForceAdd
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
@@ -88,7 +88,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 			Type.ForceRemove
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
@@ -107,7 +107,7 @@ class BlockCommentAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),

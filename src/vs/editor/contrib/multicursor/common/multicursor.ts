@@ -19,7 +19,7 @@ class InsertCursorAbove extends HandlerEditorAction {
 			Handler.AddCursorUp
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -42,7 +42,7 @@ class InsertCursorBelow extends HandlerEditorAction {
 			Handler.AddCursorDown
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -65,7 +65,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

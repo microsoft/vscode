@@ -19,7 +19,6 @@ import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 let SCOPE_PREFIX = ':';
 
@@ -118,7 +117,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to")
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.Focus, ModeContextKeys.hasDocumentSymbolProvider);
+		this._precondition = ModeContextKeys.hasDocumentSymbolProvider;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,

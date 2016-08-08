@@ -153,7 +153,7 @@ class ShowHoverAction extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

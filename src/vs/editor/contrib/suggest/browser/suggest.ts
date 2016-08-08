@@ -177,7 +177,7 @@ export class TriggerSuggestAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, ModeContextKeys.hasCompletionItemProvider);
+		this._precondition = KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCompletionItemProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

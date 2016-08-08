@@ -10,7 +10,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorContextKeys, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
 import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {InPlaceReplaceCommand} from './inPlaceReplaceCommand';
@@ -136,7 +135,7 @@ class InPlaceReplaceUp extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -159,7 +158,7 @@ class InPlaceReplaceDown extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
