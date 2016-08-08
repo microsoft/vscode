@@ -328,15 +328,6 @@ class OpenLinkAction extends EditorAction {
 		this._precondition = null;
 	}
 
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		let linkDetector = LinkDetector.get(editor);
-		if (linkDetector.isComputing()) {
-			// optimistic enablement while state is being computed
-			return true;
-		}
-		return !!linkDetector.getLinkOccurence(editor.getPosition());
-	}
-
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		let linkDetector = LinkDetector.get(editor);
 		let link = linkDetector.getLinkOccurence(editor.getPosition());
