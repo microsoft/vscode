@@ -12,7 +12,6 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import timer = require('vs/base/common/timer');
-import {assign} from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
@@ -20,10 +19,8 @@ import {EventService} from 'vs/platform/event/common/eventService';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
-
 import path = require('path');
 import fs = require('fs');
-
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
@@ -56,9 +53,6 @@ export interface IMainEnvironment extends IEnvironment {
 }
 
 export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
-	// Inherit the user environment
-	assign(process.env, environment.userEnv);
-
 	// Shell Configuration
 	let shellConfiguration: IConfiguration = {
 		env: environment
