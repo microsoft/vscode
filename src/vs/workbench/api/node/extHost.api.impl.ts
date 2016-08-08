@@ -236,11 +236,11 @@ export class ExtHostAPIImplementation {
 			showErrorMessage: (message, ...items) => {
 				return extHostMessageService.showMessage(Severity.Error, message, items);
 			},
-			showQuickPick: (items: any, options: vscode.QuickPickOptions) => {
-				return extHostQuickOpen.show(items, options);
+			showQuickPick: (items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) => {
+				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
-			showInputBox(options?: vscode.InputBoxOptions) {
-				return extHostQuickOpen.input(options);
+			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
+				return extHostQuickOpen.showInput(options, token);
 			},
 
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {

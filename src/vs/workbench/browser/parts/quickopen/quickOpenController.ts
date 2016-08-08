@@ -14,9 +14,10 @@ import filters = require('vs/base/common/filters');
 import URI from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
+import {CancellationToken} from 'vs/base/common/cancellation';
 import {Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
+import {QuickOpenWidget, HideReason} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
@@ -123,7 +124,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 	}
 
-	public input(options: IInputOptions = {}): TPromise<string> {
+	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
 		const defaultMessage = options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
@@ -167,7 +168,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						});
 					}
 				}
-			}).then(resolve, reject);
+			}, token).then(resolve, reject);
 		};
 
 		return new TPromise(init).then(item => {
@@ -179,11 +180,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 	}
 
-	public pick(picks: TPromise<string[]>, options?: IPickOptions): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions): TPromise<string>;
-	public pick(picks: string[], options?: IPickOptions): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions): TPromise<T>;
-	public pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions): TPromise<string | IPickOpenEntry> {
+	public pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
+	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
+	public pick(picks: string[], options?: IPickOptions, token?: CancellationToken): TPromise<string>;
+	public pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions, token?: CancellationToken): TPromise<T>;
+	public pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
 		if (!options) {
 			options = Object.create(null);
 		}
@@ -215,11 +216,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				return item && isAboutStrings ? item.label : item;
 			}
 
-			this.doPick(entryPromise, options).then(item => resolve(onItem(item)), err => reject(err), item => progress(onItem(item)));
+			this.doPick(entryPromise, options, token).then(item => resolve(onItem(item)), err => reject(err), item => progress(onItem(item)));
 		});
 	}
 
-	private doPick(picksPromise: TPromise<IPickOpenEntry[]>, options: IInternalPickOptions): TPromise<IPickOpenEntry> {
+	private doPick(picksPromise: TPromise<IPickOpenEntry[]>, options: IInternalPickOptions, token: CancellationToken = CancellationToken.None): TPromise<IPickOpenEntry> {
 		let autoFocus = options.autoFocus;
 
 		// Use a generated token to avoid race conditions from long running promises
@@ -276,6 +277,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
+
+			// hide widget when being cancelled
+			token.onCancellationRequested(e => this.pickOpenWidget.hide(HideReason.CANCELED));
+
 			let picksPromiseDone = false;
 
 			// Resolve picks

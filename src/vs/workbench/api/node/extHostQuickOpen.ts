@@ -5,6 +5,8 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {wireCancellationToken} from 'vs/base/common/async';
+import {CancellationToken} from 'vs/base/common/cancellation';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
 import {MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
@@ -22,26 +24,21 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 		this._proxy = threadService.get(MainContext.MainThreadQuickOpen);
 	}
 
-	show(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions): Thenable<Item> {
+	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item> {
 
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
 
-		let itemsPromise: Thenable<Item[]>;
-		if (!Array.isArray(itemsOrItemsPromise)) {
-			itemsPromise = itemsOrItemsPromise;
-		} else {
-			itemsPromise = TPromise.as(itemsOrItemsPromise);
-		}
+		const itemsPromise = <TPromise<Item[]>> TPromise.as(itemsOrItemsPromise);
 
-		let quickPickWidget = this._proxy.$show({
+		const quickPickWidget = this._proxy.$show({
 			autoFocus: { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail
 		});
 
-		return itemsPromise.then(items => {
+		const promise = itemsPromise.then(items => {
 
 			let pickItems: MyQuickPickItems[] = [];
 			for (let handle = 0; handle < items.length; handle++) {
@@ -86,6 +83,8 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 
 			return TPromise.wrapError(err);
 		});
+
+		return wireCancellationToken(token, promise, true);
 	}
 
 	$onItemSelected(handle: number): void {
@@ -96,9 +95,13 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 
 	// ---- input
 
-	input(options?: InputBoxOptions): Thenable<string> {
+	showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Thenable<string> {
+
+		// global validate fn used in callback below
 		this._validateInput = options && options.validateInput;
-		return this._proxy.$input(options, options && typeof options.validateInput === 'function');
+
+		const promise = this._proxy.$input(options, typeof this._validateInput === 'function');
+		return wireCancellationToken(token, promise, true);
 	}
 
 	$validateInput(input: string): TPromise<string> {
