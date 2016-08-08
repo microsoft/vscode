@@ -760,7 +760,7 @@ class SelectAllCommand extends Command {
 			precondition: null,
 			kbOpts: {
 				weight: CORE_WEIGHT,
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 			}
 		});
