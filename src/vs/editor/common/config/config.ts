@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandAndKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -111,6 +111,12 @@ export abstract class EditorCommand extends Command {
 			return;
 		}
 		return editor.invokeWithinContext((editorAccessor) => {
+			const kbService = accessor.get(IKeybindingService);
+			if (!kbService.contextMatchesRules(this.precondition)) {
+				// precondition does not hold
+				return;
+			}
+
 			return this.runEditorCommand(editorAccessor, editor, args);
 		});
 	}

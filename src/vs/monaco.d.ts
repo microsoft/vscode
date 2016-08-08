@@ -2758,8 +2758,7 @@ declare module monaco.editor {
         id: string;
         label: string;
         alias: string;
-        enabled: boolean;
-        isSupported(forceEditorTextFocus: boolean): boolean;
+        isSupported(): boolean;
         run(): Promise<void>;
     }
 

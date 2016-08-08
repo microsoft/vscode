@@ -8,7 +8,6 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -171,33 +170,9 @@ export abstract class EditorAction extends ConfigEditorCommand {
 		};
 	}
 
-	protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
-		if (!this.enabled(accessor, editor)) {
-			return;
-		}
-
+	public runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
 		return this.run(accessor, editor);
-	}
-
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!this.supported(accessor, editor, false)) {
-			return false;
-		}
-		return true;
-	}
-
-	public supported(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor, forceEditorTextFocus:boolean): boolean {
-		const kbService = accessor.get(IKeybindingService);
-
-		let override = null;
-		if (forceEditorTextFocus) {
-			override = {
-				editorTextFocus: true
-			};
-		}
-
-		return kbService.contextMatchesRules(this.precondition, override);
 	}
 
 	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;

@@ -3481,8 +3481,7 @@ export interface IEditorAction {
 	id: string;
 	label: string;
 	alias: string;
-	enabled: boolean;
-	isSupported(forceEditorTextFocus:boolean):boolean;
+	isSupported():boolean;
 	run(): TPromise<void>;
 }
 

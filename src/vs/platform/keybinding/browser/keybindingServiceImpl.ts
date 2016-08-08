@@ -186,14 +186,9 @@ export abstract class AbstractKeybindingService {
 		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
 	}
 
-	public contextMatchesRules(rules: KbExpr, overrideKeys?:any): boolean {
+	public contextMatchesRules(rules: KbExpr): boolean {
 		const ctx = Object.create(null);
 		this.getContext(this._myContextId).fillInContext(ctx);
-		if (overrideKeys) {
-			for (let key in overrideKeys) {
-				ctx[key] = overrideKeys[key];
-			}
-		}
 		const result = KeybindingResolver.contextMatchesRules(ctx, rules);
 		// console.group(rules.serialize() + ' -> ' + result);
 		// rules.keys().forEach(key => { console.log(key, ctx[key]); });

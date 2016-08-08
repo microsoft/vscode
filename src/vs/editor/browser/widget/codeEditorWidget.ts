@@ -109,7 +109,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		}
 
 		CommonEditorRegistry.getEditorActions().forEach((action) => {
-			let internalAction = new InternalEditorAction(action, this, this._instantiationService);
+			let internalAction = new InternalEditorAction(action, this, this._instantiationService, this._keybindingService);
 			this._actions[internalAction.id] = internalAction;
 		});
 	}
