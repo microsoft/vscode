@@ -429,8 +429,8 @@
     },
     "xterm": {
       "version": "1.0.0",
-      "from": "git+https://github.com/sourcelair/xterm.js.git#65b2be7",
-      "resolved": "git+https://github.com/sourcelair/xterm.js.git#65b2be78315e0c83defb7d8358eb0282a18024a0"
+      "from": "git+https://github.com/sourcelair/xterm.js.git#e7c7160",
+      "resolved": "git+https://github.com/sourcelair/xterm.js.git#e7c7160f8549eede0f069d3b8512642f3498f9fe"
     },
     "yauzl": {
       "version": "2.3.1",
