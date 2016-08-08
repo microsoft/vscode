@@ -53,8 +53,6 @@ export interface ITitleAreaControl {
 	dispose(): void;
 }
 
-const showTabsOverflowAction = false; // TODO@Ben temporary
-
 export abstract class TitleControl implements ITitleAreaControl {
 
 	private static draggedEditor: IEditorIdentifier;
@@ -228,8 +226,6 @@ export abstract class TitleControl implements ITitleAreaControl {
 		this.pinEditorAction = this.instantiationService.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
 		this.showEditorsInGroupAction = this.instantiationService.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, nls.localize('showOpenedEditors', "Show Opened Editors"));
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
-
-		this.showEditorsInGroupAction.class = 'show-group-editors-action';
 	}
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
@@ -371,17 +367,11 @@ export abstract class TitleControl implements ITitleAreaControl {
 			secondaryEditorActions = prepareActions(editorActions.secondary);
 		}
 
-		if (this.showTabs && showTabsOverflowAction) {
-			primaryEditorActions.push(this.showEditorsInGroupAction);
-		}
-
 		if (this.showTabs) {
-			if (!showTabsOverflowAction) {
-				if (secondaryEditorActions.length > 0) {
-					secondaryEditorActions.push(new Separator());
-				}
-				secondaryEditorActions.push(this.showEditorsInGroupAction);
+			if (secondaryEditorActions.length > 0) {
+				secondaryEditorActions.push(new Separator());
 			}
+			secondaryEditorActions.push(this.showEditorsInGroupAction);
 			secondaryEditorActions.push(new Separator());
 			secondaryEditorActions.push(this.closeEditorsInGroupAction);
 		}
