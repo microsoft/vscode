@@ -40,8 +40,15 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Th
 /**
  * Hook a cancellation token to a WinJS Promise
  */
-export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>): Thenable<T> {
+export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
 	token.onCancellationRequested(() => promise.cancel());
+	if (resolveAsUndefinedWhenCancelled) {
+		return promise.then(undefined, err => {
+			if (!errors.isPromiseCanceledError(err)) {
+				return TPromise.wrapError(err);
+			}
+		});
+	}
 	return promise;
 }
 

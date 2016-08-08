@@ -153,7 +153,7 @@ export abstract class MainThreadQuickOpenShape {
 	$show(options: IPickOptions): Thenable<number> { throw ni(); }
 	$setItems(items: MyQuickPickItems[]): Thenable<any> { throw ni(); }
 	$setError(error: Error): Thenable<any> { throw ni(); }
-	$input(options: vscode.InputBoxOptions, validateInput: boolean): Thenable<string> { throw ni(); }
+	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string> { throw ni(); }
 }
 
 export abstract class MainThreadStatusBarShape {

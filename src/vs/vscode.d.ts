@@ -3324,18 +3324,20 @@ declare namespace vscode {
 		 *
 		 * @param items An array of strings, or a promise that resolves to an array of strings.
 		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selection or undefined.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions): Thenable<string>;
+		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string>;
 
 		/**
 		 * Shows a selection list.
 		 *
 		 * @param items An array of items, or a promise that resolves to an array of items.
 		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected item or undefined.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions): Thenable<T>;
+		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T>;
 
 		/**
 		 * Opens an input box to ask the user for input.
@@ -3345,9 +3347,10 @@ declare namespace vscode {
 		 * anything but dismissed the input box with OK.
 		 *
 		 * @param options Configures the behavior of the input box.
+		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to a string the user provided or to `undefined` in case of dismissal.
 		 */
-		export function showInputBox(options?: InputBoxOptions): Thenable<string>;
+		export function showInputBox(options?: InputBoxOptions, token?: CancellationToken): Thenable<string>;
 
 		/**
 		 * Create a new [output channel](#OutputChannel) with the given name.

@@ -509,11 +509,11 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		this.callback = callback;
 	}
 
-	pick(arg: any, placeHolder?: string, autoFocusFirst?: boolean): Promise {
+	pick(arg: any, options?: any, token?: any): Promise {
 		return TPromise.as(null);
 	}
 
-	input(options?: any): Promise {
+	input(options?: any, token?: any): Promise {
 		return TPromise.as(null);
 	}
 
