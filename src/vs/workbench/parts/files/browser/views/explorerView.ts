@@ -304,26 +304,26 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public createViewer(container: Builder): ITree {
-		let dataSource = this.instantiationService.createInstance(FileDataSource);
-		let renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
-		let controller = this.instantiationService.createInstance(FileController, this.viewletState);
-		let sorter = new FileSorter();
+		const dataSource = this.instantiationService.createInstance(FileDataSource);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
+		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		const sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);
-		let dnd = this.instantiationService.createInstance(FileDragAndDrop);
-		let accessibility = this.instantiationService.createInstance(FileAccessibilityProvider);
+		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
+		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
 		this.explorerViewer = new Tree(container.getHTMLElement(), {
-			dataSource: dataSource,
-			renderer: renderer,
-			controller: controller,
-			sorter: sorter,
+			dataSource,
+			renderer,
+			controller,
+			sorter,
 			filter: this.filter,
-			dnd: dnd,
-			accessibilityProvider: accessibility
+			dnd,
+			accessibilityProvider
 		}, {
-				autoExpandSingleChildren: true,
-				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
-			});
+			autoExpandSingleChildren: true,
+			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+		});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 
