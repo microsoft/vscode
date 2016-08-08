@@ -200,14 +200,13 @@
 			timers.beforeLoad = new Date();
 
 			require([
-				'vs/workbench/electron-browser/main',
 				'vs/workbench/workbench.main',
 				'vs/nls!vs/workbench/workbench.main',
 				'vs/css!vs/workbench/workbench.main'
-			], (main) => {
+			], () => {
 				timers.afterLoad = new Date();
 
-				main
+				const main = require('vs/workbench/electron-browser/main')
 					.startup(configuration, globalSettings)
 					.done(null, error => onError(error, enableDeveloperTools));
 			});
