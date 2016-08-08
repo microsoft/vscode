@@ -23,7 +23,6 @@ import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
@@ -328,38 +327,6 @@ function toKeyCode(index: number): KeyCode {
 		case 9: return KeyCode.KEY_9;
 	}
 }
-
-// Configuration
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	'id': 'workbench',
-	'order': 7,
-	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
-	'type': 'object',
-	'properties': {
-		'workbench.editor.showTabs': {
-			'type': 'boolean',
-			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
-			'default': true
-		},
-		'workbench.editor.enablePreview': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
-			'default': true
-		},
-		'workbench.editor.enablePreviewFromQuickOpen': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from quick open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
-			'default': true
-		},
-		'workbench.editor.openPositioning': {
-			'type': 'string',
-			'enum': ['left', 'right', 'first', 'last'],
-			'default': 'right',
-			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
-		}
-	}
-});
 
 // Editor Commands
 editorCommands.setup();
