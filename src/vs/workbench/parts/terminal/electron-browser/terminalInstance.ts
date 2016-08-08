@@ -135,13 +135,10 @@ export class TerminalInstance {
 		if (!dimension.height) { // Minimized
 			return;
 		}
-		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
-		let innerWidth = dimension.width - leftPadding;
-		let cols = Math.floor(innerWidth / this.font.charWidth);
+		let cols = Math.floor(dimension.width / this.font.charWidth);
 		let rows = Math.floor(dimension.height / this.font.charHeight);
 		if (this.xterm) {
 			this.xterm.resize(cols, rows);
-			this.xterm.element.style.width = innerWidth + 'px';
 		}
 		if (this.terminalProcess.process.connected) {
 			this.terminalProcess.process.send({
