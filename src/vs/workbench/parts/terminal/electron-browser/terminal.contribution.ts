@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
 import * as panel from 'vs/workbench/browser/panel';
