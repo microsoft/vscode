@@ -89,7 +89,9 @@ export class TabsTitleControl extends TitleControl {
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
 
-				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true }); // untitled are always pinned
+				const group = this.context;
+
+				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }); // untitled are always pinned
 			}
 		}));
 
