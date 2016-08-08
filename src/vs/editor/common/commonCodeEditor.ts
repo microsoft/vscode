@@ -582,7 +582,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public getSupportedActions(): editorCommon.IEditorAction[] {
 		let result = this.getActions();
 
-		result = result.filter(action => action.isSupported(true));
+		result = result.filter(action => action.isSupported());
 
 		return result;
 	}
@@ -594,11 +594,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public trigger(source:string, handlerId:string, payload:any): void {
 		payload = payload || {};
 		var candidate = this.getAction(handlerId);
-		if(candidate !== null) {
-			if (candidate.enabled) {
-				this._telemetryService.publicLog('editorActionInvoked', {name: candidate.label, id: candidate.id} );
-				TPromise.as(candidate.run()).done(null, onUnexpectedError);
-			}
+		if (candidate !== null) {
+			TPromise.as(candidate.run()).done(null, onUnexpectedError);
 		} else {
 			if (!this.cursor) {
 				return;

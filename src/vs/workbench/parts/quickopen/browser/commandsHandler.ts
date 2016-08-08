@@ -187,7 +187,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		if (mode === Mode.OPEN) {
 			// Use a timeout to give the quick open widget a chance to close itself first
 			TPromise.timeout(50).done(() => {
-				if (this.action && this.action.enabled) {
+				if (this.action) {
 					try {
 						this.telemetryService.publicLog('workbenchActionExecuted', { id: this.action.id, from: 'quick open' });
 						(this.action.run() || TPromise.as(null)).done(null, (err) => this.onError(err));

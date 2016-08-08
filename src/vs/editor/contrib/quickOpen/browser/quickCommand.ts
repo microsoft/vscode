@@ -52,13 +52,11 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 				// Some actions are enabled only when editor has focus
 				this.editor.focus();
 
-				if (this.action.enabled) {
-					try {
-						let promise = this.action.run() || TPromise.as(null);
-						promise.done(null, onUnexpectedError);
-					} catch (error) {
-						onUnexpectedError(error);
-					}
+				try {
+					let promise = this.action.run() || TPromise.as(null);
+					promise.done(null, onUnexpectedError);
+				} catch (error) {
+					onUnexpectedError(error);
 				}
 			}, onUnexpectedError);
 

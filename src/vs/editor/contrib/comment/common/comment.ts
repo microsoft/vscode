@@ -75,7 +75,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 			id: 'editor.action.removeCommentLine',
 			label: nls.localize('comment.line.remove', "Remove Line Comment"),
 			alias: 'Remove Line Comment',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.Writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
