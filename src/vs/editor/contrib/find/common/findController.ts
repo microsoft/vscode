@@ -419,6 +419,10 @@ export class StartFindReplaceAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		if (editor.getConfiguration().readOnly) {
+			return;
+		}
+
 		let controller = CommonFindController.getFindController(editor);
 		controller.start({
 			forceRevealReplace: true,

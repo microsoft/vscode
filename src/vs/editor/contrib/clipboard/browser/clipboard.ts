@@ -10,7 +10,6 @@ import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
@@ -57,10 +56,10 @@ class ExecCommandCutAction extends ExecCommandAction {
 			'cut'
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 		};
@@ -132,7 +131,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 		};

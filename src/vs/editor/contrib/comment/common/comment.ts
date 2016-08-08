@@ -10,7 +10,6 @@ import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/e
 import {EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LineCommentCommand, Type} from './lineCommentCommand';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -53,7 +52,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
 		};
 	}
@@ -72,7 +71,7 @@ class AddLineCommentAction extends CommentLineAction {
 		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
 		};
 	}
@@ -91,7 +90,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
 		};
 	}
@@ -110,7 +109,7 @@ class BlockCommentAction extends EditorAction {
 		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
 		};

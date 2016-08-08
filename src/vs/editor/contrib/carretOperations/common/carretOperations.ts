@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {MoveCarretCommand} from './moveCarretCommand';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 class MoveCarretAction extends EditorAction {
 
@@ -17,7 +16,7 @@ class MoveCarretAction extends EditorAction {
 	constructor(id:string, label:string, alias:string, left:boolean) {
 		super(id, label, alias, true);
 
-		this._precondition = KbExpr.and(EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.left = left;
 	}
