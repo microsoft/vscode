@@ -420,7 +420,7 @@ export class VSCodeWindow {
 	}
 
 	private getUrl(config: IWindowConfiguration): string {
-		let url = require.toUrl('vs/workbench/electron-browser/index.html');
+		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
 
 		// Config
 		url += '?config=' + encodeURIComponent(JSON.stringify(config));
