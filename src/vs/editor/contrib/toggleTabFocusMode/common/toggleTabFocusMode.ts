@@ -15,20 +15,17 @@ export class ToggleTabFocusModeAction extends EditorAction {
 	public static ID = 'editor.action.toggleTabFocusMode';
 
 	constructor() {
-		super(
-			ToggleTabFocusModeAction.ID,
-			nls.localize('toggle.tabfocusmode', "Toggle Use of Tab Key for Setting Focus"),
-			'Toggle Use of Tab Key for Setting Focus',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: null,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
-		};
+		super({
+			id: ToggleTabFocusModeAction.ID,
+			label: nls.localize('toggle.tabfocusmode', "Toggle Use of Tab Key for Setting Focus"),
+			alias: 'Toggle Use of Tab Key for Setting Focus',
+			precondition: null,
+			kbOpts: {
+				kbExpr: null,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

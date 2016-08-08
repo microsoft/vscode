@@ -11,66 +11,57 @@ import {ServicesAccessor, EditorAction, HandlerEditorAction, CommonEditorRegistr
 
 class InsertCursorAbove extends HandlerEditorAction {
 	constructor() {
-		super(
-			'editor.action.insertCursorAbove',
-			nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
-			'Add Cursor Above',
-			false,
-			Handler.AddCursorUp
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
-			linux: {
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+		super({
+			id: 'editor.action.insertCursorAbove',
+			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
+			alias: 'Add Cursor Above',
+			precondition: null,
+			handlerId: Handler.AddCursorUp,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
+				linux: {
+					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+				}
 			}
-		};
+		});
 	}
 }
 
 class InsertCursorBelow extends HandlerEditorAction {
 	constructor() {
-		super(
-			'editor.action.insertCursorBelow',
-			nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
-			'Add Cursor Below',
-			false,
-			Handler.AddCursorDown
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
-			linux: {
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
+		super({
+			id: 'editor.action.insertCursorBelow',
+			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
+			alias: 'Add Cursor Below',
+			precondition: null,
+			handlerId: Handler.AddCursorDown,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
+				linux: {
+					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
+				}
 			}
-		};
+		});
 	}
 }
 
 class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.insertCursorAtEndOfEachLineSelected',
-			nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create Multiple Cursors from Selected Lines"),
-			'Create Multiple Cursors from Selected Lines',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
-		};
+		super({
+			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
+			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create Multiple Cursors from Selected Lines"),
+			alias: 'Create Multiple Cursors from Selected Lines',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

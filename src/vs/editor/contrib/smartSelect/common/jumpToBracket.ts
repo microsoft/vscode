@@ -10,22 +10,18 @@ import {Handler, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class SelectBracketAction extends HandlerEditorAction {
-
 	constructor() {
-		super(
-			'editor.action.jumpToBracket',
-			nls.localize('smartSelect.jumpBracket', "Go to Bracket"),
-			'Go to Bracket',
-			false,
-			Handler.JumpToBracket
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
-		};
+		super({
+			id: 'editor.action.jumpToBracket',
+			label: nls.localize('smartSelect.jumpBracket', "Go to Bracket"),
+			alias: 'Go to Bracket',
+			precondition: null,
+			handlerId: Handler.JumpToBracket,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
+			}
+		});
 	}
 }
 

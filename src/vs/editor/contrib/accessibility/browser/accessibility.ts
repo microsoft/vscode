@@ -15,7 +15,7 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
@@ -192,19 +192,16 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 class ShowAccessibilityHelpAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.showAccessibilityHelp',
-			nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help"),
-			'Show Accessibility Help',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
-			primary: KeyMod.Alt | KeyCode.F1
-		};
+		super({
+			id: 'editor.action.showAccessibilityHelp',
+			label: nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help"),
+			alias: 'Show Accessibility Help',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.Alt | KeyCode.F1
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -216,31 +213,30 @@ class ShowAccessibilityHelpAction extends EditorAction {
 EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
 CommonEditorRegistry.registerEditorAction(new ShowAccessibilityHelpAction());
 
-const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(
-	AccessibilityHelpController.get,
-	{
-		weight: CommonEditorRegistry.commandWeight(100),
-		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE)
-	}
-);
+const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 
-CommonEditorRegistry.registerEditorCommand2(new AccessibilityHelpCommand(
-	'closeAccessibilityHelp',
-	x => x.hide(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new AccessibilityHelpCommand({
+	id: 'closeAccessibilityHelp',
+	precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
+	handler: x => x.hide(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(100),
+		kbExpr: EditorContextKeys.Focus,
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
-));
+}));
 
 class ToggleExperimentalScreenReaderSupportCommand extends Command {
 	constructor() {
-		super(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID);
-
-		this.kbOpts = {
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-			kbExpr: null,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
-		};
+		super({
+			id: TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID,
+			precondition: null,
+			kbOpts: {
+				weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+				kbExpr: null,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
+			}
+		});
 	}
 
 	public runCommand(accessor:ServicesAccessor, args: any): void {

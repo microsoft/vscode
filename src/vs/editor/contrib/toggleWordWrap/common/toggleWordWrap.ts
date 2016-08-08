@@ -12,19 +12,16 @@ import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/co
 class ToggleWordWrapAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.toggleWordWrap',
-			nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
-			'View: Toggle Word Wrap',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Alt | KeyCode.KEY_Z
-		};
+		super({
+			id: 'editor.action.toggleWordWrap',
+			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
+			alias: 'View: Toggle Word Wrap',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyCode.KEY_Z
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

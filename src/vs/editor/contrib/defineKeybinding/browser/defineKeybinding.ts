@@ -450,19 +450,16 @@ export class DefineKeybindingAction extends EditorAction {
 	static ID = 'editor.action.defineKeybinding';
 
 	constructor() {
-		super(
-			DefineKeybindingAction.ID,
-			nls.localize('DefineKeybindingAction',"Define Keybinding"),
-			'Define Keybinding',
-			true
-		);
-
-		this._precondition = KbExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json'));
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
-		};
+		super({
+			id: DefineKeybindingAction.ID,
+			label: nls.localize('DefineKeybindingAction',"Define Keybinding"),
+			alias: 'Define Keybinding',
+			precondition: KbExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json')),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {

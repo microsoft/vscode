@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {IActionOptions, EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LineCommentCommand, Type} from './lineCommentCommand';
 
@@ -15,8 +15,8 @@ abstract class CommentLineAction extends EditorAction {
 
 	private _type: Type;
 
-	constructor(id:string, label:string, alias:string, type:Type) {
-		super(id, label, alias, true);
+	constructor(type:Type, opts:IActionOptions) {
+		super(opts);
 		this._type = type;
 	}
 
@@ -40,79 +40,64 @@ abstract class CommentLineAction extends EditorAction {
 }
 
 class ToggleCommentLineAction extends CommentLineAction {
-
 	constructor() {
-		super(
-			'editor.action.commentLine',
-			nls.localize('comment.line', "Toggle Line Comment"),
-			'Toggle Line Comment',
-			Type.Toggle
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
-		};
+		super(Type.Toggle, {
+			id: 'editor.action.commentLine',
+			label: nls.localize('comment.line', "Toggle Line Comment"),
+			alias: 'Toggle Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
+			}
+		});
 	}
 }
 
 class AddLineCommentAction extends CommentLineAction {
-
 	constructor() {
-		super(
-			'editor.action.addCommentLine',
-			nls.localize('comment.line.add', "Add Line Comment"),
-			'Add Line Comment',
-			Type.ForceAdd
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
-		};
+		super(Type.ForceAdd, {
+			id: 'editor.action.addCommentLine',
+			label: nls.localize('comment.line.add', "Add Line Comment"),
+			alias: 'Add Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
+			}
+		});
 	}
 }
 
 class RemoveLineCommentAction extends CommentLineAction {
-
 	constructor() {
-		super(
-			'editor.action.removeCommentLine',
-			nls.localize('comment.line.remove', "Remove Line Comment"),
-			'Remove Line Comment',
-			Type.ForceRemove
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
-		};
+		super(Type.ForceRemove, {
+			id: 'editor.action.removeCommentLine',
+			label: nls.localize('comment.line.remove', "Remove Line Comment"),
+			alias: 'Remove Line Comment',
+			precondition: EditorContextKeys.Writable
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
+			}
+		});
 	}
 }
 
 class BlockCommentAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.blockComment',
-			nls.localize('comment.block', "Toggle Block Comment"),
-			'Toggle Block Comment',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
-		};
+		super({
+			id: 'editor.action.blockComment',
+			label: nls.localize('comment.block', "Toggle Block Comment"),
+			alias: 'Toggle Block Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

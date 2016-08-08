@@ -128,19 +128,16 @@ class InPlaceReplaceController implements IEditorContribution {
 class InPlaceReplaceUp extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.inPlaceReplace.up',
-			nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
-			'Replace with Previous Value',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
-		};
+		super({
+			id: 'editor.action.inPlaceReplace.up',
+			label: nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
+			alias: 'Replace with Previous Value',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
@@ -151,19 +148,16 @@ class InPlaceReplaceUp extends EditorAction {
 class InPlaceReplaceDown extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.inPlaceReplace.down',
-			nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"),
-			'Replace with Next Value',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
-		};
+		super({
+			id: 'editor.action.inPlaceReplace.down',
+			label: nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"),
+			alias: 'Replace with Next Value',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {

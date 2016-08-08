@@ -9,16 +9,18 @@ import nls = require('vs/nls');
 import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import {ServicesAccessor, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 class UpdateTagAction extends EmmetEditorAction {
 
 	constructor() {
-		super(
-			'editor.emmet.action.updateTag',
-			nls.localize('updateTag', "Emmet: Update Tag"),
-			'Emmet: Update Tag'
-		);
+		super({
+			id: 'editor.emmet.action.updateTag',
+			label: nls.localize('updateTag', "Emmet: Update Tag"),
+			alias: 'Emmet: Update Tag',
+			precondition: EditorContextKeys.Writable
+		});
 	}
 
 	public runEmmetAction(accessor:ServicesAccessor, ctx: EmmetActionContext) {

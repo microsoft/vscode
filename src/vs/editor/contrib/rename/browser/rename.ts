@@ -148,25 +148,21 @@ class RenameController implements IEditorContribution {
 export class RenameAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.rename',
-			nls.localize('rename.label', "Rename Symbol"),
-			'Rename Symbol',
-			true
-		);
-
-		this._precondition = KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasRenameProvider);
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyCode.F2
-		};
-
-		this.menuOpts = {
-			group: '1_modification',
-			order: 1.1,
-			kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorContextKeys.Writable)
-		};
+		super({
+			id: 'editor.action.rename',
+			label: nls.localize('rename.label', "Rename Symbol"),
+			alias: 'Rename Symbol',
+			precondition: KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasRenameProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyCode.F2
+			},
+			menuOpts: {
+				group: '1_modification',
+				order: 1.1,
+				kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorContextKeys.Writable)
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
@@ -176,28 +172,29 @@ export class RenameAction extends EditorAction {
 
 EditorBrowserRegistry.registerEditorContribution(RenameController);
 
-const RenameCommand = EditorCommand.bindToContribution<RenameController>(
-	RenameController.get, {
-		weight: CommonEditorRegistry.commandWeight(99),
-		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_RENAME_INPUT_VISIBLE)
-	}
-);
+const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
 
 CommonEditorRegistry.registerEditorAction(new RenameAction());
 
-CommonEditorRegistry.registerEditorCommand2(new RenameCommand(
-	'acceptRenameInput',
-	x => x.acceptRenameInput(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new RenameCommand({
+	id: 'acceptRenameInput',
+	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+	handler: x => x.acceptRenameInput(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(99),
+		kbExpr: EditorContextKeys.Focus,
 		primary: KeyCode.Enter
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new RenameCommand(
-	'cancelRenameInput',
-	x => x.cancelRenameInput(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new RenameCommand({
+	id: 'cancelRenameInput',
+	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+	handler: x => x.cancelRenameInput(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(99),
+		kbExpr: EditorContextKeys.Focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
-));
+}));

@@ -170,20 +170,17 @@ export class SuggestController implements IEditorContribution {
 export class TriggerSuggestAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.triggerSuggest',
-			nls.localize('suggest.trigger.label', "Trigger Suggest"),
-			'Trigger Suggest',
-			true
-		);
-
-		this._precondition = KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCompletionItemProvider);
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.Space,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
-		};
+		super({
+			id: 'editor.action.triggerSuggest',
+			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
+			alias: 'Trigger Suggest',
+			precondition: KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCompletionItemProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Space,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -195,95 +192,103 @@ CommonEditorRegistry.registerEditorAction(new TriggerSuggestAction());
 
 const weight = CommonEditorRegistry.commandWeight(90);
 
-const SuggestCommand = EditorCommand.bindToContribution(
-	SuggestController.getController, {
-		weight: weight,
-		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, SuggestContext.Visible)
-	}
-);
-const MultipleSuggestionsCommand = EditorCommand.bindToContribution(
-	SuggestController.getController, {
-		weight: weight,
-		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, SuggestContext.Visible, SuggestContext.MultipleSuggestions)
-	}
-);
-const AcceptSuggestionsOnEnterCommand = EditorCommand.bindToContribution(
-	SuggestController.getController, {
-		weight: weight,
-		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, SuggestContext.Visible, KbExpr.has('config.editor.acceptSuggestionOnEnter'))
-	}
-);
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.getController);
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand(
-	'acceptSelectedSuggestion',
-	x => x.acceptSelectedSuggestion(),
-	{
+
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'acceptSelectedSuggestion',
+	precondition: SuggestContext.Visible,
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.Tab
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new AcceptSuggestionsOnEnterCommand(
-	'acceptSelectedSuggestionOnEnter',
-	x => x.acceptSelectedSuggestion(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'acceptSelectedSuggestionOnEnter',
+	precondition: SuggestContext.Visible,
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, KbExpr.has('config.editor.acceptSuggestionOnEnter')),
 		primary: KeyCode.Enter
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand(
-	'hideSuggestWidget',
-	x => x.cancelSuggestWidget(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'hideSuggestWidget',
+	precondition: SuggestContext.Visible,
+	handler: x => x.cancelSuggestWidget(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new MultipleSuggestionsCommand(
-	'selectNextSuggestion',
-	c => c.selectNextSuggestion(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'selectNextSuggestion',
+	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectNextSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.Alt | KeyCode.DownArrow],
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new MultipleSuggestionsCommand(
-	'selectNextPageSuggestion',
-	c => c.selectNextPageSuggestion(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'selectNextPageSuggestion',
+	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectNextPageSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.PageDown,
 		secondary: [KeyMod.Alt | KeyCode.PageDown]
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new MultipleSuggestionsCommand(
-	'selectPrevSuggestion',
-	c => c.selectPrevSuggestion(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'selectPrevSuggestion',
+	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectPrevSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.Alt | KeyCode.UpArrow],
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new MultipleSuggestionsCommand(
-	'selectPrevPageSuggestion',
-	c => c.selectPrevPageSuggestion(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'selectPrevPageSuggestion',
+	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectPrevPageSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.PageUp,
 		secondary: [KeyMod.Alt | KeyCode.PageUp]
 	}
-));
+}));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand(
-	'toggleSuggestionDetails',
-	x => x.toggleSuggestionDetails(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+	id: 'toggleSuggestionDetails',
+	precondition: SuggestContext.Visible,
+	handler: x => x.toggleSuggestionDetails(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 	}
-));
+}));
 
 EditorBrowserRegistry.registerEditorContribution(SuggestController);

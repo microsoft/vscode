@@ -17,13 +17,13 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
@@ -412,8 +412,8 @@ class MarkerNavigationAction extends EditorAction {
 
 	private _isNext: boolean;
 
-	constructor(id:string, label:string, alias:string, next: boolean) {
-		super(id, label, alias, true);
+	constructor(next: boolean, opts:IActionOptions) {
+		super(opts);
 		this._isNext = next;
 	}
 
@@ -514,60 +514,52 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 class NextMarkerAction extends MarkerNavigationAction {
 	constructor() {
-		super(
-			'editor.action.marker.next',
-			nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
-			'Go to Next Error or Warning',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
-			primary: KeyCode.F8
-		};
+		super(true, {
+			id: 'editor.action.marker.next',
+			label: nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
+			alias: 'Go to Next Error or Warning',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyCode.F8
+			}
+		});
 	}
 }
 
 class PrevMarkerAction extends MarkerNavigationAction {
 	constructor() {
-		super(
-			'editor.action.marker.prev',
-			nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
-			'Go to Previous Error or Warning',
-			false
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
-			primary: KeyMod.Shift | KeyCode.F8
-		};
+		super(false, {
+			id: 'editor.action.marker.prev',
+			label: nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
+			alias: 'Go to Previous Error or Warning',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.Shift | KeyCode.F8
+			}
+		});
 	}
 }
 
 var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey<boolean>('markersNavigationVisible', false);
 
-const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(
-	MarkerController.getMarkerController, {
-		weight: CommonEditorRegistry.commandWeight(50),
-		kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_MARKERS_NAVIGATION_VISIBLE)
-	}
-);
+const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.getMarkerController);
 
 // register actions
 CommonEditorRegistry.registerEditorAction(new NextMarkerAction());
 CommonEditorRegistry.registerEditorAction(new PrevMarkerAction());
 
-CommonEditorRegistry.registerEditorCommand2(new MarkerCommand(
-	'closeMarkersNavigation',
-	x => x.closeMarkersNavigation(),
-	{
+CommonEditorRegistry.registerEditorCommand2(new MarkerCommand({
+	id: 'closeMarkersNavigation',
+	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
+	handler: x => x.closeMarkersNavigation(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(50),
+		kbExpr: EditorContextKeys.Focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
-));
+}));
 
 EditorBrowserRegistry.registerEditorContribution(MarkerController);

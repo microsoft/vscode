@@ -9,7 +9,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {EditorContextKeys, Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {CopyLinesCommand} from './copyLinesCommand';
 import {DeleteLinesCommand} from './deleteLinesCommand';
 import {MoveLinesCommand} from './moveLinesCommand';
@@ -20,8 +20,8 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 	private down:boolean;
 
-	constructor(id:string, label:string, alias:string, down:boolean) {
-		super(id, label, alias, true);
+	constructor(down:boolean, opts:IActionOptions) {
+		super(opts);
 		this.down = down;
 	}
 
@@ -40,39 +40,33 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
-		super(
-			'editor.action.copyLinesUpAction',
-			nls.localize('lines.copyUp', "Copy Line Up"),
-			'Copy Line Up',
-			false
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
-		};
+		super(false, {
+			id: 'editor.action.copyLinesUpAction',
+			label: nls.localize('lines.copyUp', "Copy Line Up"),
+			alias: 'Copy Line Up',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
+			}
+		});
 	}
 }
 
 class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
-		super(
-			'editor.action.copyLinesDownAction',
-			nls.localize('lines.copyDown', "Copy Line Down"),
-			'Copy Line Down',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
-		};
+		super(true, {
+			id: 'editor.action.copyLinesDownAction',
+			label: nls.localize('lines.copyDown', "Copy Line Down"),
+			alias: 'Copy Line Down',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
+			}
+		});
 	}
 }
 
@@ -82,8 +76,8 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 	private down:boolean;
 
-	constructor(id:string, label:string, alias:string, down:boolean) {
-		super(id, label, alias, true);
+	constructor(down:boolean, opts:IActionOptions) {
+		super(opts);
 		this.down = down;
 	}
 
@@ -102,47 +96,41 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
-		super(
-			'editor.action.moveLinesUpAction',
-			nls.localize('lines.moveUp', "Move Line Up"),
-			'Move Line Up',
-			false
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Alt | KeyCode.UpArrow,
-			linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
-		};
+		super(false, {
+			id: 'editor.action.moveLinesUpAction',
+			label: nls.localize('lines.moveUp', "Move Line Up"),
+			alias: 'Move Line Up',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyCode.UpArrow,
+				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
+			}
+		});
 	}
 }
 
 class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
-		super(
-			'editor.action.moveLinesDownAction',
-			nls.localize('lines.moveDown', "Move Line Down"),
-			'Move Line Down',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Alt | KeyCode.DownArrow,
-			linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
-		};
+		super(true, {
+			id: 'editor.action.moveLinesDownAction',
+			label: nls.localize('lines.moveDown', "Move Line Down"),
+			alias: 'Move Line Down',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyCode.DownArrow,
+				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
+			}
+		});
 	}
 }
 
 abstract class AbstractSortLinesAction extends EditorAction {
 	private descending:boolean;
 
-	constructor(id:string, label:string, alias:string, descending:boolean) {
-		super(id, label, alias, true);
+	constructor(descending:boolean, opts:IActionOptions) {
+		super(opts);
 		this.descending = descending;
 	}
 
@@ -160,37 +148,31 @@ abstract class AbstractSortLinesAction extends EditorAction {
 
 class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
-		super(
-			'editor.action.sortLinesAscending',
-			nls.localize('lines.sortAscending', "Sort Lines Ascending"),
-			'Sort Lines Ascending',
-			false
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
-		};
+		super(false, {
+			id: 'editor.action.sortLinesAscending',
+			label: nls.localize('lines.sortAscending', "Sort Lines Ascending"),
+			alias: 'Sort Lines Ascending',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
+			}
+		});
 	}
 }
 
 class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
-		super(
-			'editor.action.sortLinesDescending',
-			nls.localize('lines.sortDescending', "Sort Lines Descending"),
-			'Sort Lines Descending',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
-		};
+		super(true, {
+			id: 'editor.action.sortLinesDescending',
+			label: nls.localize('lines.sortDescending', "Sort Lines Descending"),
+			alias: 'Sort Lines Descending',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
+			}
+		});
 	}
 }
 
@@ -199,19 +181,16 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 	public static ID = 'editor.action.trimTrailingWhitespace';
 
 	constructor() {
-		super(
-			TrimTrailingWhitespaceAction.ID,
-			nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"),
-			'Trim Trailing Whitespace',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
-		};
+		super({
+			id: TrimTrailingWhitespaceAction.ID,
+			label: nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"),
+			alias: 'Trim Trailing Whitespace',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -231,11 +210,6 @@ interface IDeleteLinesOperation {
 }
 
 abstract class AbstractRemoveLinesAction extends EditorAction {
-
-	constructor(id:string, label:string, alias:string) {
-		super(id, label, alias, true);
-	}
-
 	_getLinesToRemove(editor:ICommonCodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
 		var operations:IDeleteLinesOperation[] = editor.getSelections().map((s) => {
@@ -275,24 +249,21 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 
 		return mergedOperations;
 	}
-
 }
 
 class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	constructor() {
-		super(
-			'editor.action.deleteLines',
-			nls.localize('lines.delete', "Delete Line"),
-			'Delete Line'
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
-		};
+		super({
+			id: 'editor.action.deleteLines',
+			label: nls.localize('lines.delete', "Delete Line"),
+			alias: 'Delete Line',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -310,77 +281,65 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 class IndentLinesAction extends HandlerEditorAction {
 	constructor() {
-		super(
-			'editor.action.indentLines',
-			nls.localize('lines.indent', "Indent Line"),
-			'Indent Line',
-			true,
-			Handler.Indent
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
-		};
+		super({
+			id: 'editor.action.indentLines',
+			label: nls.localize('lines.indent', "Indent Line"),
+			alias: 'Indent Line',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.Indent,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
+			}
+		});
 	}
 }
 
 class OutdentLinesAction extends HandlerEditorAction {
 	constructor() {
-		super(
-			'editor.action.outdentLines',
-			nls.localize('lines.outdent', "Outdent Line"),
-			'Outdent Line',
-			true,
-			Handler.Outdent
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
-		};
+		super({
+			id: 'editor.action.outdentLines',
+			label: nls.localize('lines.outdent', "Outdent Line"),
+			alias: 'Outdent Line',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.Outdent,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
+			}
+		});
 	}
 }
 
 class InsertLineBeforeAction extends HandlerEditorAction {
 	constructor() {
-		super(
-			'editor.action.insertLineBefore',
-			nls.localize('lines.insertBefore', "Insert Line Above"),
-			'Insert Line Above',
-			true,
-			Handler.LineInsertBefore
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-		};
+		super({
+			id: 'editor.action.insertLineBefore',
+			label: nls.localize('lines.insertBefore', "Insert Line Above"),
+			alias: 'Insert Line Above',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.LineInsertBefore,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+			}
+		});
 	}
 }
 
 class InsertLineAfterAction extends HandlerEditorAction {
 	constructor() {
-		super(
-			'editor.action.insertLineAfter',
-			nls.localize('lines.insertAfter', "Insert Line Below"),
-			'Insert Line Below',
-			true,
-			Handler.LineInsertAfter
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.Enter
-		};
+		super({
+			id: 'editor.action.insertLineAfter',
+			label: nls.localize('lines.insertAfter', "Insert Line Below"),
+			alias: 'Insert Line Below',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.LineInsertAfter,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter
+			}
+		});
 	}
 }
 

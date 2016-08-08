@@ -138,26 +138,22 @@ class FormatOnType implements editorCommon.IEditorContribution {
 export class FormatAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.format',
-			nls.localize('formatAction.label', "Format Code"),
-			'Format Code',
-			true
-		);
-
-		this._precondition = KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasFormattingProvider);
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
-		};
-
-		this.menuOpts = {
-			group: '1_modification',
-			order: 1.3,
-			kbExpr: ModeContextKeys.hasFormattingProvider
-		};
+		super({
+			id: 'editor.action.format',
+			label: nls.localize('formatAction.label', "Format Code"),
+			alias: 'Format Code',
+			precondition: KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasFormattingProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
+			},
+			menuOpts: {
+				group: '1_modification',
+				order: 1.3,
+				kbExpr: ModeContextKeys.hasFormattingProvider
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {

@@ -21,19 +21,18 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 			'editor.emmet.action.expandAbbreviation',
 			nls.localize('expandAbbreviationAction', "Emmet: Expand Abbreviation"),
 			'Emmet: Expand Abbreviation',
-			'expand_abbreviation'
+			'expand_abbreviation',
+			{
+				primary: KeyCode.Tab,
+				kbExpr: KbExpr.and(
+					EditorContextKeys.TextFocus,
+					EditorContextKeys.HasOnlyEmptySelection,
+					EditorContextKeys.HasSingleSelection,
+					EditorContextKeys.TabDoesNotMoveFocus,
+					KbExpr.has('config.emmet.triggerExpansionOnTab')
+				)
+			}
 		);
-
-		this.kbOpts = {
-			primary: KeyCode.Tab,
-			kbExpr: KbExpr.and(
-				EditorContextKeys.TextFocus,
-				EditorContextKeys.HasOnlyEmptySelection,
-				EditorContextKeys.HasSingleSelection,
-				EditorContextKeys.TabDoesNotMoveFocus,
-				KbExpr.has('config.emmet.triggerExpansionOnTab')
-			)
-		};
 	}
 
 	protected noExpansionOccurred(editor:ICommonCodeEditor): void {

@@ -225,19 +225,16 @@ class ContextMenuController implements IEditorContribution {
 class ShowContextMenu extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.showContextMenu',
-			nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
-			'Show Editor Context Menu',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Shift | KeyCode.F10
-		};
+		super({
+			id: 'editor.action.showContextMenu',
+			label: nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
+			alias: 'Show Editor Context Menu',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyCode.F10
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
