@@ -196,6 +196,18 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
+	public scrollDown(): TPromise<any> {
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+			terminalPanel.scrollDown();
+		});
+	}
+
+	public scrollUp(): TPromise<any> {
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+			terminalPanel.scrollUp();
+		});
+	}
+
 	private showAndGetTerminalPanel(): TPromise<TerminalPanel> {
 		return new TPromise<TerminalPanel>((complete) => {
 			let panel = this.panelService.getActivePanel();

@@ -15,6 +15,7 @@ import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ScrollDownTerminalAction, ScrollUpTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -32,7 +33,7 @@ export class TerminalInstance {
 	private terminalDomElement: HTMLDivElement;
 	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
-	private toggleTabFocusModeKeybindings: Keybinding[];
+	private skipTerminalKeybindings: Keybinding[];
 
 	public constructor(
 		private terminalProcess: ITerminalProcess,
@@ -48,7 +49,11 @@ export class TerminalInstance {
 	) {
 		let self = this;
 		this.toDispose = [];
-		this.toggleTabFocusModeKeybindings = self.keybindingService.lookupKeybindings(ToggleTabFocusModeAction.ID);
+		this.skipTerminalKeybindings = [].concat(
+			self.keybindingService.lookupKeybindings(ToggleTabFocusModeAction.ID),
+			self.keybindingService.lookupKeybindings(ScrollDownTerminalAction.ID),
+			self.keybindingService.lookupKeybindings(ScrollUpTerminalAction.ID));
+		console.log(this.skipTerminalKeybindings);
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.terminalDomElement = document.createElement('div');
@@ -70,7 +75,7 @@ export class TerminalInstance {
 			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
 			// be escaped
 			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-			if (self.toggleTabFocusModeKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+			if (self.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
 				event.preventDefault();
 				return false;
 			}
@@ -174,6 +179,14 @@ export class TerminalInstance {
 		if (!text || force) {
 			this.xterm.focus();
 		}
+	}
+
+	public scrollDown(): void {
+		this.xterm.scrollDisp(1);
+	}
+
+	public scrollUp(): void {
+		this.xterm.scrollDisp(-1);
 	}
 
 	public dispose(): void {
