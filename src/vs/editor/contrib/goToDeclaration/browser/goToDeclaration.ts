@@ -162,8 +162,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 1.1,
-				kbExpr: ModeContextKeys.hasDefinitionProvider
+				order: 1.1
 			}
 		});
 	}
@@ -201,8 +200,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 1.2,
-				kbExpr: ModeContextKeys.hasDefinitionProvider
+				order: 1.2
 			}
 		});
 	}

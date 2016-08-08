@@ -159,8 +159,7 @@ export class RenameAction extends EditorAction {
 			},
 			menuOpts: {
 				group: '1_modification',
-				order: 1.1,
-				kbExpr: KbExpr.and(ModeContextKeys.hasRenameProvider, EditorContextKeys.Writable)
+				order: 1.1
 			}
 		});
 	}

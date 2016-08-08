@@ -8,7 +8,7 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -17,7 +17,7 @@ import {ICommandOptions, Command as ConfigBasicCommand, EditorCommand as ConfigE
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
+import {MenuId, MenuRegistry, IMenuItem} from 'vs/platform/actions/common/actions';
 
 export type ServicesAccessor = ServicesAccessor;
 export const Command = ConfigBasicCommand;
@@ -26,8 +26,6 @@ export type ICommandOptions = ICommandOptions;
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export interface IEditorCommandMenuOptions {
-	kbExpr: KbExpr;
-	menu?: MenuId;
 	group?: string;
 	order?: number;
 }
@@ -118,16 +116,9 @@ class EditorContributionRegistry {
 
 	public registerEditorAction(action:EditorAction) {
 
-		if (action.menuOpts) {
-			MenuRegistry.appendMenuItem(action.menuOpts.menu || MenuId.EditorContext, {
-				command: {
-					id: action.id,
-					title: action.label
-				},
-				when: action.menuOpts.kbExpr,
-				group: action.menuOpts.group,
-				order: action.menuOpts.order
-			});
+		let menuItem = action.toMenuItem();
+		if (menuItem) {
+			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
 		}
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule(action.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
@@ -155,13 +146,29 @@ export abstract class EditorAction extends ConfigEditorCommand {
 
 	public label: string;
 	public alias: string;
-	public menuOpts: IEditorCommandMenuOptions;
+	private menuOpts: IEditorCommandMenuOptions;
 
 	constructor(opts:IActionOptions) {
 		super(opts);
 		this.label = opts.label;
 		this.alias = opts.alias;
 		this.menuOpts = opts.menuOpts;
+	}
+
+	public toMenuItem(): IMenuItem {
+		if (!this.menuOpts) {
+			return null;
+		}
+
+		return {
+			command: {
+				id: this.id,
+				title: this.label
+			},
+			when: this.precondition,
+			group: this.menuOpts.group,
+			order: this.menuOpts.order
+		};
 	}
 
 	protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {

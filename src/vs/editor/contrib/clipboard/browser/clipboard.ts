@@ -13,7 +13,6 @@ import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {MenuId} from 'vs/platform/actions/common/actions';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -59,8 +58,6 @@ class ExecCommandCutAction extends ExecCommandAction {
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 			},
 			menuOpts: {
-				kbExpr: EditorContextKeys.Writable,
-				menu: MenuId.EditorContext,
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 1
 			}
@@ -90,8 +87,6 @@ class ExecCommandCopyAction extends ExecCommandAction {
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 			},
 			menuOpts: {
-				kbExpr: null,
-				menu: MenuId.EditorContext,
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 2
 			}
@@ -121,8 +116,6 @@ class ExecCommandPasteAction extends ExecCommandAction {
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 			},
 			menuOpts: {
-				kbExpr: EditorContextKeys.Writable,
-				menu: MenuId.EditorContext,
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 3
 			}

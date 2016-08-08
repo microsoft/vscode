@@ -82,7 +82,6 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 				primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
 			},
 			menuOpts: {
-				kbExpr: EditorContextKeys.Focus
 			}
 		});
 	}

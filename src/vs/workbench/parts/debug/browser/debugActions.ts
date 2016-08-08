@@ -600,7 +600,6 @@ export class RunToCursorAction extends EditorAction {
 			alias: 'Debug: Run to Cursor',
 			precondition: debug.CONTEXT_IN_DEBUG_MODE,
 			menuOpts: {
-				kbExpr: debug.CONTEXT_IN_DEBUG_MODE,
 				group: 'debug'
 			}
 		});
@@ -658,9 +657,8 @@ export class SelectionToReplAction extends EditorAction {
 			id: 'editor.debug.action.selectionToRepl',
 			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
 			alias: 'Debug: Evaluate',
-			precondition: debug.CONTEXT_IN_DEBUG_MODE,
+			precondition: KbExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
 			menuOpts: {
-				kbExpr: KbExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
 				group: 'debug'
 			}
 		});
