@@ -119,27 +119,6 @@
 	}
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport {
-	overflow-y: scroll;
-}
-
-.monaco-workbench .panel.integrated-terminal .xterm .xterm-rows {
-	position: absolute;
-	left: 0;
-	bottom: 0;
-}
-
-.monaco-workbench .panel.integrated-terminal .xterm .xterm-scroll-area {
-	visibility: hidden;
-}
-
-.monaco-workbench .panel.integrated-terminal .xterm .xterm-char-measure-element {
-	display: inline-block;
-	visibility: hidden;
-	position: absolute;
-	left: -9999em;
-}
-
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {
 	font-weight: bold;
 }
