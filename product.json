@@ -11,5 +11,10 @@
 	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32AppUserModelId": "Microsoft.CodeOSS",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new"
+	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new",
+	"extensionsGallery": {
+		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+		"cacheUrl": "https://vscode.blob.core.windows.net/gallery/index",
+		"itemUrl": "https://marketplace.visualstudio.com/items"
+	}
 }
