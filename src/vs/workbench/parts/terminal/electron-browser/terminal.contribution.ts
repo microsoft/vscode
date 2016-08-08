@@ -17,6 +17,9 @@ import {Registry} from 'vs/platform/platform';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
+import {GlobalQuickOpenAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {ShowAllCommandsAction} from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -84,6 +87,18 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
 			'type': 'boolean',
 			'default': platform.isMacintosh
+		},
+		'terminal.integrated.commandsToSkipShell': {
+			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of keybindings that will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch quick open."),
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [
+				ToggleTabFocusModeAction.ID,
+				GlobalQuickOpenAction.ID,
+				ShowAllCommandsAction.ID
+			]
 		}
 	}
 });

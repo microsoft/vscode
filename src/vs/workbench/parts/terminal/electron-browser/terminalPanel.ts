@@ -297,6 +297,7 @@ export class TerminalPanel extends Panel {
 	private updateConfig(): void {
 		this.updateFont();
 		this.updateCursorBlink();
+		this.updateCommandsToSkipShell();
 	}
 
 	private updateFont(): void {
@@ -328,6 +329,12 @@ export class TerminalPanel extends Panel {
 	private updateCursorBlink(): void {
 		this.terminalInstances.forEach((instance) => {
 			instance.setCursorBlink(this.configurationHelper.getCursorBlink());
+		});
+	}
+
+	private updateCommandsToSkipShell(): void {
+		this.terminalInstances.forEach((instance) => {
+			instance.setCommandsToSkipShell(this.configurationHelper.getCommandsToSkipShell());
 		});
 	}
 

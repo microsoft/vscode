@@ -46,7 +46,8 @@ export interface ITerminalConfiguration {
 			fontLigatures: boolean,
 			fontSize: number,
 			lineHeight: number,
-			setLocaleVariables: boolean
+			setLocaleVariables: boolean,
+			commandsToSkipShell: string[]
 		}
 	};
 }
