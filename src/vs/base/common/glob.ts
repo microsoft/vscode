@@ -207,14 +207,14 @@ function parseRegExp(pattern: string): string {
 }
 
 // regexes to check for trival glob patterns that just check for String#endsWith
-const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   // **/*.something
-const T2 = /^\*\*\/[\w\.-]+$/; 							   // **/something
-const T3 = /^{\*\*\/\*\.[\w\.-]+(,\*\*\/\*\.[\w\.-]+)*}$/; // {**/*.something,**/*.else}
+const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
+const T2 = /^\*\*\/[\w\.-]+$/; 							   			// **/something
+const T3 = /^{\*\*\/[\*\.]?[\w\.-]+(,\*\*\/[\*\.]?[\w\.-]+)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
 
 enum Trivia {
 	T1, // **/*.something
 	T2, // **/something
-	T3  // {**/*.something,**/*.else}
+	T3, // {**/*.something,**/*.else} or {**/package.json,**/project.json}
 }
 
 interface IParsedPattern {
