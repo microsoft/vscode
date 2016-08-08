@@ -54,8 +54,44 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-// Configuration: Window
+// Configuration: Workbench
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': 'workbench',
+	'order': 7,
+	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
+	'type': 'object',
+	'properties': {
+		'workbench.editor.showTabs': {
+			'type': 'boolean',
+			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
+			'default': true
+		},
+		'workbench.editor.enablePreview': {
+			'type': 'boolean',
+			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'default': true
+		},
+		'workbench.editor.enablePreviewFromQuickOpen': {
+			'type': 'boolean',
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from quick open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'default': true
+		},
+		'workbench.editor.openPositioning': {
+			'type': 'string',
+			'enum': ['left', 'right', 'first', 'last'],
+			'default': 'right',
+			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+		},
+		'workbench.settings.openDefaultSettings': {
+			'type': 'boolean',
+			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
+			'default': true
+		}
+	}
+});
+
+// Configuration: Window
 configurationRegistry.registerConfiguration({
 	'id': 'window',
 	'order': 8,

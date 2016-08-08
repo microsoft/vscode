@@ -28,6 +28,14 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
+export interface IWorkbenchSettingsConfiguration {
+	workbench: {
+		settings: {
+			openDefaultSettings: boolean;
+		}
+	};
+}
+
 export class BaseTwoEditorsAction extends Action {
 
 	constructor(
@@ -95,7 +103,16 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 	}
 
 	protected open(emptySettingsContents: string, settingsResource: URI): TPromise<void> {
-		return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents);
+		const openDefaultSettings = !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.openDefaultSettings;
+
+		if (openDefaultSettings) {
+			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents);
+		}
+
+		return this.editorService.openEditor({
+			resource: settingsResource,
+			options: { pinned: true }
+		}).then(() => null);
 	}
 }
 
