@@ -16,12 +16,10 @@ import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
-import {TextCompareEditorVisible, TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -32,14 +30,13 @@ import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarC
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
 	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInLeftGroupAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, NAVIGATE_IN_LEFT_GROUP_PREFIX,
 	GlobalQuickOpenAction, OpenPreviousEditorFromHistoryAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction, ShowEditorsInCenterGroupAction,
 	NAVIGATE_IN_CENTER_GROUP_PREFIX, ShowEditorsInRightGroupAction, NAVIGATE_IN_RIGHT_GROUP_PREFIX, RemoveFromEditorHistoryAction, FocusLastEditorInStackAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
-import {registerEditorComamnds} from 'vs/workbench/browser/parts/editor/editorCommands';
+import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Register String Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
@@ -83,60 +80,14 @@ import {registerEditorComamnds} from 'vs/workbench/browser/parts/editor/editorCo
 );
 
 // Register Editor Status
-let statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
+const statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
 
 // Register Status Actions
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
-
-// Register keybinding for "Next Change" & "Previous Change" in visible diff editor
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.compareEditor.nextChange',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: TextCompareEditorVisible,
-	primary: null,
-	handler: accessor => navigateInDiffEditor(accessor, true)
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.compareEditor.previousChange',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: TextCompareEditorVisible,
-	primary: null,
-	handler: accessor => navigateInDiffEditor(accessor, false)
-});
-
-function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
-	let editorService = accessor.get(IWorkbenchEditorService);
-	const candidates = [editorService.getActiveEditor(), ...editorService.getVisibleEditors()].filter(e => e instanceof TextDiffEditor);
-
-	if (candidates.length > 0) {
-		next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
-	}
-}
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: '_workbench.printStacksModel',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor) {
-		console.log(`${accessor.get(IEditorGroupService).getStacksModel().toString()}\n\n`);
-	},
-	when: undefined,
-	primary: undefined
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: '_workbench.validateStacksModel',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor) {
-		(<EditorStacksModel>accessor.get(IEditorGroupService).getStacksModel()).validate();
-	},
-	when: undefined,
-	primary: undefined
-});
 
 export class QuickOpenActionContributor extends ActionBarContributor {
 	private openToSideActionInstance: OpenToSideAction;
@@ -379,7 +330,7 @@ function toKeyCode(index: number): KeyCode {
 }
 
 // Configuration
-let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
@@ -410,34 +361,5 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-registerEditorComamnds();
-
-const mapDeprecatedCommands = {
-	'workbench.action.terminal.focus': 'workbench.action.focusPanel'
-};
-
-Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
-	const newCommandId = mapDeprecatedCommands[deprecatedCommandId];
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: deprecatedCommandId,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-		handler(accessor: ServicesAccessor) {
-			const messageService = accessor.get(IMessageService);
-			const commandService = accessor.get(ICommandService);
-
-			messageService.show(Severity.Warning, {
-				message: nls.localize('commandDeprecated', "Command **{0}** has been removed. You can use **{1}** instead", deprecatedCommandId, newCommandId),
-				actions: [
-					CloseAction,
-					new Action('openKeybindings', nls.localize('openKeybindings', "Configure Keyboard Shortcuts"), null, true, () => {
-						return commandService.executeCommand('workbench.action.openGlobalKeybindings');
-					})
-				]
-			});
-		},
-		when: undefined,
-		primary: undefined
-	});
-});
-
+// Editor Commands
+editorCommands.setup();
