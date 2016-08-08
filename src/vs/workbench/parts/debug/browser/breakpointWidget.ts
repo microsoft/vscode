@@ -18,7 +18,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {KbCtxKey, KbExpr, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
@@ -123,14 +123,16 @@ export class BreakpointWidget extends ZoneWidget {
 class CloseBreakpointWidgetCommand extends EditorCommand {
 
 	constructor() {
-		super(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID);
-
-		this.kbOpts = {
-			weight: CommonEditorRegistry.commandWeight(8),
-			kbExpr: KbExpr.and(EditorContextKeys.Focus, CONTEXT_BREAKPOINT_WIDGET_VISIBLE),
-			primary: KeyCode.Escape,
-			secondary: [KeyMod.Shift | KeyCode.Escape]
-		};
+		super({
+			id: CLOSE_BREAKPOINT_WIDGET_COMMAND_ID,
+			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: CommonEditorRegistry.commandWeight(8),
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			}
+		});
 	}
 
 	protected runEditorCommand(accessor:ServicesAccessor, editor: ICommonCodeEditor, args: any): void {

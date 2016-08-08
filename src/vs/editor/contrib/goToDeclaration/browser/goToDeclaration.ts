@@ -21,7 +21,7 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IActionOptions, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -50,8 +50,8 @@ export class DefinitionAction extends EditorAction {
 
 	private _configuration: DefinitionActionConfig;
 
-	constructor(id: string, label: string, alias: string, configuration: DefinitionActionConfig) {
-		super(id, label, alias, false);
+	constructor(configuration: DefinitionActionConfig, opts:IActionOptions) {
+		super(opts);
 		this._configuration = configuration;
 	}
 
@@ -151,25 +151,21 @@ export class GoToDefinitionAction extends DefinitionAction {
 	public static ID = 'editor.action.goToDeclaration';
 
 	constructor() {
-		super(
-			GoToDefinitionAction.ID,
-			nls.localize('actions.goToDecl.label', "Go to Definition"),
-			'Go to Definition',
-			new DefinitionActionConfig()
-		);
-
-		this._precondition = ModeContextKeys.hasDefinitionProvider;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: goToDeclarationKb
-		};
-
-		this.menuOpts = {
-			group: 'navigation',
-			order: 1.1,
-			kbExpr: ModeContextKeys.hasDefinitionProvider
-		};
+		super(new DefinitionActionConfig(), {
+			id: GoToDefinitionAction.ID,
+			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
+			alias: 'Go to Definition',
+			precondition: ModeContextKeys.hasDefinitionProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: goToDeclarationKb
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.1,
+				kbExpr: ModeContextKeys.hasDefinitionProvider
+			}
+		});
 	}
 }
 
@@ -178,44 +174,37 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 	public static ID = 'editor.action.openDeclarationToTheSide';
 
 	constructor() {
-		super(
-			OpenDefinitionToSideAction.ID,
-			nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
-			'Open Definition to the Side',
-			new DefinitionActionConfig(true)
-		);
-
-		this._precondition = ModeContextKeys.hasDefinitionProvider;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
-		};
+		super(new DefinitionActionConfig(true), {
+			id: OpenDefinitionToSideAction.ID,
+			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
+			alias: 'Open Definition to the Side',
+			precondition: ModeContextKeys.hasDefinitionProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
+			}
+		});
 	}
 }
 
 export class PeekDefinitionAction extends DefinitionAction {
 	constructor() {
-		super(
-			'editor.action.previewDeclaration',
-			nls.localize('actions.previewDecl.label', "Peek Definition"),
-			'Peek Definition',
-			new DefinitionActionConfig(void 0, true, false)
-		);
-
-		this._precondition = KbExpr.and(ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor);
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Alt | KeyCode.F12,
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
-		};
-
-		this.menuOpts = {
-			group: 'navigation',
-			order: 1.2,
-			kbExpr: ModeContextKeys.hasDefinitionProvider
-		};
+		super(new DefinitionActionConfig(void 0, true, false), {
+			id: 'editor.action.previewDeclaration',
+			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
+			alias: 'Peek Definition',
+			precondition: KbExpr.and(ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyCode.F12,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 1.2,
+				kbExpr: ModeContextKeys.hasDefinitionProvider
+			}
+		});
 	}
 }
 

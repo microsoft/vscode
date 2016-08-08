@@ -152,20 +152,17 @@ export class GotoLineEntry extends QuickOpenEntry {
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
-		super(
-			'editor.action.gotoLine',
-			nls.localize('GotoLineAction.label', "Go to Line..."),
-			'Go to Line...',
-			nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to")
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
-		};
+		super(nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to"), {
+			id: 'editor.action.gotoLine',
+			label: nls.localize('GotoLineAction.label', "Go to Line..."),
+			alias: 'Go to Line...',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {

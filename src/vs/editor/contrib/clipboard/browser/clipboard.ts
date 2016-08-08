@@ -12,7 +12,7 @@ import * as browser from 'vs/base/browser/browser';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {MenuId} from 'vs/platform/actions/common/actions';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -23,8 +23,8 @@ abstract class ExecCommandAction extends EditorAction {
 
 	private browserCommand:string;
 
-	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean, browserCommand:string) {
-		super(id, label, alias, needsWritableEditor);
+	constructor(browserCommand:string, opts:IActionOptions) {
+		super(opts);
 		this.browserCommand = browserCommand;
 	}
 
@@ -48,28 +48,23 @@ abstract class ExecCommandAction extends EditorAction {
 class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
-		super(
-			'editor.action.clipboardCutAction',
-			nls.localize('actions.clipboard.cutLabel', "Cut"),
-			'Cut',
-			true,
-			'cut'
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
-		};
-
-		this.menuOpts = {
-			kbExpr: EditorContextKeys.Writable,
-			menu: MenuId.EditorContext,
-			group: CLIPBOARD_CONTEXT_MENU_GROUP,
-			order: 1
-		};
+		super('cut', {
+			id: 'editor.action.clipboardCutAction',
+			label: nls.localize('actions.clipboard.cutLabel', "Cut"),
+			alias: 'Cut',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
+			},
+			menuOpts: {
+				kbExpr: EditorContextKeys.Writable,
+				menu: MenuId.EditorContext,
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 1
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -84,28 +79,23 @@ class ExecCommandCutAction extends ExecCommandAction {
 class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
-		super(
-			'editor.action.clipboardCopyAction',
-			nls.localize('actions.clipboard.copyLabel', "Copy"),
-			'Copy',
-			false,
-			'copy'
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
-		};
-
-		this.menuOpts = {
-			kbExpr: null,
-			menu: MenuId.EditorContext,
-			group: CLIPBOARD_CONTEXT_MENU_GROUP,
-			order: 2
-		};
+		super('copy', {
+			id: 'editor.action.clipboardCopyAction',
+			label: nls.localize('actions.clipboard.copyLabel', "Copy"),
+			alias: 'Copy',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
+			},
+			menuOpts: {
+				kbExpr: null,
+				menu: MenuId.EditorContext,
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 2
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -120,28 +110,23 @@ class ExecCommandCopyAction extends ExecCommandAction {
 class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
-		super(
-			'editor.action.clipboardPasteAction',
-			nls.localize('actions.clipboard.pasteLabel', "Paste"),
-			'Paste',
-			true,
-			'paste'
-		);
-
-		this._precondition = EditorContextKeys.Writable;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
-		};
-
-		this.menuOpts = {
-			kbExpr: EditorContextKeys.Writable,
-			menu: MenuId.EditorContext,
-			group: CLIPBOARD_CONTEXT_MENU_GROUP,
-			order: 3
-		};
+		super('paste', {
+			id: 'editor.action.clipboardPasteAction',
+			label: nls.localize('actions.clipboard.pasteLabel', "Paste"),
+			alias: 'Paste',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
+			},
+			menuOpts: {
+				kbExpr: EditorContextKeys.Writable,
+				menu: MenuId.EditorContext,
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 3
+			}
+		});
 	}
 }
 

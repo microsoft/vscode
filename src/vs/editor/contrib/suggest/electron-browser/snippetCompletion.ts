@@ -20,14 +20,12 @@ interface ISnippetPick extends IPickOpenEntry {
 class ShowSnippetsActions extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.showSnippets',
-			nls.localize('snippet.suggestions.label', "Insert Snippet"),
-			'Insert Snippet',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
+		super({
+			id: 'editor.action.showSnippets',
+			label: nls.localize('snippet.suggestions.label', "Insert Snippet"),
+			alias: 'Insert Snippet',
+			precondition: EditorContextKeys.Writable
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {

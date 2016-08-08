@@ -520,19 +520,16 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 
 export class ToggleBreakpointAction extends EditorAction {
 	constructor() {
-		super(
-			'editor.debug.action.toggleBreakpoint',
-			nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
-			'Debug: Toggle Breakpoint',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyCode.F9
-		};
+		super({
+			id: 'editor.debug.action.toggleBreakpoint',
+			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
+			alias: 'Debug: Toggle Breakpoint',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyCode.F9
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
@@ -553,14 +550,12 @@ export class ToggleBreakpointAction extends EditorAction {
 export class EditorConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.debug.action.conditionalBreakpoint',
-			nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint"),
-			'Debug: Conditional Breakpoint',
-			false
-		);
-
-		this._precondition = null;
+		super({
+			id: 'editor.debug.action.conditionalBreakpoint',
+			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint"),
+			alias: 'Debug: Conditional Breakpoint',
+			precondition: null
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
@@ -599,19 +594,16 @@ export class SetValueAction extends AbstractDebugAction {
 export class RunToCursorAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.debug.action.runToCursor',
-			nls.localize('runToCursor', "Debug: Run to Cursor"),
-			'Debug: Run to Cursor',
-			false
-		);
-
-		this._precondition = debug.CONTEXT_IN_DEBUG_MODE;
-
-		this.menuOpts = {
-			kbExpr: debug.CONTEXT_IN_DEBUG_MODE,
-			group: 'debug'
-		};
+		super({
+			id: 'editor.debug.action.runToCursor',
+			label: nls.localize('runToCursor', "Debug: Run to Cursor"),
+			alias: 'Debug: Run to Cursor',
+			precondition: debug.CONTEXT_IN_DEBUG_MODE,
+			menuOpts: {
+				kbExpr: debug.CONTEXT_IN_DEBUG_MODE,
+				group: 'debug'
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
@@ -662,19 +654,16 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 export class SelectionToReplAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.debug.action.selectionToRepl',
-			nls.localize('debugEvaluate', "Debug: Evaluate"),
-			'Debug: Evaluate',
-			false
-		);
-
-		this._precondition = debug.CONTEXT_IN_DEBUG_MODE;
-
-		this.menuOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
-			group: 'debug'
-		};
+		super({
+			id: 'editor.debug.action.selectionToRepl',
+			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
+			alias: 'Debug: Evaluate',
+			precondition: debug.CONTEXT_IN_DEBUG_MODE,
+			menuOpts: {
+				kbExpr: KbExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+				group: 'debug'
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
@@ -692,19 +681,16 @@ export class SelectionToReplAction extends EditorAction {
 export class ShowDebugHoverAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.debug.action.showDebugHover',
-			nls.localize('showDebugHover', "Debug: Show Hover"),
-			'Debug: Show Hover',
-			false
-		);
-
-		this._precondition = debug.CONTEXT_IN_DEBUG_MODE;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
-		};
+		super({
+			id: 'editor.debug.action.showDebugHover',
+			label: nls.localize('showDebugHover', "Debug: Show Hover"),
+			alias: 'Debug: Show Hover',
+			precondition: debug.CONTEXT_IN_DEBUG_MODE,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {

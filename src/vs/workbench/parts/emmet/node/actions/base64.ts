@@ -15,6 +15,7 @@ import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/no
 import {Action} from 'vs/base/common/actions';
 
 import {ServicesAccessor, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -24,11 +25,12 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 	private imageFilePath: string = null;
 
 	constructor() {
-		super(
-			'editor.emmet.action.encodeDecodeDataUrl',
-			nls.localize('encodeDecodeDataUrl', "Emmet: Encode\\Decode data:URL image"),
-			'Emmet: Encode\\Decode data:URL image'
-		);
+		super({
+			id: 'editor.emmet.action.encodeDecodeDataUrl',
+			label: nls.localize('encodeDecodeDataUrl', "Emmet: Encode\\Decode data:URL image"),
+			alias: 'Emmet: Encode\\Decode data:URL image',
+			precondition: EditorContextKeys.Writable
+		});
 	}
 
 	private createPath(parent: string, fileName: string): string {

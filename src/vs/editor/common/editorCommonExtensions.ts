@@ -13,7 +13,7 @@ import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Command as ConfigBasicCommand, EditorCommand as ConfigEditorCommand} from 'vs/editor/common/config/config';
+import {ICommandOptions, Command as ConfigBasicCommand, EditorCommand as ConfigEditorCommand} from 'vs/editor/common/config/config';
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -22,6 +22,7 @@ import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 export type ServicesAccessor = ServicesAccessor;
 export const Command = ConfigBasicCommand;
 export const EditorCommand = ConfigEditorCommand;
+export type ICommandOptions = ICommandOptions;
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export interface IEditorCommandMenuOptions {
@@ -33,52 +34,13 @@ export interface IEditorCommandMenuOptions {
 
 // --- Editor Actions
 
-// let recorded: EditorAction[] = [];
-function record(desc:EditorAction) {
-	return;
-	// let stack = new Error().stack;
-	// desc.callsite = stack.split('\n')[3];
-	// recorded.push(desc);
-}
-function analyze() {
-	return;
-	// recorded.sort((a, b) => a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
-	// recorded.forEach((desc) => {
-	// 	let rightpad = (str:string, cnt:number) => {
-	// 		while (str.length < cnt) {
-	// 			str = str + ' ';
-	// 		}
-	// 		return str;
-	// 	};
-
-	// 	if (typeof desc._precondition === 'undefined') {
-	// 		console.warn('MISSING PRECONDITION FOR ' + desc.id + desc.callsite);
-	// 	} else {
-	// 		let prec = desc._precondition ? desc._precondition.serialize() : 'null';
-	// 		if (prec.indexOf('editorTextFocus') >= 0 || prec.indexOf('editorFocus') >= 0) {
-	// 			console.warn('BELOW COMMAND WANTS FOCUS!!!');
-	// 		}
-	// 		if (desc._needsWritableEditor && prec.indexOf('!editorReadonly') === -1) {
-	// 			console.warn('BELOW COMMAND DOES NOT PRECONDITION CORRECTLY WRITABLE!');
-	// 		}
-	// 		console.log(rightpad(desc.id, 50) + '' + desc._needsWritableEditor + '\t\t' + rightpad(prec, 50) + '\t\t' + desc.callsite);
-	// 	}
-	// });
-	// recorded = [];
-}
-
 export module CommonEditorRegistry {
 
 	export function registerEditorAction(desc:EditorAction) {
-		if (desc.kbOpts && desc.kbOpts.kbExpr && desc._precondition) {
-			desc.kbOpts.kbExpr = KbExpr.and(desc.kbOpts.kbExpr, desc._precondition);
-		}
-		record(desc);
 		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction(desc);
 	}
 
 	export function getEditorActions(): EditorAction[] {
-		analyze();
 		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorActions();
 	}
 
@@ -183,22 +145,23 @@ class EditorContributionRegistry {
 }
 Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
 
-export abstract class EditorAction extends ConfigEditorCommand {
+export interface IActionOptions extends ICommandOptions {
+	label: string;
+	alias: string;
+	menuOpts?: IEditorCommandMenuOptions;
+}
 
-	private _needsWritableEditor: boolean;
+export abstract class EditorAction extends ConfigEditorCommand {
 
 	public label: string;
 	public alias: string;
 	public menuOpts: IEditorCommandMenuOptions;
 
-	public _precondition: KbExpr;
-
-	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean) {
-		super(id);
-		this.label = label;
-		this.alias = alias;
-		this._needsWritableEditor = needsWritableEditor;
-		this.menuOpts = null;
+	constructor(opts:IActionOptions) {
+		super(opts);
+		this.label = opts.label;
+		this.alias = opts.alias;
+		this.menuOpts = opts.menuOpts;
 	}
 
 	protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
@@ -214,9 +177,6 @@ export abstract class EditorAction extends ConfigEditorCommand {
 		if (!this.supported(accessor, editor, false)) {
 			return false;
 		}
-		if (this._needsWritableEditor) {
-			return !editor.getConfiguration().readOnly;
-		}
 		return true;
 	}
 
@@ -230,18 +190,22 @@ export abstract class EditorAction extends ConfigEditorCommand {
 			};
 		}
 
-		return kbService.contextMatchesRules(this._precondition, override);
+		return kbService.contextMatchesRules(this.precondition, override);
 	}
 
 	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;
 }
 
+export interface IHandlerActionOptions extends IActionOptions {
+	handlerId: string;
+}
+
 export abstract class HandlerEditorAction extends EditorAction {
 	private _handlerId: string;
 
-	constructor(id:string, label:string, alias:string, needsWritableEditor:boolean, handlerId: string) {
-		super(id, label, alias, needsWritableEditor);
-		this._handlerId = handlerId;
+	constructor(opts: IHandlerActionOptions) {
+		super(opts);
+		this._handlerId = opts.handlerId;
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {

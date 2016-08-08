@@ -146,19 +146,16 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 class ShowHoverAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.showHover',
-			nls.localize('showHover', "Show Hover"),
-			'Show Hover',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
-		};
+		super({
+			id: 'editor.action.showHover',
+			label: nls.localize('showHover', "Show Hover"),
+			alias: 'Show Hover',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {

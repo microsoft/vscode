@@ -318,14 +318,12 @@ class LinkDetector implements editorCommon.IEditorContribution {
 class OpenLinkAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.openLink',
-			nls.localize('label', "Open Link"),
-			'Open Link',
-			false
-		);
-
-		this._precondition = null;
+		super({
+			id: 'editor.action.openLink',
+			label: nls.localize('label', "Open Link"),
+			alias: 'Open Link',
+			precondition: null
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {

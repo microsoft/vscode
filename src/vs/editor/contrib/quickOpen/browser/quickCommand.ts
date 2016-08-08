@@ -72,23 +72,19 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 export class QuickCommandAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
-		super(
-			'editor.action.quickCommand',
-			nls.localize('QuickCommandAction.label', "Command Palette"),
-			'Command Palette',
-			nls.localize('quickCommandActionInput', "Type the name of an action you want to execute")
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
-			primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
-		};
-
-		this.menuOpts = {
-			kbExpr: EditorContextKeys.Focus
-		};
+		super(nls.localize('quickCommandActionInput', "Type the name of an action you want to execute"), {
+			id: 'editor.action.quickCommand',
+			label: nls.localize('QuickCommandAction.label', "Command Palette"),
+			alias: 'Command Palette',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
+			},
+			menuOpts: {
+				kbExpr: EditorContextKeys.Focus
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

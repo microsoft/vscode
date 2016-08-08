@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {Range} from 'vs/editor/common/core/range';
 import {ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
 // --- selection state machine
@@ -146,8 +146,8 @@ abstract class AbstractSmartSelect extends EditorAction {
 
 	private _forward: boolean;
 
-	constructor(id:string, label:string, alias:string, forward: boolean) {
-		super(id, label, alias, false);
+	constructor(forward: boolean, opts:IActionOptions) {
+		super(opts);
 		this._forward = forward;
 	}
 
@@ -158,39 +158,33 @@ abstract class AbstractSmartSelect extends EditorAction {
 
 class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
-		super(
-			'editor.action.smartSelect.grow',
-			nls.localize('smartSelect.grow', "Expand Select"),
-			'Expand Select',
-			true
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
-		};
+		super(true, {
+			id: 'editor.action.smartSelect.grow',
+			label: nls.localize('smartSelect.grow', "Expand Select"),
+			alias: 'Expand Select',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
+			}
+		});
 	}
 }
 
 class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
-		super(
-			'editor.action.smartSelect.shrink',
-			nls.localize('smartSelect.shrink', "Shrink Select"),
-			'Shrink Select',
-			false
-		);
-
-		this._precondition = null;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
-		};
+		super(false, {
+			id: 'editor.action.smartSelect.shrink',
+			label: nls.localize('smartSelect.shrink', "Shrink Select"),
+			alias: 'Shrink Select',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
+			}
+		});
 	}
 }
 

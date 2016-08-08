@@ -57,25 +57,21 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 export class ReferenceAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.referenceSearch.trigger',
-			nls.localize('references.action.label', "Find All References"),
-			'Find All References',
-			false
-		);
-
-		this._precondition = KbExpr.and(ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor);
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.Shift | KeyCode.F12
-		};
-
-		this.menuOpts = {
-			kbExpr: ModeContextKeys.hasReferenceProvider,
-			group: 'navigation',
-			order: 1.3
-		};
+		super({
+			id: 'editor.action.referenceSearch.trigger',
+			label: nls.localize('references.action.label', "Find All References"),
+			alias: 'Find All References',
+			precondition: KbExpr.and(ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyCode.F12
+			},
+			menuOpts: {
+				kbExpr: ModeContextKeys.hasReferenceProvider,
+				group: 'navigation',
+				order: 1.3
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {

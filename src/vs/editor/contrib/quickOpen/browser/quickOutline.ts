@@ -110,25 +110,21 @@ class SymbolEntry extends QuickOpenEntryGroup {
 export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
-		super(
-			'editor.action.quickOutline',
-			nls.localize('QuickOutlineAction.label', "Go to Symbol..."),
-			'Go to Symbol...',
-			nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to")
-		);
-
-		this._precondition = ModeContextKeys.hasDocumentSymbolProvider;
-
-		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-		};
-
-		this.menuOpts = {
-			group: 'navigation',
-			order: 3,
-			kbExpr: ModeContextKeys.hasDocumentSymbolProvider
-		};
+		super(nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to"), {
+			id: 'editor.action.quickOutline',
+			label: nls.localize('QuickOutlineAction.label', "Go to Symbol..."),
+			alias: 'Go to Symbol...',
+			precondition: ModeContextKeys.hasDocumentSymbolProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 3,
+				kbExpr: ModeContextKeys.hasDocumentSymbolProvider
+			}
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {

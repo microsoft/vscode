@@ -8,6 +8,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommandKeybindingsOptions} from 'vs/editor/common/config/config';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 import {EditorAccessor} from 'vs/workbench/parts/emmet/node/editorAccessor';
@@ -99,13 +100,6 @@ export class EmmetActionContext {
 
 export abstract class EmmetEditorAction extends EditorAction {
 
-	constructor(id:string, label:string, alias:string) {
-		super(id, label, alias, true);
-
-		this._precondition = EditorContextKeys.Writable;
-
-	}
-
 	abstract runEmmetAction(accessor:ServicesAccessor, ctx:EmmetActionContext);
 
 	protected noExpansionOccurred(editor:ICommonCodeEditor) {
@@ -136,8 +130,14 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 
 	private emmetActionName: string;
 
-	constructor(id:string, label:string, alias:string, actionName: string) {
-		super(id, label, alias);
+	constructor(id:string, label:string, alias:string, actionName: string, kbOpts?:ICommandKeybindingsOptions) {
+		super({
+			id: id,
+			label: label,
+			alias: alias,
+			precondition: EditorContextKeys.Writable,
+			kbOpts: kbOpts
+		});
 		this.emmetActionName = actionName;
 	}
 

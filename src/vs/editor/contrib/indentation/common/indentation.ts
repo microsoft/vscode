@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -15,14 +15,12 @@ export class IndentationToSpacesAction extends EditorAction {
 	public static ID = 'editor.action.indentationToSpaces';
 
 	constructor() {
-		super(
-			IndentationToSpacesAction.ID,
-			nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
-			'Convert Indentation to Spaces',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
+		super({
+			id: IndentationToSpacesAction.ID,
+			label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
+			alias: 'Convert Indentation to Spaces',
+			precondition: EditorContextKeys.Writable
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -43,14 +41,12 @@ export class IndentationToTabsAction extends EditorAction {
 	public static ID = 'editor.action.indentationToTabs';
 
 	constructor() {
-		super(
-			IndentationToTabsAction.ID,
-			nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
-			'Convert Indentation to Tabs',
-			true
-		);
-
-		this._precondition = EditorContextKeys.Writable;
+		super({
+			id: IndentationToTabsAction.ID,
+			label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
+			alias: 'Convert Indentation to Tabs',
+			precondition: EditorContextKeys.Writable
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -69,10 +65,8 @@ export class IndentationToTabsAction extends EditorAction {
 
 export class ChangeIndentationSizeAction extends EditorAction {
 
-	constructor(id: string, label: string, alias: string, private insertSpaces: boolean) {
-		super(id, label, alias, false);
-
-		this._precondition = null;
+	constructor(private insertSpaces: boolean, opts: IActionOptions) {
+		super(opts);
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
@@ -113,14 +107,12 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 	public static ID = 'editor.action.indentUsingTabs';
 
 	constructor() {
-		super(
-			IndentUsingTabs.ID,
-			nls.localize('indentUsingTabs', "Indent Using Tabs"),
-			'Indent Using Tabs',
-			false
-		);
-
-		this._precondition = null;
+		super(false, {
+			id: IndentUsingTabs.ID,
+			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
+			alias: 'Indent Using Tabs',
+			precondition: null
+		});
 	}
 }
 
@@ -129,14 +121,12 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 	public static ID = 'editor.action.indentUsingSpaces';
 
 	constructor() {
-		super(
-			IndentUsingSpaces.ID,
-			nls.localize('indentUsingSpaces', "Indent Using Spaces"),
-			'Indent Using Spaces',
-			true
-		);
-
-		this._precondition = null;
+		super(true, {
+			id: IndentUsingSpaces.ID,
+			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
+			alias: 'Indent Using Spaces',
+			precondition: null
+		});
 	}
 }
 
@@ -145,14 +135,12 @@ export class DetectIndentation extends EditorAction {
 	public static ID = 'editor.action.detectIndentation';
 
 	constructor() {
-		super(
-			DetectIndentation.ID,
-			nls.localize('detectIndentation', "Detect Indentation from Content"),
-			'Detect Indentation from Content',
-			false
-		);
-
-		this._precondition = null;
+		super({
+			id: DetectIndentation.ID,
+			label: nls.localize('detectIndentation', "Detect Indentation from Content"),
+			alias: 'Detect Indentation from Content',
+			precondition: null
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -171,14 +159,12 @@ export class DetectIndentation extends EditorAction {
 export class ToggleRenderWhitespaceAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.toggleRenderWhitespace',
-			nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"),
-			'Toggle Render Whitespace',
-			false
-		);
-
-		this._precondition = null;
+		super({
+			id: 'editor.action.toggleRenderWhitespace',
+			label: nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"),
+			alias: 'Toggle Render Whitespace',
+			precondition: null
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -191,14 +177,12 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 export class ToggleRenderControlCharacterAction extends EditorAction {
 
 	constructor() {
-		super(
-			'editor.action.toggleRenderControlCharacter',
-			nls.localize('toggleRenderControlCharacters', "Toggle Control Characters"),
-			'Toggle Render Control Characters',
-			false
-		);
-
-		this._precondition = null;
+		super({
+			id: 'editor.action.toggleRenderControlCharacter',
+			label: nls.localize('toggleRenderControlCharacters', "Toggle Control Characters"),
+			alias: 'Toggle Render Control Characters',
+			precondition: null
+		});
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

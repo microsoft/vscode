@@ -21,8 +21,12 @@ let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
 class TabCompletionController implements editorCommon.IEditorContribution {
 
-	static Id = 'editor.tabCompletionController';
+	private static ID = 'editor.tabCompletionController';
 	static ContextKey = new KbCtxKey<boolean>('hasSnippetCompletions', undefined);
+
+	public static get(editor:editorCommon.ICommonCodeEditor): TabCompletionController {
+		return <TabCompletionController>editor.getContribution(TabCompletionController.ID);
+	}
 
 	private _snippetController: ISnippetController;
 	private _cursorChangeSubscription: IDisposable;
@@ -69,28 +73,25 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 	}
 
 	getId(): string {
-		return TabCompletionController.Id;
+		return TabCompletionController.ID;
 	}
 }
 
 CommonEditorRegistry.registerEditorContribution(TabCompletionController);
 
-const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(
-	(editor) => <TabCompletionController>editor.getContribution(TabCompletionController.Id), {
+const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
+
+CommonEditorRegistry.registerEditorCommand2(new TabCompletionCommand({
+	id: 'insertSnippet',
+	precondition: TabCompletionController.ContextKey,
+	handler: x => x.performSnippetCompletions(),
+	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 		kbExpr: KbExpr.and(
-			TabCompletionController.ContextKey,
 			EditorContextKeys.TextFocus,
 			EditorContextKeys.TabDoesNotMoveFocus,
 			KbExpr.has('config.editor.tabCompletion')
-		)
-	}
-);
-
-CommonEditorRegistry.registerEditorCommand2(new TabCompletionCommand(
-	'insertSnippet',
-	x => x.performSnippetCompletions(),
-	{
+		),
 		primary: KeyCode.Tab
 	}
-));
+}));

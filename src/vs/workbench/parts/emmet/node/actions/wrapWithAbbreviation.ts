@@ -9,16 +9,18 @@ import nls = require('vs/nls');
 import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import {ServicesAccessor, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 class WrapWithAbbreviationAction extends EmmetEditorAction {
 
 	constructor() {
-		super(
-			'editor.emmet.action.wrapWithAbbreviation',
-			nls.localize('wrapWithAbbreviationAction', "Emmet: Wrap with Abbreviation"),
-			'Emmet: Wrap with Abbreviation'
-		);
+		super({
+			id: 'editor.emmet.action.wrapWithAbbreviation',
+			label: nls.localize('wrapWithAbbreviationAction', "Emmet: Wrap with Abbreviation"),
+			alias: 'Emmet: Wrap with Abbreviation',
+			precondition: EditorContextKeys.Writable
+		});
 	}
 
 	public runEmmetAction(accessor:ServicesAccessor, ctx: EmmetActionContext) {
