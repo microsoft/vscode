@@ -46,22 +46,7 @@ abstract class ExecCommandAction extends EditorAction {
 	}
 }
 
-abstract class ClipboardWritingAction extends ExecCommandAction {
-
-	public enabled(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): boolean {
-		if (!super.enabled(accessor, editor)) {
-			return false;
-		}
-
-		if (browser.enableEmptySelectionClipboard) {
-			return true;
-		} else {
-			return !editor.getSelection().isEmpty();
-		}
-	}
-}
-
-class ExecCommandCutAction extends ClipboardWritingAction {
+class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
 		super(
@@ -87,9 +72,17 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 			order: 1
 		};
 	}
+
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		if (!browser.enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		super.run(accessor, editor);
+	}
 }
 
-class ExecCommandCopyAction extends ClipboardWritingAction {
+class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
 		super(
@@ -114,6 +107,14 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 			group: CLIPBOARD_CONTEXT_MENU_GROUP,
 			order: 2
 		};
+	}
+
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		if (!browser.enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		super.run(accessor, editor);
 	}
 }
 
