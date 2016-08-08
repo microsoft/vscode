@@ -111,7 +111,7 @@ export abstract class EditorCommand extends Command {
 			return;
 		}
 		return editor.invokeWithinContext((editorAccessor) => {
-			const kbService = accessor.get(IKeybindingService);
+			const kbService = editorAccessor.get(IKeybindingService);
 			if (!kbService.contextMatchesRules(this.precondition)) {
 				// precondition does not hold
 				return;
