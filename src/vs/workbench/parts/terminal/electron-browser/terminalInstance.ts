@@ -15,7 +15,6 @@ import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {ScrollDownTerminalAction, ScrollUpTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -166,11 +165,7 @@ export class TerminalInstance {
 	}
 
 	public setCommandsToSkipShell(commands: string[]): void {
-		this.skipTerminalKeybindings = commands.concat([
-			// Terminal related keybindings that must pass through or they would not function
-			ScrollDownTerminalAction.ID,
-			ScrollUpTerminalAction.ID
-		]).map((c) => {
+		this.skipTerminalKeybindings = commands.map((c) => {
 			return this.keybindingService.lookupKeybindings(c);
 		}).reduce((prev, curr) => {
 			return prev.concat(curr);

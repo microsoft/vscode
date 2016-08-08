@@ -97,8 +97,19 @@ configurationRegistry.registerConfiguration({
 			'default': [
 				ToggleTabFocusModeAction.ID,
 				GlobalQuickOpenAction.ID,
-				ShowAllCommandsAction.ID
-			]
+				ShowAllCommandsAction.ID,
+				CreateNewTerminalAction.ID,
+				CopyTerminalSelectionAction.ID,
+				KillTerminalAction.ID,
+				FocusTerminalAction.ID,
+				FocusPreviousTerminalAction.ID,
+				FocusNextTerminalAction.ID,
+				TerminalPasteAction.ID,
+				RunSelectedTextInTerminalAction.ID,
+				ToggleTerminalAction.ID,
+				ScrollDownTerminalAction.ID,
+				ScrollUpTerminalAction.ID
+			].sort()
 		}
 	}
 });
