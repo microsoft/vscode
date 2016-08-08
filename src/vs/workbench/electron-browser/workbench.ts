@@ -434,7 +434,7 @@ export class Workbench implements IPartService {
 		this.sideBarPosition = (rawPosition === 'left') ? Position.LEFT : Position.RIGHT;
 
 		// Statusbar visibility
-		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.WORKSPACE, false);
+		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.GLOBAL, false);
 	}
 
 	/**
@@ -508,7 +508,7 @@ export class Workbench implements IPartService {
 			this.workbenchLayout.layout(true);
 		}
 
-		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false');
 	}
 
 	public isSideBarHidden(): boolean {
