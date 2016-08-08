@@ -165,7 +165,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			true
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -184,7 +184,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

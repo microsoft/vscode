@@ -457,10 +457,10 @@ export class DefineKeybindingAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json'));
+		this._precondition = KbExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json'));
 
 		this.kbOpts = {
-			kbExpr: EditorContextKeys.Focus,
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
 		};
 	}

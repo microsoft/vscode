@@ -159,7 +159,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 			nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to")
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,

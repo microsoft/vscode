@@ -10,7 +10,6 @@ import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/co
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static ID = 'editor.action.indentationToSpaces';
@@ -23,7 +22,7 @@ export class IndentationToSpacesAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -51,7 +50,7 @@ export class IndentationToTabsAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -121,7 +120,7 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 	}
 }
 
@@ -137,7 +136,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 			true
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 	}
 }
 
@@ -153,7 +152,7 @@ export class DetectIndentation extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -179,7 +178,7 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
@@ -199,7 +198,7 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {

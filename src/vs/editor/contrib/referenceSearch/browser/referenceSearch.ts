@@ -64,7 +64,7 @@ export class ReferenceAction extends EditorAction {
 			false
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor);
+		this._precondition = KbExpr.and(ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

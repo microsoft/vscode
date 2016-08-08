@@ -20,7 +20,7 @@ class SelectBracketAction extends HandlerEditorAction {
 			Handler.JumpToBracket
 		);
 
-		this._precondition = EditorContextKeys.TextFocus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

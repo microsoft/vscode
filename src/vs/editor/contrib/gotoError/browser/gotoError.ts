@@ -521,7 +521,7 @@ class NextMarkerAction extends MarkerNavigationAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.Focus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
@@ -539,7 +539,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			false
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.Focus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,

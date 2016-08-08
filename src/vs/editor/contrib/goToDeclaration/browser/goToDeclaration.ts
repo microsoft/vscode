@@ -158,7 +158,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 			new DefinitionActionConfig()
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider);
+		this._precondition = ModeContextKeys.hasDefinitionProvider;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -185,7 +185,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			new DefinitionActionConfig(true)
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider);
+		this._precondition = ModeContextKeys.hasDefinitionProvider;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -203,7 +203,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 			new DefinitionActionConfig(void 0, true, false)
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor);
+		this._precondition = KbExpr.and(ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

@@ -13,7 +13,6 @@ import {ServicesAccessor, EditorAction, HandlerEditorAction, CommonEditorRegistr
 import {CopyLinesCommand} from './copyLinesCommand';
 import {DeleteLinesCommand} from './deleteLinesCommand';
 import {MoveLinesCommand} from './moveLinesCommand';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 // copy lines
 
@@ -48,7 +47,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			false
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -67,7 +66,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -110,7 +109,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			false
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -129,7 +128,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -168,7 +167,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 			false
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -186,7 +185,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -207,7 +206,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -288,7 +287,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 			'Delete Line'
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -319,7 +318,7 @@ class IndentLinesAction extends HandlerEditorAction {
 			Handler.Indent
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -338,7 +337,7 @@ class OutdentLinesAction extends HandlerEditorAction {
 			Handler.Outdent
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -357,7 +356,7 @@ class InsertLineBeforeAction extends HandlerEditorAction {
 			Handler.LineInsertBefore
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,
@@ -376,7 +375,7 @@ class InsertLineAfterAction extends HandlerEditorAction {
 			Handler.LineInsertAfter
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable);
+		this._precondition = EditorContextKeys.Writable;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

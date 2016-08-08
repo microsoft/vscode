@@ -79,7 +79,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			nls.localize('quickCommandActionInput', "Type the name of an action you want to execute")
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,

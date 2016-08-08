@@ -124,7 +124,7 @@ export class QuickFixAction extends EditorAction {
 			true
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable, ModeContextKeys.hasCodeActionsProvider);
+		this._precondition = KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCodeActionsProvider);
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

@@ -67,7 +67,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 			false
 		);
 
-		this._precondition = KbExpr.and(EditorContextKeys.TextFocus, ModeContextKeys.hasSignatureHelpProvider);
+		this._precondition = ModeContextKeys.hasSignatureHelpProvider;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.TextFocus,

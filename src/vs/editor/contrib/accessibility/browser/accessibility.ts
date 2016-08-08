@@ -199,7 +199,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			false
 		);
 
-		this._precondition = EditorContextKeys.Focus;
+		this._precondition = null;
 
 		this.kbOpts = {
 			kbExpr: EditorContextKeys.Focus,
