@@ -20,20 +20,19 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
-import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
 export class TerminalInstance {
 
 	private static eolRegex = /\r?\n/g;
 
 	private isExiting: boolean = false;
+	private skipTerminalKeybindings: Keybinding[] = [];
 
 	private toDispose: lifecycle.IDisposable[];
 	private xterm;
 	private terminalDomElement: HTMLDivElement;
 	private wrapperElement: HTMLDivElement;
 	private font: ITerminalFont;
-	private skipTerminalKeybindings: Keybinding[];
 
 	public constructor(
 		private terminalProcess: ITerminalProcess,
@@ -49,11 +48,6 @@ export class TerminalInstance {
 	) {
 		let self = this;
 		this.toDispose = [];
-		this.skipTerminalKeybindings = [].concat(
-			self.keybindingService.lookupKeybindings(ToggleTabFocusModeAction.ID),
-			self.keybindingService.lookupKeybindings(ScrollDownTerminalAction.ID),
-			self.keybindingService.lookupKeybindings(ScrollUpTerminalAction.ID));
-		console.log(this.skipTerminalKeybindings);
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.terminalDomElement = document.createElement('div');
@@ -169,6 +163,18 @@ export class TerminalInstance {
 			this.xterm.cursorBlink = blink;
 			this.xterm.refresh(0, this.xterm.rows - 1);
 		}
+	}
+
+	public setCommandsToSkipShell(commands: string[]): void {
+		this.skipTerminalKeybindings = commands.concat([
+			// Terminal related keybindings that must pass through or they would not function
+			ScrollDownTerminalAction.ID,
+			ScrollUpTerminalAction.ID
+		]).map((c) => {
+			return this.keybindingService.lookupKeybindings(c);
+		}).reduce((prev, curr) => {
+			return prev.concat(curr);
+		});
 	}
 
 	public focus(force?: boolean): void {
