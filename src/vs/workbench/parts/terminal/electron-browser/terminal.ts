@@ -71,6 +71,8 @@ export interface ITerminalService {
 	hide(): TPromise<any>;
 	paste(): TPromise<any>;
 	runSelectedText(): TPromise<any>;
+	scrollDown(): TPromise<any>;
+	scrollUp(): TPromise<any>;
 	setActiveTerminal(index: number): TPromise<any>;
 	toggle(): TPromise<any>;
 

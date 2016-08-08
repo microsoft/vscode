@@ -276,6 +276,14 @@ export class TerminalPanel extends Panel {
 		this.themeStyleElement.innerHTML = css;
 	}
 
+	public scrollDown(): void {
+		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].scrollDown();
+	}
+
+	public scrollUp(): void {
+		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].scrollUp();
+	}
+
 	/**
 	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
 	 */
