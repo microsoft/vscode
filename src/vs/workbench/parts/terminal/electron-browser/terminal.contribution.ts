@@ -152,8 +152,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAc
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownTerminalAction, ScrollDownTerminalAction.ID, ScrollDownTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
-}), ScrollDownTerminalAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), ScrollDownTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow }
-}), ScrollUpTerminalAction.LABEL);
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), ScrollUpTerminalAction.LABEL);
