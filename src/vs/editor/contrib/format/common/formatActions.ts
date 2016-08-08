@@ -148,7 +148,7 @@ export class FormatAction extends EditorAction {
 		this._precondition = KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasFormattingProvider);
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(EditorContextKeys.TextFocus, EditorContextKeys.Writable),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
 		};

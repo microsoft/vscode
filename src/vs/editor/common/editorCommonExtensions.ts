@@ -55,6 +55,9 @@ function analyze() {
 	// 		console.warn('MISSING PRECONDITION FOR ' + desc.id + desc.callsite);
 	// 	} else {
 	// 		let prec = desc._precondition ? desc._precondition.serialize() : 'null';
+	// 		if (prec.indexOf('editorTextFocus') >= 0 || prec.indexOf('editorFocus') >= 0) {
+	// 			console.warn('BELOW COMMAND WANTS FOCUS!!!');
+	// 		}
 	// 		if (desc._needsWritableEditor && prec.indexOf('!editorReadonly') === -1) {
 	// 			console.warn('BELOW COMMAND DOES NOT PRECONDITION CORRECTLY WRITABLE!');
 	// 		}
@@ -67,6 +70,9 @@ function analyze() {
 export module CommonEditorRegistry {
 
 	export function registerEditorAction(desc:EditorAction) {
+		if (desc.kbOpts && desc.kbOpts.kbExpr && desc._precondition) {
+			desc.kbOpts.kbExpr = KbExpr.and(desc.kbOpts.kbExpr, desc._precondition);
+		}
 		record(desc);
 		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction(desc);
 	}

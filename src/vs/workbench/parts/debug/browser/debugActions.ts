@@ -702,7 +702,7 @@ export class ShowDebugHoverAction extends EditorAction {
 		this._precondition = debug.CONTEXT_IN_DEBUG_MODE;
 
 		this.kbOpts = {
-			kbExpr: KbExpr.and(debug.CONTEXT_IN_DEBUG_MODE, EditorContextKeys.TextFocus),
+			kbExpr: EditorContextKeys.TextFocus,
 			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 		};
 	}
