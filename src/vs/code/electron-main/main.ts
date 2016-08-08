@@ -269,7 +269,7 @@ interface IEnv {
 	[key: string]: string;
 }
 
-function getUnixUserEnvironment(): TPromise<IEnv> {
+function getUnixShellEnvironment(): TPromise<IEnv> {
 	const promise = new TPromise((c, e) => {
 		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
@@ -328,20 +328,20 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 }
 
 /**
- * On Unix systems, we might need to get the environment
- * from a user's shell. This should only be done when Code
- * is not launched from a Terminal.
+ * We eed to get the environment from a user's shell.
+ * This should only be done when Code itself is not launched
+ * from within a shell.
  */
-function getUserShellEnvironment(): TPromise<IEnv> {
-	if (platform.isWindows) {
-		return TPromise.as({});
-	}
-
+function getShellEnvironment(): TPromise<IEnv> {
 	if (process.env['VSCODE_CLI'] === '1') {
 		return TPromise.as({});
 	}
 
-	return getUnixUserEnvironment();
+	if (platform.isWindows) {
+		return TPromise.as({});
+	}
+
+	return getUnixShellEnvironment();
 }
 
 /**
@@ -349,32 +349,29 @@ function getUserShellEnvironment(): TPromise<IEnv> {
  * Such environment needs to be propagated to the renderer/shared
  * processes.
  */
-function getUserEnvironment(): TPromise<IEnv> {
-	return getUserShellEnvironment().then(userShellEnv => {
+function getEnvironment(): TPromise<IEnv> {
+	return getShellEnvironment().then(shellEnv => {
 		return instantiationService.invokeFunction(a => {
 			const envService = a.get(IEnvironmentService);
 			const instanceEnv = {
 				VSCODE_PID: String(process.pid),
 				VSCODE_IPC_HOOK: envService.mainIPCHandle,
-				VSCODE_SHARED_IPC_HOOK: envService.sharedIPCHandle
+				VSCODE_SHARED_IPC_HOOK: envService.sharedIPCHandle,
+				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
 			};
 
-			return assign({}, userShellEnv, instanceEnv);
+			return assign({}, shellEnv, instanceEnv);
 		});
 	});
 }
 
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
-getUserEnvironment().then(userEnv => {
-	assign(process.env, userEnv);
-
-	// Make sure the NLS Config travels to the rendered process
-	// See also https://github.com/Microsoft/vscode/issues/4558
-	userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
+getEnvironment().then(env => {
+	assign(process.env, env);
 
 	return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
 		.then(() => instantiationService.invokeFunction(setupIPC))
-		.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, userEnv));
+		.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, env));
 })
 .done(null, err => instantiationService.invokeFunction(quit, err));
