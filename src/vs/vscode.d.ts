@@ -2304,7 +2304,7 @@ declare namespace vscode {
 
 	/**
 	 * The completion item provider interface defines the contract between extensions and
-	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+	 * [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
 	 *
 	 * When computing *complete* completion items is expensive, providers can optionally implement
 	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
@@ -2312,6 +2312,9 @@ declare namespace vscode {
 	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
 	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
 	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+	 *
+	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
+	 * implicitly when typing words or trigger characters.
 	 */
 	export interface CompletionItemProvider {
 
