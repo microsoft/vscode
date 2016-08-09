@@ -466,7 +466,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
 		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
-		let fontSize = toInteger(opts.fontSize, 0, 100) || DefaultConfig.editor.fontSize;
+		let fontSize = toFloat(opts.fontSize, DefaultConfig.editor.fontSize);
+		fontSize = Math.max(0, fontSize);
+		fontSize = Math.min(100, fontSize);
 
 		let lineHeight = toInteger(opts.lineHeight, 0, 150);
 		if (lineHeight === 0) {
