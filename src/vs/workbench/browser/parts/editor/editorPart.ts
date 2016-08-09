@@ -463,7 +463,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty([{ group, editor: input }]).then(veto => {
+		return this.handleDirty([{ group, editor: input }], true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -595,7 +595,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);
 		}
 
-		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; })).then(veto => {
+		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -632,22 +632,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private handleDirty(identifiers: EditorIdentifier[]): TPromise<boolean /* veto */> {
+	private handleDirty(identifiers: EditorIdentifier[], ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
 		if (!identifiers.length) {
 			return TPromise.as(false); // no veto
 		}
 
-		return this.doHandleDirty(identifiers.shift()).then(veto => {
+		return this.doHandleDirty(identifiers.shift(), ignoreIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return veto;
 			}
 
-			return this.handleDirty(identifiers);
+			return this.handleDirty(identifiers, ignoreIfOpenedInOtherGroup);
 		});
 	}
 
-	private doHandleDirty(identifier: EditorIdentifier): TPromise<boolean /* veto */> {
-		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || this.stacks.count(identifier.editor) > 1 /* allow to close a dirty editor if it is opened in another group */) {
+	private doHandleDirty(identifier: EditorIdentifier, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.stacks.count(identifier.editor) > 1 /* allow to close a dirty editor if it is opened in another group */)) {
 			return TPromise.as(false); // no veto
 		}
 
@@ -1058,7 +1058,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Unpinning an editor closes the preview editor if we have any
 			let handlePreviewEditor: TPromise<boolean> = TPromise.as(false);
 			if (group.previewEditor) {
-				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }]);
+				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }], true /* ignore if opened in other group */);
 			}
 
 			handlePreviewEditor.done(veto => {
