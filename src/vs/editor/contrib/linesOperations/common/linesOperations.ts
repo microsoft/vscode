@@ -6,154 +6,205 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
-import {Handler, ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {EditorContextKeys, Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {CopyLinesCommand} from './copyLinesCommand';
 import {DeleteLinesCommand} from './deleteLinesCommand';
 import {MoveLinesCommand} from './moveLinesCommand';
 
 // copy lines
 
-class CopyLinesAction extends EditorAction {
+abstract class AbstractCopyLinesAction extends EditorAction {
 
 	private down:boolean;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, down:boolean) {
-		super(descriptor, editor);
+	constructor(down:boolean, opts:IActionOptions) {
+		super(opts);
 		this.down = down;
 	}
 
-	public run():TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 
 		var commands:ICommand[] = [];
-		var selections = this.editor.getSelections();
+		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new CopyLinesCommand(selections[i], this.down));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(true);
+		editor.executeCommands(this.id, commands);
 	}
 }
 
-class CopyLinesUpAction extends CopyLinesAction {
-	static ID = 'editor.action.copyLinesUpAction';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, false);
+@editorAction
+class CopyLinesUpAction extends AbstractCopyLinesAction {
+	constructor() {
+		super(false, {
+			id: 'editor.action.copyLinesUpAction',
+			label: nls.localize('lines.copyUp', "Copy Line Up"),
+			alias: 'Copy Line Up',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
+			}
+		});
 	}
-
 }
 
-class CopyLinesDownAction extends CopyLinesAction {
-	static ID = 'editor.action.copyLinesDownAction';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, true);
+@editorAction
+class CopyLinesDownAction extends AbstractCopyLinesAction {
+	constructor() {
+		super(true, {
+			id: 'editor.action.copyLinesDownAction',
+			label: nls.localize('lines.copyDown', "Copy Line Down"),
+			alias: 'Copy Line Down',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
+			}
+		});
 	}
 }
 
 // move lines
 
-class MoveLinesAction extends EditorAction {
+abstract class AbstractMoveLinesAction extends EditorAction {
 
 	private down:boolean;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, down:boolean) {
-		super(descriptor, editor);
+	constructor(down:boolean, opts:IActionOptions) {
+		super(opts);
 		this.down = down;
 	}
 
-	public run():TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 
 		var commands:ICommand[] = [];
-		var selections = this.editor.getSelections();
+		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new MoveLinesCommand(selections[i], this.down));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(true);
+		editor.executeCommands(this.id, commands);
 	}
 }
 
-class MoveLinesUpAction extends MoveLinesAction {
-	static ID = 'editor.action.moveLinesUpAction';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, false);
+@editorAction
+class MoveLinesUpAction extends AbstractMoveLinesAction {
+	constructor() {
+		super(false, {
+			id: 'editor.action.moveLinesUpAction',
+			label: nls.localize('lines.moveUp', "Move Line Up"),
+			alias: 'Move Line Up',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyCode.UpArrow,
+				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
+			}
+		});
 	}
 }
 
-class MoveLinesDownAction extends MoveLinesAction {
-	static ID = 'editor.action.moveLinesDownAction';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, true);
+@editorAction
+class MoveLinesDownAction extends AbstractMoveLinesAction {
+	constructor() {
+		super(true, {
+			id: 'editor.action.moveLinesDownAction',
+			label: nls.localize('lines.moveDown', "Move Line Down"),
+			alias: 'Move Line Down',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyCode.DownArrow,
+				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
+			}
+		});
 	}
 }
 
-class SortLinesAction extends EditorAction {
+abstract class AbstractSortLinesAction extends EditorAction {
 	private descending:boolean;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, descending:boolean) {
-		super(descriptor, editor);
+	constructor(descending:boolean, opts:IActionOptions) {
+		super(opts);
 		this.descending = descending;
 	}
 
-	public run():TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 
-		if (!SortLinesCommand.canRun(this.editor.getModel(), this.editor.getSelection(), this.descending)) {
-			return TPromise.as(false);
+		if (!SortLinesCommand.canRun(editor.getModel(), editor.getSelection(), this.descending)) {
+			return;
 		}
 
-		var command = new SortLinesCommand(this.editor.getSelection(), this.descending);
+		var command = new SortLinesCommand(editor.getSelection(), this.descending);
 
-		this.editor.executeCommands(this.id, [command]);
-
-		return TPromise.as(true);
+		editor.executeCommands(this.id, [command]);
 	}
 }
 
-class SortLinesAscendingAction extends SortLinesAction {
-	static ID ='editor.action.sortLinesAscending';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, false);
+@editorAction
+class SortLinesAscendingAction extends AbstractSortLinesAction {
+	constructor() {
+		super(false, {
+			id: 'editor.action.sortLinesAscending',
+			label: nls.localize('lines.sortAscending', "Sort Lines Ascending"),
+			alias: 'Sort Lines Ascending',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
+			}
+		});
 	}
 }
 
-class SortLinesDescendingAction extends SortLinesAction {
-	static ID ='editor.action.sortLinesDescending';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, true);
+@editorAction
+class SortLinesDescendingAction extends AbstractSortLinesAction {
+	constructor() {
+		super(true, {
+			id: 'editor.action.sortLinesDescending',
+			label: nls.localize('lines.sortDescending', "Sort Lines Descending"),
+			alias: 'Sort Lines Descending',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
+			}
+		});
 	}
 }
 
+@editorAction
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
-	static ID = 'editor.action.trimTrailingWhitespace';
+	public static ID = 'editor.action.trimTrailingWhitespace';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
+	constructor() {
+		super({
+			id: TrimTrailingWhitespaceAction.ID,
+			label: nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"),
+			alias: 'Trim Trailing Whitespace',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
+			}
+		});
 	}
 
-	public run():TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 
-		var command = new TrimTrailingWhitespaceCommand(this.editor.getSelection());
+		var command = new TrimTrailingWhitespaceCommand(editor.getSelection());
 
-		this.editor.executeCommands(this.id, [command]);
-
-		return TPromise.as(true);
+		editor.executeCommands(this.id, [command]);
 	}
 }
 
@@ -165,15 +216,10 @@ interface IDeleteLinesOperation {
 	positionColumn:number;
 }
 
-class AbstractRemoveLinesAction extends EditorAction {
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
-	}
-
-	_getLinesToRemove(): IDeleteLinesOperation[] {
+abstract class AbstractRemoveLinesAction extends EditorAction {
+	_getLinesToRemove(editor:ICommonCodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
-		var operations:IDeleteLinesOperation[] = this.editor.getSelections().map((s) => {
+		var operations:IDeleteLinesOperation[] = editor.getSelections().map((s) => {
 
 			var endLineNumber = s.endLineNumber;
 			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
@@ -210,114 +256,101 @@ class AbstractRemoveLinesAction extends EditorAction {
 
 		return mergedOperations;
 	}
-
 }
 
+@editorAction
 class DeleteLinesAction extends AbstractRemoveLinesAction {
 
-	static ID = 'editor.action.deleteLines';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
+	constructor() {
+		super({
+			id: 'editor.action.deleteLines',
+			label: nls.localize('lines.delete', "Delete Line"),
+			alias: 'Delete Line',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
+			}
+		});
 	}
 
-	public run():TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 
-		var ops = this._getLinesToRemove();
+		var ops = this._getLinesToRemove(editor);
 
 		// Finally, construct the delete lines commands
 		var commands:ICommand[] = ops.map((op) => {
 			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
 		});
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(true);
+		editor.executeCommands(this.id, commands);
 	}
 }
 
+@editorAction
 class IndentLinesAction extends HandlerEditorAction {
-	static ID = 'editor.action.indentLines';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Handler.Indent);
+	constructor() {
+		super({
+			id: 'editor.action.indentLines',
+			label: nls.localize('lines.indent', "Indent Line"),
+			alias: 'Indent Line',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.Indent,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
+			}
+		});
 	}
 }
 
+@editorAction
 class OutdentLinesAction extends HandlerEditorAction {
-	static ID = 'editor.action.outdentLines';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Handler.Outdent);
+	constructor() {
+		super({
+			id: 'editor.action.outdentLines',
+			label: nls.localize('lines.outdent', "Outdent Line"),
+			alias: 'Outdent Line',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.Outdent,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
+			}
+		});
 	}
 }
 
+@editorAction
 class InsertLineBeforeAction extends HandlerEditorAction {
-	static ID = 'editor.action.insertLineBefore';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Handler.LineInsertBefore);
+	constructor() {
+		super({
+			id: 'editor.action.insertLineBefore',
+			label: nls.localize('lines.insertBefore', "Insert Line Above"),
+			alias: 'Insert Line Above',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.LineInsertBefore,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+			}
+		});
 	}
 }
 
+@editorAction
 class InsertLineAfterAction extends HandlerEditorAction {
-	static ID = 'editor.action.insertLineAfter';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Handler.LineInsertAfter);
+	constructor() {
+		super({
+			id: 'editor.action.insertLineAfter',
+			label: nls.localize('lines.insertAfter', "Insert Line Below"),
+			alias: 'Insert Line Below',
+			precondition: EditorContextKeys.Writable,
+			handlerId: Handler.LineInsertAfter,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter
+			}
+		});
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DeleteLinesAction, DeleteLinesAction.ID, nls.localize('lines.delete', "Delete Line"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
-}, 'Delete Line'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesAscendingAction, SortLinesAscendingAction.ID, nls.localize('lines.sortAscending', "Sort Lines Ascending"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
-}, 'Sort Lines Ascending'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesDescendingAction, SortLinesDescendingAction.ID, nls.localize('lines.sortDescending', "Sort Lines Descending"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
-}, 'Sort Lines Descending'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TrimTrailingWhitespaceAction, TrimTrailingWhitespaceAction.ID, nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
-}, 'Trim Trailing Whitespace'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesDownAction, MoveLinesDownAction.ID, nls.localize('lines.moveDown', "Move Line Down"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyCode.DownArrow,
-	linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
-}, 'Move Line Down'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesUpAction, MoveLinesUpAction.ID, nls.localize('lines.moveUp', "Move Line Up"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyCode.UpArrow,
-	linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
-}, 'Move Line Up'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(CopyLinesDownAction, CopyLinesDownAction.ID, nls.localize('lines.copyDown', "Copy Line Down"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
-}, 'Copy Line Down'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(CopyLinesUpAction, CopyLinesUpAction.ID, nls.localize('lines.copyUp', "Copy Line Up"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
-}, 'Copy Line Up'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentLinesAction, IndentLinesAction.ID, nls.localize('lines.indent', "Indent Line"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
-}, 'Indent Line'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OutdentLinesAction, OutdentLinesAction.ID, nls.localize('lines.outdent', "Outdent Line"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
-}, 'Outdent Line'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineBeforeAction, InsertLineBeforeAction.ID, nls.localize('lines.insertBefore', "Insert Line Above"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-}, 'Insert Line Above'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineAfterAction, InsertLineAfterAction.ID, nls.localize('lines.insertAfter', "Insert Line Below"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter
-}, 'Insert Line Below'));

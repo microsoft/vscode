@@ -79,6 +79,29 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 	return low;
 }
 
+/**
+ * Returns the top N elements from the array.
+ *
+ * Faster than sorting the entire array when the array is a lot larger than N.
+ *
+ * @param array The unsorted array.
+ * @param compare A sort function for the elements.
+ * @param n The number of elements to return.
+ * @return The first n elemnts from array when sorted with compare.
+ */
+export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number) {
+	const result = array.slice(0, n).sort(compare);
+	for (let i = n, m = array.length; i < m; i++) {
+		const element = array[i];
+		if (compare(element, result[n - 1]) < 0) {
+			result.pop();
+			const j = findFirst(result, e => compare(element, e) < 0);
+			result.splice(j, 0, element);
+		}
+	}
+	return result;
+}
+
 export function merge<T>(arrays: T[][], hashFn?: (element: T) => string): T[] {
 	const result = new Array<T>();
 	if (!hashFn) {
@@ -234,8 +257,12 @@ export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
 	return arr;
 }
 
-export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; } {
-	const result = Object.create(null);
-	array.forEach(t => result[indexer(t)] = t);
-	return result;
+export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; };
+export function index<T,R>(array: T[], indexer: (t: T) => string, merger?: (t: T, r: R) => R): { [key: string]: R; };
+export function index<T,R>(array: T[], indexer: (t: T) => string, merger: (t: T, r: R) => R = t => t as any): { [key: string]: R; } {
+	return array.reduce((r, t) => {
+		const key = indexer(t);
+		r[key] = merger(t, r[key]);
+		return r;
+	}, Object.create(null));
 }

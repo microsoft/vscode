@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/diffEditor';
-import {IAction} from 'vs/base/common/actions';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -597,11 +596,15 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this.modifiedEditor.addAction(descriptor);
 	}
 
-	public getActions(): IAction[] {
+	public getActions(): editorCommon.IEditorAction[] {
 		return this.modifiedEditor.getActions();
 	}
 
-	public getAction(id:string): IAction {
+	public getSupportedActions(): editorCommon.IEditorAction[] {
+		return this.modifiedEditor.getSupportedActions();
+	}
+
+	public getAction(id:string): editorCommon.IEditorAction {
 		return this.modifiedEditor.getAction(id);
 	}
 
@@ -849,7 +852,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
-		clonedOptions.referenceInfos = false;
+		clonedOptions.codeLens = false;
 		return clonedOptions;
 	}
 

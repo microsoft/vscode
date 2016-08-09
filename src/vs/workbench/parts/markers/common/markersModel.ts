@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as Map from 'vs/base/common/map';
@@ -159,7 +158,7 @@ export class MarkersModel {
 			if (b.statistics.errors === 0 && a.statistics.errors > 0) {
 				return -1;
 			}
-			return strings.localeCompare(a.path, b.path) || strings.localeCompare(a.name, b.name);
+			return a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
 		});
 	}
 

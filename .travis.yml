@@ -5,6 +5,12 @@ os:
   - linux
   - osx
 
+env:
+  - VSCODE_BUILD_VERBOSE=true
+
+notifications:
+  email: false
+
 addons:
   apt:
     sources:

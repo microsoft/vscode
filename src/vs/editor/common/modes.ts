@@ -397,11 +397,9 @@ export interface ISuggestSupport {
 
 	triggerCharacters: string[];
 
-	shouldAutotriggerSuggest: boolean;
-
 	filter?: IFilter;
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
 	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
@@ -832,6 +830,7 @@ export interface ILink {
  */
 export interface LinkProvider {
 	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
 
 
@@ -881,6 +880,7 @@ export type CharacterPair = [string, string];
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
+
 }
 
 /**

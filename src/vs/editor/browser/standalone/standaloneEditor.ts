@@ -18,6 +18,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {OpenerService} from 'vs/platform/opener/browser/openerService';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
@@ -59,6 +60,10 @@ export function create(domElement:HTMLElement, options?:IEditorConstructionOptio
 	if (!services || !services.editorService) {
 		editorService = new SimpleEditorService();
 		services.editorService = editorService;
+	}
+
+	if (!services.openerService) {
+		services.openerService = new OpenerService(editorService, services.commandService);
 	}
 
 	var t = prepareServices(domElement, services);
@@ -433,15 +438,10 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType,
-		CursorMoveViewPosition: editorCommon.CursorMoveViewPosition,
+		CursorMoveByUnit: editorCommon.CursorMoveByUnit,
+		CursorMovePosition: editorCommon.CursorMovePosition,
+		EditorScrollDirection: editorCommon.EditorScrollDirection,
+		EditorScrollByUnit: editorCommon.EditorScrollByUnit,
 		Handler: editorCommon.Handler,
-
-		// consts
-		KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS,
-		KEYBINDING_CONTEXT_EDITOR_FOCUS: editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS,
-		KEYBINDING_CONTEXT_EDITOR_READONLY: editorCommon.KEYBINDING_CONTEXT_EDITOR_READONLY,
-		KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS,
-		KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION,
-		KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID,
 	};
 }

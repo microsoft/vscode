@@ -14,8 +14,6 @@ import { assign } from 'vs/base/common/objects';
 import { IXHROptions, IXHRResponse } from 'vs/base/common/http';
 import { request } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { createGunzip } from 'zlib';
-import { Stream } from 'stream';
 
 interface IHTTPConfiguration {
 	http?: {
@@ -65,12 +63,7 @@ export class NodeRequestService implements IRequestService {
 		options = assign(options, { agent, strictSSL });
 
 		return request(options).then(result => new TPromise<IXHRResponse>((c, e, p) => {
-			const res = result.res;
-			let stream: Stream = res;
-
-			if (res.headers['content-encoding'] === 'gzip') {
-				stream = stream.pipe(createGunzip());
-			}
+			const { res, stream } = result;
 
 			const data: string[] = [];
 			stream.on('data', c => data.push(c));

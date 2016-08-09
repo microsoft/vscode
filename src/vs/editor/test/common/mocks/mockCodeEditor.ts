@@ -26,6 +26,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 		return new MockConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): Range { return null; }
+	public getVisibleRangeInViewport(): Range { return null; }
 
 	public getScrollWidth(): number { return 0; }
 	public getScrollLeft(): number { return 0; }
@@ -59,7 +60,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 
 	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor:any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
-		this.contributions[r.getId()] = r;
+		this._contributions[r.getId()] = r;
 		return r;
 	}
 }

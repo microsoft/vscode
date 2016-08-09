@@ -44,7 +44,6 @@
 	"miGotoLine": "转到行(&&L)...",
 	"miGotoSymbol": "转到符号(&&S)...",
 	"miInstallingUpdate": "正在安装更新...",
-	"miLastCheckedAt": "上次检查时间 {0}",
 	"miLicense": "查看许可证(&&V)",
 	"miMarker": "问题(&&P)",
 	"miMoveSidebar": "移动侧边栏(&&M)",

@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, TerminalPasteAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import {KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollUpTerminalAction, TerminalPasteAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {Registry} from 'vs/platform/platform';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
+import {GlobalQuickOpenAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {ShowAllCommandsAction} from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -79,12 +82,35 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			'type': 'boolean',
-			'default': true
+			'default': false
 		},
 		'terminal.integrated.setLocaleVariables': {
 			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
 			'type': 'boolean',
 			'default': platform.isMacintosh
+		},
+		'terminal.integrated.commandsToSkipShell': {
+			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch quick open."),
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [
+				ToggleTabFocusModeAction.ID,
+				GlobalQuickOpenAction.ID,
+				ShowAllCommandsAction.ID,
+				CreateNewTerminalAction.ID,
+				CopyTerminalSelectionAction.ID,
+				KillTerminalAction.ID,
+				FocusTerminalAction.ID,
+				FocusPreviousTerminalAction.ID,
+				FocusNextTerminalAction.ID,
+				TerminalPasteAction.ID,
+				RunSelectedTextInTerminalAction.ID,
+				ToggleTerminalAction.ID,
+				ScrollDownTerminalAction.ID,
+				ScrollUpTerminalAction.ID
+			].sort()
 		}
 	}
 });
@@ -106,7 +132,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSele
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 	// Don't apply to Mac since cmd+c works
 	mac: { primary: null }
-}, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
@@ -118,9 +144,17 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAct
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V,
 	// Don't apply to Mac since cmd+v works
 	mac: { primary: null }
-}, KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_TERMINAL_FOCUS))), CopyTerminalSelectionAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), CopyTerminalSelectionAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), RunSelectedTextInTerminalAction.LABEL);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 }), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownTerminalAction, ScrollDownTerminalAction.ID, ScrollDownTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), ScrollDownTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), ScrollUpTerminalAction.LABEL);

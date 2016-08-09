@@ -8,7 +8,7 @@ import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 import * as sinon from 'sinon';
-import { MockDebugService } from 'vs/workbench/parts/debug/test/common/mockDebugService';
+import {MockDebugService} from 'vs/workbench/parts/debug/test/common/mockDebugService';
 
 suite('Debug - Model', () => {
 	var model: debugmodel.Model;
@@ -352,11 +352,11 @@ suite('Debug - Model', () => {
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
 
-		const scope = new debugmodel.Scope(1, 'myscope', 1, false);
-		const son = new debugmodel.Variable(new debugmodel.Variable(new debugmodel.Variable(scope, 0, 'grandfather', '75'), 0, 'father', '45'), 0, 'son', '20');
+		const scope = new debugmodel.Scope(1, 'myscope', 1, false, 1, 0);
+		const son = new debugmodel.Variable(new debugmodel.Variable(new debugmodel.Variable(scope, 0, 'grandfather', '75', 1, 0), 0, 'father', '45', 1, 0), 0, 'son', '20', 1, 0);
 		assert.equal(debugmodel.getFullExpressionName(son, type), 'grandfather.father.son');
 
-		const grandson = new debugmodel.Variable(son, 0, '/weird_name', '1');
+		const grandson = new debugmodel.Variable(son, 0, '/weird_name', '1', 0, 0);
 		assert.equal(debugmodel.getFullExpressionName(grandson, type), 'grandfather.father.son[\'/weird_name\']');
 	});
 });

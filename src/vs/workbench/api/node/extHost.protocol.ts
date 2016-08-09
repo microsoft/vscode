@@ -28,7 +28,7 @@ import * as modes from 'vs/editor/common/modes';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 
 import {IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent} from './mainThreadEditorsTracker';
 import {EndOfLine} from './extHostTypes';
 
@@ -127,6 +127,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> { throw ni(); }
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> { throw ni(); }
+	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$setLanguageConfiguration(handle: number, languageId:string, configuration: vscode.LanguageConfiguration): TPromise<any> { throw ni(); }
 }
 
@@ -152,7 +153,7 @@ export abstract class MainThreadQuickOpenShape {
 	$show(options: IPickOptions): Thenable<number> { throw ni(); }
 	$setItems(items: MyQuickPickItems[]): Thenable<any> { throw ni(); }
 	$setError(error: Error): Thenable<any> { throw ni(); }
-	$input(options: vscode.InputBoxOptions, validateInput: boolean): Thenable<string> { throw ni(); }
+	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string> { throw ni(); }
 }
 
 export abstract class MainThreadStatusBarShape {
@@ -262,11 +263,14 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: editorCommon.IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$getNavigateToItems(handle: number, search: string): TPromise<ITypeBearing[]> { throw ni(); }
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> { throw ni(); }
+	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> { throw ni(); }
 	$provideRenameEdits(handle: number, resource: URI, position: editorCommon.IPosition, newName: string): TPromise<modes.WorkspaceEdit> { throw ni(); }
-	$provideCompletionItems(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult[]> { throw ni(); }
+	$provideCompletionItems(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> { throw ni(); }
 	$resolveCompletionItem(handle: number, resource: URI, position: editorCommon.IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
 	$provideSignatureHelp(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
+	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> { throw ni(); }
+	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> { throw ni(); }
 }
 
 export abstract class ExtHostQuickOpenShape {

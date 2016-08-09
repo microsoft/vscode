@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {RunOnceScheduler} from 'vs/base/common/async';
 import lifecycle = require('vs/base/common/lifecycle');
 import env = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
-import { IAction, Action } from 'vs/base/common/actions';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import {IAction, Action} from 'vs/base/common/actions';
+import {KeyCode} from 'vs/base/common/keyCodes';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
-import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
+import {DebugHoverWidget} from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Range} from 'vs/editor/common/core/range';
 
 const HOVER_DELAY = 300;
@@ -124,7 +124,13 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.onMouseDown((e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseDown(e)));
 		this.toDispose.push(this.editor.onMouseMove((e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.toDispose.push(this.editor.onMouseLeave((e: editorbrowser.IEditorMouseEvent) => this.hoverWidget.hide()));
+		this.toDispose.push(this.editor.onMouseLeave((e: editorbrowser.IEditorMouseEvent) => {
+			const rect = this.hoverWidget.getDomNode().getBoundingClientRect();
+			// Only hide the hover widget if the editor mouse leave event is outside the hover widget #3528
+			if (e.event.posx < rect.left || e.event.posx > rect.right || e.event.posy < rect.top || e.event.posy > rect.bottom) {
+				this.hideHoverWidget();
+			}
+		}));
 		this.toDispose.push(this.editor.onKeyDown((e: keyboard.IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.hideHoverWidget()));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));

@@ -130,7 +130,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	public resolve(value: IStringDictionary<IStringDictionary<string>>): IStringDictionary<IStringDictionary<string>>;
 	public resolve(value: any): any {
 		if (Types.isString(value)) {
-			return this.__resolveString(value);
+			return this.resolveString(value);
 		} else if (Types.isArray(value)) {
 			return this.__resolveArray(value);
 		} else if (Types.isObject(value)) {
@@ -143,7 +143,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	resolveAny<T>(value: T): T;
 	resolveAny<T>(value: any): any {
 		if (Types.isString(value)) {
-			return this.__resolveString(value);
+			return this.resolveString(value);
 		} else if (Types.isArray(value)) {
 			return this.__resolveAnyArray(value);
 		} else if (Types.isObject(value)) {
@@ -153,7 +153,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 		return value;
 	}
 
-	private __resolveString(value: string): string {
+	protected resolveString(value: string): string {
 		let regexp = /\$\{(.*?)\}/g;
 		return value.replace(regexp, (match: string, name: string) => {
 			let newValue = (<any>this)[name];
@@ -185,7 +185,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	}
 
 	private __resolveArray(value: string[]): string[] {
-		return value.map(s => this.__resolveString(s));
+		return value.map(s => this.resolveString(s));
 	}
 
 	private __resolveAnyArray<T>(value: T[]): T[];

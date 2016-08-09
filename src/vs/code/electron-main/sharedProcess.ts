@@ -8,18 +8,28 @@ import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 
+export interface ISharedProcessOptions {
+	allowOutput?: boolean;
+	debugPort?: number;
+}
+
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
-function _spawnSharedProcess(allowOutput: boolean): cp.ChildProcess {
+function _spawnSharedProcess(options: ISharedProcessOptions): cp.ChildProcess {
+	const execArgv = [];
 	const env = assign({}, process.env, {
 		AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain'
 	});
 
-	if (allowOutput) {
+	if (options.allowOutput) {
 		env['VSCODE_ALLOW_IO'] = 'true';
 	}
 
-	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], { env });
+	if (options.debugPort) {
+		execArgv.push(`--debug=${ options.debugPort }`);
+	}
+
+	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], { env, execArgv });
 
 	// handshake
 	result.once('message', () => result.send('hey'));
@@ -27,9 +37,8 @@ function _spawnSharedProcess(allowOutput: boolean): cp.ChildProcess {
 	return result;
 }
 
-let spawnCount = 0;
-
-export function spawnSharedProcess(allowOutput: boolean): IDisposable {
+export function spawnSharedProcess(options: ISharedProcessOptions = {}): IDisposable {
+	let spawnCount = 0;
 	let child: cp.ChildProcess;
 
 	const spawn = () => {
@@ -37,7 +46,7 @@ export function spawnSharedProcess(allowOutput: boolean): IDisposable {
 			return;
 		}
 
-		child = _spawnSharedProcess(allowOutput);
+		child = _spawnSharedProcess(options);
 		child.on('exit', spawn);
 	};
 

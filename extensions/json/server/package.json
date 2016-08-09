@@ -1,20 +1,21 @@
 {
-	"name": "vscode-json-server",
-	"description": "JSON language server",
-	"version": "0.0.1",
-	"author": "Microsoft Corporation",
-	"license": "MIT",
-	"engines": {
-		"node": "*"
-	},
-	"dependencies": {
-		"request-light": "^0.1.0",
-		"vscode-json-languageservice": "^1.1.1",
-		"vscode-languageserver": "^2.2.0",
-		"vscode-nls": "^1.0.4"
-	},
-	"scripts": {
-		"compile": "gulp compile-extension:json-server",
-		"watch": "gulp watch-extension:json-server"
-	}
+  "name": "vscode-json-server",
+  "description": "JSON language server",
+  "version": "0.0.1",
+  "author": "Microsoft Corporation",
+  "license": "MIT",
+  "engines": {
+    "node": "*"
+  },
+  "dependencies": {
+    "request-light": "^0.1.0",
+    "vscode-json-languageservice": "^1.1.4",
+    "vscode-languageserver": "^2.2.0",
+    "vscode-nls": "^1.0.4"
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:json-server",
+    "watch": "gulp watch-extension:json-server",
+    "update-ls": "npm install vscode-json-languageservice@next --save"
+  }
 }

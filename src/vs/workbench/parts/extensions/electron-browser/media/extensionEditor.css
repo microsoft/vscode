@@ -49,10 +49,6 @@
 	white-space: nowrap;
 }
 
-.extension-editor > .header > .details > .title > .license {
-	margin-left: 10px;
-}
-
 .extension-editor > .header > .details > .subtitle {
 	padding-top: 10px;
 	white-space: nowrap;

@@ -16,6 +16,7 @@ import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifec
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { ISettingsService, SettingsManager } from 'vs/code/electron-main/settings';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
+import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/common/ipc.electron';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
@@ -31,6 +32,8 @@ import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 import * as cp from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
+import { URLChannel } from 'vs/platform/url/common/urlIpc';
+import { URLService } from 'vs/platform/url/electron-main/urlService';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -52,7 +55,7 @@ function quit(accessor: ServicesAccessor, arg?: any) {
 	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
-function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEnvironment): void {
+function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProcessEnvironment): void {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const envService = accessor.get(IEnvironmentService);
@@ -93,22 +96,28 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 		// noop
 	}
 
-	// Register IPC services
+	// Register Main IPC services
 	const launchService = instantiationService.createInstance(LaunchService);
 	const launchChannel = new LaunchChannel(launchService);
-	ipcServer.registerChannel('launch', launchChannel);
+	mainIpcServer.registerChannel('launch', launchChannel);
 
 	const askpassService = new GitAskpassService();
 	const askpassChannel = new AskpassChannel(askpassService);
-	ipcServer.registerChannel('askpass', askpassChannel);
+	mainIpcServer.registerChannel('askpass', askpassChannel);
 
-	// Used by sub processes to communicate back to the main instance
-	process.env['VSCODE_PID'] = '' + process.pid;
-	process.env['VSCODE_IPC_HOOK'] = envService.mainIPCHandle;
-	process.env['VSCODE_SHARED_IPC_HOOK'] = envService.sharedIPCHandle;
+	// Create Electron IPC Server
+	const electronIpcServer = new ElectronIPCServer(ipc);
+
+	// Register Electron IPC services
+	const urlService = instantiationService.createInstance(URLService);
+	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
+	electronIpcServer.registerChannel('url', urlChannel);
 
 	// Spawn shared process
-	const sharedProcess = spawnSharedProcess(!envService.isBuilt || envService.cliArgs.verboseLogging);
+	const sharedProcess = spawnSharedProcess({
+		allowOutput: !envService.isBuilt || envService.cliArgs.verboseLogging,
+		debugPort: envService.isBuilt ? null : 5871
+	});
 
 	// Make sure we associate the program with the app user model id
 	// This will help Windows to associate the running program with
@@ -122,9 +131,9 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	global.programStart = envService.cliArgs.programStart;
 
 	function dispose() {
-		if (ipcServer) {
-			ipcServer.dispose();
-			ipcServer = null;
+		if (mainIpcServer) {
+			mainIpcServer.dispose();
+			mainIpcServer = null;
 		}
 
 		sharedProcess.dispose();
@@ -271,7 +280,7 @@ interface IEnv {
 	[key: string]: string;
 }
 
-function getUnixUserEnvironment(): TPromise<IEnv> {
+function getUnixShellEnvironment(): TPromise<IEnv> {
 	const promise = new TPromise((c, e) => {
 		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
@@ -329,24 +338,51 @@ function getUnixUserEnvironment(): TPromise<IEnv> {
 	return promise.then(null, () => ({}));
 }
 
-function getUserEnvironment(): TPromise<IEnv> {
-	return platform.isWindows ? TPromise.as({}) : getUnixUserEnvironment();
+/**
+ * We eed to get the environment from a user's shell.
+ * This should only be done when Code itself is not launched
+ * from within a shell.
+ */
+function getShellEnvironment(): TPromise<IEnv> {
+	if (process.env['VSCODE_CLI'] === '1') {
+		return TPromise.as({});
+	}
+
+	if (platform.isWindows) {
+		return TPromise.as({});
+	}
+
+	return getUnixShellEnvironment();
+}
+
+/**
+ * Returns the user environment necessary for all Code processes.
+ * Such environment needs to be propagated to the renderer/shared
+ * processes.
+ */
+function getEnvironment(): TPromise<IEnv> {
+	return getShellEnvironment().then(shellEnv => {
+		return instantiationService.invokeFunction(a => {
+			const envService = a.get(IEnvironmentService);
+			const instanceEnv = {
+				VSCODE_PID: String(process.pid),
+				VSCODE_IPC_HOOK: envService.mainIPCHandle,
+				VSCODE_SHARED_IPC_HOOK: envService.sharedIPCHandle,
+				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+			};
+
+			return assign({}, shellEnv, instanceEnv);
+		});
+	});
 }
 
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
-getUserEnvironment()
-	.then(userEnv => {
-		if (process.env['VSCODE_CLI'] !== '1') {
-			assign(process.env, userEnv);
-		}
+getEnvironment().then(env => {
+	assign(process.env, env);
 
-		// Make sure the NLS Config travels to the rendered process
-		// See also https://github.com/Microsoft/vscode/issues/4558
-		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
-
-		return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
-			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, userEnv));
-	})
-	.done(null, err => instantiationService.invokeFunction(quit, err));
+	return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
+		.then(() => instantiationService.invokeFunction(setupIPC))
+		.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
+})
+.done(null, err => instantiationService.invokeFunction(quit, err));

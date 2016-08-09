@@ -140,6 +140,10 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 		}
 	}
 
+	public get(): T {
+		return this._parent.getContextValue<T>(this._key);
+	}
+
 }
 
 export abstract class AbstractKeybindingService {
@@ -185,8 +189,11 @@ export abstract class AbstractKeybindingService {
 	public contextMatchesRules(rules: KbExpr): boolean {
 		const ctx = Object.create(null);
 		this.getContext(this._myContextId).fillInContext(ctx);
-		// console.log(JSON.stringify(ctx, null, '\t'));
-		return KeybindingResolver.contextMatchesRules(ctx, rules);
+		const result = KeybindingResolver.contextMatchesRules(ctx, rules);
+		// console.group(rules.serialize() + ' -> ' + result);
+		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
+		// console.groupEnd();
+		return result;
 	}
 
 	public getContextValue<T>(key: string): T {
@@ -250,6 +257,17 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._commandService = commandService;
 		this._statusService = statusService;
 		this._messageService = messageService;
+
+		// Uncomment this to see the contexts continuously logged
+		// let lastLoggedValue: string = null;
+		// setInterval(() => {
+		// 	let values = Object.keys(this._contexts).map((key) => this._contexts[key]);
+		// 	let logValue = values.map(v => JSON.stringify(v._value, null, '\t')).join('\n');
+		// 	if (lastLoggedValue !== logValue) {
+		// 		lastLoggedValue = logValue;
+		// 		console.log(lastLoggedValue);
+		// 	}
+		// }, 2000);
 	}
 
 	protected _beginListening(domNode: HTMLElement): void {

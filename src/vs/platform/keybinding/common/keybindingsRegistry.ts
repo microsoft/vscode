@@ -10,20 +10,20 @@ import {IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/comm
 import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {Registry} from 'vs/platform/platform';
 
-export interface ICommandRule extends IKeybindings {
+export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
 	when: KbExpr;
 }
 
-export interface ICommandDescriptor extends ICommandRule {
+export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
 	description?: ICommandHandlerDescription;
 }
 
 export interface IKeybindingsRegistry {
-	registerCommandRule(rule: ICommandRule);
-	registerCommandDesc(desc: ICommandDescriptor): void;
+	registerKeybindingRule(rule: IKeybindingRule);
+	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
 	getDefaultKeybindings(): IKeybindingItem[];
 
 	WEIGHT: {
@@ -82,7 +82,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
-	public registerCommandRule(rule: ICommandRule): void {
+	public registerKeybindingRule(rule: IKeybindingRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		// here
@@ -96,8 +96,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	public registerCommandDesc(desc: ICommandDescriptor): void {
-		this.registerCommandRule(desc);
+	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
+		this.registerKeybindingRule(desc);
 		CommandsRegistry.registerCommand(desc.id, desc);
 	}
 

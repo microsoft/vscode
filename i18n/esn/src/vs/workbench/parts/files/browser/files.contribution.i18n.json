@@ -10,6 +10,7 @@
 	"autoSaveDelay": "Controla el retraso en MS tras el cual un archivo con modificaciones se guarda automáticamente. Solo se aplica si \"files.autoSave\" está establecido en \"{0}\".",
 	"binaryFileEditor": "Editor de archivos binarios",
 	"dynamicHeight": "Controla si la altura de la sección de editores abiertos debería adaptarse o no de forma dinámica al número de elementos.",
+	"enableDragAndDrop": "Controla si el explorador debe permitir mover archivos y carpetas mediante la función arrastrar y colocar.",
 	"encoding": "La codificación del juego de caracteres predeterminada que debe utilizarse al leer y escribir archivos.",
 	"eol": "Carácter predeterminado de final de línea.",
 	"exclude": "Configurar patrones globales para excluir archivos y carpetas.",

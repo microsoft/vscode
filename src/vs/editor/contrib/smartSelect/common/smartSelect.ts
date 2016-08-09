@@ -10,10 +10,8 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {Range} from 'vs/editor/common/core/range';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {editorAction, ServicesAccessor, IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
 // --- selection state machine
@@ -39,18 +37,31 @@ var ignoreSelection = false;
 
 // -- action implementation
 
-class SmartSelect extends EditorAction {
+class SmartSelectController implements IEditorContribution {
 
-	private _forward: boolean;
-	private _tokenSelectionSupport: TokenSelectionSupport;
+	private static ID = 'editor.contrib.smartSelectController';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, forward: boolean, instantiationService: IInstantiationService) {
-		super(descriptor, editor, Behaviour.TextFocus | Behaviour.UpdateOnModelChange);
-		this._tokenSelectionSupport = instantiationService.createInstance(TokenSelectionSupport);
-		this._forward = forward;
+	public static get(editor:ICommonCodeEditor): SmartSelectController {
+		return <SmartSelectController>editor.getContribution(SmartSelectController.ID);
 	}
 
-	public run(): TPromise<boolean> {
+	private _tokenSelectionSupport: TokenSelectionSupport;
+
+	constructor(
+		private editor: ICommonCodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this._tokenSelectionSupport = instantiationService.createInstance(TokenSelectionSupport);
+	}
+
+	public dispose(): void {
+	}
+
+	public getId(): string {
+		return SmartSelectController.ID;
+	}
+
+	public run(forward:boolean): TPromise<void> {
 
 		var selection = this.editor.getSelection();
 		var model = this.editor.getModel();
@@ -114,7 +125,7 @@ class SmartSelect extends EditorAction {
 				return;
 			}
 
-			state = this._forward ? state.next : state.previous;
+			state = forward ? state.next : state.previous;
 			if (!state) {
 				return;
 			}
@@ -126,37 +137,58 @@ class SmartSelect extends EditorAction {
 				ignoreSelection = false;
 			}
 
-			return true;
+			return;
 		});
 	}
 }
 
-class GrowSelectionAction extends SmartSelect {
+abstract class AbstractSmartSelect extends EditorAction {
 
-	public static ID = 'editor.action.smartSelect.grow';
+	private _forward: boolean;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
-		super(descriptor, editor, true, instantiationService);
+	constructor(forward: boolean, opts:IActionOptions) {
+		super(opts);
+		this._forward = forward;
+	}
+
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+		return SmartSelectController.get(editor).run(this._forward);
 	}
 }
 
-class ShrinkSelectionAction extends SmartSelect {
+@editorAction
+class GrowSelectionAction extends AbstractSmartSelect {
+	constructor() {
+		super(true, {
+			id: 'editor.action.smartSelect.grow',
+			label: nls.localize('smartSelect.grow', "Expand Select"),
+			alias: 'Expand Select',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
+			}
+		});
+	}
+}
 
-	public static ID = 'editor.action.smartSelect.shrink';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
-		super(descriptor, editor, false, instantiationService);
+@editorAction
+class ShrinkSelectionAction extends AbstractSmartSelect {
+	constructor() {
+		super(false, {
+			id: 'editor.action.smartSelect.shrink',
+			label: nls.localize('smartSelect.shrink', "Shrink Select"),
+			alias: 'Shrink Select',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
+			}
+		});
 	}
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GrowSelectionAction, GrowSelectionAction.ID, nls.localize('smartSelect.grow', "Expand Select"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
-}, 'Expand Select'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShrinkSelectionAction, ShrinkSelectionAction.ID, nls.localize('smartSelect.shrink', "Shrink Select"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
-}, 'Shrink Select'));
+CommonEditorRegistry.registerEditorContribution(SmartSelectController);

@@ -101,7 +101,6 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		} else {
 			overwriteRange = new Range(document.positionAt(offset - currentWord.length), position);
 		}
-		let filterText = document.getText(new Range(overwriteRange.start, position));
 
 		let proposed: { [key: string]: boolean } = {};
 		let collector: ISuggestionsCollector = {
@@ -109,8 +108,6 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
 					suggestion.textEdit = TextEdit.replace(overwriteRange, suggestion.insertText);
-					suggestion.filterText = filterText;
-
 					items.push(suggestion);
 				}
 			},

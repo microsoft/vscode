@@ -23,13 +23,11 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
 import {Composite, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IComposite} from 'vs/workbench/common/composite';
-import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {EventType as CompositeEventType} from 'vs/workbench/browser/composite';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -38,7 +36,6 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 
 export abstract class CompositePart<T extends Composite> extends Part {
-	private activeCompositeListeners: IDisposable[];
 	private instantiatedCompositeListeners: IDisposable[];
 	private mapCompositeToCompositeContainer: { [compositeId: string]: Builder; };
 	private mapActionsBindingToComposite: { [compositeId: string]: () => void; };
@@ -57,7 +54,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	constructor(
 		private messageService: IMessageService,
 		private storageService: IStorageService,
-		private eventService: IEventService,
 		private telemetryService: ITelemetryService,
 		private contextMenuService: IContextMenuService,
 		protected partService: IPartService,
@@ -72,7 +68,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	) {
 		super(id);
 
-		this.activeCompositeListeners = [];
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};
 		this.mapActionsBindingToComposite = {};
@@ -104,11 +99,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		let currentCompositeOpenToken = uuid.generateUuid();
 		this.currentCompositeOpenToken = currentCompositeOpenToken;
 
-		// Emit Composite Opening Event
-		this.emit(WorkbenchEventType.COMPOSITE_OPENING, new CompositeEvent(id));
-
 		// Hide current
-		let hidePromise: TPromise<void>;
+		let hidePromise: TPromise<Composite>;
 		if (this.activeComposite) {
 			hidePromise = this.hideActiveComposite();
 		} else {
@@ -171,7 +163,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (compositeDescriptor) {
 			let loaderPromise = this.compositeLoaderPromises[id];
 			if (!loaderPromise) {
-				let progressService = new WorkbenchProgressService(this.eventService, this.progressBar, compositeDescriptor.id, isActive);
+				let progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.progressBar, compositeDescriptor.id, isActive);
 				let compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
 				loaderPromise = compositeInstantiationService.createInstance(compositeDescriptor).then((composite: Composite) => {
@@ -181,10 +173,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					this.instantiatedComposits.push(composite);
 
 					// Register to title area update events from the composite
-					this.instantiatedCompositeListeners.push(composite.addListener2(CompositeEventType.INTERNAL_COMPOSITE_TITLE_AREA_UPDATE, (e) => { this.onTitleAreaUpdate(e); }));
+					this.instantiatedCompositeListeners.push(composite.addListener2(CompositeEventType.INTERNAL_COMPOSITE_TITLE_AREA_UPDATE, compositeId => this.onTitleAreaUpdate(compositeId)));
 
 					// Remove from Promises Cache since Loaded
 					delete this.compositeLoaderPromises[id];
+					progressService.dispose();
 
 					return composite;
 				});
@@ -212,9 +205,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Remember
 		this.lastActiveCompositeId = this.activeComposite.getId();
-
-		// Register as Emitter to Workbench Bus
-		this.activeCompositeListeners.push(this.eventService.addEmitter2(this.activeComposite, this.activeComposite.getId()));
 
 		let createCompositePromise: TPromise<void>;
 
@@ -305,17 +295,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				if (this.contentAreaSize) {
 					composite.layout(this.contentAreaSize);
 				}
-
-				// Emit Composite Opened Event
-				this.emit(WorkbenchEventType.COMPOSITE_OPENED, new CompositeEvent(this.activeComposite.getId()));
 			});
 		}, (error: any) => this.onError(error));
 	}
 
-	protected onTitleAreaUpdate(e: CompositeEvent): void {
+	protected onTitleAreaUpdate(compositeId: string): void {
 
 		// Active Composite
-		if (this.activeComposite && this.activeComposite.getId() === e.compositeId) {
+		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
 
 			// Title
 			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle());
@@ -328,7 +315,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Otherwise invalidate actions binding for next time when the composite becomes visible
 		else {
-			delete this.mapActionsBindingToComposite[e.compositeId];
+			delete this.mapActionsBindingToComposite[compositeId];
 		}
 	}
 
@@ -381,7 +368,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.lastActiveCompositeId;
 	}
 
-	protected hideActiveComposite(): TPromise<void> {
+	protected hideActiveComposite(): TPromise<Composite> {
 		if (!this.activeComposite) {
 			return TPromise.as(null); // Nothing to do
 		}
@@ -404,11 +391,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			// Empty Actions
 			this.toolBar.setActions([])();
 
-			// Clear Listeners
-			this.activeCompositeListeners = dispose(this.activeCompositeListeners);
-
-			// Emit Composite Closed Event
-			this.emit(WorkbenchEventType.COMPOSITE_CLOSED, new CompositeEvent(composite.getId()));
+			return composite;
 		});
 	}
 
@@ -517,8 +500,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		this.instantiatedComposits = [];
-
-		this.activeCompositeListeners = dispose(this.activeCompositeListeners);
 
 		this.instantiatedCompositeListeners = dispose(this.instantiatedCompositeListeners);
 

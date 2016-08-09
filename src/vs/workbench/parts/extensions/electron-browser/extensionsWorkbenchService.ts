@@ -91,7 +91,7 @@ class Extension implements IExtension {
 			return URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
 		}
 
-		if (this.gallery && this.gallery.versions[0].iconUrl) {
+		if (this.gallery) {
 			return this.gallery.versions[0].iconUrl;
 		}
 
@@ -123,13 +123,37 @@ function stripVersion(id: string): string {
 	return id.replace(/-\d+\.\d+\.\d+$/, '');
 }
 
+enum Operation {
+	Installing,
+	Updating,
+	Uninstalling
+}
+
+interface IActiveExtension {
+	id: string;
+	operation: Operation;
+	extension: Extension;
+	start: Date;
+}
+
+function toTelemetryEventName(operation: Operation) {
+	switch (operation) {
+		case Operation.Installing: return 'extensionGallery:install';
+		case Operation.Updating: return 'extensionGallery:update';
+		case Operation.Uninstalling: return 'extensionGallery:uninstall';
+	}
+
+	return '';
+}
+
 export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private static SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
 	_serviceBrand: any;
 	private stateProvider: IExtensionStateProvider;
-	private installing: { id: string; extension: Extension; }[] = [];
+	private installing: IActiveExtension[] = [];
+	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
@@ -148,6 +172,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
 		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
 		this.disposables.push(extensionService.onUninstallExtension(id => this.onUninstallExtension(id)));
+		this.disposables.push(extensionService.onDidUninstallExtension(id => this.onDidUninstallExtension(id)));
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
 
@@ -280,7 +305,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		extension.gallery = gallery;
-		this.installing.push({ id: stripVersion(id), extension });
+
+		const start = new Date();
+		const operation = Operation.Uninstalling;
+		this.installing.push({ id: stripVersion(id), operation, extension, start });
 
 		this._onChange.fire();
 	}
@@ -298,21 +326,22 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extension.local = local;
 		extension.needsRestart = true;
 
+		let eventName: string = 'extensionGallery:install';
 		this.installing = this.installing.filter(e => e.id !== id);
 
-		const galleryId = local.metadata && local.metadata.id;
-		const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
-		let eventName: string;
+		if (!error) {
+			const galleryId = local.metadata && local.metadata.id;
+			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
 
-		if (galleryId && installed) {
-			eventName = 'extensionGallery:update';
-			installed.local = local;
-		} else {
-			eventName = 'extensionGallery:install';
-			this.installed.push(extension);
+			if (galleryId && installed) {
+				eventName = 'extensionGallery:update';
+				installed.local = local;
+			} else {
+				this.installed.push(extension);
+			}
 		}
 
-		this.reportTelemetry(extension, eventName, !error);
+		this.reportTelemetry(installing, !error);
 		this._onChange.fire();
 	}
 
@@ -325,8 +354,23 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return;
 		}
 
-		this.reportTelemetry(extension, 'extensionGallery:uninstall', true);
+		const start = new Date();
+		const operation = Operation.Uninstalling;
+		const uninstalling = this.uninstalling.filter(e => e.id === id)[0] || { id, operation, extension, start };
+		this.uninstalling = [uninstalling, ...this.uninstalling.filter(e => e.id !== id)];
+
 		this._onChange.fire();
+	}
+
+	private onDidUninstallExtension(id: string): void {
+		const uninstalling = this.uninstalling.filter(e => e.id === id)[0];
+		this.uninstalling = this.uninstalling.filter(e => e.id !== id);
+
+		if (!uninstalling) {
+			return;
+		}
+
+		this.reportTelemetry(uninstalling, true);
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
@@ -343,13 +387,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return ExtensionState.Uninstalled;
 	}
 
-	private reportTelemetry(extension: Extension, eventName: string, success: boolean): void {
-		if (!extension) {
+	private reportTelemetry(active: IActiveExtension, success: boolean): void {
+		if (!active.extension) {
 			return;
 		}
 
-		const local = extension.local;
-		const gallery = extension.gallery;
+		const local = active.extension.local;
+		const gallery = active.extension.gallery;
 		let data = null;
 
 		if (gallery) {
@@ -372,7 +416,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			};
 		}
 
-		this.telemetryService.publicLog(eventName, assign(data, { success }));
+		const duration = new Date().getTime() - active.start.getTime();
+		const eventName = toTelemetryEventName(active.operation);
+
+		this.telemetryService.publicLog(eventName, assign(data, { success, duration }));
 	}
 
 	dispose(): void {

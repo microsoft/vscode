@@ -132,4 +132,7 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 		closeServer();
 		reject(err);
 	});
+
+	// On vscode exit still close server #7758
+	process.once('exit', closeServer);
 }

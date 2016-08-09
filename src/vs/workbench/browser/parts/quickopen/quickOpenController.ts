@@ -14,9 +14,10 @@ import filters = require('vs/base/common/filters');
 import URI from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
+import {CancellationToken} from 'vs/base/common/cancellation';
 import {Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
+import {QuickOpenWidget, HideReason} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
@@ -31,19 +32,16 @@ import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extens
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, KbCtxKey, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
-const QUICK_OPEN_MODE = 'inQuickOpen';
+const QUICK_OPEN_MODE = new KbCtxKey<boolean>('inQuickOpen', false);
 
 interface IPickOpenEntryItem extends IPickOpenEntry {
 	height?: number;
@@ -52,6 +50,7 @@ interface IPickOpenEntryItem extends IPickOpenEntry {
 
 interface IInternalPickOptions {
 	value?: string;
+	valueSelect?: boolean;
 	placeHolder?: string;
 	inputDecoration?: Severity;
 	password?: boolean;
@@ -85,10 +84,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private visibilityChangeTimeoutHandle: number;
 
 	constructor(
-		@IEventService private eventService: IEventService,
-		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IViewletService private viewletService: IViewletService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -102,7 +98,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.promisesToCompleteOnHide = [];
 
-		this.inQuickOpenMode = keybindingService.createKey(QUICK_OPEN_MODE, false);
+		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(keybindingService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
@@ -122,26 +118,27 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 	}
 
-	public input(options?: IInputOptions): TPromise<string> {
-		const defaultMessage = options && options.prompt
+	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
+		const defaultMessage = options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 		let currentPick = defaultMessage;
 		let currentValidation = TPromise.as(true);
 		let currentDecoration: Severity;
-		let lastValue = options && options.value || '';
+		let lastValue: string;
 
 		const init = (resolve: (value: IPickOpenEntry | TPromise<IPickOpenEntry>) => any, reject: (value: any) => any) => {
 
 			// open quick pick with just one choice. we will recurse whenever
 			// the validation/success message changes
 			this.doPick(TPromise.as([{ label: currentPick }]), {
-				ignoreFocusLost: true,
+				ignoreFocusLost: false,
 				autoFocus: { autoFocusFirstEntry: true },
 				password: options.password,
 				placeHolder: options.placeHolder,
-				value: options.value,
+				value: lastValue === void 0 ? options.value : lastValue,
+				valueSelect: lastValue === void 0,
 				inputDecoration: currentDecoration,
 				onDidType: (value) => {
 					lastValue = value;
@@ -165,7 +162,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						});
 					}
 				}
-			}).then(resolve, reject);
+			}, token).then(resolve, reject);
 		};
 
 		return new TPromise(init).then(item => {
@@ -177,11 +174,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 	}
 
-	public pick(picks: TPromise<string[]>, options?: IPickOptions): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions): TPromise<string>;
-	public pick(picks: string[], options?: IPickOptions): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions): TPromise<T>;
-	public pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions): TPromise<string | IPickOpenEntry> {
+	public pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
+	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
+	public pick(picks: string[], options?: IPickOptions, token?: CancellationToken): TPromise<string>;
+	public pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions, token?: CancellationToken): TPromise<T>;
+	public pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
 		if (!options) {
 			options = Object.create(null);
 		}
@@ -213,11 +210,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				return item && isAboutStrings ? item.label : item;
 			}
 
-			this.doPick(entryPromise, options).then(item => resolve(onItem(item)), err => reject(err), item => progress(onItem(item)));
+			this.doPick(entryPromise, options, token).then(item => resolve(onItem(item)), err => reject(err), item => progress(onItem(item)));
 		});
 	}
 
-	private doPick(picksPromise: TPromise<IPickOpenEntry[]>, options: IInternalPickOptions): TPromise<IPickOpenEntry> {
+	private doPick(picksPromise: TPromise<IPickOpenEntry[]>, options: IInternalPickOptions, token: CancellationToken = CancellationToken.None): TPromise<IPickOpenEntry> {
 		let autoFocus = options.autoFocus;
 
 		// Use a generated token to avoid race conditions from long running promises
@@ -255,7 +252,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Respect input value
 		if (options.value) {
-			this.pickOpenWidget.setValue(options.value);
+			this.pickOpenWidget.setValue(options.value, options.valueSelect);
 		}
 
 		// Respect password
@@ -274,6 +271,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
+
+			// hide widget when being cancelled
+			token.onCancellationRequested(e => this.pickOpenWidget.hide(HideReason.CANCELED));
+
 			let picksPromiseDone = false;
 
 			// Resolve picks
@@ -422,18 +423,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			this.visibilityChangeTimeoutHandle = void 0;
 		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
-	}
-
-	public refresh(input?: string): TPromise<void> {
-		if (!this.quickOpenWidget.isVisible()) {
-			return TPromise.as(null);
-		}
-
-		if (input && this.previousValue !== input) {
-			return TPromise.as(null);
-		}
-
-		return this.show(this.previousValue);
 	}
 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {

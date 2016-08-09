@@ -26,7 +26,7 @@ import fs = require('fs');
 class OpenSnippetsAction extends actions.Action {
 
 	public static ID = 'workbench.action.openSnippets';
-	public static LABEL = nls.localize('openSnippet.label', "Snippets");
+	public static LABEL = nls.localize('openSnippet.label', "Open User Snippets");
 
 	constructor(
 		id: string,

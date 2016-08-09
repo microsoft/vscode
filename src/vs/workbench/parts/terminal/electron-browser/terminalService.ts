@@ -49,7 +49,7 @@ export class TerminalService implements ITerminalService {
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 		this._onInstanceTitleChanged = new Emitter<string>();
-		this._terminalFocusContextKey = this.keybindingService.createKey(KEYBINDING_CONTEXT_TERMINAL_FOCUS, undefined);
+		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.keybindingService);
 	}
 
 	public get onActiveInstanceChanged(): Event<string> {
@@ -116,9 +116,10 @@ export class TerminalService implements ITerminalService {
 	public runSelectedText(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
 			let editor = this.codeEditorService.getFocusedCodeEditor();
-			let selection = editor.getModel().getValueInRange(editor.getSelection(), os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF);
+			let selection = editor.getSelection();
+			let text = selection.isEmpty() ? editor.getValue() : editor.getModel().getValueInRange(selection, os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF);
 			// Add a new line if one doesn't already exist so the text is executed
-			let text = selection + (selection.substr(selection.length - os.EOL.length) === os.EOL ? '' : os.EOL);
+			text = text + (text.substr(text.length - os.EOL.length) === os.EOL ? '' : os.EOL);
 			this.terminalProcesses[this.activeTerminalIndex].process.send({
 				event: 'input',
 				data: text
@@ -190,7 +191,21 @@ export class TerminalService implements ITerminalService {
 
 	public paste(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
-			document.execCommand('paste');
+			this.focus().then(() => {
+				document.execCommand('paste');
+			});
+		});
+	}
+
+	public scrollDown(): TPromise<any> {
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+			terminalPanel.scrollDown();
+		});
+	}
+
+	public scrollUp(): TPromise<any> {
+		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+			terminalPanel.scrollUp();
 		});
 	}
 

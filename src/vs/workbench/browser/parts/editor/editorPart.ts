@@ -354,7 +354,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Otherwise instantiate
-		const progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
+		const progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
 		const editorInstantiationService = this.sideBySideControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
@@ -379,7 +379,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
 		}
 
-		return instantiateEditorPromise;
+		return instantiateEditorPromise.then(result => {
+			progressService.dispose();
+			return result;
+		});
 	}
 
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
@@ -460,7 +463,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty([{ group, editor: input }]).then(veto => {
+		return this.handleDirty([{ group, editor: input }], true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -592,7 +595,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);
 		}
 
-		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; })).then(veto => {
+		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -629,22 +632,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private handleDirty(identifiers: EditorIdentifier[]): TPromise<boolean /* veto */> {
+	private handleDirty(identifiers: EditorIdentifier[], ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
 		if (!identifiers.length) {
 			return TPromise.as(false); // no veto
 		}
 
-		return this.doHandleDirty(identifiers.shift()).then(veto => {
+		return this.doHandleDirty(identifiers.shift(), ignoreIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return veto;
 			}
 
-			return this.handleDirty(identifiers);
+			return this.handleDirty(identifiers, ignoreIfOpenedInOtherGroup);
 		});
 	}
 
-	private doHandleDirty(identifier: EditorIdentifier): TPromise<boolean /* veto */> {
-		if (!identifier || !identifier.editor || !identifier.editor.isDirty()) {
+	private doHandleDirty(identifier: EditorIdentifier, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.stacks.count(identifier.editor) > 1 /* allow to close a dirty editor if it is opened in another group */)) {
 			return TPromise.as(false); // no veto
 		}
 
@@ -754,6 +757,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number): void {
+		if (fromGroup.count === 1) {
+			const toGroup = this.stacks.groupAt(to);
+			if (!toGroup && this.stacks.positionOfGroup(fromGroup) < to) {
+				return; // do nothing if the group to move only has one editor and is the last group already
+			}
+		}
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for th editor to be a text editor and creating the options accordingly if so
@@ -1049,7 +1058,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Unpinning an editor closes the preview editor if we have any
 			let handlePreviewEditor: TPromise<boolean> = TPromise.as(false);
 			if (group.previewEditor) {
-				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }]);
+				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }], true /* ignore if opened in other group */);
 			}
 
 			handlePreviewEditor.done(veto => {

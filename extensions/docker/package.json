@@ -9,7 +9,7 @@
 			"extensions": [ ".dockerfile" ],
 			"filenames": [ "Dockerfile" ],
 			"aliases": [ "Dockerfile" ],
-			"configuration": "./dockerfile.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "dockerfile",

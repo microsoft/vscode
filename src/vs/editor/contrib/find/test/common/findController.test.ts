@@ -46,11 +46,11 @@ suite('FindController', () => {
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let findState = findController.getState();
-			let startFindAction = new StartFindAction({id:'',label:''}, editor);
-			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor);
+			let startFindAction = new StartFindAction();
+			let nextMatchFindAction = new NextMatchFindAction();
 
 			// I hit Ctrl+F to show the Find dialog
-			startFindAction.run();
+			startFindAction.run(null, editor);
 
 			// I type ABC.
 			findState.change({ searchString: 'A' }, true);
@@ -84,14 +84,12 @@ suite('FindController', () => {
 			assert.deepEqual(fromRange(editor.getSelection()), [1, 4, 1, 4]);
 
 			// I hit F3 to "Find Next" to find the next occurrence of ABC, but instead it searches for XYZ.
-			nextMatchFindAction.run();
+			nextMatchFindAction.run(null, editor);
 
 			assert.equal(findState.searchString, 'ABC');
 			assert.equal(findController.hasFocus, false);
 
 			findController.dispose();
-			startFindAction.dispose();
-			nextMatchFindAction.dispose();
 		});
 	});
 
@@ -101,21 +99,20 @@ suite('FindController', () => {
 		], {}, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor);
+			let nextMatchFindAction = new NextMatchFindAction();
 
 			editor.setPosition({
 				lineNumber: 1,
 				column: 9
 			});
 
-			nextMatchFindAction.run();
+			nextMatchFindAction.run(null, editor);
 			assert.deepEqual(fromRange(editor.getSelection()), [1, 26, 1, 29]);
 
-			nextMatchFindAction.run();
+			nextMatchFindAction.run(null, editor);
 			assert.deepEqual(fromRange(editor.getSelection()), [1, 8, 1, 11]);
 
 			findController.dispose();
-			nextMatchFindAction.dispose();
 		});
 	});
 
@@ -127,23 +124,21 @@ suite('FindController', () => {
 		], {}, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			let startFindAction = new StartFindAction({id:'',label:''}, editor);
-			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor);
+			let startFindAction = new StartFindAction();
+			let nextMatchFindAction = new NextMatchFindAction();
 
 			editor.setSelection(new Selection(1, 9, 1, 13));
 
 			findController.toggleRegex();
-			startFindAction.run();
+			startFindAction.run(null, editor);
 
-			nextMatchFindAction.run();
+			nextMatchFindAction.run(null, editor);
 			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 13]);
 
-			nextMatchFindAction.run();
+			nextMatchFindAction.run(null, editor);
 			assert.deepEqual(fromRange(editor.getSelection()), [1, 9, 1, 13]);
 
 			findController.dispose();
-			startFindAction.dispose();
-			nextMatchFindAction.dispose();
 		});
 	});
 
@@ -155,11 +150,11 @@ suite('FindController', () => {
 		], {}, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			let selectHighlightsAction = new SelectHighlightsAction({id:'',label:''}, editor);
+			let selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(2, 9, 2, 16));
 
-			selectHighlightsAction.run();
+			selectHighlightsAction.run(null, editor);
 			assert.deepEqual(editor.getSelections().map(fromRange), [
 				[2, 9, 2, 16],
 				[1, 9, 1, 16],
@@ -171,7 +166,6 @@ suite('FindController', () => {
 			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 16]);
 
 			findController.dispose();
-			selectHighlightsAction.dispose();
 		});
 	});
 

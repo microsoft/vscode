@@ -8,7 +8,7 @@
 			"id": "groovy",
 			"aliases": ["Groovy", "groovy"],
 			"extensions": [".groovy", ".gvy", ".gradle"],
-			"configuration": "./groovy.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "groovy",

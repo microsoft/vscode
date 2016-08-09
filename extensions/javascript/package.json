@@ -27,7 +27,7 @@
 				"extensions": [
 					".jsx"
 				],
-				"configuration": "./javascript.configuration.json"
+				"configuration": "./language-configuration.json"
 			},
 			{
 				"id": "javascript",
@@ -46,19 +46,20 @@
 				"firstLine": "^#!.*\\bnode",
 				"mimetypes": [
 					"text/javascript"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [
 			{
 				"language": "javascriptreact",
 				"scopeName": "source.js",
-				"path": "./syntaxes/JavaScript.tmLanguage"
+				"path": "./syntaxes/JavaScript.tmLanguage.json"
 			},
 			{
 				"language": "javascript",
 				"scopeName": "source.js",
-				"path": "./syntaxes/JavaScript.tmLanguage"
+				"path": "./syntaxes/JavaScript.tmLanguage.json"
 			},
 			{
 				"scopeName": "source.js.regexp",
@@ -95,6 +96,10 @@
 			{
 				"fileMatch": "jsconfig.json",
 				"url": "./schemas/jsconfig.schema.json"
+			},
+			{
+				"fileMatch": "jsconfig.json",
+				"url": "http://json.schemastore.org/jsconfig"
 			}
 		]
 	}

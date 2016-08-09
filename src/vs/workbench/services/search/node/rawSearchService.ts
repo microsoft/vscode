@@ -56,16 +56,14 @@ export class SearchService implements IRawSearchService {
 				}
 			}, (progress) => {
 				p(progress);
-			}, (error, isLimitHit) => {
+			}, (error, stats) => {
 				if (batch.length) {
 					p(batch);
 				}
 				if (error) {
 					e(error);
 				} else {
-					c({
-						limitHit: isLimitHit
-					});
+					c(stats);
 				}
 			});
 		}, () => engine.cancel());

@@ -100,7 +100,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 		};
 		renderer.paragraph = (text): string => {
-			return `<div>${text}</div>`;
+			return `<p>${text}</p>`;
 		};
 
 		if (options.codeBlockRenderer) {

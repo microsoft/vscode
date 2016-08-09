@@ -14,15 +14,19 @@ function code() {
 	test -d node_modules || ./scripts/npm.sh install
 
 	# Get electron
-	test -d .build/electron || ./node_modules/.bin/gulp electron
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		test -d .build/electron/Code\ -\ OSS.app || ./node_modules/.bin/gulp electron
+	else
+		test -d .build/electron/code-oss || ./node_modules/.bin/gulp electron
+	fi
 
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
 
 	# Launch Code
 	[[ "$OSTYPE" == "darwin"* ]] \
-		&& ELECTRON=.build/electron/Electron.app/Contents/MacOS/Electron \
-		|| ELECTRON=.build/electron/electron
+		&& ELECTRON=.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron \
+		|| ELECTRON=.build/electron/code-oss
 
 	CLI="$ROOT/out/cli.js"
 

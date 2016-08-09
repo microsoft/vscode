@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
-import {OptionsChangeEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
@@ -35,6 +35,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 export abstract class BaseTextEditor extends BaseEditor {
 	private editorControl: IEditor;
 	private _editorContainer: Builder;
+	private _hasPendingConfigurationChange = false;
 
 	constructor(
 		id: string,
@@ -51,10 +52,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 	) {
 		super(id, telemetryService);
 
-		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.applyConfiguration(e.config)));
+		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, _ => this.handleConfigurationChangeEvent()));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
 
-		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.onThemeChanged()));
+		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.handleConfigurationChangeEvent()));
 	}
 
 	public get instantiationService(): IInstantiationService {
@@ -73,29 +74,35 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this._messageService;
 	}
 
-	protected applyConfiguration(configuration: IFilesConfiguration): void {
+	private handleConfigurationChangeEvent(configuration?: any): void {
+		if (this.isVisible()) {
+			this.applyConfiguration(configuration);
+		} else {
+			this._hasPendingConfigurationChange = true;
+		}
+	}
 
-		// Update Editor with configuration and editor settings
-		if (this.editorControl) {
+	private consumePendingConfigurationChangeEvent(): void {
+		if (this._hasPendingConfigurationChange) {
+			this.applyConfiguration(this.configurationService.getConfiguration());
+			this._hasPendingConfigurationChange = false;
+		}
+	}
+
+	protected applyConfiguration(configuration?: any): void {
+		if (!this.editorControl) {
+			return;
+		}
+		if (configuration) {
+			// Update Editor with configuration and editor settings
 			let specificEditorSettings = this.getCodeEditorOptions();
 			configuration = objects.clone(configuration); // dont modify original config
 			objects.assign(configuration[EditorConfiguration.EDITOR_SECTION], specificEditorSettings);
-
 			EditorConfiguration.apply(configuration, this.editorControl);
-		}
 
-		// Update Languages
-		this._modeService.configureAllModes(configuration);
-	}
-
-	private onOptionsChanged(event: OptionsChangeEvent): void {
-		if (this.editorControl) {
+		} else {
 			this.editorControl.updateOptions(this.getCodeEditorOptions());
 		}
-	}
-
-	private onThemeChanged(): void {
-		this.editorControl.updateOptions(this.getCodeEditorOptions());
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
@@ -150,6 +157,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Pass on to Editor
 		if (visible) {
+			this.consumePendingConfigurationChangeEvent();
 			this.editorControl.onVisible();
 		} else {
 			this.editorControl.onHide();

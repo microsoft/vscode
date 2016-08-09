@@ -11,7 +11,6 @@ import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
-import strings = require('vs/base/common/strings');
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
@@ -20,8 +19,8 @@ import {SyncActionDescriptor, ExecuteCommandAction, IMenuService} from 'vs/platf
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {QuickOpenHandler, QuickOpenAction} from 'vs/workbench/browser/quickopen';
+import {IEditorAction, IEditor} from 'vs/editor/common/editorCommon';
 import {matchesWords, matchesPrefix, matchesContiguousSubString, or} from 'vs/base/common/filters';
-import {EditorAction} from 'vs/editor/common/editorAction';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity, IMessageWithAction} from 'vs/platform/message/common/message';
@@ -58,7 +57,7 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
 		@IMessageService protected messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -165,7 +164,7 @@ class CommandEntry extends BaseCommandEntry {
 }
 
 class EditorActionCommandEntry extends BaseCommandEntry {
-	private action: IAction;
+	private action: IEditorAction;
 
 	constructor(
 		keyLabel: string,
@@ -174,7 +173,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		meta: string,
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
-		action: IAction,
+		action: IEditorAction,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -186,7 +185,19 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			this.runAction(this.action);
+			// Use a timeout to give the quick open widget a chance to close itself first
+			TPromise.timeout(50).done(() => {
+				if (this.action) {
+					try {
+						this.telemetryService.publicLog('workbenchActionExecuted', { id: this.action.id, from: 'quick open' });
+						(this.action.run() || TPromise.as(null)).done(null, (err) => this.onError(err));
+					} catch (error) {
+						this.onError(error);
+					}
+				} else {
+					this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
+				}
+			}, (err) => this.onError(err));
 
 			return true;
 		}
@@ -256,9 +267,12 @@ export class CommandsHandler extends QuickOpenHandler {
 		let activeEditor = this.editorService.getActiveEditor();
 		let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
 
-		let editorActions: EditorAction[] = [];
-		if (activeEditorControl && types.isFunction(activeEditorControl.getActions)) {
-			editorActions = activeEditorControl.getActions();
+		let editorActions: IEditorAction[] = [];
+		if (activeEditorControl) {
+			let editor = <IEditor>activeEditorControl;
+			if (types.isFunction(editor.getSupportedActions)) {
+				editorActions = editor.getSupportedActions();
+			}
 		}
 
 		let editorEntries = this.editorActionsToEntries(editorActions, searchValue);
@@ -277,7 +291,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
 		// Sort by name
-		entries = entries.sort((elementA, elementB) => strings.localeCompare(elementA.getLabel().toLowerCase(), elementB.getLabel().toLowerCase()));
+		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -314,18 +328,13 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private editorActionsToEntries(actions: EditorAction[], searchValue: string): EditorActionCommandEntry[] {
+	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {
 		let entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let editorAction = <EditorAction>action;
-			if (!editorAction.isSupported()) {
-				continue; // do not show actions that are not supported in this context
-			}
-
-			let keys = this.keybindingService.lookupKeybindings(editorAction.id);
+			let keys = this.keybindingService.lookupKeybindings(action.id);
 			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
 			let label = action.label;
@@ -333,7 +342,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			if (label) {
 
 				// Alias for non default languages
-				let alias = (language !== LANGUAGE_DEFAULT) ? action.getAlias() : null;
+				let alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
 				let labelHighlights = wordFilter(searchValue, label);
 				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {

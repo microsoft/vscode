@@ -1,6 +1,10 @@
-The JavaScript.tmLanguage bundle is derived from the TypeScriptReact.tmLanguage.
+The file `JavaScript.tmLanguage.json` is derived from [TypeScriptReact.tmLanguage](https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage).
 
-Changes:
-- fileTypes .tsx -> .js
+To update to the latest version:
+- `cd extensions/typescript` and run `npm run update-grammars`
+- don't forget to run the integration tests at `./scripts/test-integration.sh`
+
+The script does the following changes:
+- fileTypes .tsx -> .js & .jsx
 - scopeName scope.tsx -> scope.js
-- update language name and file types
+- update all rule names .tsx -> .js

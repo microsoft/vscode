@@ -24,11 +24,11 @@
 .monaco-action-bar .action-item {
 	cursor: pointer;
 	display: inline-block;
-	-ms-transition: -ms-transform 100ms ease;
-	-webkit-transition: -webkit-transform 100ms ease;
-	-moz-transition: -moz-transform 100ms ease;
-	-o-transition: -o-transform 100ms ease;
-	transition: transform 100ms ease;
+	-ms-transition: -ms-transform 80ms ease;
+	-webkit-transition: -webkit-transform 80ms ease;
+	-moz-transition: -moz-transform 80ms ease;
+	-o-transition: -o-transform 80ms ease;
+	transition: transform 80ms ease;
 	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
 }
 
@@ -37,11 +37,11 @@
 }
 
 .monaco-action-bar.animated .action-item.active {
-	-ms-transform: translate(0, -3px);
-	-webkit-transform: translate(0, -3px);
-	-moz-transform: translate(0, -3px);
-	-o-transform: translate(0, -3px);
-	transform: translate(0, -3px);
+	-ms-transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
+	-webkit-transform: scale(1.272019649, 1.272019649);
+	-moz-transform: scale(1.272019649, 1.272019649);
+	-o-transform: scale(1.272019649, 1.272019649);
+	transform: scale(1.272019649, 1.272019649);
 }
 
 .monaco-action-bar .action-item .icon {

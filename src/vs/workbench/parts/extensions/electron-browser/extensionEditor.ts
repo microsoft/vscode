@@ -9,10 +9,12 @@ import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { append, emmet as $, addClass, removeClass, finalHandler } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +32,7 @@ import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -70,12 +73,15 @@ export class ExtensionEditor extends BaseEditor {
 		@IRequestService private requestService: IRequestService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
 		this.highlightDisposable = empty;
 		this.disposables = [];
+
+		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
 
 	createEditor(parent: Builder): void {
@@ -91,10 +97,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.name = append(title, $<HTMLAnchorElement>('a.name'));
 		this.name.href = '#';
 
-		this.license = append(title, $<HTMLAnchorElement>('a.license'));
-		this.license.href = '#';
-		this.license.textContent = localize('license', 'License');
-
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
 		this.publisher.href = '#';
@@ -103,6 +105,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
 		this.rating.href = '#';
+
+		this.license = append(subtitle, $<HTMLAnchorElement>('a.license'));
+		this.license.href = '#';
+		this.license.textContent = localize('license', 'License');
 
 		this.description = append(details, $('.description'));
 
@@ -192,6 +198,14 @@ export class ExtensionEditor extends BaseEditor {
 
 	layout(): void {
 		return;
+	}
+
+	private onViewletOpen(viewlet: IViewlet): void {
+		if (!viewlet || viewlet.getId() === VIEWLET_ID) {
+			return;
+		}
+
+		this.editorService.closeEditor(this.position, this.input).done(null, onUnexpectedError);
 	}
 
 	dispose(): void {

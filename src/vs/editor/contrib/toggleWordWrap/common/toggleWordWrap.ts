@@ -6,23 +6,28 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
+import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class ToggleWordWrapAction extends EditorAction {
 
-	static ID = 'editor.action.toggleWordWrap';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super({
+			id: 'editor.action.toggleWordWrap',
+			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
+			alias: 'View: Toggle Word Wrap',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Alt | KeyCode.KEY_Z
+			}
+		});
 	}
 
-	public run():TPromise<boolean> {
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 
-		let wrappingInfo = this.editor.getConfiguration().wrappingInfo;
+		let wrappingInfo = editor.getConfiguration().wrappingInfo;
 
 		let newWrappingColumn: number;
 		if (!wrappingInfo.isViewportWrapping) {
@@ -31,18 +36,8 @@ class ToggleWordWrapAction extends EditorAction {
 			newWrappingColumn = -1;
 		}
 
-		this.editor.updateOptions({
+		editor.updateOptions({
 			wrappingColumn: newWrappingColumn
 		});
-
-		return TPromise.as(true);
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleWordWrapAction, ToggleWordWrapAction.ID, nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Alt | KeyCode.KEY_Z,
-	mac: { primary: KeyMod.Alt |  KeyCode.KEY_Z },
-	linux: { primary: KeyMod.Alt | KeyCode.KEY_Z }
-}, 'View: Toggle Word Wrap'));

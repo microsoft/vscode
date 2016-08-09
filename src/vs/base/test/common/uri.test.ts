@@ -325,6 +325,11 @@ suite('URI', () => {
 		assert.equal(value.toString(), 'file://sh%C3%A4res/path');
 	});
 
+	test('URI#toString, lower-case windows drive letter', () => {
+		assert.equal(URI.parse('untitled:c:/Users/jrieken/Code/abc.txt').toString(), 'untitled:c%3A/Users/jrieken/Code/abc.txt');
+		assert.equal(URI.parse('untitled:C:/Users/jrieken/Code/abc.txt').toString(), 'untitled:c%3A/Users/jrieken/Code/abc.txt');
+	});
+
 	test('URI#toString, escape all the bits', () => {
 
 		var value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');

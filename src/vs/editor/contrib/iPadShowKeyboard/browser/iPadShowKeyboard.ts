@@ -15,7 +15,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
 export class IPadShowKeyboard implements IEditorContribution {
 
-	static ID = 'editor.contrib.iPadShowKeyboard';
+	private static ID = 'editor.contrib.iPadShowKeyboard';
 
 	private editor:ICodeEditor;
 	private widget:ShowKeyboardWidget;

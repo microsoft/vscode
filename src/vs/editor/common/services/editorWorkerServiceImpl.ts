@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IntervalTimer, ShallowCancelThenPromise} from 'vs/base/common/async';
+import {IntervalTimer, ShallowCancelThenPromise, wireCancellationToken} from 'vs/base/common/async';
 import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -12,7 +12,7 @@ import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
-import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/common/modes';
+import {IInplaceReplaceSupportResult, ILink, ISuggestResult, LinkProviderRegistry, LinkProvider} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorSimpleWorkerImpl} from 'vs/editor/common/services/editorSimpleWorker';
@@ -31,10 +31,23 @@ const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	public _serviceBrand: any;
 
-	private _workerManager:WorkerManager;
+	private _workerManager: WorkerManager;
+	private _registration: IDisposable;
 
 	constructor(@IModelService modelService:IModelService) {
 		this._workerManager = new WorkerManager(modelService);
+
+		// todo@joh make sure this happens only once
+		this._registration = LinkProviderRegistry.register('*', <LinkProvider>{
+			provideLinks: (model, token) => {
+				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
+			}
+		});
+	}
+
+	public dispose(): void {
+		this._workerManager.dispose();
+		this._registration.dispose();
 	}
 
 	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.ILineChange[]> {
@@ -45,11 +58,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeLinks(resource:URI):TPromise<ILink[]> {
-		return this._workerManager.withWorker().then(client => client.computeLinks(resource));
-	}
-
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult> {
 		return this._workerManager.withWorker().then(client => client.textualSuggest(resource, position));
 	}
 
@@ -307,7 +316,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

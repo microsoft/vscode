@@ -9,19 +9,20 @@ import * as arrays from 'vs/base/common/arrays';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
-import {CommonEditorRegistry, ContextKey} from 'vs/editor/common/editorCommonExtensions';
-import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
+import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
 import {Selection} from 'vs/editor/common/core/selection';
 
+import ModeContextKeys = editorCommon.ModeContextKeys;
+import EditorContextKeys = editorCommon.EditorContextKeys;
+
 class FormatOnType implements editorCommon.IEditorContribution {
 
-	public static ID = 'editor.contrib.autoFormat';
+	private static ID = 'editor.contrib.autoFormat';
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private callOnDispose: IDisposable[];
@@ -78,7 +79,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			canceled = false;
 
 		// install a listener that checks if edits happens before the
-		// position on which we format right now. Iff so, we won't
+		// position on which we format right now. If so, we won't
 		// apply the format edits
 		var unbind = this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
 			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
@@ -134,40 +135,33 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
+@editorAction
 export class FormatAction extends EditorAction {
 
-	public static ID = 'editor.action.format';
-
-	private _disposables: IDisposable[];
-
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange);
-		this._disposables = [
-			DocumentFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState()),
-			DocumentRangeFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState())
-		];
+	constructor() {
+		super({
+			id: 'editor.action.format',
+			label: nls.localize('formatAction.label', "Format Code"),
+			alias: 'Format Code',
+			precondition: KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasFormattingProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
+			},
+			menuOpts: {
+				group: '1_modification',
+				order: 1.3
+			}
+		});
 	}
 
-	public dispose() {
-		super.dispose();
-		this._disposables = dispose(this._disposables);
-	}
-	public isSupported(): boolean {
-		return (
-			(
-				DocumentFormattingEditProviderRegistry.has(this.editor.getModel())
-				|| DocumentRangeFormattingEditProviderRegistry.has(this.editor.getModel())
-			)
-			&& super.isSupported()
-		);
-	}
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
 
-	public run(): TPromise<boolean> {
-
-		const model = this.editor.getModel(),
-			editorSelection = this.editor.getSelection(),
-			modelOpts = model.getOptions(),
-			options = {
+		const model = editor.getModel();
+		const editorSelection = editor.getSelection();
+		const modelOpts = model.getOptions();
+		const options = {
 				tabSize: modelOpts.tabSize,
 				insertSpaces: modelOpts.insertSpaces,
 			};
@@ -181,59 +175,34 @@ export class FormatAction extends EditorAction {
 		}
 
 		if (!formattingPromise) {
-			return TPromise.as(false);
+			return TPromise.as(void 0);
 		}
 
 		// Capture the state of the editor
-		var state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+		var state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
 		return formattingPromise.then((result: editorCommon.ISingleEditOperation[]) => {
 
-			if (!state.validate(this.editor)) {
-				return false;
+			if (!state.validate(editor)) {
+				return;
 			}
 
 			if (!result || result.length === 0) {
-				return false;
+				return;
 			}
 
-			this.apply(this.editor, editorSelection, result);
-			this.editor.focus();
-			return true;
+			this.apply(editor, editorSelection, result);
+
+			editor.focus();
 		});
 	}
 
 	public apply(editor: editorCommon.ICommonCodeEditor, editorSelection: Selection, value: editorCommon.ISingleEditOperation[]): void {
-		var state: editorCommon.IEditorViewState = null;
-
-		if (editorSelection.isEmpty()) {
-			state = editor.saveViewState();
-		}
-		var command = new EditOperationsCommand(value, editorSelection);
+		const command = new EditOperationsCommand(value, editorSelection);
 		editor.executeCommand(this.id, command);
-
-		if (state) {
-			editor.restoreViewState(state);
-		}
 	}
 }
 
 // register action
-CommonEditorRegistry.registerEditorAction({
-	ctor: FormatAction,
-	id: FormatAction.ID,
-	label: nls.localize('formatAction.label', "Format Code"),
-	alias: 'Format Code',
-	kbOpts: {
-		context: ContextKey.EditorTextFocus,
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
-	},
-	menuOpts: {
-		group: 'modification',
-		order: 10,
-		kbExpr: KbExpr.has(editorCommon.ModeContextKeys.hasFormattingProvider)
-	}
-});
 CommonEditorRegistry.registerEditorContribution(FormatOnType);

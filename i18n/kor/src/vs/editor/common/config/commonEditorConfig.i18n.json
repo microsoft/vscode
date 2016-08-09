@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "'Tab' 키 외에도 'Enter' 키를 사용한 제안도 허용할지 제어합니다. 새 줄을 삽입하는 행위와 제안을 허용하는 행위 간의 모호함을 없앨 수 있습니다.",
 	"autoClosingBrackets": "괄호를 연 다음에 편집기에서 괄호를 자동으로 닫을지 여부를 제어합니다.",
-	"cursorBlinking": "커서 깜박임 애니메이션을 제어합니다. 허용되는 값은 '깜박임', '표시' 및 '숨김'입니다.",
-	"cursorStyle": "커서 스타일을 제어합니다. 허용되는 값은 '블록' 및 '줄'입니다.",
+	"cursorBlinking": "커서 애니메이션 스타일을 제어합니다. 가능한 값은 'blink', 'smooth', 'phase', 'expand' 및 'solid'입니다.",
+	"cursorStyle": "커서 스타일을 제어합니다. 허용되는 값은 '블록', '줄' 및 '밑줄'입니다.",
 	"detectIndentation": "파일을 열면 파일 콘텐츠를 기반으로 하여 'editor.tabSize'와 'editor.insertSpaces'가 검색됩니다.",
 	"editorConfigurationTitle": "편집기 구성",
 	"folding": "편집기에서 코드 접기를 사용할지 여부를 제어합니다.",
@@ -23,6 +23,7 @@
 	"lineHeight": "줄 높이를 제어합니다.",
 	"lineNumbers": "줄 번호의 표시 여부를 제어합니다.",
 	"mouseWheelScrollSensitivity": "마우스 휠 스크롤 이벤트의 `deltaX` 및 `deltaY`에서 사용할 승수",
+	"mouseWheelZoom": "마우스 휠을 사용할 때 Ctrl 키를 누르고 있으면 편집기의 글꼴 확대/축소",
 	"overviewRulerLanes": "개요 눈금자에서 동일한 위치에 표시될 수 있는 장식 수를 제어합니다.",
 	"parameterHints": "매개 변수 힌트를 사용하도록 설정합니다.",
 	"quickSuggestions": "입력하는 동안 빠른 제안을 표시할지 여부를 제어합니다.",

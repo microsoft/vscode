@@ -158,7 +158,7 @@ interface ISignatureView {
 
 export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
-	static ID = 'editor.widget.parameterHintsWidget';
+	private static ID = 'editor.widget.parameterHintsWidget';
 
 	private model: ParameterHintsModel;
 	private keyVisible: IKeybindingContextKey<boolean>;
@@ -178,8 +178,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	constructor(private editor: ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		this.model = new ParameterHintsModel(editor);
-		this.keyVisible = keybindingService.createKey(Context.Visible, false);
-		this.keyMultipleSignatures = keybindingService.createKey(Context.MultipleSignatures, false);
+		this.keyVisible = Context.Visible.bindTo(keybindingService);
+		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(keybindingService);
 		this.visible = false;
 		this.disposables = [];
 

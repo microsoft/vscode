@@ -15,35 +15,23 @@ import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys} from 'vs/editor/common/editorCommon';
+import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 
 interface IPosition {
 	x: number;
 	y: number;
 }
 
-interface OldContextMenuAction extends IAction {
-	getGroupId(): string;
-	shouldShowInContextMenu(): boolean;
-	isSupported(): boolean;
-}
-
-namespace OldContextMenuAction {
-	export function is(thing: any): thing is OldContextMenuAction {
-		return typeof (<OldContextMenuAction>thing).getGroupId === 'function'
-			&& typeof (<OldContextMenuAction>thing).shouldShowInContextMenu === 'function';
-	}
-}
-
 class ContextMenuController implements IEditorContribution {
 
-	public static ID = 'editor.contrib.contextmenu';
+	private static ID = 'editor.contrib.contextmenu';
+
+	public static get(editor: ICommonCodeEditor): ContextMenuController {
+		return <ContextMenuController>editor.getContribution(ContextMenuController.ID);
+	}
 
 	private _toDispose: IDisposable[] = [];
 	private _contextMenuIsBeingShownCount: number = 0;
@@ -121,12 +109,6 @@ class ContextMenuController implements IEditorContribution {
 			return;	// We need the context menu service to function
 		}
 
-		var position = this._editor.getPosition();
-		var editorModel = this._editor.getModel();
-		if (!position || !editorModel) {
-			return;
-		}
-
 		// Find actions available for menu
 		var menuActions = this._getMenuActions();
 
@@ -137,60 +119,22 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	private _getMenuActions(): IAction[] {
+		this._editor.beginForcedWidgetFocus();
+		try {
+			const result: IAction[] = [];
+			const groups = this._contextMenu.getActions();
 
-		const editorModel = this._editor.getModel();
-		if (!editorModel) {
-			return [];
-		}
-
-		const actions: IAction[] = [];
-		fillInActions(this._contextMenu, actions);
-
-		const oldContextMenuActions = <OldContextMenuAction[]>this._editor.getActions().filter(action => {
-			if (OldContextMenuAction.is(action)) {
-				return action.shouldShowInContextMenu() && action.isSupported();
-			}
-		});
-		if (oldContextMenuActions.length > 0) {
-			actions.push(new Separator(), ...ContextMenuController._prepareActions(oldContextMenuActions));
-		}
-
-		return actions;
-	}
-
-	private static _prepareActions(actions: OldContextMenuAction[]): IAction[] {
-
-		const data = actions.map(action => {
-			const groupId = action.getGroupId();
-			const idx = groupId.indexOf('/');
-			const group = idx > 0
-				? groupId.substr(0, idx)
-				: groupId;
-
-			return { action, group };
-		});
-
-		data.sort((a, b) => {
-			if (a.group < b.group) {
-				return -1;
-			} else if (a.group > b.group) {
-				return 1;
-			} else {
-				return 0;
-			}
-		});
-
-		const result: IAction[] = [];
-		let lastGroup: string;
-		data.forEach((value, idx) => {
-			if (lastGroup && lastGroup !== value.group) {
+			for (let group of groups) {
+				const [, actions] = group;
+				result.push(...actions);
 				result.push(new Separator());
 			}
-			result.push(value.action);
-			lastGroup = value.group;
-		});
+			result.pop(); // remove last separator
+			return result;
 
-		return result;
+		} finally {
+			this._editor.endForcedWidgetFocus();
+		}
 	}
 
 	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition = null): void {
@@ -278,28 +222,26 @@ class ContextMenuController implements IEditorContribution {
 	}
 }
 
+@editorAction
 class ShowContextMenu extends EditorAction {
 
-	public static ID = 'editor.action.showContextMenu';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super({
+			id: 'editor.action.showContextMenu',
+			label: nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
+			alias: 'Show Editor Context Menu',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyCode.F10
+			}
+		});
 	}
 
-	public run(): TPromise<boolean> {
-		var contribution = <ContextMenuController>this.editor.getContribution(ContextMenuController.ID);
-		if (!contribution) {
-			return TPromise.as(null);
-		}
-
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		var contribution = ContextMenuController.get(editor);
 		contribution.showContextMenu();
-
-		return TPromise.as(null);
 	}
 }
 
 EditorBrowserRegistry.registerEditorContribution(ContextMenuController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowContextMenu, ShowContextMenu.ID, nls.localize('action.showContextMenu.label', "Show Editor Context Menu"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyCode.F10
-}, 'Show Editor Context Menu'));

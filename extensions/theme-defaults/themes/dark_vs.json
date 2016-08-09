@@ -108,6 +108,7 @@
 		{
 			"scope": "markup.heading",
 			"settings": {
+				"fontStyle": "bold",
 				"foreground": "#569cd6"
 			}
 		},

@@ -237,6 +237,7 @@ function getDefaultValue(type: string | string[]): any {
 		case 'boolean':
 			return false;
 		case 'integer':
+		case 'number':
 			return 0;
 		case 'string':
 			return '';

@@ -8,7 +8,8 @@
 			"id": "less",
 			"aliases": ["Less", "less"],
 			"extensions": [".less"],
-			"mimetypes": ["text/x-less", "text/less"]
+			"mimetypes": ["text/x-less", "text/less"],
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "less",

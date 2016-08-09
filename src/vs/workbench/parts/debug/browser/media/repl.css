@@ -95,18 +95,8 @@
 }
 
 .monaco-workbench .repl .repl-input-wrapper {
-	position: absolute;
-	width: 100%;
 	padding-left: 20px;
-	box-sizing: border-box;
-}
-
-.monaco-workbench .repl .repl-input-wrapper .repl-input {
-	width: 100%;
-	border: 0;
-	padding: 0;
-	line-height: 22px;
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {
@@ -131,9 +121,9 @@
 	content: '';
 }
 
-.monaco-workbench .repl .repl-input-wrapper {
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
-	box-sizing: border-box;
+.monaco-workbench .repl .repl-input-wrapper .monaco-editor .current-line {
+	/* Hide selected line highlight */
+	border: none;
 }
 
 .hc-black .monaco-workbench .repl .repl-input-wrapper {
@@ -148,18 +138,6 @@
 .monaco-workbench.windows .repl .repl-input-wrapper:before {
 	content: '\203A'; /* character does not exist on windows */
 	font-size: 22px;
-}
-
-.monaco-workbench.mac .repl .repl-input-wrapper {
-	font-size: 12px;
-}
-
-.monaco-workbench.windows .repl .repl-input-wrapper {
-	font-size: 14px;
-}
-
-.monaco-workbench.linux .repl .repl-input-wrapper {
-	font-size: 14px;
 }
 
 .monaco-workbench.linux .repl .repl-input-wrapper:before {

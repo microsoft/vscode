@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import {IDebugService, IBreakpoint, IRawBreakpoint, State} from 'vs/workbench/parts/debug/common/debug';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 function toMap(arr: string[]): { [key: string]: boolean; } {
 	const result: { [key: string]: boolean; } = {};

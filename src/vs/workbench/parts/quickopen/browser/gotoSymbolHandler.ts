@@ -149,7 +149,7 @@ class OutlineModel extends QuickOpenModel {
 		let elementBName = elementB.getLabel().toLowerCase();
 
 		// Compare by name
-		let r = strings.localeCompare(elementAName, elementBName);
+		let r = elementAName.localeCompare(elementBName);
 		if (r !== 0) {
 			return r;
 		}
@@ -178,7 +178,7 @@ class OutlineModel extends QuickOpenModel {
 		// Sort by type first if scoped search
 		let elementAType = elementA.getType();
 		let elementBType = elementB.getType();
-		let r = strings.localeCompare(elementAType, elementBType);
+		let r = elementAType.localeCompare(elementBType);
 		if (r !== 0) {
 			return r;
 		}
@@ -189,7 +189,7 @@ class OutlineModel extends QuickOpenModel {
 			let elementBName = elementB.getLabel().toLowerCase();
 
 			// Compare by name
-			r = strings.localeCompare(elementAName, elementBName);
+			r = elementAName.localeCompare(elementBName);
 			if (r !== 0) {
 				return r;
 			}

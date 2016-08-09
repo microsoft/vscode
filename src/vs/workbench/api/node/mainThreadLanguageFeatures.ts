@@ -10,7 +10,7 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import * as vscode from 'vscode';
 import {IReadOnlyModel, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import {WorkspaceSymbolProviderRegistry, IWorkspaceSymbolProvider, IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
@@ -152,9 +152,12 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	// --- navigate type
 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
-		this._registrations[handle] = NavigateTypesSupportRegistry.register(<INavigateTypesSupport>{
-			getNavigateToItems: (search: string): TPromise<ITypeBearing[]> => {
-				return this._proxy.$getNavigateToItems(handle, search);
+		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
+			provideWorkspaceSymbols: (search: string): TPromise<IWorkspaceSymbol[]> => {
+				return this._proxy.$provideWorkspaceSymbols(handle, search);
+			},
+			resolveWorkspaceSymbol: (item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> => {
+				return this._proxy.$resolveWorkspaceSymbol(handle, item);
 			}
 		});
 		return undefined;
@@ -176,8 +179,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			triggerCharacters: triggerCharacters,
-			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
+			provideCompletionItems: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position));
 			},
 			resolveCompletionItem: (model:IReadOnlyModel, position:EditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
@@ -198,6 +200,20 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 				return wireCancellationToken(token, this._proxy.$provideSignatureHelp(handle, model.uri, position));
 			}
 
+		});
+		return undefined;
+	}
+
+	// --- links
+
+	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = modes.LinkProviderRegistry.register(selector, <modes.LinkProvider>{
+			provideLinks: (model, token) => {
+				return wireCancellationToken(token, this._proxy.$provideDocumentLinks(handle, model.uri));
+			},
+			resolveLink: (link, token) => {
+				return wireCancellationToken(token, this._proxy.$resolveDocumentLink(handle, link));
+			}
 		});
 		return undefined;
 	}

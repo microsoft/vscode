@@ -36,7 +36,7 @@ function stripComments(content) {
 		}
 	});
 	return result;
-};
+}
 
 function getNLSConfiguration() {
 	var locale = undefined;
@@ -61,6 +61,7 @@ function getNLSConfiguration() {
 					locale = value;
 				}
 			} catch (e) {
+				// noop
 			}
 		}
 	}

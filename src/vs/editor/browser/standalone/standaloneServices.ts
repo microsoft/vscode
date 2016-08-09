@@ -19,6 +19,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
+import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -38,7 +39,7 @@ import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {IMenuService} from 'vs/platform/actions/common/actions';
-import {MenuService} from 'vs/platform/actions/browser/menuService';
+import {MenuService} from 'vs/platform/actions/common/menuService';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
 import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 
@@ -84,6 +85,10 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	commandService?:ICommandService;
+	/**
+	 * @internal
+	 */
+	openerService?:IOpenerService;
 	/**
 	 * @internal
 	 */

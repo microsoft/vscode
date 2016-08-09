@@ -10,6 +10,7 @@
 	"autoSaveDelay": "Contrôle le délai en ms au bout duquel un fichier à l'intégrité compromise est enregistré automatiquement. S'applique uniquement quand \"files.autoSave\" a la valeur \"{0}\"",
 	"binaryFileEditor": "Éditeur de fichier binaire",
 	"dynamicHeight": "Contrôle si la hauteur de la section des éditeurs ouverts doit s'adapter dynamiquement ou non au nombre d'éléments.",
+	"enableDragAndDrop": "Contrôle si l'explorateur doit autoriser le déplacement de fichiers et de dossiers par glisser-déplacer.",
 	"encoding": "Encodage du jeu de caractères par défaut à utiliser durant la lecture et l'écriture des fichiers.",
 	"eol": "Caractère de fin de ligne par défaut.",
 	"exclude": "Configurez les modèles Glob pour l'exclusion des fichiers et des dossiers.",

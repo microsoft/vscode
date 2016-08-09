@@ -135,6 +135,12 @@ export function writeFile(path: string, data: any, encoding: string = 'utf8'): P
 	return nfcall(fs.writeFile, path, data, encoding);
 }
 
+export function writeFileAndFlush(path: string, data: string, encoding?: string): Promise;
+export function writeFileAndFlush(path: string, data: NodeBuffer, encoding?: string): Promise;
+export function writeFileAndFlush(path: string, data: any, encoding: string = 'utf8'): Promise {
+	return nfcall(extfs.writeFileAndFlush, path, data, encoding);
+}
+
 /**
 * Read a dir and return only subfolders
 */

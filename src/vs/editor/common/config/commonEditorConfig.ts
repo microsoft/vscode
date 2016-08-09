@@ -262,8 +262,10 @@ class InternalEditorOptionsHelper {
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			snippetSuggestions: opts.snippetSuggestions,
+			tabCompletion: opts.tabCompletion,
+			wordBasedSuggestions: opts.wordBasedSuggestions,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
-			referenceInfos: toBoolean(opts.referenceInfos),
+			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
 		});
 
@@ -403,13 +405,6 @@ function toIntegerWithDefault(source:any, defaultValue:number): number {
 	return toInteger(source);
 }
 
-interface IValidatedIndentationOptions {
-	tabSizeIsAuto: boolean;
-	tabSize: number;
-	insertSpacesIsAuto: boolean;
-	insertSpaces: boolean;
-}
-
 export interface IElementSizeObserver {
 	startObserving(): void;
 	observe(dimension?:editorCommon.IDimension): void;
@@ -471,7 +466,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
 		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
-		let fontSize = toInteger(opts.fontSize, 0, 100) || DefaultConfig.editor.fontSize;
+		let fontSize = toFloat(opts.fontSize, DefaultConfig.editor.fontSize);
+		fontSize = Math.max(0, fontSize);
+		fontSize = Math.min(100, fontSize);
 
 		let lineHeight = toInteger(opts.lineHeight, 0, 150);
 		if (lineHeight === 0) {
@@ -539,44 +536,33 @@ export class EditorConfiguration {
 	/**
 	 * Ask the provided configuration service to apply its configuration to the provided editor.
 	 */
-	public static apply(config:any, editor?:editorCommon.IEditor): void;
-	public static apply(config:any, editor?:editorCommon.IEditor[]): void;
-	public static apply(config:any, editorOrArray?:any): void {
+	public static apply(config: any, editor: editorCommon.IEditor): void {
 		if (!config) {
 			return;
 		}
 
-		let editors:editorCommon.IEditor[] = editorOrArray;
-		if (!Array.isArray(editorOrArray)) {
-			editors = [editorOrArray];
-		}
+		// Editor Settings (Code Editor, Diff, Terminal)
+		if (editor && typeof editor.updateOptions === 'function') {
+			let type = editor.getEditorType();
+			if (type !== editorCommon.EditorType.ICodeEditor && type !== editorCommon.EditorType.IDiffEditor) {
+				return;
+			}
 
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-
-			// Editor Settings (Code Editor, Diff, Terminal)
-			if (editor && typeof editor.updateOptions === 'function') {
-				let type = editor.getEditorType();
-				if (type !== editorCommon.EditorType.ICodeEditor && type !== editorCommon.EditorType.IDiffEditor) {
-					continue;
-				}
-
-				let editorConfig = config[EditorConfiguration.EDITOR_SECTION];
-				if (type === editorCommon.EditorType.IDiffEditor) {
-					let diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
-					if (diffEditorConfig) {
-						if (!editorConfig) {
-							editorConfig = diffEditorConfig;
-						} else {
-							editorConfig = objects.mixin(editorConfig, diffEditorConfig);
-						}
+			let editorConfig = config[EditorConfiguration.EDITOR_SECTION];
+			if (type === editorCommon.EditorType.IDiffEditor) {
+				let diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
+				if (diffEditorConfig) {
+					if (!editorConfig) {
+						editorConfig = diffEditorConfig;
+					} else {
+						editorConfig = objects.mixin(editorConfig, diffEditorConfig);
 					}
 				}
+			}
 
-				if (editorConfig) {
-					delete editorConfig.readOnly; // Prevent someone from making editor readonly
-					editor.updateOptions(editorConfig);
-				}
+			if (editorConfig) {
+				delete editorConfig.readOnly; // Prevent someone from making editor readonly
+				editor.updateOptions(editorConfig);
 			}
 		}
 	}
@@ -631,13 +617,13 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'number',
 			'default': DEFAULT_INDENTATION.tabSize,
 			'minimum': 1,
-			'description': nls.localize('tabSize', "The number of spaces a tab is equal to."),
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.insertSpaces' : {
 			'type': 'boolean',
 			'default': DEFAULT_INDENTATION.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab."),
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation' : {
@@ -714,6 +700,16 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.snippetSuggestions,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		},
+		'editor.wordBasedSuggestions': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.wordBasedSuggestions,
+			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
+		},
+		'editor.tabCompletion': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.tabCompletion,
+			'description': nls.localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
+		},
 		'editor.selectionHighlight' : {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.selectionHighlight,
@@ -766,10 +762,10 @@ let editorConfiguration:IConfigurationNode = {
 			default: DefaultConfig.editor.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
 		},
-		'editor.referenceInfos' : {
+		'editor.codeLens' : {
 			'type': 'boolean',
-			'default': DefaultConfig.editor.referenceInfos,
-			'description': nls.localize('referenceInfos', "Controls if the editor shows reference information for the modes that support it")
+			'default': DefaultConfig.editor.codeLens,
+			'description': nls.localize('codeLens', "Controls if the editor shows code lenses")
 		},
 		'editor.folding' : {
 			'type': 'boolean',
