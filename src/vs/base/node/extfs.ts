@@ -313,3 +313,35 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 		return callback(err);
 	});
 }
+
+// Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
+// We do this in cases where we want to make sure the data is really on disk and
+// not in some cache.
+//
+// See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
+export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { encoding?: string; mode?: number; flag?: string; }, callback: (error: Error) => void): void {
+	if (!options) {
+		options = { encoding: 'utf8', mode: 0o666, flag: 'w' };
+	} else if (typeof options === 'string') {
+		options = { encoding: <string>options, mode: 0o666, flag: 'w' };
+	}
+
+	// Open the file with same flags and mode as fs.writeFile()
+	fs.open(path, options.flag, options.mode, (openError, fd) => {
+		if (openError) {
+			return callback(openError);
+		}
+
+		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
+		fs.writeFile(fd, data, options.encoding, (writeError) => {
+			if (writeError) {
+				return fs.close(fd, () => callback(writeError)); // still need to close the handle on error!
+			}
+
+			// Flush contents (not metadata) of the file to disk
+			fs.fdatasync(fd, (syncError) => {
+				return fs.close(fd, (closeError) => callback(syncError || closeError)); // make sure to carry over the fdatasync error if any!
+			});
+		});
+	});
+}
