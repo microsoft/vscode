@@ -848,7 +848,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.getFindController);
 
-CommonEditorRegistry.registerEditorCommand2(new FindCommand({
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.CloseFindWidgetCommand,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.closeFindWidget(),
@@ -860,7 +860,7 @@ CommonEditorRegistry.registerEditorCommand2(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new FindCommand({
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleCaseSensitiveCommand,
 	precondition: null,
 	handler: x => x.toggleCaseSensitive(),
@@ -872,7 +872,7 @@ CommonEditorRegistry.registerEditorCommand2(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new FindCommand({
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleWholeWordCommand,
 	precondition: null,
 	handler: x => x.toggleWholeWords(),
@@ -884,7 +884,7 @@ CommonEditorRegistry.registerEditorCommand2(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new FindCommand({
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleRegexCommand,
 	precondition: null,
 	handler: x => x.toggleRegex(),
@@ -896,7 +896,7 @@ CommonEditorRegistry.registerEditorCommand2(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new FindCommand({
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ReplaceOneAction,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replace(),
@@ -907,7 +907,7 @@ CommonEditorRegistry.registerEditorCommand2(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new FindCommand({
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ReplaceAllAction,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replaceAll(),
@@ -918,7 +918,7 @@ CommonEditorRegistry.registerEditorCommand2(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new FindCommand({
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.SelectAllMatchesAction,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.selectAllMatches(),

@@ -174,7 +174,7 @@ EditorBrowserRegistry.registerEditorContribution(RenameController);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
 
-CommonEditorRegistry.registerEditorCommand2(new RenameCommand({
+CommonEditorRegistry.registerEditorCommand(new RenameCommand({
 	id: 'acceptRenameInput',
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.acceptRenameInput(),
@@ -185,7 +185,7 @@ CommonEditorRegistry.registerEditorCommand2(new RenameCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new RenameCommand({
+CommonEditorRegistry.registerEditorCommand(new RenameCommand({
 	id: 'cancelRenameInput',
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.cancelRenameInput(),

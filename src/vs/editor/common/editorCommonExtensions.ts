@@ -87,8 +87,8 @@ export abstract class HandlerEditorAction extends EditorAction {
 
 // --- Editor Actions
 
-export function editorAction(constructor:{ new(): EditorAction; }): void {
-	CommonEditorRegistry.registerEditorAction(new constructor());
+export function editorAction(ctor:{ new(): EditorAction; }): void {
+	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
 export module CommonEditorRegistry {
@@ -117,7 +117,7 @@ export module CommonEditorRegistry {
 		return KeybindingsRegistry.WEIGHT.editorContrib(importance);
 	}
 
-	export function registerEditorCommand2(desc: ConfigBasicCommand): void {
+	export function registerEditorCommand(desc: ConfigBasicCommand): void {
 		KeybindingsRegistry.registerCommandAndKeybindingRule(desc.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 	}
 

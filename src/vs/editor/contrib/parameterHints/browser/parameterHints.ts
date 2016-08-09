@@ -84,7 +84,7 @@ const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsCon
 
 EditorBrowserRegistry.registerEditorContribution(ParameterHintsController);
 
-CommonEditorRegistry.registerEditorCommand2(new ParameterHintsCommand({
+CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 	id: 'closeParameterHints',
 	precondition: Context.Visible,
 	handler: x => x.cancel(),
@@ -95,7 +95,7 @@ CommonEditorRegistry.registerEditorCommand2(new ParameterHintsCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new ParameterHintsCommand({
+CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 	id: 'showPrevParameterHint',
 	precondition: KbExpr.and(Context.Visible, Context.MultipleSignatures),
 	handler: x => x.previous(),
@@ -107,7 +107,7 @@ CommonEditorRegistry.registerEditorCommand2(new ParameterHintsCommand({
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new ParameterHintsCommand({
+CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 	id: 'showNextParameterHint',
 	precondition: KbExpr.and(Context.Visible, Context.MultipleSignatures),
 	handler: x => x.next(),

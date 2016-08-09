@@ -81,7 +81,7 @@ CommonEditorRegistry.registerEditorContribution(TabCompletionController);
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
 
-CommonEditorRegistry.registerEditorCommand2(new TabCompletionCommand({
+CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 	id: 'insertSnippet',
 	precondition: TabCompletionController.ContextKey,
 	handler: x => x.performSnippetCompletions(),

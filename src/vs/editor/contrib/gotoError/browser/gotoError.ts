@@ -548,7 +548,7 @@ var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey<boolean>('markersNavigatio
 
 const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.getMarkerController);
 
-CommonEditorRegistry.registerEditorCommand2(new MarkerCommand({
+CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 	id: 'closeMarkersNavigation',
 	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
 	handler: x => x.closeMarkersNavigation(),

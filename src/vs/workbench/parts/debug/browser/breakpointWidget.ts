@@ -141,4 +141,4 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 		}
 	}
 }
-CommonEditorRegistry.registerEditorCommand2(new CloseBreakpointWidgetCommand());
+CommonEditorRegistry.registerEditorCommand(new CloseBreakpointWidgetCommand());

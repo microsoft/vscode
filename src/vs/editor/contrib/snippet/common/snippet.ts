@@ -944,7 +944,7 @@ export var CONTEXT_SNIPPET_MODE = new KbCtxKey<boolean>('inSnippetMode', false);
 const SnippetCommand = EditorCommand.bindToContribution<ISnippetController>(SnippetController.get);
 
 CommonEditorRegistry.registerEditorContribution(SnippetController);
-CommonEditorRegistry.registerEditorCommand2(new SnippetCommand({
+CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	id: 'jumpToNextSnippetPlaceholder',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.jumpToNextPlaceholder(),
@@ -954,7 +954,7 @@ CommonEditorRegistry.registerEditorCommand2(new SnippetCommand({
 		primary: KeyCode.Tab
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new SnippetCommand({
+CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	id: 'jumpToPrevSnippetPlaceholder',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.jumpToPrevPlaceholder(),
@@ -964,7 +964,7 @@ CommonEditorRegistry.registerEditorCommand2(new SnippetCommand({
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new SnippetCommand({
+CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	id: 'acceptSnippet',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.acceptSnippet(),
@@ -974,7 +974,7 @@ CommonEditorRegistry.registerEditorCommand2(new SnippetCommand({
 		primary: KeyCode.Enter
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new SnippetCommand({
+CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	id: 'leaveSnippet',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.leaveSnippet(),
