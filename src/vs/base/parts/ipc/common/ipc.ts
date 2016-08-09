@@ -310,21 +310,25 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	return { call } as T;
 }
 
-export function eventToCall(event: Event<any>): TPromise<any> {
+export type Serializer<T,R> = (obj: T) => R;
+export type Deserializer<T,R> = (raw: R) => T;
+
+export function eventToCall<T>(event: Event<T>, serializer: Serializer<T,any> = t => t): TPromise<void> {
 	let disposable: IDisposable;
 
 	return new Promise(
-		(c, e, p) => disposable = event(p),
+		(c, e, p) => disposable = event(t => p(serializer(t))),
 		() => disposable.dispose()
 	);
 }
 
-export function eventFromCall<T>(channel: IChannel, name: string, arg: any = null): Event<T> {
+export function eventFromCall<T>(channel: IChannel, name: string, arg: any = null, deserializer: Deserializer<T,any> = t => t): Event<T> {
 	let promise: Promise;
 
 	const emitter = new Emitter<any>({
 		onFirstListenerAdd: () => {
-			promise = channel.call(name, arg).then(null, err => null, e => emitter.fire(e));
+			promise = channel.call(name, arg)
+				.then(null, err => null, e => emitter.fire(deserializer(e)));
 		},
 		onLastListenerRemove: () => {
 			promise.cancel();

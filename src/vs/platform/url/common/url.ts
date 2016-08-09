@@ -6,6 +6,7 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'urlService';
@@ -13,5 +14,5 @@ export const IURLService = createDecorator<IURLService>(ID);
 
 export interface IURLService {
 	_serviceBrand: any;
-	onOpenURL: Event<string>;
+	onOpenURL: Event<URI>;
 }
