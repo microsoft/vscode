@@ -114,10 +114,19 @@ const config = {
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
 
-gulp.task('electron', () => {
-	// Force windows to use ia32
-	const arch = process.env.VSCODE_ELECTRON_PLATFORM || (process.platform === 'win32' ? 'ia32' : process.arch);
-	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch, ffmpegChromium: true }));
+const electronPath = path.join(build, 'electron');
+
+gulp.task('clean-electron', util.rimraf(electronPath));
+
+gulp.task('electron', ['clean-electron'], () => {
+	const platform = process.platform;
+	const arch = process.env.VSCODE_ELECTRON_PLATFORM || (platform === 'win32' ? 'ia32' : process.arch);
+	const opts = _.extend({}, config, { platform, arch, ffmpegChromium: true, keepDefaultApp: true });
+
+	return gulp.src('package.json')
+		.pipe(electron(opts))
+		.pipe(filter(['**', '!**/app/package.json']))
+		.pipe(symdest(electronPath));
 });
 
 const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
@@ -156,7 +165,7 @@ function packageTask(platform, arch, opts) {
 		const sources = es.merge(src, extensions)
 			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
 			.pipe(filter(['**', '!**/*.js.map']))
-			.pipe(util.handleAzureJson({ platform: platform }));
+			.pipe(util.handleAzureJson({ platform }));
 
 		let version = packageJson.version;
 		const quality = product.quality;
@@ -211,7 +220,7 @@ function packageTask(platform, arch, opts) {
 		let result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
-			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch, ffmpegChromium: true })))
+			.pipe(electron(_.extend({}, config, { platform, arch, ffmpegChromium: true })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {

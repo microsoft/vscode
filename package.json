@@ -46,7 +46,7 @@
     "ghooks": "1.0.3",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.7.1",
+    "gulp-atom-electron": "^1.9.0",
     "gulp-azure-storage": "^0.6.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",
