@@ -32,10 +32,7 @@ import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extens
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -87,10 +84,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private visibilityChangeTimeoutHandle: number;
 
 	constructor(
-		@IEventService private eventService: IEventService,
-		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IViewletService private viewletService: IViewletService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -429,18 +423,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			this.visibilityChangeTimeoutHandle = void 0;
 		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
-	}
-
-	public refresh(input?: string): TPromise<void> {
-		if (!this.quickOpenWidget.isVisible()) {
-			return TPromise.as(null);
-		}
-
-		if (input && this.previousValue !== input) {
-			return TPromise.as(null);
-		}
-
-		return this.show(this.previousValue);
 	}
 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {

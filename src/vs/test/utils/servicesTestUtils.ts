@@ -517,10 +517,6 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return TPromise.as(null);
 	}
 
-	refresh(): Promise {
-		return TPromise.as(true);
-	}
-
 	show(prefix?: string, options?: any): Promise {
 		if (this.callback) {
 			this.callback(prefix);
