@@ -160,7 +160,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private doGetResults(searchValue: string): TPromise<SymbolEntry[]> {
 		return getWorkspaceSymbols(searchValue).then(tuples => {
 			const result: SymbolEntry[] = [];
-			for (const tuple of tuples) {
+			for (let tuple of tuples) {
 				const [provider, bearings] = tuple;
 				this.fillInSymbolEntries(result, provider, bearings, searchValue);
 			}
@@ -178,7 +178,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private fillInSymbolEntries(bucket: SymbolEntry[], provider: IWorkspaceSymbolProvider, types: IWorkspaceSymbol[], searchValue: string): void {
 
 		// Convert to Entries
-		for (const element of types) {
+		for (let element of types) {
 
 			if (this.options.skipLocalSymbols && !!element.containerName) {
 				continue; // ignore local symbols if we are told so

@@ -67,7 +67,7 @@ class Trait<T> implements IDisposable {
 		const end = start + deleteCount;
 		const indexes = [];
 
-		for (const index of indexes) {
+		for (let index of indexes) {
 			if (index >= start && index < end) {
 				continue;
 			}

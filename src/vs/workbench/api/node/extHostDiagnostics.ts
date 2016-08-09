@@ -102,7 +102,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					marker = [];
 					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
 					orderLoop: for (let i = 0; i < 4; i++) {
-						for (const diagnostic of diagnostics) {
+						for (let diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
 								const len = marker.push(DiagnosticCollection._toMarkerData(diagnostic));
 								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {

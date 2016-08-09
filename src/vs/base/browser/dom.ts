@@ -959,13 +959,13 @@ export function emmet<T extends HTMLElement>(description: string): T {
 }
 
 export function show(...elements: HTMLElement[]): void {
-	for (const element of elements) {
+	for (let element of elements) {
 		element.style.display = null;
 	}
 }
 
 export function hide(...elements: HTMLElement[]): void {
-	for (const element of elements) {
+	for (let element of elements) {
 		element.style.display = 'none';
 	}
 }

@@ -43,7 +43,7 @@ export class CompletionModel {
 	constructor(raw: ISuggestionItem[], leadingLineContent: string) {
 		this.raw = raw;
 		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
-		for (const item of raw) {
+		for (let item of raw) {
 			this._items.push(new CompletionItem(item));
 		}
 	}
