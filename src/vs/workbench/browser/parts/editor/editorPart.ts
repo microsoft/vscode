@@ -647,7 +647,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doHandleDirty(identifier: EditorIdentifier): TPromise<boolean /* veto */> {
-		if (!identifier || !identifier.editor || !identifier.editor.isDirty()) {
+		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || this.stacks.count(identifier.editor) > 1 /* allow to close a dirty editor if it is opened in another group */) {
 			return TPromise.as(false); // no veto
 		}
 
