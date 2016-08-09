@@ -93,7 +93,7 @@ export class UserSettings {
 		let self = this;
 		function attachSettingsChangeWatcher(watchPath: string): void {
 			self.watcher = fs.watch(watchPath);
-			self.watcher.on('change', (eventType: string, fileName: string) => self.onSettingsFileChange(eventType, fileName));
+			self.watcher.on('change', () => self.onSettingsFileChange());
 		}
 
 		// Attach a watcher to the settings directory
@@ -109,7 +109,7 @@ export class UserSettings {
 				if (err) {
 					return;
 				}
-				if (stats.isSymbolicLink()) {
+				if (stats.isSymbolicLink() && !stats.isDirectory()) {
 					fs.readlink(path, function(err, realPath) {
 						if (err) {
 							return;
@@ -121,7 +121,7 @@ export class UserSettings {
 		});
 	}
 
-	private onSettingsFileChange(eventType: string, fileName: string): void {
+	private onSettingsFileChange(): void {
 
 		// we can get multiple change events for one change, so we buffer through a timeout
 		if (this.timeoutHandle) {
