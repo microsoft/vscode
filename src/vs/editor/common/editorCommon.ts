@@ -408,8 +408,13 @@ export interface IEditorOptions {
 	 */
 	selectionHighlight?:boolean;
 	/**
-	 * Show reference infos (a.k.a. code lenses) for modes that support it
+	 * Show code lens
 	 * Defaults to true.
+	 */
+	codeLens?: boolean;
+	/**
+	 * @deprecated - use codeLens instead
+	 * @internal
 	 */
 	referenceInfos?: boolean;
 	/**
@@ -815,7 +820,7 @@ export class EditorContribOptions {
 	tabCompletion: boolean;
 	wordBasedSuggestions: boolean;
 	selectionHighlight:boolean;
-	referenceInfos: boolean;
+	codeLens: boolean;
 	folding: boolean;
 
 	/**
@@ -836,7 +841,7 @@ export class EditorContribOptions {
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		selectionHighlight:boolean;
-		referenceInfos: boolean;
+		codeLens: boolean;
 		folding: boolean;
 	}) {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
@@ -853,7 +858,7 @@ export class EditorContribOptions {
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
-		this.referenceInfos = Boolean(source.referenceInfos);
+		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
 	}
 
@@ -876,7 +881,7 @@ export class EditorContribOptions {
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.selectionHighlight === other.selectionHighlight
-			&& this.referenceInfos === other.referenceInfos
+			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
 		);
 	}

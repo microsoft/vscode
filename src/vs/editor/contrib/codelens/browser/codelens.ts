@@ -354,7 +354,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		@ICommandService private _commandService: ICommandService,
 		@IMessageService private _messageService: IMessageService
 	) {
-		this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -366,7 +366,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._globalToDispose.push(this._editor.onDidChangeModelMode(() => this.onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {
 				this.onModelChange();
 			}

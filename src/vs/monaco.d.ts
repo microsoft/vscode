@@ -1262,10 +1262,10 @@ declare module monaco.editor {
          */
         selectionHighlight?: boolean;
         /**
-         * Show reference infos (a.k.a. code lenses) for modes that support it
+         * Show code lens
          * Defaults to true.
          */
-        referenceInfos?: boolean;
+        codeLens?: boolean;
         /**
          * Enable code folding
          * Defaults to true.
@@ -1422,7 +1422,7 @@ declare module monaco.editor {
         tabCompletion: boolean;
         wordBasedSuggestions: boolean;
         selectionHighlight: boolean;
-        referenceInfos: boolean;
+        codeLens: boolean;
         folding: boolean;
     }
 
