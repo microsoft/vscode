@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-c grammars/c.cson ./syntaxes/c.json grammars/c%2B%2B.cson ./syntaxes/c++.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "c",
