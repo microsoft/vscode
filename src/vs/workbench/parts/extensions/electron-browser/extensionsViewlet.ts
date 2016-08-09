@@ -30,6 +30,8 @@ import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'v
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IURLService } from 'vs/platform/url/common/url';
+import URI from 'vs/base/common/uri';
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
@@ -52,10 +54,14 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IURLService urlService: IURLService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
+
+		const onOpenExtensionUrl = filterEvent(urlService.onOpenURL, uri => /^extension/.test(uri.path));
+		onOpenExtensionUrl(this.onOpenExtensionUrl, this, this.disposables);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -95,7 +101,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		onInput(() => this.triggerSearch(), null, this.disposables);
 
 		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
-		onSelectedExtension(this.onExtensionSelected, this, this.disposables);
+		onSelectedExtension(this.openExtension, this, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -191,7 +197,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			});
 	}
 
-	private onExtensionSelected(extension: IExtension): void {
+	private openExtension(extension: IExtension): void {
 		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
 			.done(null, onUnexpectedError);
 	}
@@ -223,6 +229,26 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private onPageDownArrow(): void {
 		this.list.focusNextPage();
 		this.list.reveal(this.list.getFocus()[0]);
+	}
+
+	private onOpenExtensionUrl(uri: URI): void {
+		const match = /^extension\/([^/]+)$/.exec(uri.path);
+
+		if (!match) {
+			return;
+		}
+
+		const extensionId = match[1];
+
+		this.extensionsWorkbenchService.queryGallery({ names: [extensionId] })
+			.done(result => {
+				if (result.total < 1) {
+					return;
+				}
+
+				const extension = result.firstPage[0];
+				this.openExtension(extension);
+			});
 	}
 
 	dispose(): void {
