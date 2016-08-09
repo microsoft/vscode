@@ -30,7 +30,7 @@
     "vscode-debugprotocol": "1.11.0",
     "vscode-textmate": "2.0.1",
     "winreg": "1.2.0",
-    "xterm": "git+https://github.com/sourcelair/xterm.js.git#e7c7160",
+    "xterm": "git+https://github.com/sourcelair/xterm.js.git#b32a34b",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
