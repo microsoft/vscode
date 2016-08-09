@@ -187,8 +187,27 @@ function registerDiffEditorCommands(): void {
 	});
 }
 
+// TODO@Ben remove eventually
 function handleCommandDeprecations(): void {
 	const mapDeprecatedCommands = {
+		'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',
+		'workbench.action.focusSecondEditor': 'workbench.action.focusSecondEditorGroup',
+		'workbench.action.focusThirdEditor': 'workbench.action.focusThirdEditorGroup',
+		'workbench.action.focusLeftEditor': 'workbench.action.focusPreviousGroup',
+		'workbench.action.focusRightEditor': 'workbench.action.focusNextGroup',
+		'workbench.action.moveActiveEditorLeft': 'workbench.action.moveActiveEditorGroupLeft',
+		'workbench.action.moveActiveEditorRight': 'workbench.action.moveActiveEditorGroupRight',
+		'workbench.action.openPreviousEditor': 'workbench.action.openPreviousEditorFromHistory',
+		'workbench.files.action.addToWorkingFiles': 'workbench.action.keepEditor',
+		'workbench.files.action.closeAllFiles': 'workbench.action.closeAllEditors',
+		'workbench.files.action.closeFile': 'workbench.action.closeActiveEditor',
+		'workbench.files.action.closeOtherFiles': 'workbench.action.closeOtherEditors',
+		'workbench.files.action.focusWorkingFiles': 'workbench.files.action.focusOpenEditorsView',
+		'workbench.files.action.openNextWorkingFile': 'workbench.action.nextEditor',
+		'workbench.files.action.openPreviousWorkingFile': 'workbench.action.previousEditor',
+		'workbench.files.action.reopenClosedFile': 'workbench.action.reopenClosedEditor',
+		'workbench.files.action.workingFilesPicker': 'workbench.action.showAllEditors',
+		'workbench.action.cycleEditor': 'workbench.action.navigateEditorGroups',
 		'workbench.action.terminal.focus': 'workbench.action.focusPanel'
 	};
 
