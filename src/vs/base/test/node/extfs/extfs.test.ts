@@ -18,9 +18,9 @@ import extfs = require('vs/base/node/extfs');
 suite('Extfs', () => {
 
 	test('mkdirp', function (done: () => void) {
-		var id = uuid.generateUuid();
-		var parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		var newDir = path.join(parentDir, 'extfs', id);
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
 
 		extfs.mkdirp(newDir, 493, (error) => {
 			assert.ok(!error);
@@ -31,12 +31,12 @@ suite('Extfs', () => {
 	});
 
 	test('copy, move and delete', function (done: () => void) {
-		var id = uuid.generateUuid();
-		var id2 = uuid.generateUuid();
-		var sourceDir = require.toUrl('./fixtures');
-		var parentDir = path.join(os.tmpdir(), 'vsctests', 'extfs');
-		var targetDir = path.join(parentDir, id);
-		var targetDir2 = path.join(parentDir, id2);
+		const id = uuid.generateUuid();
+		const id2 = uuid.generateUuid();
+		const sourceDir = require.toUrl('./fixtures');
+		const parentDir = path.join(os.tmpdir(), 'vsctests', 'extfs');
+		const targetDir = path.join(parentDir, id);
+		const targetDir2 = path.join(parentDir, id2);
 
 		extfs.copy(sourceDir, targetDir, (error) => {
 			assert.ok(!error);
@@ -76,9 +76,9 @@ suite('Extfs', () => {
 
 	test('readdir', function (done: () => void) {
 		if (strings.canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			var id = uuid.generateUuid();
-			var parentDir = path.join(os.tmpdir(), 'vsctests', id);
-			var newDir = path.join(parentDir, 'extfs', id, 'öäü');
+			const id = uuid.generateUuid();
+			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			const newDir = path.join(parentDir, 'extfs', id, 'öäü');
 
 			extfs.mkdirp(newDir, 493, (error) => {
 				assert.ok(!error);
@@ -93,5 +93,31 @@ suite('Extfs', () => {
 		} else {
 			done();
 		}
+	});
+
+	test('writeFileAndFlush', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			assert.ok(!error);
+			assert.ok(fs.existsSync(newDir));
+
+			extfs.writeFileAndFlush(testFile, 'Hello World', null, (error) => {
+				assert.ok(!error);
+				assert.equal(fs.readFileSync(testFile), 'Hello World');
+
+				const largeString = (new Array(100 * 1024)).join('Large String\n');
+
+				extfs.writeFileAndFlush(testFile, largeString, null, (error) => {
+					assert.ok(!error);
+					assert.equal(fs.readFileSync(testFile), largeString);
+
+					done();
+				});
+			});
+		});
 	});
 });
