@@ -6,10 +6,14 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, eventToCall, eventFromCall, Serializer, Deserializer } from 'vs/base/parts/ipc/common/ipc';
 import { IURLService } from './url';
 import Event, { filterEvent } from 'vs/base/common/event';
 import { IWindowsService } from 'vs/code/electron-main/windows';
+import URI from 'vs/base/common/uri';
+
+const URISerializer: Serializer<URI,any> = uri => uri.toJSON();
+const URIDeserializer: Deserializer<URI,any> = raw => URI.revive(raw);
 
 export interface IURLChannel extends IChannel {
 	call(command: 'event:onOpenURL'): TPromise<void>;
@@ -25,7 +29,7 @@ export class URLChannel implements IURLChannel {
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
-			case 'event:onOpenURL': return eventToCall(filterEvent(this.service.onOpenURL, () => this.isWindowFocused(arg)));
+			case 'event:onOpenURL': return eventToCall(filterEvent(this.service.onOpenURL, () => this.isWindowFocused(arg)), URISerializer);
 		}
 	}
 
@@ -49,6 +53,6 @@ export class URLChannelClient implements IURLService {
 
 	constructor(private channel: IChannel, private windowID: number) { }
 
-	private _onOpenURL = eventFromCall<string>(this.channel, 'event:onOpenURL', this.windowID);
-	get onOpenURL(): Event<string> { return this._onOpenURL; }
+	private _onOpenURL = eventFromCall<URI>(this.channel, 'event:onOpenURL', this.windowID, URIDeserializer);
+	get onOpenURL(): Event<URI> { return this._onOpenURL; }
 }
