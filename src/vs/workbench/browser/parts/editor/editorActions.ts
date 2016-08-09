@@ -20,7 +20,6 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export class SplitEditorAction extends Action {
 
@@ -1285,7 +1284,6 @@ export class MoveEditorLeftInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
@@ -1311,7 +1309,6 @@ export class MoveEditorRightInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
