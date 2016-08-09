@@ -936,6 +936,11 @@ export function append<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
+export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
+	parent.insertBefore(child, parent.firstChild);
+	return child;
+}
+
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
 // Similar to builder, but much more lightweight
