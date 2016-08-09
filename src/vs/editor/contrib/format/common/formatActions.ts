@@ -198,17 +198,8 @@ export class FormatAction extends EditorAction {
 	}
 
 	public apply(editor: editorCommon.ICommonCodeEditor, editorSelection: Selection, value: editorCommon.ISingleEditOperation[]): void {
-		var state: editorCommon.IEditorViewState = null;
-
-		if (editorSelection.isEmpty()) {
-			state = editor.saveViewState();
-		}
-		var command = new EditOperationsCommand(value, editorSelection);
+		const command = new EditOperationsCommand(value, editorSelection);
 		editor.executeCommand(this.id, command);
-
-		if (state) {
-			editor.restoreViewState(state);
-		}
 	}
 }
 

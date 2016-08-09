@@ -861,7 +861,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('Format Doc, data conversion', function() {
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'testing')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
 			}
 		}));
 
@@ -870,7 +870,7 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
-				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
@@ -890,7 +890,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('Format Range, data conversion', function() {
 		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'testing')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
 			}
 		}));
 
@@ -899,7 +899,7 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
-				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
@@ -907,7 +907,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('Format Range, + format_doc', function() {
 		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'range')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'range')];
 			}
 		}));
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{

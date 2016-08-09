@@ -336,11 +336,11 @@ class DocumentFormattingAdapter {
 
 	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
+		const {document, version} = this._documents.getDocumentData(resource);
 
-		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(doc, <any>options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}
@@ -358,12 +358,12 @@ class RangeFormattingAdapter {
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
-		let ran = TypeConverters.toRange(range);
+		const {document, version} = this._documents.getDocumentData(resource);
+		const ran = TypeConverters.toRange(range);
 
-		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(doc, ran, <any>options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}
@@ -383,12 +383,12 @@ class OnTypeFormattingAdapter {
 
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		const {document, version} = this._documents.getDocumentData(resource);
+		const pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(doc, pos, ch, <any> options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any> options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}
