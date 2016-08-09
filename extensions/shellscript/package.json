@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/shellscript.tmbundle Syntaxes/Shell-Unix-Bash.tmLanguage ./syntaxes/Shell-Unix-Bash.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "shellscript",
@@ -16,7 +19,7 @@
 		"grammars": [{
 			"language": "shellscript",
 			"scopeName": "source.shell",
-			"path": "./syntaxes/Shell-Unix-Bash.tmLanguage"
+			"path": "./syntaxes/Shell-Unix-Bash.tmLanguage.json"
 		}]
 	}
 }
