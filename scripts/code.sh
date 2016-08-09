@@ -10,15 +10,19 @@ fi
 function code() {
 	cd $ROOT
 
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		NAME=`node -p "require('./product.json').nameShort"`
+		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+	else
+		NAME=`node -p "require('./product.json').applicationName"`
+		CODE=".build/electron/code-oss"
+	fi
+
 	# Node modules
 	test -d node_modules || ./scripts/npm.sh install
 
 	# Get electron
-	if [[ "$OSTYPE" == "darwin"* ]]; then
-		test -d .build/electron/Code\ -\ OSS.app || ./node_modules/.bin/gulp electron
-	else
-		test -d .build/electron/code-oss || ./node_modules/.bin/gulp electron
-	fi
+	test -f "$CODE" || ./node_modules/.bin/gulp electron
 
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
@@ -31,11 +35,7 @@ function code() {
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 
 	# Launch Code
-	if [[ "$OSTYPE" == "darwin"* ]]; then
-		exec ./.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron . "$@"
-	else
-		exec ./.build/electron/code-oss . "$@"
-	fi
+	exec "$CODE" . "$@"
 }
 
 code "$@"
