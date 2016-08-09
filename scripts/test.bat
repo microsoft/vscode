@@ -9,7 +9,7 @@ if not "%BUILD_BUILDID%" == "" (
 )
 
 pushd %~dp0\..
-.\.build\electron\electron.exe .\node_modules\mocha\bin\_mocha %*
+.\.build\electron\code-oss-dev.exe .\node_modules\mocha\bin\_mocha %*
 popd
 
 endlocal
