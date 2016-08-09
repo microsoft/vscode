@@ -96,13 +96,6 @@ export interface IQuickOpenService {
 	show(prefix?: string, options?: IShowOptions): TPromise<void>;
 
 	/**
-	 * Refreshes the quick open control. No-op, if the control is hidden.
-	 * If an input is provided, then the operation will only succeed if that same input is still
-	 * in the quick open control.
-	 */
-	refresh(input?: string): TPromise<void>;
-
-	/**
 	 * A convenient way to bring up quick open as a picker with custom elements. This bypasses the quick open handler
 	 * registry and just leverages the quick open widget to select any kind of entries.
 	 *
