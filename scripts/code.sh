@@ -17,7 +17,7 @@ function code() {
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		test -d .build/electron/Code\ -\ OSS.app || ./node_modules/.bin/gulp electron
 	else
-		test -d .build/electron || ./node_modules/.bin/gulp electron
+		test -d .build/electron/code-oss || ./node_modules/.bin/gulp electron
 	fi
 
 	# Build
@@ -34,7 +34,7 @@ function code() {
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		exec ./.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron . "$@"
 	else
-		exec ./.build/electron/electron . "$@"
+		exec ./.build/electron/code-oss . "$@"
 	fi
 }
 
