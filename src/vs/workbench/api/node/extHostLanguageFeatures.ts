@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ISequence, LcsDiff, IDiffChange} from 'vs/base/common/diff/diff';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
@@ -325,18 +324,6 @@ class QuickFixAdapter {
 	}
 }
 
-function createStringSequence(a: string): ISequence {
-
-	return {
-		getLength() { return a.length; },
-		getElementHash(pos: number) { return a[pos]; }
-	};
-}
-
-function stringDiff(a: string, b: string): IDiffChange[] {
-	return new LcsDiff(createStringSequence(a), createStringSequence(b)).ComputeDiff();
-}
-
 class DocumentFormattingAdapter {
 
 	private _documents: ExtHostDocuments;
@@ -352,42 +339,10 @@ class DocumentFormattingAdapter {
 		const {document, version} = this._documents.getDocumentData(resource);
 
 		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
-
 			if (Array.isArray(value)) {
-				value = DocumentFormattingAdapter.minimizeTextEdits(document, version, value);
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
-	}
-
-	// todo@joh find a better place for this
-	// todo@joh reuse in other places
-	static minimizeTextEdits(document: vscode.TextDocument, beforeVersion: number, edits: vscode.TextEdit[]): vscode.TextEdit[] {
-		if (document.version !== beforeVersion) {
-			return edits;
-		}
-
-		const result: vscode.TextEdit[] = [];
-
-		for (let i = 0; i < edits.length; i++) {
-			const original = document.getText(edits[i].range);
-			const modified = edits[i].newText;
-			const changes = stringDiff(original, modified);
-
-			if (changes.length <= 1) {
-				result.push(edits[i]);
-				continue;
-			}
-
-			for (let j = 0; j < changes.length; j++) {
-				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
-				const range = new Range(<any> document.positionAt(originalStart), <any> document.positionAt(originalStart + originalLength));
-				const newText = modified.substr(modifiedStart, modifiedLength);
-				result.push({ range, newText });
-			}
-		}
-
-		return result;
 	}
 }
 
@@ -403,12 +358,12 @@ class RangeFormattingAdapter {
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
-		let ran = TypeConverters.toRange(range);
+		const {document, version} = this._documents.getDocumentData(resource);
+		const ran = TypeConverters.toRange(range);
 
-		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(doc, ran, <any>options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}
@@ -428,12 +383,12 @@ class OnTypeFormattingAdapter {
 
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		const {document, version} = this._documents.getDocumentData(resource);
+		const pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(doc, pos, ch, <any> options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any> options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}

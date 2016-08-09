@@ -8,6 +8,7 @@ import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import Severity from 'vs/base/common/severity';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {stringDiff} from 'vs/base/common/diff/diff';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
@@ -154,6 +155,43 @@ export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.Decorat
 }
 
 export const TextEdit = {
+
+	minimalEditOperations(edits: vscode.TextEdit[], document: vscode.TextDocument, beforeDocumentVersion: number): ISingleEditOperation[] {
+
+		// document has changed in the meantime and we shouldn't do
+		// offset math as it's likely to be all wrong
+		if (document.version !== beforeDocumentVersion) {
+			return edits.map(TextEdit.from);
+		}
+
+		const result: ISingleEditOperation[] = [];
+
+		for (let edit of edits) {
+
+			const original = document.getText(edit.range);
+			const modified = edit.newText;
+			const changes = stringDiff(original, modified);
+
+			if (changes.length <= 1) {
+				result.push(TextEdit.from(edit));
+				continue;
+			}
+
+			for (let j = 0; j < changes.length; j++) {
+				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
+				const start = fromPosition(<types.Position> document.positionAt(originalStart));
+				const end = fromPosition(<types.Position> document.positionAt(originalStart + originalLength));
+
+				result.push({
+					text: modified.substr(modifiedStart, modifiedLength),
+					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
+				});
+			}
+		}
+
+		return result;
+	},
+
 	from(edit: vscode.TextEdit): ISingleEditOperation{
 		return <ISingleEditOperation>{
 			text: edit.newText,
