@@ -17,7 +17,6 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ipcRenderer as ipc } from 'electron';
-import { IURLService } from 'vs/platform/url/common/url';
 
 interface IInstallExtensionsRequest {
 	extensionsToInstall: string[];
@@ -32,8 +31,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionTipsService extenstionTips: IExtensionTipsService, // this is to eagerly start the service
-		@IExtensionGalleryService galleryService: IExtensionGalleryService,
-		@IURLService urlService: IURLService
+		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
 		this.registerListeners();
 
@@ -42,8 +40,6 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		if (options.extensionsToInstall && options.extensionsToInstall.length) {
 			this.install(options.extensionsToInstall).done(null, onUnexpectedError);
 		}
-
-		urlService.onOpenURL(url => console.log(url));
 
 		//actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), 'Extensions: Install Extension', ExtensionsLabel);
 	}
