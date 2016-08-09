@@ -265,7 +265,7 @@ class InternalEditorOptionsHelper {
 			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
-			referenceInfos: toBoolean(opts.referenceInfos),
+			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
 		});
 
@@ -762,10 +762,10 @@ let editorConfiguration:IConfigurationNode = {
 			default: DefaultConfig.editor.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
 		},
-		'editor.referenceInfos' : {
+		'editor.codeLens' : {
 			'type': 'boolean',
-			'default': DefaultConfig.editor.referenceInfos,
-			'description': nls.localize('referenceInfos', "Controls if the editor shows reference information for the modes that support it")
+			'default': DefaultConfig.editor.codeLens,
+			'description': nls.localize('codeLens', "Controls if the editor shows code lenses")
 		},
 		'editor.folding' : {
 			'type': 'boolean',
