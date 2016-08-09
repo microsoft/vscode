@@ -1095,11 +1095,13 @@ export class EditorStacksModel implements IEditorStacksModel {
 	public isOpen(resource: URI): boolean;
 	public isOpen(editor: EditorInput): boolean;
 	public isOpen(arg1: any): boolean {
-		if (arg1 instanceof EditorInput) {
-			return this._groups.some(g => g.indexOf(arg1) >= 0);
-		}
+		return this._groups.some(group => group.contains(arg1));
+	}
 
-		return this._groups.some(group => group.contains(<URI>arg1));
+	public count(resource: URI): number;
+	public count(editor: EditorInput): number;
+	public count(arg1: any): number {
+		return this._groups.filter(group => group.contains(arg1)).length;
 	}
 
 	private onShutdown(): void {
