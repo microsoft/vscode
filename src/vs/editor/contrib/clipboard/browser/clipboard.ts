@@ -12,11 +12,18 @@ import * as browser from 'vs/base/browser/browser';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, IActionOptions, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
+
+function conditionalEditorAction(testCommand:string) {
+	if (!browser.supportsExecCommand(testCommand)) {
+		return () => {};
+	}
+	return editorAction;
+}
 
 abstract class ExecCommandAction extends EditorAction {
 
@@ -44,6 +51,7 @@ abstract class ExecCommandAction extends EditorAction {
 	}
 }
 
+@conditionalEditorAction('cut')
 class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
@@ -73,6 +81,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 }
 
+@conditionalEditorAction('copy')
 class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
@@ -102,6 +111,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 }
 
+@conditionalEditorAction('paste')
 class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
@@ -121,14 +131,4 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			}
 		});
 	}
-}
-
-if (browser.supportsExecCommand('cut')) {
-	CommonEditorRegistry.registerEditorAction(new ExecCommandCutAction());
-}
-if (browser.supportsExecCommand('copy')) {
-	CommonEditorRegistry.registerEditorAction(new ExecCommandCopyAction());
-}
-if (browser.supportsExecCommand('paste')) {
-	CommonEditorRegistry.registerEditorAction(new ExecCommandPasteAction());
 }

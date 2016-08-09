@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {IActionOptions, EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, IActionOptions, EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LineCommentCommand, Type} from './lineCommentCommand';
 
@@ -39,6 +39,7 @@ abstract class CommentLineAction extends EditorAction {
 
 }
 
+@editorAction
 class ToggleCommentLineAction extends CommentLineAction {
 	constructor() {
 		super(Type.Toggle, {
@@ -54,6 +55,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 	}
 }
 
+@editorAction
 class AddLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceAdd, {
@@ -69,6 +71,7 @@ class AddLineCommentAction extends CommentLineAction {
 	}
 }
 
+@editorAction
 class RemoveLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceRemove, {
@@ -84,6 +87,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 	}
 }
 
+@editorAction
 class BlockCommentAction extends EditorAction {
 
 	constructor() {
@@ -111,9 +115,3 @@ class BlockCommentAction extends EditorAction {
 		editor.executeCommands(this.id, commands);
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new ToggleCommentLineAction());
-CommonEditorRegistry.registerEditorAction(new AddLineCommentAction());
-CommonEditorRegistry.registerEditorAction(new RemoveLineCommentAction());
-CommonEditorRegistry.registerEditorAction(new BlockCommentAction());

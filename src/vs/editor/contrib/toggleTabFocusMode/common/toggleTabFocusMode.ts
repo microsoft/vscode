@@ -7,9 +7,10 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
 
+@editorAction
 export class ToggleTabFocusModeAction extends EditorAction {
 
 	public static ID = 'editor.action.toggleTabFocusMode';
@@ -33,6 +34,3 @@ export class ToggleTabFocusModeAction extends EditorAction {
 		TabFocus.setTabFocusMode(!oldValue);
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new ToggleTabFocusModeAction());

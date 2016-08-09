@@ -19,7 +19,7 @@ import {KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/k
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
@@ -189,6 +189,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 }
 
+@editorAction
 class ShowAccessibilityHelpAction extends EditorAction {
 
 	constructor() {
@@ -211,7 +212,6 @@ class ShowAccessibilityHelpAction extends EditorAction {
 }
 
 EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
-CommonEditorRegistry.registerEditorAction(new ShowAccessibilityHelpAction());
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 

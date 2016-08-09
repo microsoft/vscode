@@ -16,7 +16,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {LinkProviderRegistry} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IEditorMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -315,6 +315,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 }
 
+@editorAction
 class OpenLinkAction extends EditorAction {
 
 	constructor() {
@@ -335,5 +336,4 @@ class OpenLinkAction extends EditorAction {
 	}
 }
 
-CommonEditorRegistry.registerEditorAction(new OpenLinkAction());
 EditorBrowserRegistry.registerEditorContribution(LinkDetector);

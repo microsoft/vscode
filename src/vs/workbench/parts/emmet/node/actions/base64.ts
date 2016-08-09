@@ -14,12 +14,13 @@ import {dirname, join, normalize, isValidBasename} from 'vs/base/common/paths';
 import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
 import {Action} from 'vs/base/common/actions';
 
-import {ServicesAccessor, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, editorAction} from 'vs/editor/common/editorCommonExtensions';
 import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 
+@editorAction
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 
 	private imageFilePath: string = null;
@@ -134,5 +135,3 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 		return /(?:src=|url\()['"]?data:/.test(data);
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new EncodeDecodeDataUrlAction());

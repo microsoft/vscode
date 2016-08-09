@@ -17,7 +17,7 @@ import {ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys} from 'vs/
 import {SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry} from 'vs/editor/common/modes';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 let SCOPE_PREFIX = ':';
@@ -107,6 +107,7 @@ class SymbolEntry extends QuickOpenEntryGroup {
 	}
 }
 
+@editorAction
 export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {

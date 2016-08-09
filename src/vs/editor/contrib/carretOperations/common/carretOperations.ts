@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {IActionOptions, EditorAction, CommonEditorRegistry, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {IActionOptions, editorAction, EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {MoveCarretCommand} from './moveCarretCommand';
 
 class MoveCarretAction extends EditorAction {
@@ -32,8 +32,8 @@ class MoveCarretAction extends EditorAction {
 	}
 }
 
+@editorAction
 class MoveCarretLeftAction extends MoveCarretAction {
-
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveCarretLeftAction',
@@ -44,8 +44,8 @@ class MoveCarretLeftAction extends MoveCarretAction {
 	}
 }
 
+@editorAction
 class MoveCarretRightAction extends MoveCarretAction {
-
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveCarretRightAction',
@@ -55,6 +55,3 @@ class MoveCarretRightAction extends MoveCarretAction {
 		});
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new MoveCarretLeftAction());
-CommonEditorRegistry.registerEditorAction(new MoveCarretRightAction());

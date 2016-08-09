@@ -8,8 +8,9 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class IncrementNumberByOneTenthAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -21,6 +22,7 @@ class IncrementNumberByOneTenthAction extends BasicEmmetEditorAction {
 	}
 }
 
+@editorAction
 class IncrementNumberByOneAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -32,6 +34,7 @@ class IncrementNumberByOneAction extends BasicEmmetEditorAction {
 	}
 }
 
+@editorAction
 class IncrementNumberByTenAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -43,6 +46,7 @@ class IncrementNumberByTenAction extends BasicEmmetEditorAction {
 	}
 }
 
+@editorAction
 class DecrementNumberByOneTenthAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -54,6 +58,7 @@ class DecrementNumberByOneTenthAction extends BasicEmmetEditorAction {
 	}
 }
 
+@editorAction
 class DecrementNumberByOneAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -65,6 +70,7 @@ class DecrementNumberByOneAction extends BasicEmmetEditorAction {
 	}
 }
 
+@editorAction
 class DecrementNumberByTenAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -75,10 +81,3 @@ class DecrementNumberByTenAction extends BasicEmmetEditorAction {
 		);
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new IncrementNumberByOneTenthAction());
-CommonEditorRegistry.registerEditorAction(new IncrementNumberByOneAction());
-CommonEditorRegistry.registerEditorAction(new IncrementNumberByTenAction());
-CommonEditorRegistry.registerEditorAction(new DecrementNumberByOneTenthAction());
-CommonEditorRegistry.registerEditorAction(new DecrementNumberByOneAction());
-CommonEditorRegistry.registerEditorAction(new DecrementNumberByTenAction());

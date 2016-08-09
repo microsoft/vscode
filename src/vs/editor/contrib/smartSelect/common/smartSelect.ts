@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {Range} from 'vs/editor/common/core/range';
 import {ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
 // --- selection state machine
@@ -156,6 +156,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 }
 
+@editorAction
 class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
@@ -172,6 +173,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	}
 }
 
+@editorAction
 class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
@@ -190,5 +192,3 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 
 // register actions
 CommonEditorRegistry.registerEditorContribution(SmartSelectController);
-CommonEditorRegistry.registerEditorAction(new GrowSelectionAction());
-CommonEditorRegistry.registerEditorAction(new ShrinkSelectionAction());

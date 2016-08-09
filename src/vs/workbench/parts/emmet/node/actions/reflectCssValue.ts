@@ -8,8 +8,9 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class ReflectCSSValueAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -20,5 +21,3 @@ class ReflectCSSValueAction extends BasicEmmetEditorAction {
 		);
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new ReflectCSSValueAction());

@@ -7,8 +7,9 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class ToggleWordWrapAction extends EditorAction {
 
 	constructor() {
@@ -40,6 +41,3 @@ class ToggleWordWrapAction extends EditorAction {
 		});
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new ToggleWordWrapAction());

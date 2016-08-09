@@ -13,7 +13,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
-import {ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
@@ -658,6 +658,7 @@ abstract class FoldingAction extends EditorAction {
 	}
 }
 
+@editorAction
 class UnfoldAction extends FoldingAction {
 
 	constructor() {
@@ -678,6 +679,7 @@ class UnfoldAction extends FoldingAction {
 	}
 }
 
+@editorAction
 class UnFoldRecursivelyAction extends FoldingAction {
 
 	constructor() {
@@ -698,6 +700,7 @@ class UnFoldRecursivelyAction extends FoldingAction {
 	}
 }
 
+@editorAction
 class FoldAction extends FoldingAction {
 
 	constructor() {
@@ -718,6 +721,7 @@ class FoldAction extends FoldingAction {
 	}
 }
 
+@editorAction
 class FoldRecursivelyAction extends FoldingAction {
 
 	constructor() {
@@ -738,6 +742,7 @@ class FoldRecursivelyAction extends FoldingAction {
 	}
 }
 
+@editorAction
 class FoldAllAction extends FoldingAction {
 
 	constructor() {
@@ -758,6 +763,7 @@ class FoldAllAction extends FoldingAction {
 	}
 }
 
+@editorAction
 class UnfoldAllAction extends FoldingAction {
 
 	constructor() {
@@ -797,12 +803,6 @@ class FoldLevelAction extends FoldingAction {
 
 EditorBrowserRegistry.registerEditorContribution(FoldingController);
 
-CommonEditorRegistry.registerEditorAction(new UnfoldAction());
-CommonEditorRegistry.registerEditorAction(new UnFoldRecursivelyAction());
-CommonEditorRegistry.registerEditorAction(new FoldAction());
-CommonEditorRegistry.registerEditorAction(new FoldRecursivelyAction());
-CommonEditorRegistry.registerEditorAction(new FoldAllAction());
-CommonEditorRegistry.registerEditorAction(new UnfoldAllAction());
 CommonEditorRegistry.registerEditorAction(
 	new FoldLevelAction({
 		id: FoldLevelAction.ID(1),

@@ -21,7 +21,7 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IActionOptions, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, IActionOptions, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -146,6 +146,7 @@ const goToDeclarationKb = platform.isWeb
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 
+@editorAction
 export class GoToDefinitionAction extends DefinitionAction {
 
 	public static ID = 'editor.action.goToDeclaration';
@@ -168,6 +169,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 	}
 }
 
+@editorAction
 export class OpenDefinitionToSideAction extends DefinitionAction {
 
 	public static ID = 'editor.action.openDeclarationToTheSide';
@@ -186,6 +188,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 	}
 }
 
+@editorAction
 export class PeekDefinitionAction extends DefinitionAction {
 	constructor() {
 		super(new DefinitionActionConfig(void 0, true, false), {
@@ -484,11 +487,5 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = dispose(this.toUnhook);
 	}
 }
-
-// register actions
-
-CommonEditorRegistry.registerEditorAction(new PeekDefinitionAction());
-CommonEditorRegistry.registerEditorAction(new GoToDefinitionAction());
-CommonEditorRegistry.registerEditorAction(new OpenDefinitionToSideAction());
 
 EditorBrowserRegistry.registerEditorContribution(GotoDefinitionWithMouseEditorContribution);

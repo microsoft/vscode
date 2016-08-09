@@ -15,7 +15,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {KbCtxKey, IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
@@ -145,6 +145,7 @@ class RenameController implements IEditorContribution {
 
 // ---- action implementation
 
+@editorAction
 export class RenameAction extends EditorAction {
 
 	constructor() {
@@ -172,8 +173,6 @@ export class RenameAction extends EditorAction {
 EditorBrowserRegistry.registerEditorContribution(RenameController);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
-
-CommonEditorRegistry.registerEditorAction(new RenameAction());
 
 CommonEditorRegistry.registerEditorCommand2(new RenameCommand({
 	id: 'acceptRenameInput',
