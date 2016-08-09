@@ -9,7 +9,7 @@ pushd %~dp0\..
 if not exist node_modules call .\scripts\npm.bat install
 
 :: Get electron
-if not exist .build\electron node .\node_modules\gulp\bin\gulp.js electron
+if not exist .build\electron\code-oss-dev.exe node .\node_modules\gulp\bin\gulp.js electron
 
 :: Build
 if not exist out node .\node_modules\gulp\bin\gulp.js compile
@@ -23,7 +23,7 @@ set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 :: Launch Code
-.\.build\electron\electron.exe . %*
+.\.build\electron\code-oss-dev.exe . %*
 popd
 
 endlocal
