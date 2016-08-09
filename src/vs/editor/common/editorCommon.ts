@@ -3147,7 +3147,7 @@ export class BareFontInfo {
 		lineHeight: number;
 	}) {
 		this.fontFamily = String(opts.fontFamily);
-		this.fontSize = opts.fontSize|0;
+		this.fontSize = opts.fontSize;
 		this.lineHeight = opts.lineHeight|0;
 	}
 
