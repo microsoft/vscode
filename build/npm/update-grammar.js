@@ -67,7 +67,9 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 	}, console.error);
 }
 if (path.basename(process.argv[1]) === 'update-grammar.js') {
-	exports.update(process.argv[2], process.argv[3], process.argv[4]);
+	for (var i = 3; i < process.argv.length; i+=2) {
+		exports.update(process.argv[2], process.argv[i], process.argv[i+1]);
+	}
 }
 
 
