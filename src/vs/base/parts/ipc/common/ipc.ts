@@ -148,15 +148,17 @@ export class Server {
 	}
 }
 
-export class Client implements IClient {
+export class Client implements IClient, IDisposable {
 
 	private state: State;
+	private activeRequests: Promise[];
 	private bufferedRequests: IRequest[];
 	private handlers: { [id: number]: IHandler; };
 	private lastRequestId: number;
 
 	constructor(private protocol: IMessagePassingProtocol) {
 		this.state = State.Uninitialized;
+		this.activeRequests = [];
 		this.bufferedRequests = [];
 		this.handlers = Object.create(null);
 		this.lastRequestId = 0;
@@ -179,11 +181,17 @@ export class Client implements IClient {
 			}
 		};
 
-		if (this.state === State.Uninitialized) {
-			return this.bufferRequest(request);
-		}
+		const activeRequest = this.state === State.Uninitialized
+			? this.bufferRequest(request)
+			: this.doRequest(request);
 
-		return this.doRequest(request);
+		this.activeRequests.push(activeRequest);
+
+		activeRequest
+			.then(null, _ => null)
+			.done(() => this.activeRequests = this.activeRequests.filter(i => i !== activeRequest));
+
+		return activeRequest;
 	}
 
 	private doRequest(request: IRequest): Promise {
@@ -274,6 +282,11 @@ export class Client implements IClient {
 			// noop
 		}
 	}
+
+	dispose(): void {
+		this.activeRequests.forEach(r => r.cancel());
+		this.activeRequests = [];
+	}
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: TPromise<IChannel>): T {
@@ -306,12 +319,12 @@ export function eventToCall(event: Event<any>): TPromise<any> {
 	);
 }
 
-export function eventFromCall<T>(channel: IChannel, name: string): Event<T> {
+export function eventFromCall<T>(channel: IChannel, name: string, arg: any = null): Event<T> {
 	let promise: Promise;
 
 	const emitter = new Emitter<any>({
 		onFirstListenerAdd: () => {
-			promise = channel.call(name, null).then(null, err => null, e => emitter.fire(e));
+			promise = channel.call(name, arg).then(null, err => null, e => emitter.fire(e));
 		},
 		onLastListenerRemove: () => {
 			promise.cancel();

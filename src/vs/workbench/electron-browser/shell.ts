@@ -70,9 +70,13 @@ import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
 import {getDelayedChannel} from 'vs/base/parts/ipc/common/ipc';
-import {connect} from 'vs/base/parts/ipc/node/ipc.net';
+import {connect as connectNet} from 'vs/base/parts/ipc/node/ipc.net';
+import {Client as ElectronIPCClient} from 'vs/base/parts/ipc/common/ipc.electron';
+import {ipcRenderer} from 'electron';
 import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import {IExtensionManagementService} from 'vs/platform/extensionManagement/common/extensionManagement';
+import {URLChannelClient} from 'vs/platform/url/common/urlIpc';
+import {IURLService} from 'vs/platform/url/common/url';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 
 // self registering services
@@ -202,7 +206,9 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
-		const sharedProcess = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+		const disposables = new Disposables();
+
+		const sharedProcess = connectNet(process.env['VSCODE_SHARED_IPC_HOOK']);
 		sharedProcess.done(service => {
 			service.onClose(() => {
 				this.messageService.show(Severity.Error, {
@@ -212,13 +218,15 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
+		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
+		disposables.add(mainProcessClient);
+
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IEventService, this.eventService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
-		const disposables = new Disposables();
 
 		this.windowService = instantiationService.createInstance(WindowService);
 		serviceCollection.set(IWindowService, this.windowService);
@@ -311,8 +319,12 @@ export class WorkbenchShell {
 		serviceCollection.set(ICodeEditorService, codeEditorService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = instantiationService.createInstance(ExtensionManagementChannelClient, extensionManagementChannel);
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
 		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
+
+		const urlChannel = mainProcessClient.getChannel('url');
+		const urlChannelClient = new URLChannelClient(urlChannel, this.windowService.getWindowId());
+		serviceCollection.set(IURLService, urlChannelClient);
 
 		return [instantiationService, serviceCollection];
 	}
