@@ -111,6 +111,7 @@ declare module monaco {
      *
      */
     export class Uri {
+        static isUri(thing: any): thing is Uri;
         constructor();
         /**
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
@@ -899,6 +900,7 @@ declare module monaco.editor {
     export interface IKeybindingContextKey<T> {
         set(value: T): void;
         reset(): void;
+        get(): T;
     }
 
     export interface IEditorOverrideServices {
@@ -1247,15 +1249,23 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Enable tab completion. Defaults to 'false'
+         */
+        tabCompletion?: boolean;
+        /**
+         * Enable word based suggestions. Defaults to 'true'
+         */
+        wordBasedSuggestions?: boolean;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
         selectionHighlight?: boolean;
         /**
-         * Show reference infos (a.k.a. code lenses) for modes that support it
+         * Show code lens
          * Defaults to true.
          */
-        referenceInfos?: boolean;
+        codeLens?: boolean;
         /**
          * Enable code folding
          * Defaults to true.
@@ -1409,8 +1419,10 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        tabCompletion: boolean;
+        wordBasedSuggestions: boolean;
         selectionHighlight: boolean;
-        referenceInfos: boolean;
+        codeLens: boolean;
         folding: boolean;
     }
 
@@ -2560,38 +2572,6 @@ declare module monaco.editor {
     }
 
     /**
-     * Conditions describing action enablement
-     */
-    export interface IActionEnablement {
-        /**
-         * The action is enabled only if text in the editor is focused (e.g. blinking cursor).
-         * Warning: This condition will be disabled if the action is marked to be displayed in the context menu
-         * Defaults to false.
-         */
-        textFocus?: boolean;
-        /**
-         * The action is enabled only if the editor or its widgets have focus (e.g. focus is in find widget).
-         * Defaults to false.
-         */
-        widgetFocus?: boolean;
-        /**
-         * The action is enabled only if the editor is not in read only mode.
-         * Defaults to false.
-         */
-        writeableEditor?: boolean;
-        /**
-         * The action is enabled only if the cursor position is over tokens of a certain kind.
-         * Defaults to no tokens required.
-         */
-        tokensAtPosition?: string[];
-        /**
-         * The action is enabled only if the cursor position is over a word (i.e. not whitespace).
-         * Defaults to false.
-         */
-        wordAtPosition?: boolean;
-    }
-
-    /**
      * A (serializable) state of the cursors.
      */
     export interface ICursorState {
@@ -2727,36 +2707,6 @@ declare module monaco.editor {
         charChanges: ICharChange[];
     }
 
-    /**
-     * A context key that is set when the editor's text has focus (cursor is blinking).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text or an editor's widget has focus.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text is readonly.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_READONLY: string;
-
-    /**
-     * A context key that is set when the editor has multiple selections (multiple cursors).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: string;
-
-    /**
-     * A context key that is set when the editor has a non-collapsed selection.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION: string;
-
-    /**
-     * A context key that is set to the language associated with the model associated with the editor.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: string;
-
     export class BareFontInfo {
         _bareFontInfoBrand: void;
         fontFamily: string;
@@ -2798,14 +2748,18 @@ declare module monaco.editor {
          */
         keybindingContext?: string;
         /**
-         * A set of enablement conditions.
-         */
-        enablement?: IActionEnablement;
-        /**
          * Method that will be executed when the action is triggered.
          * @param editor The editor instance is passed in as a convinience
          */
         run: (editor: ICommonCodeEditor) => Promise<void>;
+    }
+
+    export interface IEditorAction {
+        id: string;
+        label: string;
+        alias: string;
+        isSupported(): boolean;
+        run(): Promise<void>;
     }
 
     /**
@@ -2877,7 +2831,11 @@ declare module monaco.editor {
         /**
          * Returns all actions associated with this editor.
          */
-        getActions(): IAction[];
+        getActions(): IEditorAction[];
+        /**
+         * Returns all actions associated with this editor.
+         */
+        getSupportedActions(): IEditorAction[];
         /**
          * Saves current view state of the editor in a serializable object.
          */
@@ -3113,7 +3071,7 @@ declare module monaco.editor {
          * @id Unique identifier of the contribution.
          * @return The action or null if action not found.
          */
-        getAction(id: string): IAction;
+        getAction(id: string): IEditorAction;
         /**
          * Execute a command on the editor.
          * @param source The source of the call.
@@ -3190,15 +3148,69 @@ declare module monaco.editor {
     };
 
     /**
-     * Logical positions in the view for cursor move command.
+     * Positions in the view for cursor move command.
      */
-    export const CursorMoveViewPosition: {
-        LineStart: string;
-        LineFirstNonWhitespaceCharacter: string;
-        LineColumnCenter: string;
-        LineEnd: string;
-        LineLastNonWhitespaceCharacter: string;
+    export const CursorMovePosition: {
+        Left: string;
+        Right: string;
+        Up: string;
+        Down: string;
+        WrappedLineStart: string;
+        WrappedLineFirstNonWhitespaceCharacter: string;
+        WrappedLineColumnCenter: string;
+        WrappedLineEnd: string;
+        WrappedLineLastNonWhitespaceCharacter: string;
+        ViewPortTop: string;
+        ViewPortCenter: string;
+        ViewPortBottom: string;
     };
+
+    /**
+     * Units for Cursor move 'by' argument
+     */
+    export const CursorMoveByUnit: {
+        Line: string;
+        WrappedLine: string;
+        Character: string;
+        HalfLine: string;
+    };
+
+    /**
+     * Arguments for Cursor move command
+     */
+    export interface CursorMoveArguments {
+        to: string;
+        select?: boolean;
+        by?: string;
+        value?: number;
+    }
+
+    /**
+     * Directions in the view for editor scroll command.
+     */
+    export const EditorScrollDirection: {
+        Up: string;
+        Down: string;
+    };
+
+    /**
+     * Units for editor scroll 'by' argument
+     */
+    export const EditorScrollByUnit: {
+        Line: string;
+        WrappedLine: string;
+        Page: string;
+        HalfPage: string;
+    };
+
+    /**
+     * Arguments for editor scroll command
+     */
+    export interface EditorScrollArguments {
+        to: string;
+        by?: string;
+        value?: number;
+    }
 
     /**
      * Built-in commands.
@@ -3289,6 +3301,7 @@ declare module monaco.editor {
         LineInsertAfter: string;
         LineBreakInsert: string;
         SelectAll: string;
+        EditorScroll: string;
         ScrollLineUp: string;
         ScrollLineDown: string;
         ScrollPageUp: string;
@@ -4442,6 +4455,7 @@ declare module monaco.languages {
      */
     export interface LinkProvider {
         provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+        resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
     }
 
     export interface IResourceEdit {

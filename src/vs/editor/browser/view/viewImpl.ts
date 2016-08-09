@@ -47,6 +47,8 @@ import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewpo
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 
+import EditorContextKeys = editorCommon.EditorContextKeys;
+
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
 	private eventDispatcher:ViewEventDispatcher;
@@ -87,7 +89,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private accumulatedModelEvents: EmitterEvent[];
 	private _renderAnimationFrame: IDisposable;
 
-	private _keybindingService: IKeybindingService;
 	private _editorTextFocusContextKey: IKeybindingContextKey<boolean>;
 
 	constructor(
@@ -173,8 +174,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private createTextArea(keybindingService: IKeybindingService): void {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = <HTMLTextAreaElement>document.createElement('textarea');
-		this._keybindingService = keybindingService.createScoped(this.textArea);
-		this._editorTextFocusContextKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS, undefined);
+		this._editorTextFocusContextKey = EditorContextKeys.TextFocus.bindTo(keybindingService);
 		this.textArea.className = editorBrowser.ClassNames.TEXTAREA;
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
@@ -506,7 +506,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.viewParts = [];
 
 		this.layoutProvider.dispose();
-		this._keybindingService.dispose();
+		this._editorTextFocusContextKey.reset();
 	}
 
 	// --- begin Code Editor APIs
@@ -594,6 +594,14 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		var viewModel = this._context.model;
 		var currentCenteredViewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
 		return viewModel.convertViewRangeToModelRange(currentCenteredViewRange);
+	}
+
+	public getVisibleRangeInViewport(): Range {
+		if (this._isDisposed) {
+			throw new Error('ViewImpl.getVisibleRangeInViewport: View is disposed');
+		}
+		let visibleRange = this.layoutProvider.getLinesViewportData().visibleRange;
+		return this._context.model.convertViewRangeToModelRange(visibleRange);
 	}
 
 //	public getLineInfoProvider():view.ILineInfoProvider {

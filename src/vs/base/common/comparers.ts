@@ -49,7 +49,7 @@ export function compareAnything(one: string, other: string, lookFor: string): nu
 	}
 
 	// Compare by name
-	return strings.localeCompare(elementAName, elementBName);
+	return elementAName.localeCompare(elementBName);
 }
 
 export function compareByPrefix(one: string, other: string, lookFor: string): number {
@@ -57,8 +57,8 @@ export function compareByPrefix(one: string, other: string, lookFor: string): nu
 	let elementBName = other.toLowerCase();
 
 	// Sort prefix matches over non prefix matches
-	let elementAPrefixMatch = elementAName.indexOf(lookFor) === 0;
-	let elementBPrefixMatch = elementBName.indexOf(lookFor) === 0;
+	let elementAPrefixMatch = strings.startsWith(elementAName, lookFor);
+	let elementBPrefixMatch = strings.startsWith(elementBName, lookFor);
 	if (elementAPrefixMatch !== elementBPrefixMatch) {
 		return elementAPrefixMatch ? -1 : 1;
 	}

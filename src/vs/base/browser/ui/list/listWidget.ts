@@ -7,6 +7,7 @@ import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
+import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Event, { Emitter, mapEvent, EventBufferer, filterEvent } from 'vs/base/common/event';
@@ -66,7 +67,7 @@ class Trait<T> implements IDisposable {
 		const end = start + deleteCount;
 		const indexes = [];
 
-		for (const index of indexes) {
+		for (let index of indexes) {
 			if (index >= start && index < end) {
 				continue;
 			}
@@ -130,7 +131,8 @@ class Controller<T> implements IDisposable {
 	) {
 		this.disposables = [];
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
-		this.disposables.push(view.addListener('click', e => this.onClick(e)));
+		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
+		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 
 		const onRawKeyDown = domEvent(view.domNode, 'keydown');
 		const onKeyDown = mapEvent(onRawKeyDown, e => new StandardKeyboardEvent(e));
@@ -146,7 +148,7 @@ class Controller<T> implements IDisposable {
 		e.stopPropagation();
 	}
 
-	private onClick(e: IListMouseEvent<T>) {
+	private onPointer(e: IListMouseEvent<T>) {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
@@ -372,6 +374,16 @@ export class List<T> implements IDisposable {
 				setTimeout(() => this.focusPreviousPage(), 0);
 			}
 		}
+	}
+
+	focusFirst(): void {
+		if (this.length === 0) { return; }
+		this.setFocus(0);
+	}
+
+	focusLast(): void {
+		if (this.length === 0) { return; }
+		this.setFocus(this.length - 1);
 	}
 
 	getFocus(): number[] {

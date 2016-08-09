@@ -7,7 +7,7 @@
 
 import { PPromise } from 'vs/base/common/winjs.base';
 import glob = require('vs/base/common/glob');
-import { IProgress, ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
+import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
 
 export interface IRawSearch {
 	rootFolders: string[];
@@ -27,12 +27,13 @@ export interface IRawSearchService {
 }
 
 export interface ISearchEngine {
-	search: (onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void) => void;
+	search: (onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
 	cancel: () => void;
 }
 
 export interface ISerializedSearchComplete {
 	limitHit: boolean;
+	stats: ISearchStats;
 }
 
 export interface ISerializedFileMatch {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
 import debug = require('vs/workbench/parts/debug/common/debug');
 
 export class ViewModel implements debug.IViewModel {

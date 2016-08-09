@@ -155,7 +155,7 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 									insertText += ',';
 								}
 							}
-							let item : CompletionItem = { kind: CompletionItemKind.Property, label: name, insertText: insertText };
+							let item : CompletionItem = { kind: CompletionItemKind.Property, label: name, insertText: insertText, filterText: JSON.stringify(name)};
 							if (!this.completeWithCache(name, item)) {
 								item.data = RESOLVE_ID + name;
 							}
@@ -219,10 +219,10 @@ export class ProjectJSONContribution implements JSONWorkerContribution {
 							this.addCached(res.id, res.version, res.description);
 							if (res.id === pack) {
 								if (res.description) {
-									htmlContent.push(res.description);
+									htmlContent.push({ language: 'string', value: res.description });
 								}
 								if (res.version) {
-									htmlContent.push(localize('json.nugget.version.hover', 'Latest version: {0}', res.version));
+									htmlContent.push({ language: 'string', value: localize('json.nugget.version.hover', 'Latest version: {0}', res.version)});
 								}
 								break;
 							}

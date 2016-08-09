@@ -168,15 +168,6 @@ class LanguageProvider {
 					increaseIndentPattern: /^.*\{[^}"']*$/
 				},
 				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-				comments: {
-					lineComment: '//',
-					blockComment: ['/*', '*/']
-				},
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')'],
-				],
 				onEnterRules: [
 					{
 						// e.g. /** | */
@@ -204,22 +195,7 @@ class LanguageProvider {
 						beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
 						action: { indentAction: IndentAction.None, removeText: 1 }
 					}
-				],
-
-				__electricCharacterSupport: {
-					docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
-				},
-
-				__characterPairSupport: {
-					autoClosingPairs: [
-						{ open: '{', close: '}' },
-						{ open: '[', close: ']' },
-						{ open: '(', close: ')' },
-						{ open: '"', close: '"', notIn: ['string'] },
-						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-						{ open: '`', close: '`', notIn: ['string', 'comment'] }
-					]
-				}
+				]
 			});
 		});
 	}

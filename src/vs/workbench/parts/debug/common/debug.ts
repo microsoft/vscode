@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { Range } from 'vs/editor/common/core/range';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
+import {Range} from 'vs/editor/common/core/range';
+import {KbCtxKey, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
-export const CONTEXT_IN_DEBUG_MODE = 'inDebugMode';
+export const CONTEXT_IN_DEBUG_MODE = new KbCtxKey<boolean>('inDebugMode', false);
+export const CONTEXT_NOT_IN_DEBUG_MODE:KbExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 
 // raw
@@ -51,6 +53,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	name: string;
 	value: string;
 	valueChanged: boolean;
+	type?: string;
 }
 
 export interface IThread extends ITreeElement {
@@ -235,6 +238,10 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	windows?: IRawEnvAdapter;
 	osx?: IRawEnvAdapter;
 	linux?: IRawEnvAdapter;
+}
+
+export interface IRawBreakpointContribution {
+	language: string;
 }
 
 export interface IRawDebugSession {

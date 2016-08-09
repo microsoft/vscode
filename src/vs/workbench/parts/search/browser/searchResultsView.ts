@@ -75,7 +75,7 @@ export class SearchSorter implements ISorter {
 
 	public compare(tree: ITree, elementA: FileMatchOrMatch, elementB: FileMatchOrMatch): number {
 		if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-			return strings.localeCompare(elementA.resource().fsPath, elementB.resource().fsPath) || strings.localeCompare(elementA.name(), elementB.name());
+			return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
 		}
 
 		if (elementA instanceof Match && elementB instanceof Match) {

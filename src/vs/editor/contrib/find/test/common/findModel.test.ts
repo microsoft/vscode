@@ -1622,4 +1622,174 @@ suite('FindModel', () => {
 		findModel.dispose();
 		findState.dispose();
 	});
+
+	findTest('replace when search string has look ahed regex', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex:true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.replace();
+
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[8, 14, 8, 19]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[8, 16, 8, 16],
+			null,
+			[ ]
+		);
+		assert.equal(editor.getModel().getLineContent(8), '    cout << "hi world again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('replace when search string has look ahed regex and cursor is at the last find match', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex:true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		cursor.trigger('mouse', Handler.MoveTo, {
+			position: new Position(8, 14)
+		});
+
+		assertFindState(
+			editor,
+			[8, 14, 8, 14],
+			null,
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.replace();
+
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		assert.equal(editor.getModel().getLineContent(8), '    cout << "Hello world again" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(8), '    cout << "hi world again" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[7, 16, 7, 16],
+			null,
+			[ ]
+		);
+		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('replaceAll when search string has look ahed regex', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex:true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.replaceAll();
+
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.equal(editor.getModel().getLineContent(8), '    cout << "hi world again" << endl;');
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[ ]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
 });

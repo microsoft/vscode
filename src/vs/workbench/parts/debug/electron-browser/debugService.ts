@@ -5,53 +5,53 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
-import Event, { Emitter } from 'vs/base/common/event';
+import {guessMimeTypes, MIME_TEXT} from 'vs/base/common/mime';
+import Event, {Emitter} from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Action } from 'vs/base/common/actions';
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {Action} from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
-import { IEventService } from 'vs/platform/event/common/event';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IFileService, FileChangesEvent, FileChangeType, EventType} from 'vs/platform/files/common/files';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
+import {TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import session = require('vs/workbench/parts/debug/node/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import { DebugStringEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
+import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
-import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ITextFileService } from 'vs/workbench/parts/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
-import { ipcRenderer as ipc } from 'electron';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import {ConfigurationManager} from 'vs/workbench/parts/debug/node/debugConfigurationManager';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
+import {ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
+import {TaskError, TaskErrors} from 'vs/workbench/parts/tasks/common/taskSystem';
+import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
+import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IWindowService, IBroadcast} from 'vs/workbench/services/window/electron-browser/windowService';
+import {ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL} from 'vs/workbench/services/thread/electron-browser/threadService';
+import {ipcRenderer as ipc} from 'electron';
+import {Client} from 'vs/base/parts/ipc/node/ipc.cp';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -109,7 +109,7 @@ export class DebugService implements debug.IDebugService {
 			this._state = debug.State.Disabled;
 		}
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
-		this.inDebugMode = keybindingService.createKey(debug.CONTEXT_IN_DEBUG_MODE, false);
+		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(keybindingService);
 
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
@@ -289,6 +289,10 @@ export class DebugService implements debug.IDebugService {
 					this.session.disconnect().done(null, errors.onUnexpectedError);
 				}
 			}
+		}));
+
+		this.toDisposeOnSessionEnd.push(this.session.onDidContinued(event => {
+			this.lazyTransitionToRunningState(event.body.allThreadsContinued ? undefined : event.body.threadId);
 		}));
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidOutput(event => {
@@ -619,7 +623,8 @@ export class DebugService implements debug.IDebugService {
 				pathFormat: 'path',
 				linesStartAt1: true,
 				columnsStartAt1: true,
-				supportsVariableType: true // #8858
+				supportsVariableType: true, // #8858
+				supportsVariablePaging: true // #9537
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				if (!this.session) {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
@@ -628,6 +633,10 @@ export class DebugService implements debug.IDebugService {
 				this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
 				return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 			}).then((result: DebugProtocol.Response) => {
+				if (!this.session) {
+					return TPromise.as(null);
+				}
+
 				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
@@ -827,7 +836,7 @@ export class DebugService implements debug.IDebugService {
 
 		if (source.inMemory) {
 			// internal module
-			if (source.reference !== 0 && this.session) {
+			if (source.reference !== 0 && this.session && source.available) {
 				return this.session.source({ sourceReference: source.reference }).then(response => {
 					const mime = response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
 					return this.getDebugStringEditorInput(source, response.body.content, mime);
@@ -938,6 +947,7 @@ export class DebugService implements debug.IDebugService {
 
 	private lazyTransitionToRunningState(threadId?: number): void {
 		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
+
 		const toDispose = this.session.onDidStop(e => {
 			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
 				setNewFocusedStackFrameScheduler.cancel();

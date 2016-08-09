@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "Controlla se i suggerimenti devono essere accettati con 'INVIO' in aggiunta a 'TAB'. Consente di evitare ambiguità tra l'inserimento di nuove righe e l'accettazione di suggerimenti.",
 	"autoClosingBrackets": "Controlla se l'editor deve chiudere automaticamente le parentesi quadre dopo che sono state aperte",
-	"cursorBlinking": "Controlla l'animazione per l'intermittenza del cursore. I valori accettati sono: 'blink', 'visible' e 'hidden'",
-	"cursorStyle": "Controlla lo stile del cursore. I valori accettati sono 'block' e 'line'",
+	"cursorBlinking": "Controlla lo stile di animazione del cursore. I valori possibili sono: 'blink', 'smooth', 'phase', 'expand' e 'solid'",
+	"cursorStyle": "Controlla lo stile del cursore. I valori accettati sono 'block', 'line' e 'underline'",
 	"detectIndentation": "All'apertura di un file, `editor.tabSize` e `editor.insertSpaces` verranno rilevati in base al contenuto del file.",
 	"editorConfigurationTitle": "Editor",
 	"folding": "Controlla se per l'editor è abilitata la riduzione del codice",
@@ -23,6 +23,7 @@
 	"lineHeight": "Controlla l'altezza della riga.",
 	"lineNumbers": "Controlla la visibilità dei numeri di riga",
 	"mouseWheelScrollSensitivity": "Moltiplicatore da usare sui valori `deltaX` e `deltaY` degli eventi di scorrimento della rotellina del mouse",
+	"mouseWheelZoom": "Ingrandisce il carattere dell'editor quando si usa la rotellina del mouse e si tiene premuto CTRL",
 	"overviewRulerLanes": "Controlla il numero di effetti che possono essere visualizzati nella stessa posizione nel righello delle annotazioni",
 	"quickSuggestions": "Controlla se durante la digitazione verranno o meno visualizzati i suggerimenti rapidi",
 	"quickSuggestionsDelay": "Controlla il ritardo in ms dopo il quale verranno visualizzati i suggerimenti rapidi",

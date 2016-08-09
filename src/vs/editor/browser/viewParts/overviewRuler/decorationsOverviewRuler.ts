@@ -14,7 +14,8 @@ import {Position} from 'vs/editor/common/core/position';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
-	static DECORATION_HEIGHT = 6;
+	static MIN_DECORATION_HEIGHT = 6;
+	static MAX_DECORATION_HEIGHT = 60;
 
 	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
 	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
@@ -38,8 +39,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 			scrollHeight,
 			this._context.configuration.editor.lineHeight,
 			this._context.configuration.editor.viewInfo.canUseTranslate3d,
-			DecorationsOverviewRuler.DECORATION_HEIGHT,
-			DecorationsOverviewRuler.DECORATION_HEIGHT,
+			DecorationsOverviewRuler.MIN_DECORATION_HEIGHT,
+			DecorationsOverviewRuler.MAX_DECORATION_HEIGHT,
 			getVerticalOffsetForLine
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);

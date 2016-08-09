@@ -60,5 +60,17 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.distinct(['32', 'constructor', 'proto', 'proto', 'constructor'], compare), ['32', 'constructor', 'proto']);
 		assert.deepEqual(arrays.distinct(['32', '4', '5', '32', '4', '5', '32', '4', '5', '5'], compare), ['32', '4', '5']);
 	});
+
+	test('top', function () {
+		const cmp = (a, b) => a - b;
+
+		assert.deepEqual(arrays.top([], cmp, 1), []);
+		assert.deepEqual(arrays.top([1], cmp, 0), []);
+		assert.deepEqual(arrays.top([1, 2], cmp, 1), [1]);
+		assert.deepEqual(arrays.top([2, 1], cmp, 1), [1]);
+		assert.deepEqual(arrays.top([1, 3, 2], cmp, 2), [1, 2]);
+		assert.deepEqual(arrays.top([3, 2, 1], cmp, 3), [1, 2, 3]);
+		assert.deepEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
+	});
 });
 

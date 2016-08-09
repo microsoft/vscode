@@ -8,11 +8,12 @@ import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import Severity from 'vs/base/common/severity';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {stringDiff} from 'vs/base/common/diff/diff';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 
@@ -154,6 +155,43 @@ export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.Decorat
 }
 
 export const TextEdit = {
+
+	minimalEditOperations(edits: vscode.TextEdit[], document: vscode.TextDocument, beforeDocumentVersion: number): ISingleEditOperation[] {
+
+		// document has changed in the meantime and we shouldn't do
+		// offset math as it's likely to be all wrong
+		if (document.version !== beforeDocumentVersion) {
+			return edits.map(TextEdit.from);
+		}
+
+		const result: ISingleEditOperation[] = [];
+
+		for (let edit of edits) {
+
+			const original = document.getText(edit.range);
+			const modified = edit.newText;
+			const changes = stringDiff(original, modified);
+
+			if (changes.length <= 1) {
+				result.push(TextEdit.from(edit));
+				continue;
+			}
+
+			for (let j = 0; j < changes.length; j++) {
+				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
+				const start = fromPosition(<types.Position> document.positionAt(originalStart));
+				const end = fromPosition(<types.Position> document.positionAt(originalStart + originalLength));
+
+				result.push({
+					text: modified.substr(modifiedStart, modifiedLength),
+					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
+				});
+			}
+		}
+
+		return result;
+	},
+
 	from(edit: vscode.TextEdit): ISingleEditOperation{
 		return <ISingleEditOperation>{
 			text: edit.newText,
@@ -190,23 +228,22 @@ export namespace SymbolInformation {
 	}
 }
 
-export function fromSymbolInformation(info: vscode.SymbolInformation): ITypeBearing {
-	return <ITypeBearing>{
+export function fromSymbolInformation(info: vscode.SymbolInformation): IWorkspaceSymbol {
+	return <IWorkspaceSymbol>{
 		name: info.name,
 		type: types.SymbolKind[info.kind || types.SymbolKind.Property].toLowerCase(),
-		range: fromRange(info.location.range),
-		resourceUri: info.location.uri,
 		containerName: info.containerName,
-		parameters: '',
+		range: info.location && fromRange(info.location.range),
+		resource: info.location && info.location.uri,
 	};
 }
 
-export function toSymbolInformation(bearing: ITypeBearing): types.SymbolInformation {
+export function toSymbolInformation(bearing: IWorkspaceSymbol): types.SymbolInformation {
 	return new types.SymbolInformation(bearing.name,
 		types.SymbolKind[bearing.type.charAt(0).toUpperCase() + bearing.type.substr(1)],
-		toRange(bearing.range),
-		bearing.resourceUri,
-		bearing.containerName);
+		bearing.containerName,
+		new types.Location(bearing.resource, toRange(bearing.range))
+	);
 }
 
 
@@ -318,6 +355,19 @@ export namespace SignatureHelp {
 	}
 }
 
+export namespace DocumentLink {
+
+	export function from(link: vscode.DocumentLink): modes.ILink {
+		return {
+			range: fromRange(link.range),
+			url: link.target && link.target.toString()
+		};
+	}
+
+	export function to(link: modes.ILink): vscode.DocumentLink {
+		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
+	}
+}
 
 export namespace Command {
 

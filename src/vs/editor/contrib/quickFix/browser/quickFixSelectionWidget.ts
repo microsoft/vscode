@@ -196,7 +196,7 @@ interface ITelemetryData {
 }
 
 export class QuickFixSelectionWidget implements IContentWidget {
-	static ID = 'editor.widget.QuickFixSelectionWidget';
+	private static ID = 'editor.widget.QuickFixSelectionWidget';
 	static WIDTH = 360;
 
 	static LOADING_MESSAGE = new MessageRoot(nls.localize('QuickFixSelectionWidget.loading', "Loading..."));

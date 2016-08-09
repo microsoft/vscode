@@ -6,8 +6,8 @@
 {
 	"acceptSuggestionOnEnter": "Contrôle si les suggestions peuvent être acceptées avec Entrée (en plus de Tab). Cela permet d'éviter toute ambiguïté entre l'insertion de nouvelles lignes et l'acceptation de suggestions.",
 	"autoClosingBrackets": "Contrôle si l'éditeur doit automatiquement fermer les crochets après les avoir ouverts",
-	"cursorBlinking": "Contrôle l'animation clignotante du curseur. Les valeurs acceptées sont 'blink', 'visible' et 'hidden'",
-	"cursorStyle": "Contrôle le style du curseur. Les valeurs acceptées sont 'block' et 'line'",
+	"cursorBlinking": "Contrôle le style d'animation du curseur. Valeurs possibles : 'blink', 'smooth', 'phase', 'expand' et 'solid'",
+	"cursorStyle": "Contrôle le style du curseur. Valeurs acceptées : 'block', 'line' et 'underline'",
 	"detectIndentation": "Quand vous ouvrez un fichier, 'editor.tabSize' et 'editor.insertSpaces' sont détectés en fonction du contenu du fichier.",
 	"editorConfigurationTitle": "Configuration de l'éditeur",
 	"folding": "Contrôle si le pliage de code est activé dans l'éditeur",
@@ -23,6 +23,7 @@
 	"lineHeight": "Contrôle la hauteur de ligne.",
 	"lineNumbers": "Contrôle la visibilité des numéros de ligne",
 	"mouseWheelScrollSensitivity": "Multiplicateur à utiliser pour le 'deltaX' et le 'deltaY' des événements de défilement de la roulette de la souris",
+	"mouseWheelZoom": "Agrandir ou réduire la police de l'éditeur quand l'utilisateur fait tourner la roulette de la souris tout en maintenant la touche Ctrl enfoncée",
 	"overviewRulerLanes": "Contrôle le nombre d'ornements pouvant s'afficher à la même position dans la règle d'aperçu",
 	"parameterHints": "Active les indicateurs de paramètres",
 	"quickSuggestions": "Contrôle si les suggestions rapides doivent s'afficher ou non pendant la saisie",

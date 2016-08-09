@@ -17,7 +17,7 @@ import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
-import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {IKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -237,7 +237,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		if (isValidContributedKeyBinding(keybindings, rejects)) {
 			let rule = this._asCommandRule(isBuiltin, idx++, keybindings);
 			if (rule) {
-				KeybindingsRegistry.registerCommandRule(rule);
+				KeybindingsRegistry.registerKeybindingRule(rule);
 				commandAdded = true;
 			}
 		}
@@ -254,7 +254,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return commandAdded;
 	}
 
-	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): ICommandRule {
+	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule {
 
 		let {command, when, key, mac, linux, win} = binding;
 

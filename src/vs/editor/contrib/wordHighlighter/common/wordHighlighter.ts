@@ -273,7 +273,7 @@ class WordHighlighter {
 
 class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.wordHighlighter';
+	private static ID = 'editor.contrib.wordHighlighter';
 
 	private wordHighligher: WordHighlighter;
 

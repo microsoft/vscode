@@ -32,7 +32,7 @@ import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/p
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent} from 'vs/workbench/parts/search/common/searchModel';
 import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {VIEWLET_ID} from 'vs/workbench/parts/search/common/constants';
+import {VIEWLET_ID, SearchViewletVisible} from 'vs/workbench/parts/search/common/constants';
 import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import {ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -84,6 +84,8 @@ export class SearchViewlet extends Viewlet {
 	private inputPatternIncludes: PatternInputWidget;
 	private results: Builder;
 
+	private currentSelectedFileMatch: FileMatch;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEventService private eventService: IEventService,
@@ -103,7 +105,7 @@ export class SearchViewlet extends Viewlet {
 		super(VIEWLET_ID, telemetryService);
 
 		this.toDispose = [];
-		this.viewletVisible = keybindingService.createKey<boolean>('searchViewletVisible', true);
+		this.viewletVisible = SearchViewletVisible.bindTo(keybindingService);
 		this.callOnModelChange = [];
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -140,14 +142,6 @@ export class SearchViewlet extends Viewlet {
 		let includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
 
-		let onKeyUp = (e: KeyboardEvent) => {
-			if (e.keyCode === KeyCode.Enter) {
-				this.onQueryChanged(true);
-			} else if (e.keyCode === KeyCode.Escape) {
-				this.cancelSearch();
-			}
-		};
-
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
@@ -175,7 +169,6 @@ export class SearchViewlet extends Viewlet {
 				this.inputPatternIncludes.setValue(patternIncludes);
 
 				this.inputPatternIncludes
-					.on(dom.EventType.KEY_UP, onKeyUp)
 					.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 						let keyboardEvent = new StandardKeyboardEvent(e);
 						if (keyboardEvent.equals(CommonKeybindings.UP_ARROW)) {
@@ -206,7 +199,6 @@ export class SearchViewlet extends Viewlet {
 				this.inputPatternExclusions.setValue(patternExclusions);
 
 				this.inputPatternExclusions
-					.on(dom.EventType.KEY_UP, onKeyUp)
 					.on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 						let keyboardEvent = new StandardKeyboardEvent(e);
 						if (keyboardEvent.equals(CommonKeybindings.UP_ARROW)) {
@@ -424,7 +416,15 @@ export class SearchViewlet extends Viewlet {
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
 
-				this.onFocus(element, !focusEditor, sideBySide, doubleClick);
+				if (element instanceof Match) {
+					let selectedMatch:Match = element;
+					if (this.currentSelectedFileMatch) {
+						this.currentSelectedFileMatch.setSelectedMatch(null);
+					}
+					this.currentSelectedFileMatch = selectedMatch.parent();
+					this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
+					this.onFocus(selectedMatch, !focusEditor, sideBySide, doubleClick);
+				}
 			}));
 		});
 	}
@@ -503,11 +503,11 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		this.searchWidget.setWidth(this.size.width - 34 /* container margin */);
+		this.searchWidget.setWidth(this.size.width - 25 /* container margin */);
 
-		this.inputPatternExclusions.setWidth(this.size.width - 36 /* container margin */);
-		this.inputPatternIncludes.setWidth(this.size.width - 36 /* container margin */);
-		this.inputPatternGlobalExclusions.width = this.size.width - 36 /* container margin */ - 24 /* actions */;
+		this.inputPatternExclusions.setWidth(this.size.width - 28 /* container margin */);
+		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
+		this.inputPatternGlobalExclusions.width = this.size.width - 28 /* container margin */ - 24 /* actions */;
 
 		let searchResultContainerSize = this.size.height - dom.getTotalHeight(this.searchWidgetsContainer.getContainer()) - 6 /** container margin top */;
 		this.results.style({ height: searchResultContainerSize + 'px' });
@@ -892,9 +892,10 @@ export class SearchViewlet extends Viewlet {
 		this.messages.hide();
 		this.results.show();
 		this.tree.onVisible();
+		this.currentSelectedFileMatch = null;
 	}
 
-	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
 			return TPromise.as(true);
 		}

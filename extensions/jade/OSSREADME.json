@@ -4,6 +4,7 @@
 	"version": "0.0.0",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/davidrios/jade-tmbundle",
+	"description": "The file syntaxes/Jade.json was derived from Jade.tmLanguage in https://github.com/davidrios/jade-tmbundle.",
 	"licenseDetail": [
 		"The MIT License (MIT)",
 		"",

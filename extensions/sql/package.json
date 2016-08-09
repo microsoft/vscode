@@ -8,7 +8,7 @@
 			"id": "sql",
 			"extensions": [ ".sql" ],
 			"aliases": [ "SQL" ],
-			"configuration": "./sql.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "sql",

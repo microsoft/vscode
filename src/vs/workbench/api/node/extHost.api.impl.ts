@@ -74,6 +74,7 @@ export class ExtHostAPIImplementation {
 	CompletionItem: typeof vscode.CompletionItem;
 	CompletionItemKind: typeof vscode.CompletionItemKind;
 	CompletionList: typeof vscode.CompletionList;
+	DocumentLink: typeof vscode.DocumentLink;
 	IndentAction: typeof vscode.IndentAction;
 	OverviewRulerLane: typeof vscode.OverviewRulerLane;
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
@@ -150,6 +151,7 @@ export class ExtHostAPIImplementation {
 		this.CompletionItem = extHostTypes.CompletionItem;
 		this.CompletionItemKind = extHostTypes.CompletionItemKind;
 		this.CompletionList = extHostTypes.CompletionList;
+		this.DocumentLink = extHostTypes.DocumentLink;
 		this.ViewColumn = extHostTypes.ViewColumn;
 		this.StatusBarAlignment = extHostTypes.StatusBarAlignment;
 		this.IndentAction = Modes.IndentAction;
@@ -234,11 +236,11 @@ export class ExtHostAPIImplementation {
 			showErrorMessage: (message, ...items) => {
 				return extHostMessageService.showMessage(Severity.Error, message, items);
 			},
-			showQuickPick: (items: any, options: vscode.QuickPickOptions) => {
-				return extHostQuickOpen.show(items, options);
+			showQuickPick: (items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) => {
+				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
-			showInputBox(options?: vscode.InputBoxOptions) {
-				return extHostQuickOpen.input(options);
+			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
+				return extHostQuickOpen.showInput(options, token);
 			},
 
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
@@ -368,6 +370,9 @@ export class ExtHostAPIImplementation {
 			},
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
 				return languageFeatures.registerCompletionItemProvider(selector, provider, triggerCharacters);
+			},
+			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
+				return languageFeatures.registerDocumentLinkProvider(selector, provider);
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration):vscode.Disposable => {
 				return languageFeatures.setLanguageConfiguration(language, configuration);

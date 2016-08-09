@@ -36,7 +36,10 @@ export class FileAssociationContribution implements JSONWorkerContribution {
 
 	public collectPropertyCompletions(resource: string, location: JSONPath, currentWord: string, addValue: boolean, isLast: boolean, result: CompletionsCollector): Thenable<any> {
 		if (this.isSettingsFile(resource) && location.length === 1 && location[0] === 'files.associations') {
-			globProperties.forEach((e) => result.add(e));
+			globProperties.forEach(e => {
+				e.filterText = e.insertText;
+				result.add(e);
+			});
 		}
 
 		return null;
@@ -48,7 +51,8 @@ export class FileAssociationContribution implements JSONWorkerContribution {
 				result.add({
 					kind: CompletionItemKind.Value,
 					label: l,
-					insertText: '"{{' + l + '}}"',
+					insertText: JSON.stringify('{{' + l + '}}'),
+					filterText: JSON.stringify(l)
 				});
 			});
 		}

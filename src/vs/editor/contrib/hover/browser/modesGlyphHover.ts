@@ -70,7 +70,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
 export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
-	static ID = 'editor.contrib.modesGlyphHoverWidget';
+	public static ID = 'editor.contrib.modesGlyphHoverWidget';
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 

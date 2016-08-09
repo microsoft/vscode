@@ -63,7 +63,7 @@ export class Position {
 		return result;
 	}
 
-	static is(other: any): other is Position {
+	static isPosition(other: any): other is Position {
 		if (!other) {
 			return false;
 		}
@@ -206,6 +206,17 @@ export class Position {
 
 export class Range {
 
+	static isRange(thing: any): thing is Range {
+		if (thing instanceof Range) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Position.isPosition((<Range>thing).start)
+			&& Position.isPosition((<Range>thing.end));
+	}
+
 	protected _start: Position;
 	protected _end: Position;
 
@@ -308,7 +319,7 @@ export class Range {
 		if (!startOrChange) {
 			start = this.start;
 
-		} else if (Position.is(startOrChange)) {
+		} else if (Position.isPosition(startOrChange)) {
 			start = startOrChange;
 
 		} else {
@@ -328,6 +339,19 @@ export class Range {
 }
 
 export class Selection extends Range {
+
+	static isSelection(thing: any): thing is Selection {
+		if (thing instanceof Selection) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Range.isRange(thing)
+			&& Position.isPosition((<Selection>thing).anchor)
+			&& Position.isPosition((<Selection>thing).active)
+			&& typeof (<Selection>thing).isReversed === 'boolean';
+	}
 
 	private _anchor: Position;
 
@@ -380,6 +404,17 @@ export class Selection extends Range {
 }
 
 export class TextEdit {
+
+	static isTextEdit(thing: any): thing is TextEdit {
+		if (thing instanceof TextEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Range.isRange((<TextEdit>thing))
+			&& typeof (<TextEdit>thing).newText === 'string';
+	}
 
 	static replace(range: Range, newText: string): TextEdit {
 		return new TextEdit(range, newText);
@@ -495,16 +530,29 @@ export enum DiagnosticSeverity {
 
 export class Location {
 
+	static isLocation(thing: any): thing is Location {
+		if (thing instanceof Location) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Range.isRange((<Location>thing).range)
+			&& URI.isUri((<Location>thing).uri);
+	}
+
 	uri: URI;
 	range: Range;
 
-	constructor(uri: URI, range: Range | Position) {
+	constructor(uri: URI, rangeOrPosition: Range | Position) {
 		this.uri = uri;
 
-		if (range instanceof Range) {
-			this.range = range;
-		} else if (range instanceof Position) {
-			this.range = new Range(range, range);
+		if (!rangeOrPosition) {
+			//that's OK
+		} else if (rangeOrPosition instanceof Range) {
+			this.range = rangeOrPosition;
+		} else if (rangeOrPosition instanceof Position) {
+			this.range = new Range(rangeOrPosition, rangeOrPosition);
 		} else {
 			throw new Error('Illegal argument');
 		}
@@ -617,11 +665,22 @@ export class SymbolInformation {
 	kind: SymbolKind;
 	containerName: string;
 
-	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string) {
+	constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
+	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
+	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | Range, locationOrUri?: Location | URI, containerName?: string) {
 		this.name = name;
 		this.kind = kind;
-		this.location = new Location(uri, range);
 		this.containerName = containerName;
+
+		if (typeof rangeOrContainer === 'string') {
+			this.containerName = rangeOrContainer;
+		}
+
+		if (locationOrUri instanceof Location) {
+			this.location = locationOrUri;
+		} else if (rangeOrContainer instanceof Range) {
+			this.location = new Location(<URI> locationOrUri, rangeOrContainer);
+		}
 	}
 
 	toJSON(): any {
@@ -768,4 +827,22 @@ export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
 	InCenterIfOutsideViewport = 2
+}
+
+export class DocumentLink {
+
+	range: Range;
+
+	target: URI;
+
+	constructor(range: Range, target: URI) {
+		if (target && !(target instanceof URI)) {
+			throw illegalArgument('target');
+		}
+		if (!Range.isRange(range) || range.isEmpty) {
+			throw illegalArgument('range');
+		}
+		this.range = range;
+		this.target = target;
+	}
 }

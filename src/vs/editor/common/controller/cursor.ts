@@ -102,31 +102,6 @@ export class Cursor extends EventEmitter {
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
-		if (!this.viewModelHelper) {
-			this.viewModelHelper = {
-				viewModel: this.model,
-				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertModelRangeToViewRange: (modelRange: Range) => {
-					return modelRange;
-				},
-				convertViewToModelPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertViewSelectionToModelSelection: (viewSelection:Selection) => {
-					return viewSelection;
-				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
-					return modelPosition;
-				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range) => {
-					return modelRange;
-				}
-
-			};
-		}
-
 		this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
 		this.cursorUndoStack = [];
 
@@ -1028,6 +1003,8 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.Outdent] =						(ctx) => this._outdent(ctx);
 		this._handlers[H.Paste] =						(ctx) => this._paste(ctx);
 
+		this._handlers[H.EditorScroll] = 				(ctx) => this._editorScroll(ctx);
+
 		this._handlers[H.ScrollLineUp] =				(ctx) => this._scrollUp(false, ctx);
 		this._handlers[H.ScrollLineDown] =				(ctx) => this._scrollDown(false, ctx);
 		this._handlers[H.ScrollPageUp] =				(ctx) => this._scrollUp(true, ctx);
@@ -1128,7 +1105,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _cursorMove(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, !!ctx.eventData.inSelectionMode, ctx.eventData.to, ctx.eventSource, oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.move(oneCursor, ctx.eventData, ctx.eventSource, oneCtx));
 	}
 
 	private _columnSelectToLineNumber: number = 0;
@@ -1278,15 +1255,23 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveLeft(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveLeft(oneCursor, inSelectionMode, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Left;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordLeft(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordLeft(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
 	}
 
-	private _moveRight(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveRight(oneCursor, inSelectionMode, oneCtx));
+	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Right;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordRight(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
@@ -1294,11 +1279,23 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveDown(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveDown(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Down;
+		ctx.eventData.select = inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
+		ctx.eventData.isPaged= isPaged;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveUp(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveUp(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Up;
+		ctx.eventData.select= inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
+		ctx.eventData.isPaged= isPaged;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveToBeginningOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
@@ -1456,14 +1453,49 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? -this.cursors.getAll()[0].getPageSize() : -1;
+	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
+		let editorScrollArg: editorCommon.EditorScrollArguments = ctx.eventData;
+		editorScrollArg.value = editorScrollArg.value || 1;
+		switch (editorScrollArg.to) {
+			case editorCommon.EditorScrollDirection.Up:
+			case editorCommon.EditorScrollDirection.Down:
+				return this._scrollUpOrDown(editorScrollArg, ctx);
+		}
 		return true;
 	}
 
-	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? this.cursors.getAll()[0].getPageSize() : 1;
+	private _scrollUpOrDown(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
+		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
+		let noOfLines = 1;
+		let cursor: OneCursor = this.cursors.getAll()[0];
+		switch (editorScrollArg.by) {
+			case editorCommon.EditorScrollByUnit.WrappedLine:
+				noOfLines = editorScrollArg.value;
+				break;
+			case editorCommon.EditorScrollByUnit.Line:
+				noOfLines = (up ? cursor.getDeltaViewLinesToRevealModelLineBeforeViewPortTop(editorScrollArg.value) : cursor.getDeltaViewLinesToRevealModelLineAfteriewPortBottom(editorScrollArg.value)) || 1;
+				break;
+			case editorCommon.EditorScrollByUnit.Page:
+				noOfLines = cursor.getPageSize() * editorScrollArg.value;
+				break;
+			case editorCommon.EditorScrollByUnit.HalfPage:
+				noOfLines = Math.round(this.cursors.getAll()[0].getPageSize() / 2) * editorScrollArg.value;
+				break;
+		}
+		ctx.requestScrollDeltaLines = (up ? -1 : 1) * noOfLines;
 		return true;
+	}
+
+	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Up, value: 1 };
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
+		return this._editorScroll(ctx);
+	}
+
+	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Down, value: 1 };
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
+		return this._editorScroll(ctx);
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {

@@ -3,34 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
 import objects = require('vs/base/common/objects');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 
 const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
-
-function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpressionContainer): TPromise<Variable[]> {
-	const session = debugService.getActiveSession();
-	// only variables with reference > 0 have children.
-	if (!session || parent.reference <= 0) {
-		return TPromise.as([]);
-	}
-
-	return session.variables({ variablesReference: parent.reference }).then(response => {
-		return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
-			v => new Variable(parent, v.variablesReference, v.name, v.value, v.type)
-		);
-	}, (e: Error) => [new Variable(parent, 0, null, e.message, null, false)]);
-}
 
 function massageValue(value: string): string {
 	return value ? value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') : value;
@@ -49,10 +35,13 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		frameId: stackFrame ? stackFrame.frameId : undefined,
 		context
 	}).then(response => {
-		expression.available = !!response.body;
+		expression.available = !!(response && response.body);
 		if (response.body) {
 			expression.value = response.body.result;
 			expression.reference = response.body.variablesReference;
+			expression.namedVariables = response.body.namedVariables;
+			expression.indexedVariables = response.body.indexedVariables;
+			expression.type = response.body.type;
 		}
 
 		return expression;
@@ -172,7 +161,12 @@ export class OutputElement implements debug.ITreeElement {
 
 export class ValueOutputElement extends OutputElement {
 
-	constructor(public value: string, public severity: severity, public category?: string, public counter:number = 1) {
+	constructor(
+		public value: string,
+		public severity: severity,
+		public category?: string,
+		public counter: number = 1
+	) {
 		super();
 	}
 }
@@ -229,21 +223,58 @@ export class KeyValueOutputElement extends OutputElement {
 
 export abstract class ExpressionContainer implements debug.IExpressionContainer {
 
-	private children: TPromise<debug.IExpression[]>;
-	public valueChanged: boolean;
 	public static allValues: { [id: string]: string } = {};
+	// Use chunks to support variable paging #9537
+	private static BASE_CHUNK_SIZE = 100;
+
+	public valueChanged: boolean;
+	private children: TPromise<debug.IExpression[]>;
 	private _value: string;
 
-	constructor(public reference: number, private id: string, private cacheChildren: boolean) {
-		this.children = null;
+	constructor(
+		public reference: number,
+		private id: string,
+		private cacheChildren: boolean,
+		public namedVariables: number,
+		public indexedVariables: number,
+		private startOfVariables = 0
+	) {
+		// noop
 	}
 
 	public getChildren(debugService: debug.IDebugService): TPromise<debug.IExpression[]> {
-		if (!this.cacheChildren) {
-			return resolveChildren(debugService, this);
-		}
-		if (!this.children) {
-			this.children = resolveChildren(debugService, this);
+		if (!this.cacheChildren || !this.children) {
+			const session = debugService.getActiveSession();
+			// only variables with reference > 0 have children.
+			if (!session || this.reference <= 0) {
+				this.children = TPromise.as([]);
+			} else {
+
+				// Check if object has named variables, fetch them independent from indexed variables #9670
+				this.children = (!!this.namedVariables ? this.fetchVariables(session, undefined, undefined, 'named') : TPromise.as([])).then(childrenArray => {
+					// Use a dynamic chunk size based on the number of elements #9774
+					let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
+					while (this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
+						chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
+					}
+
+					if (this.indexedVariables > chunkSize) {
+						// There are a lot of children, create fake intermediate values that represent chunks #9537
+						const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
+						for (let i = 0; i < numberOfChunks; i++) {
+							const start = this.startOfVariables + i * chunkSize;
+							const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
+							childrenArray.push(new Variable(this, this.reference, `[${start}..${start + count - 1}]`, '', null, count, null, true, start));
+						}
+
+						return childrenArray;
+					}
+
+					const start = this.getChildrenInChunks ? this.startOfVariables : undefined;
+					const count = this.getChildrenInChunks ? this.indexedVariables : undefined;
+					return this.fetchVariables(session, start, count, 'indexed').then(variables => childrenArray.concat(variables));
+				});
+			}
 		}
 
 		return this.children;
@@ -255,6 +286,24 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 
 	public get value(): string {
 		return this._value;
+	}
+
+	private fetchVariables(session: debug.IRawDebugSession, start: number, count: number, filter: 'indexed'|'named'): TPromise<Variable[]> {
+		return session.variables({
+			variablesReference: this.reference,
+			start,
+			count,
+			filter
+		}).then(response => {
+			return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
+				v => new Variable(this, v.variablesReference, v.name, v.value, v.namedVariables, v.indexedVariables, v.type)
+			);
+		}, (e: Error) => [new Variable(this, 0, null, e.message, 0, 0, null, false)]);
+	}
+
+	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
+	private get getChildrenInChunks(): boolean {
+		return !!this.indexedVariables;
 	}
 
 	public set value(value: string) {
@@ -269,9 +318,10 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	static DEFAULT_VALUE = 'not available';
 
 	public available: boolean;
+	public type: string;
 
 	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
-		super(0, id, cacheChildren);
+		super(0, id, cacheChildren, 0, 0);
 		this.value = Expression.DEFAULT_VALUE;
 		this.available = false;
 	}
@@ -282,30 +332,33 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
 
-	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public type: string = null, public available = true) {
-		super(reference, `variable:${ parent.getId() }:${ name }`, true);
+	constructor(
+		public parent: debug.IExpressionContainer,
+		reference: number,
+		public name: string,
+		value: string,
+		namedVariables: number,
+		indexedVariables: number,
+		public type: string = null,
+		public available = true,
+		startOfVariables = 0
+	) {
+		super(reference, `variable:${ parent.getId() }:${ name }`, true, namedVariables, indexedVariables, startOfVariables);
 		this.value = massageValue(value);
 	}
 }
 
-export class Scope implements debug.IScope {
+export class Scope extends ExpressionContainer implements debug.IScope {
 
-	private children: TPromise<Variable[]>;
-
-	constructor(private threadId: number, public name: string, public reference: number, public expensive: boolean) {
-		this.children = null;
-	}
-
-	public getId(): string {
-		return `scope:${ this.threadId }:${ this.name }:${ this.reference }`;
-	}
-
-	public getChildren(debugService: debug.IDebugService): TPromise<Variable[]> {
-		if (!this.children) {
-			this.children = resolveChildren(debugService, this);
-		}
-
-		return this.children;
+	constructor(
+		private threadId: number,
+		public name: string,
+		reference: number,
+		public expensive: boolean,
+		namedVariables: number,
+		indexedVariables: number
+	) {
+		super(reference, `scope:${threadId}:${name}:${reference}`, true, namedVariables, indexedVariables);
 	}
 }
 
@@ -313,7 +366,14 @@ export class StackFrame implements debug.IStackFrame {
 
 	private scopes: TPromise<Scope[]>;
 
-	constructor(public threadId: number, public frameId: number, public source: Source, public name: string, public lineNumber: number, public column: number) {
+	constructor(
+		public threadId: number,
+		public frameId: number,
+		public source: Source,
+		public name: string,
+		public lineNumber: number,
+		public column: number
+	) {
 		this.scopes = null;
 	}
 
@@ -324,7 +384,7 @@ export class StackFrame implements debug.IStackFrame {
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
 		if (!this.scopes) {
 			this.scopes = debugService.getActiveSession().scopes({ frameId: this.frameId }).then(response => {
-				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive));
+				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables));
 			}, err => []);
 		}
 
@@ -340,7 +400,12 @@ export class Breakpoint implements debug.IBreakpoint {
 	public message: string;
 	private id: string;
 
-	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
+	constructor(
+		public source: Source,
+		public desiredLineNumber: number,
+		public enabled: boolean,
+		public condition: string
+	) {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
@@ -393,9 +458,13 @@ export class Model implements debug.IModel {
 	private _onDidChangeWatchExpressions: Emitter<debug.IExpression>;
 	private _onDidChangeREPLElements: Emitter<void>;
 
-	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean, private functionBreakpoints: debug.IFunctionBreakpoint[],
-		private exceptionBreakpoints: debug.IExceptionBreakpoint[], private watchExpressions: Expression[]) {
-
+	constructor(
+		private breakpoints: debug.IBreakpoint[],
+		private breakpointsActivated: boolean,
+		private functionBreakpoints: debug.IFunctionBreakpoint[],
+		private exceptionBreakpoints: debug.IExceptionBreakpoint[],
+		private watchExpressions: Expression[]
+	) {
 		this.threads = {};
 		this.replElements = [];
 		this.toDispose = [];
@@ -737,12 +806,6 @@ export class Model implements debug.IModel {
 	}
 
 	public dispose(): void {
-		this.threads = null;
-		this.breakpoints = null;
-		this.exceptionBreakpoints = null;
-		this.functionBreakpoints = null;
-		this.watchExpressions = null;
-		this.replElements = null;
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

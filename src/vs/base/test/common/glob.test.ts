@@ -291,6 +291,12 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'some/test/tempting'));
 		assert(!glob.match(p, 'some\\test\\tempting'));
 		assert(!glob.match(p, 'C:\\\\some\\test\\tempting'));
+
+		p = '{**/package.json,**/project.json}';
+		assert(glob.match(p, 'package.json'));
+		assert(glob.match(p, '/package.json'));
+		assert(!glob.match(p, 'xpackage.json'));
+		assert(!glob.match(p, '/xpackage.json'));
 	});
 
 	test('brace expansion', function () {

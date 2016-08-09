@@ -70,7 +70,7 @@ function cmp(a:KbExpr, b:KbExpr): number {
 }
 
 export class KbDefinedExpression implements KbExpr {
-	constructor(private key: string) {
+	constructor(protected key: string) {
 	}
 
 	public getType(): KbExprType {
@@ -369,6 +369,31 @@ export class KbAndExpression implements KbExpr {
 	}
 }
 
+export class KbCtxKey<T> extends KbDefinedExpression {
+
+	private _defaultValue: T;
+
+	constructor(key:string, defaultValue:T) {
+		super(key);
+		this._defaultValue = defaultValue;
+	}
+
+	public bindTo(target:IKeybindingService): IKeybindingContextKey<T> {
+		return target.createKey(this.key, this._defaultValue);
+	}
+
+	public getValue(target:IKeybindingService): T {
+		return target.getContextValue<T>(this.key);
+	}
+
+	public toNegated(): KbExpr {
+		return KbExpr.not(this.key);
+	}
+
+	public isEqualTo(value:string): KbExpr {
+		return KbExpr.equals(this.key, value);
+	}
+}
 
 export let KbExpr = {
 	has: (key: string) => new KbDefinedExpression(key),
@@ -437,6 +462,7 @@ export interface IKeybindingItem {
 export interface IKeybindingContextKey<T> {
 	set(value: T): void;
 	reset(): void;
+	get(): T;
 }
 
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');

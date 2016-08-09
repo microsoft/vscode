@@ -6,43 +6,24 @@
 'use strict';
 
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {assign} from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {ISuggestion} from 'vs/editor/common/modes';
 import {ISuggestionItem} from './suggest';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {Position} from 'vs/editor/common/core/position';
 
 export class CompletionItem {
 
 	suggestion: ISuggestion;
 	highlights: IMatch[];
-	container: ISuggestResult;
 	filter: IFilter;
 
-	private _support: ISuggestSupport;
-
-	constructor(item: ISuggestionItem) {
-		this.suggestion = item.suggestion;
-		this.container = item.container;
-		this.filter = item.support && item.support.filter || fuzzyContiguousFilter;
-		this._support = item.support;
+	constructor(private _item: ISuggestionItem) {
+		this.suggestion = _item.suggestion;
+		this.filter = _item.support && _item.support.filter || fuzzyContiguousFilter;
 	}
 
-	resolveDetails(model:IReadOnlyModel, position:Position): TPromise<ISuggestion> {
-		if (!this._support || typeof this._support.resolveCompletionItem !== 'function') {
-			return TPromise.as(this.suggestion);
-		}
-
-		return asWinJsPromise((token) => {
-			return this._support.resolveCompletionItem(model, position, this.suggestion, token);
-		});
-	}
-
-	updateDetails(value: ISuggestion): void {
-		this.suggestion = assign(this.suggestion, value);
+	resolve(): TPromise<this> {
+		return this._item.resolve().then(() => this);
 	}
 }
 
@@ -62,7 +43,7 @@ export class CompletionModel {
 	constructor(raw: ISuggestionItem[], leadingLineContent: string) {
 		this.raw = raw;
 		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
-		for (const item of raw) {
+		for (let item of raw) {
 			this._items.push(new CompletionItem(item));
 		}
 	}
@@ -91,12 +72,7 @@ export class CompletionModel {
 		const {leadingLineContent, characterCountDelta} = this._lineContext;
 		for (let item of this._items) {
 
-			let {overwriteBefore} = item.suggestion;
-			if (typeof overwriteBefore !== 'number') {
-				overwriteBefore = item.container.currentWord.length;
-			}
-
-			const start = leadingLineContent.length - (overwriteBefore + characterCountDelta);
+			const start = leadingLineContent.length - (item.suggestion.overwriteBefore + characterCountDelta);
 			const word = leadingLineContent.substr(start);
 
 			const {filter, suggestion} = item;
@@ -105,11 +81,6 @@ export class CompletionModel {
 			// compute highlights based on 'label'
 			item.highlights = filter(word, suggestion.label);
 			match = item.highlights !== null;
-
-			// no match on label -> check on codeSnippet
-			if (!match && suggestion.codeSnippet !== suggestion.label) {
-				match = !isFalsyOrEmpty((filter(word, suggestion.codeSnippet.replace(/{{.+?}}/g, '')))); // filters {{text}}-snippet syntax
-			}
 
 			// no match on label nor codeSnippet -> check on filterText
 			if(!match && typeof suggestion.filterText === 'string') {

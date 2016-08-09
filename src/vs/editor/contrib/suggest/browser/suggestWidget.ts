@@ -24,6 +24,7 @@ import { Context as SuggestContext } from '../common/suggest';
 import { CompletionItem, CompletionModel } from '../common/completionModel';
 import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from '../common/suggestModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -282,6 +283,14 @@ class SuggestionDetails {
 		this.scrollUp(80);
 	}
 
+	scrollHome(): void {
+		this.body.scrollTop = 0;
+	}
+
+	scrollEnd(): void {
+		this.body.scrollTop = this.body.scrollHeight;
+	}
+
 	private configureFont() {
 		const fontInfo = this.editor.getConfiguration().fontInfo;
 		this.title.style.fontFamily = fontInfo.fontFamily;
@@ -295,7 +304,7 @@ class SuggestionDetails {
 
 export class SuggestWidget implements IContentWidget, IDisposable {
 
-	static ID: string = 'editor.widget.suggestWidget';
+	private static ID: string = 'editor.widget.suggestWidget';
 	static WIDTH: number = 438;
 
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
@@ -328,6 +337,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	constructor(
 		private editor: ICodeEditor,
 		private model: SuggestModel,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -364,9 +374,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.model.onDidCancel(e => this.onDidCancel(e))
 		];
 
-		this.suggestWidgetVisible = keybindingService.createKey(SuggestContext.Visible, false);
-		this.suggestWidgetMultipleSuggestions = keybindingService.createKey(SuggestContext.MultipleSuggestions, false);
-		this.suggestionSupportsAutoAccept = keybindingService.createKey(SuggestContext.AcceptOnKey, true);
+		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(keybindingService);
+		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(keybindingService);
+		this.suggestionSupportsAutoAccept = SuggestContext.AcceptOnKey.bindTo(keybindingService);
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
@@ -408,9 +418,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 
 		const item = e.elements[0];
-		const container = item.container;
-		const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
-		const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
+		const {overwriteBefore, overwriteAfter} = item.suggestion;
 		this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 
 		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
@@ -477,10 +485,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 
-		const position = this.model.getRequestPosition() || this.editor.getPosition();
-		this.currentSuggestionDetails = item.resolveDetails(this.editor.getModel(), position)
-			.then(details => {
-				item.updateDetails(details);
+		this.currentSuggestionDetails = item.resolve()
+			.then(() => {
 				this.list.setFocus(index);
 				this.updateWidgetHeight();
 				this.list.reveal(index);
@@ -590,6 +596,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		} else {
 			const currentWord = e.currentWord;
 			const currentWordLowerCase = currentWord.toLowerCase();
+			let snippetCount = 0;
+			let textCount = 0;
 			let bestSuggestionIndex = -1;
 			let bestScore = -1;
 
@@ -600,6 +608,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 					bestScore = score;
 					bestSuggestionIndex = index;
 				}
+
+				switch (item.suggestion.type) {
+					case 'snippet': snippetCount++; break;
+					case 'text': textCount++; break;
+				}
 			});
 
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
@@ -607,6 +620,13 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.list.reveal(bestSuggestionIndex, 0);
 
 			this.setState(State.Open);
+
+			this.telemetryService.publicLog('suggestWidget', {
+				suggestionCount: visibleCount,
+				snippetCount,
+				textCount,
+				wasAutomaticallyTriggered: !!e.auto
+			});
 		}
 	}
 
@@ -651,6 +671,21 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
+	selectLast(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollEnd();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusLast();
+				return true;
+		}
+	}
+
 	selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
@@ -678,6 +713,21 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			default:
 				this.list.focusPrevious(1, true);
 				return false;
+		}
+	}
+
+	selectFirst(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollHome();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusFirst();
+				return true;
 		}
 	}
 

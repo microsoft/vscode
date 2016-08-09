@@ -10,6 +10,7 @@
 	"autoSaveDelay": "控制經過這段延遲時間後會自動儲存已變更檔案的毫秒數。僅適用於 \"files.autoSave\" 設定為 \"{0}\" 時。",
 	"binaryFileEditor": "二進位檔案編輯器",
 	"dynamicHeight": "控制 [開啟編輯器] 區段的高度是否應依元素數目動態調整。",
+	"enableDragAndDrop": "控制總管是否應該允許透過拖放功能移動檔案和資料夾。",
 	"encoding": "讀取與寫入檔案時要使用的預設字元集編碼。",
 	"eol": "預設行尾字元。",
 	"exclude": "設定 Glob 模式可包含檔案及資料夾。",

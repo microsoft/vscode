@@ -453,7 +453,7 @@ export class VSCodeMenu {
 
 	private createOpenRecentMenuItem(path: string): Electron.MenuItem {
 		return new MenuItem({
-			label: path, click: () => {
+			label: unMnemonicLabel(path), click: () => {
 				let success = !!this.windowsService.open({ cli: this.envService.cliArgs, pathsToOpen: [path] });
 				if (!success) {
 					this.removeFromOpenedPathsList(path);
@@ -607,7 +607,7 @@ export class VSCodeMenu {
 		let switchGroupMenu = new Menu();
 
 		let focusFirstGroup = this.createMenuItem(nls.localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "&&Left Group"), 'workbench.action.focusFirstEditorGroup');
-		let focusSecondGroup = this.createMenuItem(nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "&&Side Group"), 'workbench.action.focusSecondEditorGroup');
+		let focusSecondGroup = this.createMenuItem(nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "&&Center Group"), 'workbench.action.focusSecondEditorGroup');
 		let focusThirdGroup = this.createMenuItem(nls.localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "&&Right Group"), 'workbench.action.focusThirdEditorGroup');
 		let nextGroup = this.createMenuItem(nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group"), 'workbench.action.focusNextGroup');
 		let previousGroup = this.createMenuItem(nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group"), 'workbench.action.focusPreviousGroup');
@@ -861,8 +861,16 @@ function __separator__(): Electron.MenuItem {
 
 function mnemonicLabel(label: string): string {
 	if (platform.isMacintosh) {
-		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
+		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac
 	}
 
 	return label.replace(/&&/g, '&');
+}
+
+function unMnemonicLabel(label: string): string {
+	if (platform.isMacintosh) {
+		return label; // no mnemonic support on mac
+	}
+
+	return label.replace(/&/g, '&&');
 }

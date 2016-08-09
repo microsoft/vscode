@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import events = require('vs/base/common/events');
 import actions = require('vs/base/common/actions');
@@ -17,14 +17,14 @@ import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import splitview = require('vs/base/browser/ui/splitview/splitview');
 import viewlet = require('vs/workbench/browser/viewlet');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
+import {StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 
 import IDebugService = debug.IDebugService;
 
@@ -49,7 +49,9 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'variablesview.memento';
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -137,7 +139,9 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'watchexpressionsview.memento';
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
@@ -214,7 +218,9 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 	private pauseMessage: builder.Builder;
 	private pauseMessageLabel: builder.Builder;
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -307,7 +313,9 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	private static MAX_VISIBLE_FILES = 9;
 	private static MEMENTO = 'breakopintsview.memento';
 
-	constructor(actionRunner: actions.IActionRunner, private settings: any,
+	constructor(
+		actionRunner: actions.IActionRunner,
+		private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,

@@ -337,7 +337,7 @@ class CodeLens {
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	public static ID: string = 'css.editor.codeLens';
+	private static ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
@@ -354,7 +354,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		@ICommandService private _commandService: ICommandService,
 		@IMessageService private _messageService: IMessageService
 	) {
-		this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -366,7 +366,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._globalToDispose.push(this._editor.onDidChangeModelMode(() => this.onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {
 				this.onModelChange();
 			}
@@ -508,11 +508,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		if (!this._editor.getModel()) {
 			return;
 		}
-		if (!symbols) {
-			symbols = [];
-		} else {
-			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(Range.lift(a.symbol.range), Range.lift(b.symbol.range)));
-		}
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
 		let groups: ICodeLensData[][] = [];
@@ -611,7 +606,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
 				return asWinJsPromise((token) => {
-					return request.support.resolveCodeLens(model, request.symbol, token);
+					return request.provider.resolveCodeLens(model, request.symbol, token);
 				}).then(symbol => {
 					resolvedSymbols[i] = symbol;
 				});

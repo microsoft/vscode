@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
-import {IAction} from 'vs/base/common/actions';
 import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor, IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
@@ -22,6 +20,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+import {KbExpr, KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
 
 /**
  * @internal
@@ -396,13 +395,26 @@ export interface IEditorOptions {
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
+	 * Enable tab completion. Defaults to 'false'
+	 */
+	tabCompletion?: boolean;
+	/**
+	 * Enable word based suggestions. Defaults to 'true'
+	 */
+	wordBasedSuggestions?: boolean;
+	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
 	 */
 	selectionHighlight?:boolean;
 	/**
-	 * Show reference infos (a.k.a. code lenses) for modes that support it
+	 * Show code lens
 	 * Defaults to true.
+	 */
+	codeLens?: boolean;
+	/**
+	 * @deprecated - use codeLens instead
+	 * @internal
 	 */
 	referenceInfos?: boolean;
 	/**
@@ -805,8 +817,10 @@ export class EditorContribOptions {
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
 	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	tabCompletion: boolean;
+	wordBasedSuggestions: boolean;
 	selectionHighlight:boolean;
-	referenceInfos: boolean;
+	codeLens: boolean;
 	folding: boolean;
 
 	/**
@@ -824,8 +838,10 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+		tabCompletion: boolean;
+		wordBasedSuggestions: boolean;
 		selectionHighlight:boolean;
-		referenceInfos: boolean;
+		codeLens: boolean;
 		folding: boolean;
 	}) {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
@@ -839,8 +855,10 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
+		this.tabCompletion = source.tabCompletion;
+		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
-		this.referenceInfos = Boolean(source.referenceInfos);
+		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
 	}
 
@@ -860,8 +878,10 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
+			&& this.tabCompletion === other.tabCompletion
+			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.selectionHighlight === other.selectionHighlight
-			&& this.referenceInfos === other.referenceInfos
+			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
 		);
 	}
@@ -2866,37 +2886,6 @@ export interface IDimension {
 	width:number;
 	height:number;
 }
-/**
- * Conditions describing action enablement
- */
-export interface IActionEnablement {
-	/**
-	 * The action is enabled only if text in the editor is focused (e.g. blinking cursor).
-	 * Warning: This condition will be disabled if the action is marked to be displayed in the context menu
-	 * Defaults to false.
-	 */
-	textFocus?: boolean;
-	/**
-	 * The action is enabled only if the editor or its widgets have focus (e.g. focus is in find widget).
-	 * Defaults to false.
-	 */
-	widgetFocus?: boolean;
-	/**
-	 * The action is enabled only if the editor is not in read only mode.
-	 * Defaults to false.
-	 */
-	writeableEditor?: boolean;
-	/**
-	 * The action is enabled only if the cursor position is over tokens of a certain kind.
-	 * Defaults to no tokens required.
-	 */
-	tokensAtPosition?: string[];
-	/**
-	 * The action is enabled only if the cursor position is over a word (i.e. not whitespace).
-	 * Defaults to false.
-	 */
-	wordAtPosition?: boolean;
-}
 
 /**
  * A (serializable) state of the cursors.
@@ -3034,38 +3023,68 @@ export interface IDiffLineInformation {
 }
 
 /**
- * A context key that is set when the editor's text has focus (cursor is blinking).
+ * @internal
  */
-export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
+export namespace EditorContextKeys {
+	/**
+	 * A context key that is set when the editor's text has focus (cursor is blinking).
+	 * @internal
+	 */
+	export const TextFocus = new KbCtxKey<boolean>('editorTextFocus', false);
+	/**
+	 * A context key that is set when the editor's text or an editor's widget has focus.
+	 * @internal
+	 */
+	export const Focus = new KbCtxKey<boolean>('editorFocus', false);
 
-/**
- * A context key that is set when the editor's text or an editor's widget has focus.
- */
-export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
-/**
- * @internal
- */
-export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
-/**
- * A context key that is set when the editor's text is readonly.
- */
-export const KEYBINDING_CONTEXT_EDITOR_READONLY = 'editorReadonly';
-/**
- * A context key that is set when the editor has multiple selections (multiple cursors).
- */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
-/**
- * A context key that is set when the editor has a non-collapsed selection.
- */
-export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
-/**
- * A context key that is set to the language associated with the model associated with the editor.
- */
-export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
-/**
- * @internal
- */
-export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
+	/**
+	 * A context key that is set when the editor's text is readonly.
+	 * @internal
+	 */
+	export const ReadOnly = new KbCtxKey<boolean>('editorReadonly', false);
+
+	/**
+	 * @internal
+	 */
+	export const Writable:KbExpr = ReadOnly.toNegated();
+
+	/**
+	 * A context key that is set when the editor has a non-collapsed selection.
+	 * @internal
+	 */
+	export const HasNonEmptySelection = new KbCtxKey<boolean>('editorHasSelection', false);
+	/**
+	 * @internal
+	 */
+	export const HasOnlyEmptySelection:KbExpr = HasNonEmptySelection.toNegated();
+
+	/**
+	 * A context key that is set when the editor has multiple selections (multiple cursors).
+	 * @internal
+	 */
+	export const HasMultipleSelections = new KbCtxKey<boolean>('editorHasMultipleSelections', false);
+	/**
+	 * @internal
+	 */
+	export const HasSingleSelection:KbExpr = HasMultipleSelections.toNegated();
+
+	/**
+	 * @internal
+	 */
+	export const TabMovesFocus = new KbCtxKey<boolean>('editorTabMovesFocus', false);
+	/**
+	 * @internal
+	 */
+	export const TabDoesNotMoveFocus:KbExpr = TabMovesFocus.toNegated();
+
+	/**
+	 * A context key that is set to the language associated with the model associated with the editor.
+	 * @internal
+	 */
+	export const LanguageId = new KbCtxKey<string>('editorLangId', undefined);
+
+};
+
 
 /**
  * @internal
@@ -3074,47 +3093,47 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasCompletionItemProvider = 'editorHasCompletionItemProvider';
+	export const hasCompletionItemProvider = new KbCtxKey<boolean>('editorHasCompletionItemProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasCodeActionsProvider = 'editorHasCodeActionsProvider';
+	export const hasCodeActionsProvider = new KbCtxKey<boolean>('editorHasCodeActionsProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasCodeLensProvider = 'editorHasCodeLensProvider';
+	export const hasCodeLensProvider = new KbCtxKey<boolean>('editorHasCodeLensProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDefinitionProvider = 'editorHasDefinitionProvider';
+	export const hasDefinitionProvider = new KbCtxKey<boolean>('editorHasDefinitionProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasHoverProvider = 'editorHasHoverProvider';
+	export const hasHoverProvider = new KbCtxKey<boolean>('editorHasHoverProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDocumentHighlightProvider = 'editorHasDocumentHighlightProvider';
+	export const hasDocumentHighlightProvider = new KbCtxKey<boolean>('editorHasDocumentHighlightProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDocumentSymbolProvider = 'editorHasDocumentSymbolProvider';
+	export const hasDocumentSymbolProvider = new KbCtxKey<boolean>('editorHasDocumentSymbolProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasReferenceProvider = 'editorHasReferenceProvider';
+	export const hasReferenceProvider = new KbCtxKey<boolean>('editorHasReferenceProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasRenameProvider = 'editorHasRenameProvider';
+	export const hasRenameProvider = new KbCtxKey<boolean>('editorHasRenameProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasFormattingProvider = 'editorHasFormattingProvider';
+	export const hasFormattingProvider = new KbCtxKey<boolean>('editorHasFormattingProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasSignatureHelpProvider = 'editorHasSignatureHelpProvider';
+	export const hasSignatureHelpProvider = new KbCtxKey<boolean>('editorHasSignatureHelpProvider', undefined);
 }
 
 export class BareFontInfo {
@@ -3133,7 +3152,7 @@ export class BareFontInfo {
 		lineHeight: number;
 	}) {
 		this.fontFamily = String(opts.fontFamily);
-		this.fontSize = opts.fontSize|0;
+		this.fontSize = opts.fontSize;
 		this.lineHeight = opts.lineHeight|0;
 	}
 
@@ -3426,11 +3445,6 @@ export interface IActionDescriptor {
 	 */
 	keybindingContext?: string;
 	/**
-	 * A set of enablement conditions.
-	 */
-	enablement?: IActionEnablement;
-
-	/**
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convinience
 	 */
@@ -3466,6 +3480,14 @@ export interface ICommonEditorContributionDescriptor {
 	 * Create an instance of the contribution
 	 */
 	createInstance(instantiationService:IInstantiationService, editor:ICommonCodeEditor): IEditorContribution;
+}
+
+export interface IEditorAction {
+	id: string;
+	label: string;
+	alias: string;
+	isSupported():boolean;
+	run(): TPromise<void>;
 }
 
 /**
@@ -3570,7 +3592,12 @@ export interface IEditor {
 	/**
 	 * Returns all actions associated with this editor.
 	 */
-	getActions(): IAction[];
+	getActions(): IEditorAction[];
+
+	/**
+	 * Returns all actions associated with this editor.
+	 */
+	getSupportedActions(): IEditorAction[];
 
 	/**
 	 * Saves current view state of the editor in a serializable object.
@@ -3902,6 +3929,12 @@ export interface ICommonCodeEditor extends IEditor {
 	captureState(...flags:CodeEditorStateFlag[]): ICodeEditorState;
 
 	/**
+	 * Execute `fn` with the editor's services.
+	 * @internal
+	 */
+	invokeWithinContext<T>(fn:(accessor:ServicesAccessor)=>T): T;
+
+	/**
 	 * Type the getModel() of IEditor.
 	 */
 	getModel(): IModel;
@@ -3965,7 +3998,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The action or null if action not found.
 	 */
-	getAction(id: string): IAction;
+	getAction(id: string): IEditorAction;
 
 	/**
 	 * Execute a command on the editor.
@@ -4175,14 +4208,124 @@ export var EventType = {
 };
 
 /**
- * Logical positions in the view for cursor move command.
+ * Positions in the view for cursor move command.
  */
-export const CursorMoveViewPosition = {
-	LineStart: 'lineStart',
-	LineFirstNonWhitespaceCharacter: 'lineFirstNonWhitespaceCharacter',
-	LineColumnCenter: 'lineColumnCenter',
-	LineEnd: 'lineEnd',
-	LineLastNonWhitespaceCharacter: 'lineLastNonWhitespaceCharacter'
+export const CursorMovePosition = {
+	Left: 'left',
+	Right: 'right',
+	Up: 'up',
+	Down: 'down',
+
+	WrappedLineStart: 'wrappedLineStart',
+	WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
+	WrappedLineColumnCenter: 'wrappedLineColumnCenter',
+	WrappedLineEnd: 'wrappedLineEnd',
+	WrappedLineLastNonWhitespaceCharacter: 'wrappedLineLastNonWhitespaceCharacter',
+
+	ViewPortTop: 'viewPortTop',
+	ViewPortCenter: 'viewPortCenter',
+	ViewPortBottom: 'viewPortBottom',
+};
+
+/**
+ * Units for Cursor move 'by' argument
+ */
+export const CursorMoveByUnit = {
+	Line: 'line',
+	WrappedLine: 'wrappedLine',
+	Character: 'character',
+	HalfLine: 'halfLine'
+};
+
+/**
+ * Arguments for Cursor move command
+ */
+export interface CursorMoveArguments {
+	to: string;
+	select?: boolean;
+	by?: string;
+	value?: number;
+};
+
+/**
+ * @internal
+ */
+let isCursorMoveArgs= function(arg): boolean  {
+	if (!types.isObject(arg)) {
+		return false;
+	}
+
+	let cursorMoveArg: CursorMoveArguments = arg;
+
+	if (!types.isString(cursorMoveArg.to)) {
+		return false;
+	}
+
+	if (!types.isUndefined(cursorMoveArg.select) && !types.isBoolean(cursorMoveArg.select)) {
+		return false;
+	}
+
+	if (!types.isUndefined(cursorMoveArg.by) && !types.isString(cursorMoveArg.by)) {
+		return false;
+	}
+
+	if (!types.isUndefined(cursorMoveArg.value) && !types.isNumber(cursorMoveArg.value)) {
+		return false;
+	}
+
+	return true;
+};
+
+/**
+ * Directions in the view for editor scroll command.
+ */
+export const EditorScrollDirection = {
+	Up: 'up',
+	Down: 'down',
+};
+
+/**
+ * Units for editor scroll 'by' argument
+ */
+export const EditorScrollByUnit = {
+	Line: 'line',
+	WrappedLine: 'wrappedLine',
+	Page: 'page',
+	HalfPage: 'halfPage'
+};
+
+/**
+ * Arguments for editor scroll command
+ */
+export interface EditorScrollArguments {
+	to: string;
+	by?: string;
+	value?: number;
+};
+
+/**
+ * @internal
+ */
+let isEditorScrollArgs= function(arg): boolean  {
+	if (!types.isObject(arg)) {
+		return false;
+	}
+
+	let scrollArg: EditorScrollArguments = arg;
+
+	if (!types.isString(scrollArg.to)) {
+		return false;
+	}
+
+	if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
+		return false;
+	}
+
+	if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
+		return false;
+	}
+
+	return true;
 };
 
 /**
@@ -4190,12 +4333,45 @@ export const CursorMoveViewPosition = {
  */
 export var CommandDescription = {
 	CursorMove: <ICommandHandlerDescription>{
-		description: nls.localize('editorCommand.cursorMove.description', "Move cursor to a logical position in the view"),
+		description: 'Move cursor to a logical position in the view',
 		args: [
 			{
-				name: nls.localize('editorCommand.cursorMove.arg.name', "Cursor move argument"),
-				description: nls.localize('editorCommand.cursorMove.arg.description', "Argument containing mandatory 'to' value and an optional 'inSelectionMode' value. Value of 'to' has to be a defined value in `CursorMoveViewPosition`."),
-				constraint: (arg) => types.isObject(arg) && types.isString(arg.to) && (types.isUndefined(arg.inSelectionMode) || types.isBoolean(arg.inSelectionMode))
+				name: 'Cursor move argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					'to': A mandatory logical position value providing where to move the cursor.
+					\`\`\`
+						'left', 'right', 'up', 'down',
+						'wrappedLineStart', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineColumnCenter', 'wrappedLineEnd' ,'wrappedLineLastNonWhitespaceCharacter',
+						'viewPortTop', 'viewPortCenter', 'viewPortBottom'
+					\`\`\`
+					'by': Unit to move. Default is computed based on 'to' value.
+					\`\`\`
+						'line', 'wrappedLine', 'character', 'halfLine'
+					\`\`\`
+					'value': Number of units to move. Default is '1'.
+					'select': If 'true' makes the selection. Default is 'false'.
+				`,
+				constraint: isCursorMoveArgs
+			}
+		]
+	},
+	EditorScroll: <ICommandHandlerDescription>{
+		description: 'Scroll editor in the given direction',
+		args: [
+			{
+				name: 'Editor scroll argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					'to': A mandatory direction value.
+					\`\`\`
+						'up', 'down'
+					\`\`\`
+					'by': Unit to move. Default is computed based on 'to' value.
+					\`\`\`
+						'line', 'wrappedLine', page', 'halfPage'
+					\`\`\`
+					'value': Number of units to move. Default is '1'.
+				`,
+				constraint: isEditorScrollArgs
 			}
 		]
 	}
@@ -4318,6 +4494,8 @@ export var Handler = {
 	LineBreakInsert:			'lineBreakInsert',
 
 	SelectAll:					'selectAll',
+
+	EditorScroll:				'editorScroll',
 
 	ScrollLineUp:				'scrollLineUp',
 	ScrollLineDown:				'scrollLineDown',

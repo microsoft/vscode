@@ -11,6 +11,7 @@ import processes = require('vs/base/node/processes');
 import {Builder} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {KbCtxKey, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -23,7 +24,8 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
 /**
  * A context key that is set when the integrated terminal has focus.
  */
-export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = 'terminalFocus';
+export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new KbCtxKey<boolean>('terminalFocus', undefined);
+export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED:KbExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
@@ -44,7 +46,8 @@ export interface ITerminalConfiguration {
 			fontLigatures: boolean,
 			fontSize: number,
 			lineHeight: number,
-			setLocaleVariables: boolean
+			setLocaleVariables: boolean,
+			commandsToSkipShell: string[]
 		}
 	};
 }
@@ -69,6 +72,8 @@ export interface ITerminalService {
 	hide(): TPromise<any>;
 	paste(): TPromise<any>;
 	runSelectedText(): TPromise<any>;
+	scrollDown(): TPromise<any>;
+	scrollUp(): TPromise<any>;
 	setActiveTerminal(index: number): TPromise<any>;
 	toggle(): TPromise<any>;
 

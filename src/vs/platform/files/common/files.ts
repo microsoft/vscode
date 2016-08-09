@@ -565,139 +565,144 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'ISO 8859-2',
 		order: 17
 	},
+	cp852: {
+		labelLong: 'Central European (CP 852)',
+		labelShort: 'CP 852',
+		order: 18
+	},
 	windows1251: {
 		labelLong: 'Cyrillic (Windows 1251)',
 		labelShort: 'Windows 1251',
-		order: 18
+		order: 19
 	},
 	cp866: {
 		labelLong: 'Cyrillic (CP 866)',
 		labelShort: 'CP 866',
-		order: 19
+		order: 20
 	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
-		order: 20
+		order: 21
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
-		order: 21
+		order: 22
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
 		labelShort: 'KOI8-U',
-		order: 22
+		order: 23
 	},
 	iso885913: {
 		labelLong: 'Estonian (ISO 8859-13)',
 		labelShort: 'ISO 8859-13',
-		order: 23
+		order: 24
 	},
 	windows1253: {
 		labelLong: 'Greek (Windows 1253)',
 		labelShort: 'Windows 1253',
-		order: 24
+		order: 25
 	},
 	iso88597: {
 		labelLong: 'Greek (ISO 8859-7)',
 		labelShort: 'ISO 8859-7',
-		order: 25
+		order: 26
 	},
 	windows1255: {
 		labelLong: 'Hebrew (Windows 1255)',
 		labelShort: 'Windows 1255',
-		order: 26
+		order: 27
 	},
 	iso88598: {
 		labelLong: 'Hebrew (ISO 8859-8)',
 		labelShort: 'ISO 8859-8',
-		order: 27
+		order: 28
 	},
 	iso885910: {
 		labelLong: 'Nordic (ISO 8859-10)',
 		labelShort: 'ISO 8859-10',
-		order: 28
+		order: 29
 	},
 	iso885916: {
 		labelLong: 'Romanian (ISO 8859-16)',
 		labelShort: 'ISO 8859-16',
-		order: 29
+		order: 30
 	},
 	windows1254: {
 		labelLong: 'Turkish (Windows 1254)',
 		labelShort: 'Windows 1254',
-		order: 30
+		order: 31
 	},
 	iso88599: {
 		labelLong: 'Turkish (ISO 8859-9)',
 		labelShort: 'ISO 8859-9',
-		order: 31
+		order: 32
 	},
 	windows1258: {
 		labelLong: 'Vietnamese (Windows 1258)',
 		labelShort: 'Windows 1258',
-		order: 32
+		order: 33
 	},
 	gbk: {
 		labelLong: 'Chinese (GBK)',
 		labelShort: 'GBK',
-		order: 33
+		order: 34
 	},
 	gb18030: {
 		labelLong: 'Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 34
+		order: 35
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
-		order: 35
+		order: 36
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
 		labelShort: 'Big5-HKSCS',
-		order: 36
+		order: 37
 	},
 	shiftjis: {
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
-		order: 37
+		order: 38
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
-		order: 38
+		order: 39
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
-		order: 39
+		order: 40
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
 		labelShort: 'Windows 874',
-		order: 40
-	}
-	, iso885911: {
+		order: 41
+	},
+	iso885911: {
 		labelLong: 'Latin/Thai (ISO 8859-11)',
 		labelShort: 'ISO 8859-11',
-		order: 41
+		order: 42
 	},
 	'koi8-ru': {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
-		order: 42
+		order: 43
 	},
 	'koi8-t': {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
-		order: 43
+		order: 44
 	},
 	GB2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
-		order: 44
+		order: 45
 	}
 };

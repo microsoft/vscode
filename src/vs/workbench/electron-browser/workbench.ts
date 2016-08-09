@@ -47,7 +47,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -65,8 +65,12 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
-import {MenuService} from 'vs/platform/actions/browser/menuService';
+import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+
+export const MessagesVisibleContext = new KbCtxKey<boolean>('globalMessageVisible', false);
+export const EditorsVisibleContext = new KbCtxKey<boolean>('editorIsOpen', false);
+export const NoEditorsVisibleContext:KbExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;
@@ -199,8 +203,8 @@ export class Workbench implements IPartService {
 			}
 
 			// Contexts
-			this.messagesVisibleContext = this.keybindingService.createKey('globalMessageVisible', false);
-			this.editorsVisibleContext = this.keybindingService.createKey('editorIsOpen', false);
+			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.keybindingService);
+			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.keybindingService);
 
 			// Register Listeners
 			this.registerListeners();
@@ -430,7 +434,7 @@ export class Workbench implements IPartService {
 		this.sideBarPosition = (rawPosition === 'left') ? Position.LEFT : Position.RIGHT;
 
 		// Statusbar visibility
-		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.WORKSPACE, false);
+		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.GLOBAL, false);
 	}
 
 	/**
@@ -504,7 +508,7 @@ export class Workbench implements IPartService {
 			this.workbenchLayout.layout(true);
 		}
 
-		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false');
 	}
 
 	public isSideBarHidden(): boolean {

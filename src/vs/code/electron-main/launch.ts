@@ -12,22 +12,29 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/code/electron-main/log';
 
+export interface IStartArguments {
+	args: ICommandLineArguments;
+	userEnv: IProcessEnvironment;
+}
+
 export interface ILaunchService {
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;
 }
 
 export interface ILaunchChannel extends IChannel {
-	call(command: 'start', args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: 'start', arg: IStartArguments): TPromise<void>;
+	call(command: string, arg: any): TPromise<any>;
 }
 
 export class LaunchChannel implements ILaunchChannel {
 
 	constructor(private service: ILaunchService) { }
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, arg: any): TPromise<any> {
+		const { args, userEnv } = arg as IStartArguments;
+
 		switch (command) {
-			case 'start': return this.service.start(args[0], args[1]);
+			case 'start': return this.service.start(args, userEnv);
 		}
 	}
 }
@@ -37,7 +44,7 @@ export class LaunchChannelClient implements ILaunchService {
 	constructor(private channel: ILaunchChannel) { }
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
-		return this.channel.call('start', args, userEnv);
+		return this.channel.call('start', { args, userEnv });
 	}
 }
 
@@ -49,20 +56,20 @@ export class LaunchService implements ILaunchService {
 	) {}
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
-		this.logService.log('Received data from other instance', args);
+		this.logService.log('Received data from other instance', args, userEnv);
 
 		// Otherwise handle in windows service
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
+			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			usedWindows = this.windowsService.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
+			usedWindows = this.windowsService.open({ cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
 			usedWindows = [this.windowsService.focusLastActive(args)];
 		} else {
 			usedWindows = this.windowsService.open({
 				cli: args,
-				userEnv: userEnv,
+				userEnv,
 				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
 				preferNewWindow: !args.openInSameWindow,
 				diffMode: args.diffMode

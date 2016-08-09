@@ -5,7 +5,7 @@
 
 import assert = require('assert');
 import uri from 'vs/base/common/uri';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 
 suite('Debug - Source', () => {
 

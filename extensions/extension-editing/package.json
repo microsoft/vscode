@@ -1,0 +1,23 @@
+{
+	"name": "extension-editing",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.4.0"
+	},
+	"categories": [
+		"Languages", "Other"
+	],
+	"activationEvents": [
+		"onLanguage:typescript"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"postinstall": "node ./postinstall",
+		"compile": "gulp compile-extension:extension-editing",
+		"watch": "gulp watch-extension:extension-editing"
+	},
+	"dependencies": {
+		"typescript": "^1.8.10"
+	}
+}

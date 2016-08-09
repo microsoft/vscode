@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position} from 'vscode';
+import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource} from 'vscode';
 import {join} from 'path';
 import {cleanUp, pathEquals} from './utils';
 
@@ -148,8 +148,45 @@ suite('window namespace tests', () => {
 	});
 
 	test('#7013 - input without options', function () {
-
-		let p = window.showInputBox();
+		const source = new CancellationTokenSource();
+		let p = window.showInputBox(undefined, source.token);
 		assert.ok(typeof p === 'object');
+		source.dispose();
+	});
+
+	test('showInputBox - undefined on cancel', function () {
+		const source = new CancellationTokenSource();
+		const p = window.showInputBox(undefined, source.token);
+		source.cancel();
+		return p.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
+	test('showInputBox - cancel early', function () {
+		const source = new CancellationTokenSource();
+		source.cancel();
+		const p = window.showInputBox(undefined, source.token);
+		return p.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
+	test('showQuickPick, undefined on cancel', function () {
+		const source = new CancellationTokenSource();
+		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
+		source.cancel();
+		return p.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
+	test('showQuickPick, cancel early', function () {
+		const source = new CancellationTokenSource();
+		source.cancel();
+		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
+		return p.then(value => {
+			assert.equal(value, undefined);
+		});
 	});
 });

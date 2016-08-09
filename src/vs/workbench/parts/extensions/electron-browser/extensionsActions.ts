@@ -8,11 +8,12 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import severity from 'vs/base/common/severity';
+import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -92,7 +93,7 @@ export class UninstallAction extends Action {
 		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
 			this.messageService.show(severity.Info, {
 				message: localize('postUninstallMessage', "{0} was successfully uninstalled. Restart to deactivate it.", this.extension.displayName),
-				actions: [CloseAction, this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"))]
+				actions: [LaterAction, this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"))]
 			});
 		});
 	}
@@ -280,10 +281,10 @@ export class InstallExtensionsAction extends OpenExtensionsViewletAction {
 	static LABEL = localize('installExtensions', "Install Extensions");
 }
 
-export class ClearExtensionsInputAction extends Action {
+export class ShowInstalledExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.clearExtensionsInput';
-	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
+	static ID = 'workbench.extensions.action.showInstalledExtensions';
+	static LABEL = localize('showInstalledExtensions', "Show Installed Extensions");
 
 	constructor(
 		id: string,
@@ -301,6 +302,33 @@ export class ClearExtensionsInputAction extends Action {
 				viewlet.search('', true);
 				viewlet.focus();
 			});
+	}
+}
+
+export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
+
+	static ID = 'workbench.extensions.action.clearExtensionsInput';
+	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string,
+		label: string,
+		onSearchChange: Event<string>,
+		@IViewletService viewletService: IViewletService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, viewletService, extensionsWorkbenchService);
+		onSearchChange(this.onSearchChange, this, this.disposables);
+	}
+
+	private onSearchChange(value: string): void {
+		this.enabled = !!value;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -384,9 +412,4 @@ export class ShowRecommendedExtensionsAction extends Action {
 	protected isEnabled(): boolean {
 		return true;
 	}
-}
-
-export class ShowInstalledExtensionsAction extends ClearExtensionsInputAction {
-	static ID = 'workbench.extensions.action.showInstalledExtensions';
-	static LABEL = localize('showInstalledExtensions', "Show Installed Extensions");
 }

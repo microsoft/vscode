@@ -34,10 +34,6 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .marker-widget .fixes {
-	position: absolute;
-	bottom: 0;
-}
 
 .monaco-editor .marker-widget .fixes .quickfixhead {
 	background-image: url('lightbulp.svg');

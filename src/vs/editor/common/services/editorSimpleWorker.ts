@@ -234,7 +234,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
-	public textualSuggest(modelUrl:string, position: editorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<ISuggestResult[]> {
+	public textualSuggest(modelUrl:string, position: editorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<ISuggestResult> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
@@ -243,15 +243,15 @@ export abstract class BaseEditorSimpleWorker {
 		return TPromise.as(this._suggestFiltered(model, position, new RegExp(wordDef, wordDefFlags)));
 	}
 
-	private _suggestFiltered(model:ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult[] {
+	private _suggestFiltered(model:ICommonModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
 		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
 
 		// filter suggestions
-		return [{
+		return {
 			currentWord: value.currentWord,
 			suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(value.currentWord, element.label)),
 			incomplete: value.incomplete
-		}];
+		};
 	}
 
 	private _suggestUnfiltered(model:ICommonModel, position:editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {

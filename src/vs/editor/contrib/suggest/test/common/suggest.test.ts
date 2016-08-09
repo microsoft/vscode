@@ -23,9 +23,8 @@ suite('Suggest', function () {
 		model = Model.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
 		registration = SuggestRegistry.register({ pattern: 'bar/path' }, {
 			triggerCharacters: [],
-			shouldAutotriggerSuggest: true,
 			provideCompletionItems() {
-				return [{
+				return {
 					currentWord: '',
 					incomplete: false,
 					suggestions: [{
@@ -41,7 +40,7 @@ suite('Suggest', function () {
 							type: 'property',
 							codeSnippet: 'fff'
 						}]
-				}];
+				};
 			}
 		});
 	});

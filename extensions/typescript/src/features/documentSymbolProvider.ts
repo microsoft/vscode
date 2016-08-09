@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Range, CancellationToken } from 'vscode';
+import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Range, Location, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
@@ -50,8 +50,8 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		function convert(bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind] || SymbolKind.Variable,
-				textSpan2Range(item.spans[0]), resource.uri,
-				containerLabel);
+				containerLabel,
+				new Location(resource.uri, textSpan2Range(item.spans[0])));
 
 			if (item.childItems && item.childItems.length > 0) {
 				for (let child of item.childItems) {

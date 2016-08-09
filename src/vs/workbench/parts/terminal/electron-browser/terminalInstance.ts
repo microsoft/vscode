@@ -7,20 +7,25 @@ import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import nls = require('vs/nls');
 import os = require('os');
-import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
-import {IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {Keybinding} from 'vs/base/common/keyCodes';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
 
 export class TerminalInstance {
 
 	private static eolRegex = /\r?\n/g;
 
 	private isExiting: boolean = false;
+	private skipTerminalKeybindings: Keybinding[] = [];
 
 	private toDispose: lifecycle.IDisposable[];
 	private xterm;
@@ -31,12 +36,16 @@ export class TerminalInstance {
 	public constructor(
 		private terminalProcess: ITerminalProcess,
 		private parentDomElement: HTMLElement,
+		private contextMenuService: IContextMenuService,
 		private contextService: IWorkspaceContextService,
+		private instantiationService: IInstantiationService,
+		private keybindingService: IKeybindingService,
 		private terminalService: ITerminalService,
 		private messageService: IMessageService,
 		private terminalFocusContextKey: IKeybindingContextKey<boolean>,
 		private onExitCallback: (TerminalInstance) => void
 	) {
+		let self = this;
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
@@ -55,6 +64,20 @@ export class TerminalInstance {
 			});
 			return false;
 		});
+		this.xterm.attachCustomKeydownHandler(function (event: KeyboardEvent) {
+			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
+			// be escaped
+			let standardKeyboardEvent = new StandardKeyboardEvent(event);
+			if (self.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+				event.preventDefault();
+				return false;
+			}
+
+			// If tab focus mode is on, tab is not passed to the terminal
+			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+				return false;
+			}
+		});
 		this.terminalProcess.process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this.isExiting) {
@@ -66,28 +89,30 @@ export class TerminalInstance {
 				this.onExitCallback(this);
 			}
 		});
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mousedown', (event) => {
-			// Drop selection and focus terminal on Linux to enable middle button paste when click
-			// occurs on the selection itself.
-			if (event.which === 2 && platform.isLinux) {
-				this.focus(true);
-			}
-		}));
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mouseup', (event) => {
-			if (event.which !== 3) {
-				this.focus();
-			}
-		}));
-		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'keyup', (event: KeyboardEvent) => {
-			// Keep terminal open on escape
-			if (event.keyCode === 27) {
-				event.stopPropagation();
-			}
-		}));
 
 		this.xterm.open(this.terminalDomElement);
 
-		let self = this;
+
+		let xtermHelper: HTMLElement = this.xterm.element.querySelector('.xterm-helpers');
+		let focusTrap: HTMLElement = document.createElement('div');
+		focusTrap.setAttribute('tabindex', '0');
+		DOM.addClass(focusTrap, 'focus-trap');
+		focusTrap.addEventListener('focus', function (event: FocusEvent) {
+			let currentElement = focusTrap;
+			while (!DOM.hasClass(currentElement, 'part')) {
+				currentElement = currentElement.parentElement;
+			}
+			let hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
+			hidePanelElement.focus();
+		});
+		xtermHelper.insertBefore(focusTrap, this.xterm.textarea);
+
+		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'focus', (event: KeyboardEvent) => {
+			self.terminalFocusContextKey.set(true);
+		}));
+		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'blur', (event: KeyboardEvent) => {
+			self.terminalFocusContextKey.reset();
+		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'focus', (event: KeyboardEvent) => {
 			self.terminalFocusContextKey.set(true);
 		}));
@@ -110,10 +135,13 @@ export class TerminalInstance {
 		if (!dimension.height) { // Minimized
 			return;
 		}
-		let cols = Math.floor(dimension.width / this.font.charWidth);
+		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		let innerWidth = dimension.width - leftPadding;
+		let cols = Math.floor(innerWidth / this.font.charWidth);
 		let rows = Math.floor(dimension.height / this.font.charHeight);
 		if (this.xterm) {
 			this.xterm.resize(cols, rows);
+			this.xterm.element.style.width = innerWidth + 'px';
 		}
 		if (this.terminalProcess.process.connected) {
 			this.terminalProcess.process.send({
@@ -139,6 +167,14 @@ export class TerminalInstance {
 		}
 	}
 
+	public setCommandsToSkipShell(commands: string[]): void {
+		this.skipTerminalKeybindings = commands.map((c) => {
+			return this.keybindingService.lookupKeybindings(c);
+		}).reduce((prev, curr) => {
+			return prev.concat(curr);
+		});
+	}
+
 	public focus(force?: boolean): void {
 		if (!this.xterm) {
 			return;
@@ -147,6 +183,14 @@ export class TerminalInstance {
 		if (!text || force) {
 			this.xterm.focus();
 		}
+	}
+
+	public scrollDown(): void {
+		this.xterm.scrollDisp(1);
+	}
+
+	public scrollUp(): void {
+		this.xterm.scrollDisp(-1);
 	}
 
 	public dispose(): void {

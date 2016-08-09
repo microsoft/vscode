@@ -8,20 +8,25 @@ import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {CodeEditorStateFlag, ICommonCodeEditor, IEditorActionDescriptorData, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {EditorContextKeys, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
+import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {InPlaceReplaceCommand} from './inPlaceReplaceCommand';
 
-class InPlaceReplace extends EditorAction {
+class InPlaceReplaceController implements IEditorContribution {
+
+	private static ID = 'editor.contrib.inPlaceReplaceController';
+
+	static get(editor:ICommonCodeEditor): InPlaceReplaceController {
+		return <InPlaceReplaceController>editor.getContribution(InPlaceReplaceController.ID);
+	}
 
 	private static DECORATION = {
 		className: 'valueSetReplacement'
 	};
 
-	private up:boolean;
+	private editor:ICommonCodeEditor;
 	private requestIdPool:number;
 	private currentRequest:TPromise<IInplaceReplaceSupportResult>;
 	private decorationRemover:TPromise<void>;
@@ -29,21 +34,25 @@ class InPlaceReplace extends EditorAction {
 	private editorWorkerService:IEditorWorkerService;
 
 	constructor(
-		descriptor:IEditorActionDescriptorData,
 		editor:ICommonCodeEditor,
-		up:boolean,
 		@IEditorWorkerService editorWorkerService:IEditorWorkerService
 	) {
-		super(descriptor, editor);
+		this.editor = editor;
 		this.editorWorkerService = editorWorkerService;
-		this.up = up;
 		this.requestIdPool = 0;
 		this.currentRequest = TPromise.as(<IInplaceReplaceSupportResult>null);
 		this.decorationRemover = TPromise.as(<void>null);
 		this.decorationIds = [];
 	}
 
-	public run():TPromise<boolean> {
+	public dispose(): void {
+	}
+
+	public getId(): string {
+		return InPlaceReplaceController.ID;
+	}
+
+	public run(source:string, up:boolean): TPromise<void> {
 
 		// cancel any pending request
 		this.currentRequest.cancel();
@@ -60,14 +69,14 @@ class InPlaceReplace extends EditorAction {
 
 		var state = this.editor.captureState(CodeEditorStateFlag.Value, CodeEditorStateFlag.Position);
 
-		this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, this.up);
+		this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, up);
 		this.currentRequest = this.currentRequest.then((basicResult) => {
 			if (basicResult && basicResult.range && basicResult.value) {
 				return basicResult;
 			}
 
 			if (support) {
-				return support.navigateValueSet(modelURI, selection, this.up);
+				return support.navigateValueSet(modelURI, selection, up);
 			}
 
 			return null;
@@ -96,12 +105,12 @@ class InPlaceReplace extends EditorAction {
 
 			// Insert new text
 			var command = new InPlaceReplaceCommand(editRange, selection, result.value);
-			this.editor.executeCommand(this.id, command);
+			this.editor.executeCommand(source, command);
 
 			// add decoration
 			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [{
 				range: highlightRange,
-				options: InPlaceReplace.DECORATION
+				options: InPlaceReplaceController.DECORATION
 			}]);
 
 			// remove decoration after delay
@@ -112,44 +121,50 @@ class InPlaceReplace extends EditorAction {
 					this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
 				});
 			});
-
-			return true;
 		});
 	}
 }
 
-class InPlaceReplaceUp extends InPlaceReplace {
+@editorAction
+class InPlaceReplaceUp extends EditorAction {
 
-	public static ID = 'editor.action.inPlaceReplace.up';
+	constructor() {
+		super({
+			id: 'editor.action.inPlaceReplace.up',
+			label: nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
+			alias: 'Replace with Previous Value',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
+			}
+		});
+	}
 
-	constructor(
-		descriptor:IEditorActionDescriptorData,
-		editor:ICommonCodeEditor,
-		@IEditorWorkerService editorWorkerService:IEditorWorkerService
-	) {
-		super(descriptor, editor, true, editorWorkerService);
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+		return InPlaceReplaceController.get(editor).run(this.id, true);
 	}
 }
 
-class InPlaceReplaceDown extends InPlaceReplace {
+@editorAction
+class InPlaceReplaceDown extends EditorAction {
 
-	public static ID = 'editor.action.inPlaceReplace.down';
+	constructor() {
+		super({
+			id: 'editor.action.inPlaceReplace.down',
+			label: nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"),
+			alias: 'Replace with Next Value',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
+			}
+		});
+	}
 
-	constructor(
-		descriptor:IEditorActionDescriptorData,
-		editor:ICommonCodeEditor,
-		@IEditorWorkerService editorWorkerService:IEditorWorkerService
-	) {
-		super(descriptor, editor, false, editorWorkerService);
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+		return InPlaceReplaceController.get(editor).run(this.id, false);
 	}
 }
 
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InPlaceReplaceUp, InPlaceReplaceUp.ID, nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
-}, 'Replace with Previous Value'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InPlaceReplaceDown, InPlaceReplaceDown.ID, nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
-}, 'Replace with Next Value'));
+CommonEditorRegistry.registerEditorContribution(InPlaceReplaceController);

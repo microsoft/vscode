@@ -821,3 +821,27 @@ export interface IWorkbenchEditorConfiguration {
 		}
 	};
 }
+
+export const ActiveEditorMovePositioning = {
+	FIRST: 'first',
+	LAST: 'last',
+	LEFT: 'left',
+	RIGHT: 'right',
+	CENTER: 'center',
+	POSITION: 'position',
+};
+
+export const ActiveEditorMovePositioningBy = {
+	TAB: 'tab',
+	GROUP: 'group'
+};
+
+export interface ActiveEditorMoveArguments {
+	to?: string;
+	by?: string;
+	value?: number;
+}
+
+export var EditorCommands = {
+	MoveActiveEditor: 'moveActiveEditor'
+};

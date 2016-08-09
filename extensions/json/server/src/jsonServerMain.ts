@@ -61,7 +61,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: true },
+			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
 			hoverProvider: true,
 			documentSymbolProvider: true,
 			documentRangeFormattingProvider: true,
@@ -102,7 +102,7 @@ let schemaRequestService = (uri:string): Thenable<string> => {
 	return xhr({ url: uri, followRedirects: 5 }).then(response => {
 		return response.responseText;
 	}, (error: XHRResponse) => {
-		return error.responseText || getErrorStatusDescription(error.status) || error.toString();
+		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
 	});
 };
 

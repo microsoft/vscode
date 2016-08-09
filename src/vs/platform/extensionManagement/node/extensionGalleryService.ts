@@ -15,6 +15,7 @@ import product from 'vs/platform/product';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
+	source: string;
 }
 
 interface IRawGalleryExtensionVersion {
@@ -63,6 +64,13 @@ enum FilterType {
 	SearchText = 10
 }
 
+const AssetType = {
+	Icon: 'Microsoft.VisualStudio.Services.Icons.Default',
+	Details: 'Microsoft.VisualStudio.Services.Content.Details',
+	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
+	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage'
+};
+
 interface ICriterium {
 	filterType: FilterType;
 	value?: string;
@@ -77,6 +85,7 @@ interface IQueryState {
 	sortOrder: SortOrder;
 	flags: Flags;
 	criteria: ICriterium[];
+	assetTypes: string[];
 }
 
 const DefaultQueryState: IQueryState = {
@@ -85,7 +94,8 @@ const DefaultQueryState: IQueryState = {
 	sortBy: SortBy.NoneOrRelevance,
 	sortOrder: SortOrder.Default,
 	flags: Flags.None,
-	criteria: []
+	criteria: [],
+	assetTypes: []
 };
 
 class Query {
@@ -118,7 +128,7 @@ class Query {
 		return new Query(assign({}, this.state, { sortBy }));
 	}
 
-	withSortOrder(sortOrder): Query {
+	withSortOrder(sortOrder: SortOrder): Query {
 		return new Query(assign({}, this.state, { sortOrder }));
 	}
 
@@ -126,17 +136,14 @@ class Query {
 		return new Query(assign({}, this.state, { flags: flags.reduce((r, f) => r | f, 0) }));
 	}
 
+	withAssetTypes(...assetTypes: string[]): Query {
+		return new Query(assign({}, this.state, { assetTypes }));
+	}
+
 	get raw(): any {
-		return {
-			filters: [{
-				criteria: this.state.criteria,
-				pageNumber: this.state.pageNumber,
-				pageSize: this.state.pageSize,
-				sortBy: this.state.sortBy,
-				sortOrder: this.state.sortOrder
-			}],
-			flags: this.state.flags
-		};
+		const { criteria, pageNumber, pageSize, sortBy, sortOrder, flags, assetTypes } = this.state;
+		const filters = [{ criteria, pageNumber, pageSize, sortBy, sortOrder }];
+		return { filters, assetTypes, flags };
 	}
 }
 
@@ -146,15 +153,20 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 }
 
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IGalleryExtension {
-	const versions = galleryExtension.versions.map<IGalleryVersion>(v => ({
-		version: v.version,
-		date: v.lastUpdated,
-		downloadHeaders,
-		downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
-		manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`,
-		readmeUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Content.Details`,
-		iconUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Icons.Default`
-	}));
+	const versions = galleryExtension.versions.map<IGalleryVersion>(v => {
+		const iconFile = v.files.filter(f => f.assetType === AssetType.Icon)[0];
+		const iconUrl = iconFile ? iconFile.source : require.toUrl('./media/defaultIcon.png');
+
+		return {
+			version: v.version,
+			date: v.lastUpdated,
+			downloadHeaders,
+			downloadUrl: `${ v.assetUri }/${ AssetType.VSIX }?install=true`,
+			manifestUrl: `${ v.assetUri }/${ AssetType.Manifest }`,
+			readmeUrl: `${ v.assetUri }/${ AssetType.Details }`,
+			iconUrl
+		};
+	});
 
 	return {
 		id: galleryExtension.extensionId,
@@ -207,9 +219,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		let query = new Query()
-			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
+			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles)
 			.withPage(1, pageSize)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withAssetTypes(AssetType.Icon);
 
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
@@ -249,6 +262,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				headers = assign(headers, {
 					'Content-Type': 'application/json',
 					'Accept': 'application/json;api-version=3.0-preview.1',
+					'Accept-Encoding': 'gzip',
 					'Content-Length': data.length
 				});
 

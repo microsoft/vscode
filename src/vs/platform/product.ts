@@ -13,6 +13,7 @@ export interface IProductConfiguration {
 	win32AppUserModelId: string;
 	win32MutexName: string;
 	darwinBundleIdentifier: string;
+	urlProtocol: string;
 	dataFolderName: string;
 	downloadUrl: string;
 	updateUrl?: string;
@@ -43,6 +44,7 @@ export interface IProductConfiguration {
 	reportIssueUrl: string;
 	licenseUrl: string;
 	privacyStatementUrl: string;
+	npsSurveyUrl: string;
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);

@@ -91,7 +91,7 @@ export class StorageService implements IStorageService {
 
 	private load(): any {
 		try {
-			return JSON.parse(fs.readFileSync(this.dbPath).toString());
+			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			if (this.envService.cliArgs.verboseLogging) {
 				console.error(error);
@@ -102,6 +102,12 @@ export class StorageService implements IStorageService {
 	}
 
 	private save(): void {
-		fs.writeFileSync(this.dbPath, JSON.stringify(this.database, null, 4));
+		try {
+			fs.writeFileSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
+		} catch (error) {
+			if (this.envService.cliArgs.verboseLogging) {
+				console.error(error);
+			}
+		}
 	}
 }

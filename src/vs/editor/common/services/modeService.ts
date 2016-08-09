@@ -47,7 +47,6 @@ export interface IModeService {
 
 	configureMode(modeName: string, options: any): void;
 	configureModeById(modeId: string, options: any): void;
-	configureAllModes(config:any): void;
 	getConfigurationForMode(modeId:string): any;
 
 	// --- reading

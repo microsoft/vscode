@@ -44,10 +44,10 @@ if (typeof process === 'object') {
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
 	_isRootUser = !_isWindows && (process.getuid() === 0);
-	let vscode_nls_config = process.env['VSCODE_NLS_CONFIG'];
-	if (vscode_nls_config) {
+	let rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
+	if (rawNlsConfig) {
 		try {
-			let nlsConfig:NLSConfig = JSON.parse(vscode_nls_config);
+			let nlsConfig:NLSConfig = JSON.parse(rawNlsConfig);
 			let resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.locale;
 			// VSCode's default language is 'en'

@@ -6,6 +6,20 @@
 
 import {DiffChange} from 'vs/base/common/diff/diffChange';
 
+
+function createStringSequence(a: string): ISequence {
+
+	return {
+		getLength() { return a.length; },
+		getElementHash(pos: number) { return a[pos]; }
+	};
+}
+
+export function stringDiff(original: string, modified: string): IDiffChange[] {
+	return new LcsDiff(createStringSequence(original), createStringSequence(modified)).ComputeDiff();
+}
+
+
 export interface ISequence {
 	getLength(): number;
 	getElementHash(index:number): string;

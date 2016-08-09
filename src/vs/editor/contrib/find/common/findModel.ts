@@ -6,7 +6,6 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
 import {ReplacePattern} from 'vs/platform/search/common/replace';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {Position} from 'vs/editor/common/core/position';
@@ -243,9 +242,18 @@ export class FindModelBoundToEditorModel {
 		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
 	}
 
-	public _moveToNextMatch(after:Position, isRecursed:boolean = false): void {
+	private _moveToNextMatch(nextMatch:Range): void
+	private _moveToNextMatch(after:Position): void
+	private _moveToNextMatch(arg: any): void {
+		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg) : null;
+		if (nextMatch) {
+			this._setCurrentFindMatch(nextMatch);
+		}
+	}
+
+	private _getNextMatch(after:Position, isRecursed:boolean = false): Range {
 		if (this._cannotFind()) {
-			return;
+			return null;
 		}
 
 		let findScope = this._decorations.getFindScope();
@@ -297,10 +305,10 @@ export class FindModelBoundToEditorModel {
 		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch)) {
-			return this._moveToNextMatch(nextMatch.getEndPosition(), true);
+			return this._getNextMatch(nextMatch.getEndPosition(), true);
 		}
 
-		this._setCurrentFindMatch(nextMatch);
+		return nextMatch;
 	}
 
 	public moveToNextMatch(): void {
@@ -312,14 +320,6 @@ export class FindModelBoundToEditorModel {
 		return replacePattern.getReplaceString(matchedString);
 	}
 
-	private _rangeIsMatch(range:Range): boolean {
-		let selection = this._editor.getSelection();
-		let selectionText = this._editor.getModel().getValueInRange(selection);
-		let regexp = strings.createRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord, true);
-		let m = selectionText.match(regexp);
-		return (m && m[0].length === selectionText.length);
-	}
-
 	public replace(): void {
 		if (!this._hasMatches()) {
 			return;
@@ -327,19 +327,22 @@ export class FindModelBoundToEditorModel {
 
 		let selection = this._editor.getSelection();
 		let selectionText = this._editor.getModel().getValueInRange(selection);
-		if (this._rangeIsMatch(selection)) {
-			// selection sits on a find match => replace it!
-			let replaceString = this.getReplaceString(selectionText);
+		let nextMatch = this._getNextMatch(selection.getStartPosition());
+		if (nextMatch) {
+			if (selection.equalsRange(nextMatch)) {
+				// selection sits on a find match => replace it!
+				let replaceString = this.getReplaceString(selectionText);
 
-			let command = new ReplaceCommand(selection, replaceString);
+				let command = new ReplaceCommand(selection, replaceString);
 
-			this._executeEditorCommand('replace', command);
+				this._executeEditorCommand('replace', command);
 
-			this._decorations.setStartPosition(new Position(selection.startLineNumber, selection.startColumn + replaceString.length));
-			this.research(true);
-		} else {
-			this._decorations.setStartPosition(this._editor.getPosition());
-			this.moveToNextMatch();
+				this._decorations.setStartPosition(new Position(selection.startLineNumber, selection.startColumn + replaceString.length));
+				this.research(true);
+			} else {
+				this._decorations.setStartPosition(this._editor.getPosition());
+				this._moveToNextMatch(nextMatch);
+			}
 		}
 	}
 
