@@ -10,15 +10,19 @@ fi
 
 cd $ROOT
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+	NAME=`node -p "require('./product.json').nameShort"`
+	CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+else
+	NAME=`node -p "require('./product.json').applicationName"`
+	CODE=".build/electron/code-oss"
+fi
+
 # Node modules
 test -d node_modules || ./scripts/npm.sh install
 
 # Get electron
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	test -d .build/electron/Code\ -\ OSS.app || ./node_modules/.bin/gulp electron
-else
-	test -d .build/electron/code-oss || ./node_modules/.bin/gulp electron
-fi
+test -f "$CODE" || ./node_modules/.bin/gulp electron
 
 # Build
 test -d out || ./node_modules/.bin/gulp compile
@@ -26,10 +30,10 @@ test -d out || ./node_modules/.bin/gulp compile
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
-		./.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron \
+		"$CODE" \
 		node_modules/mocha/bin/_mocha $*
 else
 	cd $ROOT ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
-		./.build/electron/code-oss \
+		"$CODE" \
 		node_modules/mocha/bin/_mocha $*
 fi
