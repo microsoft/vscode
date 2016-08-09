@@ -7,8 +7,9 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Handler, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class SelectBracketAction extends HandlerEditorAction {
 	constructor() {
 		super({
@@ -24,6 +25,3 @@ class SelectBracketAction extends HandlerEditorAction {
 		});
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new SelectBracketAction());

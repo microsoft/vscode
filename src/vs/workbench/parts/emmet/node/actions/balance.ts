@@ -8,8 +8,9 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class BalanceInwardAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -21,6 +22,7 @@ class BalanceInwardAction extends BasicEmmetEditorAction {
 	}
 }
 
+@editorAction
 class BalanceOutwardAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -31,6 +33,3 @@ class BalanceOutwardAction extends BasicEmmetEditorAction {
 		);
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new BalanceInwardAction());
-CommonEditorRegistry.registerEditorAction(new BalanceOutwardAction());

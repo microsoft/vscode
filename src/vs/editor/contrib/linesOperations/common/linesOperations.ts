@@ -9,7 +9,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {EditorContextKeys, Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {CopyLinesCommand} from './copyLinesCommand';
 import {DeleteLinesCommand} from './deleteLinesCommand';
 import {MoveLinesCommand} from './moveLinesCommand';
@@ -38,6 +38,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	}
 }
 
+@editorAction
 class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(false, {
@@ -54,6 +55,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 	}
 }
 
+@editorAction
 class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(true, {
@@ -94,6 +96,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 	}
 }
 
+@editorAction
 class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
@@ -110,6 +113,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 	}
 }
 
+@editorAction
 class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
@@ -146,6 +150,7 @@ abstract class AbstractSortLinesAction extends EditorAction {
 	}
 }
 
+@editorAction
 class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
@@ -161,6 +166,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 	}
 }
 
+@editorAction
 class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
@@ -176,6 +182,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 	}
 }
 
+@editorAction
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static ID = 'editor.action.trimTrailingWhitespace';
@@ -251,6 +258,7 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 	}
 }
 
+@editorAction
 class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	constructor() {
@@ -279,6 +287,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 	}
 }
 
+@editorAction
 class IndentLinesAction extends HandlerEditorAction {
 	constructor() {
 		super({
@@ -295,6 +304,7 @@ class IndentLinesAction extends HandlerEditorAction {
 	}
 }
 
+@editorAction
 class OutdentLinesAction extends HandlerEditorAction {
 	constructor() {
 		super({
@@ -311,6 +321,7 @@ class OutdentLinesAction extends HandlerEditorAction {
 	}
 }
 
+@editorAction
 class InsertLineBeforeAction extends HandlerEditorAction {
 	constructor() {
 		super({
@@ -327,6 +338,7 @@ class InsertLineBeforeAction extends HandlerEditorAction {
 	}
 }
 
+@editorAction
 class InsertLineAfterAction extends HandlerEditorAction {
 	constructor() {
 		super({
@@ -342,17 +354,3 @@ class InsertLineAfterAction extends HandlerEditorAction {
 		});
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new DeleteLinesAction());
-CommonEditorRegistry.registerEditorAction(new SortLinesAscendingAction());
-CommonEditorRegistry.registerEditorAction(new SortLinesDescendingAction());
-CommonEditorRegistry.registerEditorAction(new TrimTrailingWhitespaceAction());
-CommonEditorRegistry.registerEditorAction(new MoveLinesDownAction());
-CommonEditorRegistry.registerEditorAction(new MoveLinesUpAction());
-CommonEditorRegistry.registerEditorAction(new CopyLinesDownAction());
-CommonEditorRegistry.registerEditorAction(new CopyLinesUpAction());
-CommonEditorRegistry.registerEditorAction(new IndentLinesAction());
-CommonEditorRegistry.registerEditorAction(new OutdentLinesAction());
-CommonEditorRegistry.registerEditorAction(new InsertLineBeforeAction());
-CommonEditorRegistry.registerEditorAction(new InsertLineAfterAction());

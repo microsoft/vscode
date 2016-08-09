@@ -23,33 +23,96 @@ export const Command = ConfigBasicCommand;
 export const EditorCommand = ConfigEditorCommand;
 export type ICommandOptions = ICommandOptions;
 
-// --- Keybinding extensions to make it more concise to express keybindings conditions
 export interface IEditorCommandMenuOptions {
 	group?: string;
 	order?: number;
 }
+export interface IActionOptions extends ICommandOptions {
+	label: string;
+	alias: string;
+	menuOpts?: IEditorCommandMenuOptions;
+}
+export abstract class EditorAction extends ConfigEditorCommand {
+
+	public label: string;
+	public alias: string;
+	private menuOpts: IEditorCommandMenuOptions;
+
+	constructor(opts:IActionOptions) {
+		super(opts);
+		this.label = opts.label;
+		this.alias = opts.alias;
+		this.menuOpts = opts.menuOpts;
+	}
+
+	public toMenuItem(): IMenuItem {
+		if (!this.menuOpts) {
+			return null;
+		}
+
+		return {
+			command: {
+				id: this.id,
+				title: this.label
+			},
+			when: this.precondition,
+			group: this.menuOpts.group,
+			order: this.menuOpts.order
+		};
+	}
+
+	public runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
+		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
+		return this.run(accessor, editor);
+	}
+
+	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;
+}
+
+export interface IHandlerActionOptions extends IActionOptions {
+	handlerId: string;
+}
+export abstract class HandlerEditorAction extends EditorAction {
+	private _handlerId: string;
+
+	constructor(opts: IHandlerActionOptions) {
+		super(opts);
+		this._handlerId = opts.handlerId;
+	}
+
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		editor.trigger(this.id, this._handlerId, null);
+	}
+}
 
 // --- Editor Actions
 
+export function editorAction(constructor:{ new(): EditorAction; }): void {
+	CommonEditorRegistry.registerEditorAction(new constructor());
+}
+
 export module CommonEditorRegistry {
 
-	export function registerEditorAction(desc:EditorAction) {
-		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorAction(desc);
-	}
+	// --- Editor Actions
 
+	export function registerEditorAction(desc:EditorAction) {
+		EditorContributionRegistry.INSTANCE.registerEditorAction(desc);
+	}
 	export function getEditorActions(): EditorAction[] {
-		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorActions();
+		return EditorContributionRegistry.INSTANCE.getEditorActions();
 	}
 
 	// --- Editor Contributions
+
 	export function registerEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
-		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorContribution(ctor);
+		EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
 	}
 	export function getEditorContributions(): editorCommon.ICommonEditorContributionDescriptor[] {
-		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorContributions();
+		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
 
 	// --- Editor Commands
+
 	export function commandWeight(importance: number = 0): number {
 		return KeybindingsRegistry.WEIGHT.editorContrib(importance);
 	}
@@ -101,6 +164,8 @@ var Extensions = {
 
 class EditorContributionRegistry {
 
+	public static INSTANCE = new EditorContributionRegistry();
+
 	private editorContributions: editorCommon.ICommonEditorContributionDescriptor[];
 	private editorActions: EditorAction[];
 
@@ -133,64 +198,4 @@ class EditorContributionRegistry {
 		return this.editorActions.slice(0);
 	}
 }
-Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
-
-export interface IActionOptions extends ICommandOptions {
-	label: string;
-	alias: string;
-	menuOpts?: IEditorCommandMenuOptions;
-}
-
-export abstract class EditorAction extends ConfigEditorCommand {
-
-	public label: string;
-	public alias: string;
-	private menuOpts: IEditorCommandMenuOptions;
-
-	constructor(opts:IActionOptions) {
-		super(opts);
-		this.label = opts.label;
-		this.alias = opts.alias;
-		this.menuOpts = opts.menuOpts;
-	}
-
-	public toMenuItem(): IMenuItem {
-		if (!this.menuOpts) {
-			return null;
-		}
-
-		return {
-			command: {
-				id: this.id,
-				title: this.label
-			},
-			when: this.precondition,
-			group: this.menuOpts.group,
-			order: this.menuOpts.order
-		};
-	}
-
-	public runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
-		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
-		return this.run(accessor, editor);
-	}
-
-	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;
-}
-
-export interface IHandlerActionOptions extends IActionOptions {
-	handlerId: string;
-}
-
-export abstract class HandlerEditorAction extends EditorAction {
-	private _handlerId: string;
-
-	constructor(opts: IHandlerActionOptions) {
-		super(opts);
-		this._handlerId = opts.handlerId;
-	}
-
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		editor.trigger(this.id, this._handlerId, null);
-	}
-}
+Registry.add(Extensions.EditorCommonContributions, EditorContributionRegistry.INSTANCE);

@@ -8,12 +8,13 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction} from 'vs/editor/common/editorCommonExtensions';
 import {Handler, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
+@editorAction
 class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 
 	constructor() {
@@ -40,5 +41,3 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 		editor.trigger('emmet', Handler.Tab, {});
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new ExpandAbbreviationAction());

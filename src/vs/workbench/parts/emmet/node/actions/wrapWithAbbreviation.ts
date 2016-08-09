@@ -8,10 +8,11 @@
 import nls = require('vs/nls');
 import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {ServicesAccessor, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, editorAction} from 'vs/editor/common/editorCommonExtensions';
 import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
+@editorAction
 class WrapWithAbbreviationAction extends EmmetEditorAction {
 
 	constructor() {
@@ -41,5 +42,3 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 		}
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new WrapWithAbbreviationAction());

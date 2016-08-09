@@ -10,7 +10,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
-import { ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
@@ -179,6 +179,7 @@ export class SuggestController implements IEditorContribution {
 	}
 }
 
+@editorAction
 export class TriggerSuggestAction extends EditorAction {
 
 	constructor() {
@@ -199,8 +200,6 @@ export class TriggerSuggestAction extends EditorAction {
 		SuggestController.getController(editor).triggerSuggest();
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new TriggerSuggestAction());
 
 const weight = CommonEditorRegistry.commandWeight(90);
 

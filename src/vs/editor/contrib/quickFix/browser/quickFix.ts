@@ -14,7 +14,7 @@ import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IQuickFix2} from '../common/quickFix';
@@ -114,6 +114,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 }
 
+@editorAction
 export class QuickFixAction extends EditorAction {
 
 	constructor() {
@@ -139,7 +140,6 @@ var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new KbCtxKey<boolean>('quickFixWidgetVisi
 const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.getQuickFixController);
 
 // register action
-CommonEditorRegistry.registerEditorAction(new QuickFixAction());
 CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
 	id: 'acceptQuickFixSuggestion',
 	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,

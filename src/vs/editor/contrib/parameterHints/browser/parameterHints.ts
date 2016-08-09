@@ -10,7 +10,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { KbExpr } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { ParameterHintsWidget } from './parameterHintsWidget';
@@ -57,6 +57,7 @@ class ParameterHintsController implements IEditorContribution {
 	}
 }
 
+@editorAction
 export class TriggerParameterHintsAction extends EditorAction {
 
 	constructor() {
@@ -82,8 +83,6 @@ const weight = CommonEditorRegistry.commandWeight(75);
 const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsController>(ParameterHintsController.get);
 
 EditorBrowserRegistry.registerEditorContribution(ParameterHintsController);
-
-CommonEditorRegistry.registerEditorAction(new TriggerParameterHintsAction());
 
 CommonEditorRegistry.registerEditorCommand2(new ParameterHintsCommand({
 	id: 'closeParameterHints',

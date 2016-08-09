@@ -7,8 +7,9 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Handler, ICommonCodeEditor, EditorContextKeys, ISelection} from 'vs/editor/common/editorCommon';
-import {ServicesAccessor, EditorAction, HandlerEditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class InsertCursorAbove extends HandlerEditorAction {
 	constructor() {
 		super({
@@ -29,6 +30,7 @@ class InsertCursorAbove extends HandlerEditorAction {
 	}
 }
 
+@editorAction
 class InsertCursorBelow extends HandlerEditorAction {
 	constructor() {
 		super({
@@ -49,6 +51,7 @@ class InsertCursorBelow extends HandlerEditorAction {
 	}
 }
 
+@editorAction
 class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 
 	constructor() {
@@ -95,9 +98,3 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		editor.setSelections(newSelections);
 	}
 }
-
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new InsertCursorAbove());
-CommonEditorRegistry.registerEditorAction(new InsertCursorBelow());
-CommonEditorRegistry.registerEditorAction(new InsertCursorAtEndOfEachLineSelected());

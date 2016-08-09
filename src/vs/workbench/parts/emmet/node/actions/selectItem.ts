@@ -8,8 +8,9 @@
 import nls = require('vs/nls');
 import {BasicEmmetEditorAction} from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class SelectPreviousItemAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -21,6 +22,7 @@ class SelectPreviousItemAction extends BasicEmmetEditorAction {
 	}
 }
 
+@editorAction
 class SelectNextItemAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
@@ -31,6 +33,3 @@ class SelectNextItemAction extends BasicEmmetEditorAction {
 		);
 	}
 }
-
-CommonEditorRegistry.registerEditorAction(new SelectPreviousItemAction());
-CommonEditorRegistry.registerEditorAction(new SelectNextItemAction());

@@ -12,7 +12,7 @@ import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
-import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -149,6 +149,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 	}
 }
 
+@editorAction
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {

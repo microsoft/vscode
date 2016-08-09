@@ -13,7 +13,7 @@ import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorAction, ICommonCodeEditor, IEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
-import {ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 
@@ -67,6 +67,7 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	}
 }
 
+@editorAction
 export class QuickCommandAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
