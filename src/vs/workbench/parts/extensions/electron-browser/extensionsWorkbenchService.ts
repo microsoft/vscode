@@ -91,7 +91,7 @@ class Extension implements IExtension {
 			return URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
 		}
 
-		if (this.gallery && this.gallery.versions[0].iconUrl) {
+		if (this.gallery) {
 			return this.gallery.versions[0].iconUrl;
 		}
 

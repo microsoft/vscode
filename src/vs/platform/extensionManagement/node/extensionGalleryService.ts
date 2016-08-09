@@ -15,6 +15,7 @@ import product from 'vs/platform/product';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
+	source: string;
 }
 
 interface IRawGalleryExtensionVersion {
@@ -152,15 +153,20 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 }
 
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IGalleryExtension {
-	const versions = galleryExtension.versions.map<IGalleryVersion>(v => ({
-		version: v.version,
-		date: v.lastUpdated,
-		downloadHeaders,
-		downloadUrl: `${ v.assetUri }/${ AssetType.VSIX }?install=true`,
-		manifestUrl: `${ v.assetUri }/${ AssetType.Manifest }`,
-		readmeUrl: `${ v.assetUri }/${ AssetType.Details }`,
-		iconUrl: `${ v.assetUri }/${ AssetType.Icon }`
-	}));
+	const versions = galleryExtension.versions.map<IGalleryVersion>(v => {
+		const iconFile = v.files.filter(f => f.assetType === AssetType.Icon)[0];
+		const iconUrl = iconFile ? iconFile.source : require.toUrl('./media/defaultIcon.png');
+
+		return {
+			version: v.version,
+			date: v.lastUpdated,
+			downloadHeaders,
+			downloadUrl: `${ v.assetUri }/${ AssetType.VSIX }?install=true`,
+			manifestUrl: `${ v.assetUri }/${ AssetType.Manifest }`,
+			readmeUrl: `${ v.assetUri }/${ AssetType.Details }`,
+			iconUrl
+		};
+	});
 
 	return {
 		id: galleryExtension.extensionId,
@@ -213,9 +219,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		let query = new Query()
-			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
+			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles)
 			.withPage(1, pageSize)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withAssetTypes(AssetType.Icon);
 
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
