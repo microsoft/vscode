@@ -140,7 +140,7 @@ var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new KbCtxKey<boolean>('quickFixWidgetVisi
 const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.getQuickFixController);
 
 // register action
-CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
+CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
 	id: 'acceptQuickFixSuggestion',
 	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
 	handler: x => x.acceptSelectedSuggestion(),
@@ -151,7 +151,7 @@ CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
 		secondary: [KeyCode.Tab]
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
+CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
 	id: 'closeQuickFixWidget',
 	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
 	handler: x => x.closeWidget(),
@@ -162,7 +162,7 @@ CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
+CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
 	id: 'selectNextQuickFix',
 	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
 	handler: x => x.selectNextSuggestion(),
@@ -173,7 +173,7 @@ CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] }
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
+CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
 	id: 'selectNextPageQuickFix',
 	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
 	handler: x => x.selectNextPageSuggestion(),
@@ -183,7 +183,7 @@ CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
 		primary: KeyCode.PageDown
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
+CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
 	id: 'selectPrevQuickFix',
 	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
 	handler: x => x.selectPrevSuggestion(),
@@ -194,7 +194,7 @@ CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }
 	}
 }));
-CommonEditorRegistry.registerEditorCommand2(new QuickFixCommand({
+CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
 	id: 'selectPrevPageQuickFix',
 	precondition: CONTEXT_QUICK_FIX_WIDGET_VISIBLE,
 	handler: x => x.selectPrevPageSuggestion(),

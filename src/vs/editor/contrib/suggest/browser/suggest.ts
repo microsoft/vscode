@@ -206,7 +206,7 @@ const weight = CommonEditorRegistry.commandWeight(90);
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.getController);
 
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
 	handler: x => x.acceptSelectedSuggestion(),
@@ -217,7 +217,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
 	precondition: SuggestContext.Visible,
 	handler: x => x.acceptSelectedSuggestion(),
@@ -228,7 +228,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'hideSuggestWidget',
 	precondition: SuggestContext.Visible,
 	handler: x => x.cancelSuggestWidget(),
@@ -240,7 +240,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectNextSuggestion',
 	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectNextSuggestion(),
@@ -253,7 +253,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectNextPageSuggestion',
 	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectNextPageSuggestion(),
@@ -265,7 +265,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectFirstSuggestion',
 	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectFirstSuggestion(),
@@ -277,7 +277,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevSuggestion',
 	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevSuggestion(),
@@ -290,7 +290,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevPageSuggestion',
 	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevPageSuggestion(),
@@ -302,7 +302,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectLastSuggestion',
 	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectLastSuggestion(),
@@ -314,7 +314,7 @@ CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand2(new SuggestCommand({
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'toggleSuggestionDetails',
 	precondition: SuggestContext.Visible,
 	handler: x => x.toggleSuggestionDetails(),

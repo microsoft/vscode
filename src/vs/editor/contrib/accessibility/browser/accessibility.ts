@@ -215,7 +215,7 @@ EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 
-CommonEditorRegistry.registerEditorCommand2(new AccessibilityHelpCommand({
+CommonEditorRegistry.registerEditorCommand(new AccessibilityHelpCommand({
 	id: 'closeAccessibilityHelp',
 	precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
 	handler: x => x.hide(),
@@ -245,4 +245,4 @@ class ToggleExperimentalScreenReaderSupportCommand extends Command {
 	}
 }
 
-CommonEditorRegistry.registerEditorCommand2(new ToggleExperimentalScreenReaderSupportCommand());
+CommonEditorRegistry.registerEditorCommand(new ToggleExperimentalScreenReaderSupportCommand());
