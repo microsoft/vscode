@@ -124,7 +124,7 @@ class ContextMenuController implements IEditorContribution {
 			const result: IAction[] = [];
 			const groups = this._contextMenu.getActions();
 
-			for (const group of groups) {
+			for (let group of groups) {
 				const [, actions] = group;
 				result.push(...actions);
 				result.push(new Separator());

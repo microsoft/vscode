@@ -243,7 +243,7 @@ class ExtHostApiCommands {
 		return this._commands.executeCommand<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
-				for (const tuple of value) {
+				for (let tuple of value) {
 					result.push(...tuple[1].map(typeConverters.toSymbolInformation));
 				}
 			}
@@ -343,7 +343,7 @@ class ExtHostApiCommands {
 			if (values) {
 				let items: types.CompletionItem[] = [];
 				let incomplete: boolean;
-				for (const item of values) {
+				for (let item of values) {
 					incomplete = item.container.incomplete || incomplete;
 					items.push(typeConverters.Suggest.to(item.container, position, item.suggestion));
 				}
