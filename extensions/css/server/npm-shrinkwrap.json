@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "dependencies": {
     "vscode-css-languageservice": {
-      "version": "1.0.7-next.1",
+      "version": "1.0.7-next.2",
       "from": "vscode-css-languageservice@next"
     },
     "vscode-jsonrpc": {
