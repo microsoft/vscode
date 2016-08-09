@@ -44,7 +44,6 @@
 	"miGotoLine": "移至行(&&L)...",
 	"miGotoSymbol": "移至符號(&&S)...",
 	"miInstallingUpdate": "正在安裝更新...",
-	"miLastCheckedAt": "上次檢查時間為 {0}",
 	"miLicense": "檢視授權(&&V)",
 	"miMarker": "問題(&&P)",
 	"miMoveSidebar": "移動提要欄位(&&M)",

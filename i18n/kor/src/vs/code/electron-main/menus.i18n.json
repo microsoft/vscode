@@ -44,7 +44,6 @@
 	"miGotoLine": "줄로 이동(&&L)...",
 	"miGotoSymbol": "기호로 이동(&&S)...",
 	"miInstallingUpdate": "업데이트를 설치하는 중...",
-	"miLastCheckedAt": "마지막 확인 시간: {0}",
 	"miLicense": "라이선스 보기(&&V)",
 	"miMarker": "문제(&&P)",
 	"miMoveSidebar": "사이드바 이동(&&M)",
