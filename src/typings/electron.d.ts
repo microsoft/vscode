@@ -1,4 +1,4 @@
-// Type definitions for Electron v1.2.5
+// Type definitions for Electron v1.3.1
 // Project: http://electron.atom.io/
 // Definitions by: jedmao <https://github.com/jedmao/>, rhysd <https://rhysd.github.io>, Milan Burda <https://github.com/miniak/>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -23,6 +23,23 @@ declare namespace Electron {
 	interface Event {
 		preventDefault: Function;
 		sender: EventEmitter;
+	}
+
+	type Point = {
+		x: number;
+		y: number;
+	}
+
+	type Size = {
+		width: number;
+		height: number;
+	}
+
+	type Rectangle = {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/app.md
@@ -160,6 +177,12 @@ declare namespace Electron {
 		 * Emitted when the gpu process crashes.
 		 */
 		on(event: 'gpu-process-crashed', listener: Function): this;
+		/**
+		 * Emitted when Chrome's accessibility support changes.
+		 *
+		 * Note: This API is only available on macOS and Windows.
+		 */
+		on(event: 'accessibility-support-changed', listener: (event: Event, accessibilitySupportEnabled: boolean) => void): this;
 		on(event: string, listener: Function): this;
 		/**
 		 * Try to close all windows. The before-quit event will first be emitted.
@@ -341,6 +364,33 @@ declare namespace Electron {
 		 * This method can only be called before app is ready.
 		 */
 		disableHardwareAcceleration(): void;
+		/**
+		 * @returns whether current desktop environment is Unity launcher. (Linux)
+		 *
+		 * Note: This API is only available on Linux.
+		 */
+		isUnityRunning(): boolean;
+		/**
+		 * Returns a Boolean, true if Chrome's accessibility support is enabled, false otherwise.
+		 * This API will return true if the use of assistive technologies, such as screen readers,
+		 * has been detected.
+		 * See https://www.chromium.org/developers/design-documents/accessibility for more details.
+		 *
+		 * Note: This API is only available on macOS and Windows.
+		 */
+		isAccessibilitySupportEnabled(): boolean;
+		/**
+		 * @returns an Object with the login item settings of the app.
+		 *
+		 * Note: This API is only available on macOS and Windows.
+		 */
+		getLoginItemSettings(): LoginItemSettings;
+		/**
+		 * Set the app's login item settings.
+		 *
+		 * Note: This API is only available on macOS and Windows.
+		 */
+		setLoginItemSettings(settings: LoginItemSettings): void;
 		commandLine: CommandLine;
 		/**
 		 * Note: This API is only available on macOS.
@@ -368,7 +418,7 @@ declare namespace Electron {
 		 * Note: This will not affect process.argv, and is mainly used by developers
 		 * to control some low-level Chromium behaviors.
 		 */
-		appendSwitch(_switch: string, value?: string | number): void;
+		appendSwitch(_switch: string, value?: string): void;
 		/**
 		 * Append an argument to Chromium's command line. The argument will quoted properly.
 		 *
@@ -414,6 +464,20 @@ declare namespace Electron {
 		 * Note: This API is only available on macOS.
 		 */
 		getBadge(): string;
+		/**
+		 * Sets the counter badge for current app. Setting the count to 0 will hide the badge.
+		 *
+		 * @returns True when the call succeeded, otherwise returns false.
+		 *
+		 * Note: This API is only available on macOS and Linux.
+		 */
+		setBadgeCount(count: number): boolean;
+		/**
+		 * @returns The current value displayed in the counter badge.
+		 *
+		 * Note: This API is only available on macOS and Linux.
+		 */
+		getBadgeCount(): number;
 		/**
 		 * Hides the dock icon.
 		 *
@@ -472,6 +536,32 @@ declare namespace Electron {
 		iconIndex?: number;
 	}
 
+	interface LoginItemSettings {
+		/**
+		 * True if the app is set to open at login.
+		 */
+		openAtLogin: boolean;
+		/**
+		 * True if the app is set to open as hidden at login. This setting is only supported on macOS.
+		 */
+		openAsHidden: boolean;
+		/**
+		 * True if the app was opened at login automatically. This setting is only supported on macOS.
+		 */
+		wasOpenedAtLogin?: boolean;
+		/**
+		 * True if the app was opened as a hidden login item. This indicates that the app should not
+		 * open any windows at startup. This setting is only supported on macOS.
+		 */
+		wasOpenedAsHidden?: boolean;
+		/**
+		 * True if the app was opened as a login item that should restore the state from the previous session.
+		 * This indicates that the app should restore the windows that were open the last time the app was closed.
+		 * This setting is only supported on macOS.
+		 */
+		restoreState?: boolean;
+	}
+
 	// https://github.com/electron/electron/blob/master/docs/api/auto-updater.md
 
 	/**
@@ -504,6 +594,10 @@ declare namespace Electron {
 		 * Set the url and initialize the auto updater.
 		 */
 		setFeedURL(url: string, requestHeaders?: Headers): void;
+		/**
+		 * @returns The current update feed URL.
+		 */
+		getFeedURL(): string;
 		/**
 		 * Ask the server whether there is an update, you have to call setFeedURL
 		 * before using this API
@@ -629,6 +723,9 @@ declare namespace Electron {
 		 */
 		on(event: 'swipe', listener: (event: Event, direction: SwipeDirection) => void): this;
 		on(event: string, listener: Function): this;
+		/**
+		 * Creates a new BrowserWindow with native properties as set by the options.
+		 */
 		constructor(options?: BrowserWindowOptions);
 		/**
 		 * @returns All opened browser windows.
@@ -764,7 +861,7 @@ declare namespace Electron {
 		 *
 		 * Note: This API is available only on macOS.
 		 */
-		setAspectRatio(aspectRatio: number, extraSize?: Dimension): void;
+		setAspectRatio(aspectRatio: number, extraSize?: Size): void;
 		/**
 		 * Resizes and moves the window to width, height, x, y.
 		 */
@@ -968,6 +1065,13 @@ declare namespace Electron {
 		 * @param callback Supplies the image that stores data of the snapshot.
 		 */
 		capturePage(rect: Rectangle, callback: (image: NativeImage) => void): void;
+		/**
+		 * Captures the snapshot of page within rect, upon completion the callback
+		 * will be called. Omitting the rect would capture the whole visible page.
+		 * Note: Be sure to read documents on remote buffer in remote if you are going
+		 * to use this API in renderer process.
+		 * @param callback Supplies the image that stores data of the snapshot.
+		 */
 		capturePage(callback: (image: NativeImage) => void): void;
 		/**
 		 * Same as webContents.loadURL(url).
@@ -1014,8 +1118,18 @@ declare namespace Electron {
 		 * Add a thumbnail toolbar with a specified set of buttons to the thumbnail image
 		 * of a window in a taskbar button layout.
 		 * @returns Whether the thumbnail has been added successfully.
+		 *
+		 * Note: This API is available only on Windows.
 		 */
 		setThumbarButtons(buttons: ThumbarButton[]): boolean;
+		/**
+		 * Sets the region of the window to show as the thumbnail image displayed when hovering
+		 * over the window in the taskbar. You can reset the thumbnail to be the entire window
+		 * by specifying an empty region: {x: 0, y: 0, width: 0, height: 0}.
+		 *
+		 * Note: This API is available only on Windows.
+		 */
+		setThumbnailClip(region: Rectangle): void;
 		/**
 		 * Same as webContents.showDefinitionForSelection().
 		 * Note: This API is available only on macOS.
@@ -1263,7 +1377,7 @@ declare namespace Electron {
 		backgroundThrottling?: boolean;
 	}
 
-	interface BrowserWindowOptions extends Rectangle {
+	interface BrowserWindowOptions {
 		/**
 		 * Window’s width in pixels.
 		 * Default: 800.
@@ -1459,21 +1573,19 @@ declare namespace Electron {
 		 */
 		titleBarStyle?: 'default' | 'hidden' | 'hidden-inset';
 		/**
+		 * Use WS_THICKFRAME style for frameless windows on Windows
+		 */
+		thickFrame?: boolean;
+		/**
 		 * Settings of web page’s features.
 		 */
 		webPreferences?: WebPreferences;
 	}
 
-	type BrowserWindowType = BrowserWindowTypeLinux | BrowserWindowTypeMac;
+	type BrowserWindowType = BrowserWindowTypeLinux | BrowserWindowTypeMac | BrowserWindowTypeWindows;
 	type BrowserWindowTypeLinux = 'desktop' | 'dock' | 'toolbar' | 'splash' | 'notification';
 	type BrowserWindowTypeMac = 'desktop' | 'textured';
-
-	interface Rectangle {
-		x?: number;
-		y?: number;
-		width?: number;
-		height?: number;
-	}
+	type BrowserWindowTypeWindows = 'toolbar';
 
 	// https://github.com/electron/electron/blob/master/docs/api/clipboard.md
 
@@ -1541,9 +1653,26 @@ declare namespace Electron {
 			html?: string;
 			image?: NativeImage;
 		}, type?: ClipboardType): void;
+		/**
+		 * @returns An Object containing title and url keys representing the bookmark in the clipboard.
+		 *
+		 * Note: This API is available on macOS and Windows.
+		 */
+		readBookmark(): Bookmark;
+		/**
+		 * Writes the title and url into the clipboard as a bookmark.
+		 *
+		 * Note: This API is available on macOS and Windows.
+		 */
+		writeBookmark(title: string, url: string, type?: ClipboardType): void;
 	}
 
 	type ClipboardType = '' | 'selection';
+
+	interface Bookmark {
+		title: string;
+		url: string;
+	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/content-tracing.md
 
@@ -1734,7 +1863,7 @@ declare namespace Electron {
 		 * The suggested size that thumbnail should be scaled.
 		 * Default: {width: 150, height: 150}
 		 */
-		thumbnailSize?: Dimension;
+		thumbnailSize?: Size;
 	}
 
 	interface DesktopCapturerSource {
@@ -1836,7 +1965,7 @@ declare namespace Electron {
 		/**
 		 * Contains which features the dialog should use.
 		 */
-		properties?: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
+		properties?: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory' | 'showHiddenFiles')[];
 	}
 
 	interface SaveDialogOptions {
@@ -2270,7 +2399,7 @@ declare namespace Electron {
 		 * @param x Horizontal coordinate where the menu will be placed.
 		 * @param y Vertical coordinate where the menu will be placed.
 		 */
-		popup(browserWindow?: BrowserWindow, x?: number, y?: number, select?: number): void;
+		popup(browserWindow?: BrowserWindow, x?: number, y?: number): void;
 		/**
 		 * Appends the menuItem to the menu.
 		 */
@@ -2333,7 +2462,7 @@ declare namespace Electron {
 		/**
 		 * @returns {} The size of the image.
 		 */
-		getSize(): Dimension;
+		getSize(): Size;
 		/**
 		 * Marks the image as template image.
 		 */
@@ -2556,10 +2685,10 @@ declare namespace Electron {
 		 * Unique identifier associated with the display.
 		 */
 		id: number;
-		bounds: Bounds;
-		workArea: Bounds;
-		size: Dimension;
-		workAreaSize: Dimension;
+		bounds: Rectangle;
+		workArea: Rectangle;
+		size: Size;
+		workAreaSize: Size;
 		/**
 		 * Output device’s pixel scale factor.
 		 */
@@ -2569,23 +2698,6 @@ declare namespace Electron {
 		 */
 		rotation: number;
 		touchSupport: 'available' | 'unavailable' | 'unknown';
-	}
-
-	type Bounds = {
-		x: number;
-		y: number;
-		width: number;
-		height: number;
-	}
-
-	type Dimension = {
-		width: number;
-		height: number;
-	}
-
-	type Point = {
-		x: number;
-		y: number;
 	}
 
 	type DisplayMetrics = 'bounds' | 'workArea' | 'scaleFactor' | 'rotation';
@@ -2627,7 +2739,7 @@ declare namespace Electron {
 		/**
 		 * @returns The display that most closely intersects the provided bounds.
 		 */
-		getDisplayMatching(rect: Bounds): Display;
+		getDisplayMatching(rect: Rectangle): Display;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/session.md
@@ -2641,7 +2753,7 @@ declare namespace Electron {
 		/**
 		 * @returns a new Session instance from partition string.
 		 */
-		static fromPartition(partition: string): Session;
+		static fromPartition(partition: string, options?: FromPartitionOptions): Session;
 		/**
 		 * @returns the default session object of the app.
 		 */
@@ -2680,7 +2792,7 @@ declare namespace Electron {
 		/**
 		 * Sets the proxy settings.
 		 */
-		setProxy(config: string, callback: Function): void;
+		setProxy(config: ProxyConfig, callback: Function): void;
 		/**
 		 * Resolves the proxy information for url.
 		 */
@@ -2741,6 +2853,13 @@ declare namespace Electron {
 
 	type Permission = 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal';
 
+	interface FromPartitionOptions {
+		/**
+		 * Whether to enable cache.
+		 */
+		cache?: boolean;
+	}
+
 	interface ClearStorageDataOptions {
 		/**
 		 * Should follow window.location.origin’s representation scheme://host:port.
@@ -2754,6 +2873,21 @@ declare namespace Electron {
 		 * The types of quotas to clear.
 		 */
 		quotas?: ('temporary' | 'persistent' | 'syncable')[];
+	}
+
+	interface ProxyConfig {
+		/**
+		 * The URL associated with the PAC file.
+		 */
+		pacScript: string;
+		/**
+		 * Rules indicating which proxies to use.
+		 */
+		proxyRules: string;
+		/**
+		 * Rules indicating which URLs should bypass the proxy settings.
+		 */
+		proxyBypassRules: string;
 	}
 
 	interface NetworkEmulationOptions {
@@ -3177,17 +3311,17 @@ declare namespace Electron {
 		 * Emitted when the tray icon is clicked.
 		 * Note: The bounds payload is only implemented on macOS and Windows.
 		 */
-		on(event: 'click', listener: (modifiers: Modifiers, bounds: Bounds) => void): this;
+		on(event: 'click', listener: (modifiers: Modifiers, bounds: Rectangle) => void): this;
 		/**
 		 * Emitted when the tray icon is right clicked.
 		 * Note: This is only implemented on macOS and Windows.
 		 */
-		on(event: 'right-click', listener: (modifiers: Modifiers, bounds: Bounds) => void): this;
+		on(event: 'right-click', listener: (modifiers: Modifiers, bounds: Rectangle) => void): this;
 		/**
 		 * Emitted when the tray icon is double clicked.
 		 * Note: This is only implemented on macOS and Windows.
 		 */
-		on(event: 'double-click', listener: (modifiers: Modifiers, bounds: Bounds) => void): this;
+		on(event: 'double-click', listener: (modifiers: Modifiers, bounds: Rectangle) => void): this;
 		/**
 		 * Emitted when the tray balloon shows.
 		 * Note: This is only implemented on Windows.
@@ -3213,6 +3347,11 @@ declare namespace Electron {
 		 * Note: This is only implemented on macOS
 		 */
 		on(event: 'drop-files', listener: (event: Event, files: string[]) => void): this;
+		/**
+		 * Emitted when dragged text is dropped in the tray icon.
+		 * Note: This is only implemented on macOS
+		 */
+		on(event: 'drop-text', listener: (event: Event, text: string) => void): this;
 		/**
 		 * Emitted when a drag operation enters the tray icon.
 		 * Note: This is only implemented on macOS
@@ -3255,10 +3394,10 @@ declare namespace Electron {
 		 */
 		setTitle(title: string): void;
 		/**
-		 * Sets whether the tray icon is highlighted when it is clicked.
+		 * Sets when the tray's icon background becomes highlighted.
 		 * Note: This is only implemented on macOS.
 		 */
-		setHighlightMode(highlight: boolean): void;
+		setHighlightMode(mode: 'selection' | 'always' | 'never'): void;
 		/**
 		 * Displays a tray balloon.
 		 * Note: This is only implemented on Windows.
@@ -3282,7 +3421,7 @@ declare namespace Electron {
 		/**
 		 * @returns The bounds of this tray icon.
 		 */
-		getBounds(): Bounds;
+		getBounds(): Rectangle;
 	}
 
 	interface Modifiers {
@@ -3292,7 +3431,30 @@ declare namespace Electron {
 		metaKey: boolean;
 	}
 
+	interface DragItem {
+		/**
+		* The absolute path of the file to be dragged
+		*/
+		file: string;
+		/**
+		* The image showing under the cursor when dragging.
+		*/
+		icon: NativeImage;
+	}
+
 	// https://github.com/electron/electron/blob/master/docs/api/web-contents.md
+
+	interface WebContentsStatic {
+		/**
+		 * @returns An array of all web contents. This will contain web contents for all windows,
+		 * webviews, opened devtools, and devtools extension background pages.
+		 */
+		getAllWebContents(): WebContents[];
+		/**
+		 * @returns The web contents that is focused in this application, otherwise returns null.
+		 */
+		getFocusedWebContents(): WebContents;
+	}
 
 	/**
 	 * A WebContents is responsible for rendering and controlling a web page.
@@ -3487,6 +3649,10 @@ declare namespace Electron {
 		 * passing empty string to callback will cancel the request.
 		 */
 		on(event: 'select-bluetooth-device', listener: (event: Event, deviceList: BluetoothDevice[], callback: (deviceId: string) => void) => void): this;
+		/**
+		 * Emitted when a page's view is repainted.
+		 */
+		on(event: 'view-painted', listener: Function): this;
 		on(event: string, listener: Function): this;
 		/**
 		 * Loads the url in the window.
@@ -3597,47 +3763,51 @@ declare namespace Electron {
 		 */
 		isAudioMuted(): boolean;
 		/**
-		 * Executes Edit -> Undo command in page.
+		 * Executes the editing command undo in web page.
 		 */
 		undo(): void;
 		/**
-		 * Executes Edit -> Redo command in page.
+		 * Executes the editing command redo in web page.
 		 */
 		redo(): void;
 		/**
-		 * Executes Edit -> Cut command in page.
+		 * Executes the editing command cut in web page.
 		 */
 		cut(): void;
 		/**
-		 * Executes Edit -> Copy command in page.
+		 * Executes the editing command copy in web page.
 		 */
 		copy(): void;
 		/**
-		 * Executes Edit -> Paste command in page.
+		 * Copy the image at the given position to the clipboard.
+		 */
+		copyImageAt(x: number, y: number): void;
+		/**
+		 * Executes the editing command paste in web page.
 		 */
 		paste(): void;
 		/**
-		 * Executes Edit -> Paste and Match Style in page.
+		 * Executes the editing command pasteAndMatchStyle in web page.
 		 */
 		pasteAndMatchStyle(): void;
 		/**
-		 * Executes Edit -> Delete command in page.
+		 * Executes the editing command delete in web page.
 		 */
 		delete(): void;
 		/**
-		 * Executes Edit -> Select All command in page.
+		 * Executes the editing command selectAll in web page.
 		 */
 		selectAll(): void;
 		/**
-		 * Executes Edit -> Unselect command in page.
+		 * Executes the editing command unselect in web page.
 		 */
 		unselect(): void;
 		/**
-		 * Executes Edit -> Replace command in page.
+		 * Executes the editing command replace in web page.
 		 */
 		replace(text: string): void;
 		/**
-		 * Executes Edit -> Replace Misspelling command in page.
+		 * Executes the editing command replaceMisspelling in web page.
 		 */
 		replaceMisspelling(text: string): void;
 		/**
@@ -3739,16 +3909,12 @@ declare namespace Electron {
 		 * Begin subscribing for presentation events and captured frames,
 		 * The callback will be called when there is a presentation event.
 		 */
-		beginFrameSubscription(callback: (
-			/**
-			 * The frameBuffer is a Buffer that contains raw pixel data.
-			 * On most machines, the pixel data is effectively stored in 32bit BGRA format,
-			 * but the actual representation depends on the endianness of the processor
-			 * (most modern processors are little-endian, on machines with big-endian
-			 * processors the data is in 32bit ARGB format).
-			 */
-			frameBuffer: Buffer
-		) => void): void;
+		beginFrameSubscription(onlyDirty: boolean, callback: BeginFrameSubscriptionCallback): void;
+		/**
+		 * Begin subscribing for presentation events and captured frames,
+		 * The callback will be called when there is a presentation event.
+		 */
+		beginFrameSubscription(callback: BeginFrameSubscriptionCallback): void;
 		/**
 		 * End subscribing for frame presentation events.
 		 */
@@ -3762,6 +3928,18 @@ declare namespace Electron {
 		 * Note: This API is available only on macOS.
 		 */
 		showDefinitionForSelection(): void;
+		/**
+		 * Sets the item as dragging item for current drag-drop operation.
+		 */
+		startDrag(item: DragItem): void;
+		/**
+		 * Captures a snapshot of the page within rect.
+		 */
+		capturePage(callback: (image: NativeImage) => void): void;
+		/**
+		 * Captures a snapshot of the page within rect.
+		 */
+		capturePage(rect: Rectangle, callback: (image: NativeImage) => void): void;
 		/**
 		 * @returns The unique ID of this WebContents.
 		 */
@@ -3784,6 +3962,24 @@ declare namespace Electron {
 		 * @returns Debugger API
 		 */
 		debugger: Debugger;
+	}
+
+	interface BeginFrameSubscriptionCallback {
+		(
+			/**
+			 * The frameBuffer is a Buffer that contains raw pixel data.
+			 * On most machines, the pixel data is effectively stored in 32bit BGRA format,
+			 * but the actual representation depends on the endianness of the processor
+			 * (most modern processors are little-endian, on machines with big-endian
+			 * processors the data is in 32bit ARGB format).
+			 */
+			frameBuffer: Buffer,
+			/**
+			 * The dirtyRect is an object with x, y, width, height properties that describes which part of the page was repainted.
+			 * If onlyDirty is set to true, frameBuffer will only contain the repainted area. onlyDirty defaults to false.
+			 */
+			dirtyRect?: Rectangle
+		): void
 	}
 
 	interface ContextMenuParams {
@@ -3825,76 +4021,76 @@ declare namespace Electron {
 		 */
 		mediaFlags: {
 			/**
-			 * Wether the media element has crashed.
+			 * Whether the media element has crashed.
 			 */
 			inError: boolean;
 			/**
-			 * Wether the media element is paused.
+			 * Whether the media element is paused.
 			 */
 			isPaused: boolean;
 			/**
-			 * Wether the media element is muted.
+			 * Whether the media element is muted.
 			 */
 			isMuted: boolean;
 			/**
-			 * Wether the media element has audio.
+			 * Whether the media element has audio.
 			 */
 			hasAudio: boolean;
 			/**
-			 * Wether the media element is looping.
+			 * Whether the media element is looping.
 			 */
 			isLooping: boolean;
 			/**
-			 * Wether the media element's controls are visible.
+			 * Whether the media element's controls are visible.
 			 */
 			isControlsVisible: boolean;
 			/**
-			 * Wether the media element's controls are toggleable.
+			 * Whether the media element's controls are toggleable.
 			 */
 			canToggleControls: boolean;
 			/**
-			 * Wether the media element can be rotated.
+			 * Whether the media element can be rotated.
 			 */
 			canRotate: boolean;
 		}
 		/**
-		 * Wether the context menu was invoked on an image which has non-empty contents.
+		 * Whether the context menu was invoked on an image which has non-empty contents.
 		 */
 		hasImageContents: boolean;
 		/**
-		 * Wether the context is editable.
+		 * Whether the context is editable.
 		 */
 		isEditable: boolean;
 		/**
-		 * These flags indicate wether the renderer believes it is able to perform the corresponding action.
+		 * These flags indicate whether the renderer believes it is able to perform the corresponding action.
 		 */
 		editFlags: {
 			/**
-			 * Wether the renderer believes it can undo.
+			 * Whether the renderer believes it can undo.
 			 */
 			canUndo: boolean;
 			/**
-			 * Wether the renderer believes it can redo.
+			 * Whether the renderer believes it can redo.
 			 */
 			canRedo: boolean;
 			/**
-			 * Wether the renderer believes it can cut.
+			 * Whether the renderer believes it can cut.
 			 */
 			canCut: boolean;
 			/**
-			 * Wether the renderer believes it can copy
+			 * Whether the renderer believes it can copy
 			 */
 			canCopy: boolean;
 			/**
-			 * Wether the renderer believes it can paste.
+			 * Whether the renderer believes it can paste.
 			 */
 			canPaste: boolean;
 			/**
-			 * Wether the renderer believes it can delete.
+			 * Whether the renderer believes it can delete.
 			 */
 			canDelete: boolean;
 			/**
-			 * Wether the renderer believes it can select all.
+			 * Whether the renderer believes it can select all.
 			 */
 			canSelectAll: boolean;
 		}
@@ -3986,7 +4182,7 @@ declare namespace Electron {
 		 * Specify page size of the generated PDF.
 		 * Default: A4.
 		 */
-		pageSize?: 'A3' | 'A4' | 'A5' | 'Legal' | 'Letter' | 'Tabloid' | Dimension;
+		pageSize?: 'A3' | 'A4' | 'A5' | 'Legal' | 'Letter' | 'Tabloid' | Size;
 		/**
 		 * Whether to print CSS backgrounds.
 		 * Default: false.
@@ -4006,10 +4202,33 @@ declare namespace Electron {
 
 	interface Certificate {
 		/**
-		 * PEM encoded data
+		 * PEM encoded data.
 		 */
 		data: Buffer;
+		/**
+		 * Issuer's Common Name.
+		 */
 		issuerName: string;
+		/**
+		 * Subject's Common Name.
+		 */
+		subjectName: string;
+		/**
+		 * Hex value represented string.
+		 */
+		serialNumber: string;
+		/**
+		 * Start date of the certificate being valid in seconds.
+		 */
+		validStart: number;
+		/**
+		 * End date of the certificate being valid in seconds.
+		 */
+		validExpiry: number;
+		/**
+		 * Fingerprint of the certificate.
+		 */
+		fingerprint: string;
 	}
 
 	interface LoginRequest {
@@ -4068,7 +4287,7 @@ declare namespace Electron {
 		/**
 		 * Coordinates of first match region.
 		 */
-		selectionArea?: Bounds;
+		selectionArea?: Rectangle;
 	}
 
 	interface DeviceEmulationParameters {
@@ -4080,7 +4299,7 @@ declare namespace Electron {
 		/**
 		 * Set the emulated screen size (screenPosition == mobile)
 		 */
-		screenSize?: Dimension;
+		screenSize?: Size;
 		/**
 		 * Position the view on the screen (screenPosition == mobile)
 		 * Default: {x: 0, y: 0}
@@ -4094,7 +4313,7 @@ declare namespace Electron {
 		/**
 		 * Set the emulated view size (empty means no override).
 		 */
-		viewSize?: Dimension;
+		viewSize?: Size;
 		/**
 		 * Whether emulated view should be scaled down if necessary to fit into available space
 		 * Default: false
@@ -4139,7 +4358,7 @@ declare namespace Electron {
 		wheelTicksY?: number;
 		accelerationRatioX?: number;
 		accelerationRatioY?: number;
-		hasPreciseScrollingDeltas?: number;
+		hasPreciseScrollingDeltas?: boolean;
 		canScroll?: boolean;
 	}
 
@@ -4416,7 +4635,7 @@ declare namespace Electron {
 		/**
 		 * Navigates to the specified offset from the "current entry".
 		 */
-		goToOffset(offset: boolean): void;
+		goToOffset(offset: number): void;
 		/**
 		 * @returns Whether the renderer process has crashed.
 		 */
@@ -4556,6 +4775,14 @@ declare namespace Electron {
 		 * @returns The WebContents associated with this webview.
 		 */
 		getWebContents(): WebContents;
+		/**
+		 * Captures a snapshot of the webview's page. Same as webContents.capturePage([rect, ]callback).
+		 */
+		capturePage(callback: (image: NativeImage) => void): void;
+		/**
+		 * Captures a snapshot of the webview's page. Same as webContents.capturePage([rect, ]callback).
+		 */
+		capturePage(rect: Rectangle, callback: (image: NativeImage) => void): void;
 		/**
 		 * Fired when a load has committed. This includes navigation within the current document
 		 * as well as subframe document-level loads, but does not include asynchronous resource loads.
@@ -4856,7 +5083,7 @@ declare namespace Electron {
 		session: typeof Electron.Session;
 		systemPreferences: Electron.SystemPreferences;
 		Tray: Electron.Tray;
-		hideInternalModules(): void;
+		webContents: Electron.WebContentsStatic;
 	}
 
 	interface ElectronMainAndRenderer extends CommonElectron {
@@ -4896,6 +5123,18 @@ interface File {
 // https://github.com/electron/electron/blob/master/docs/api/process.md
 
 declare namespace NodeJS {
+
+	interface ProcessVersions {
+		/**
+		 * Electron's version string.
+		 */
+		electron: string;
+		/**
+		 * Chrome's version string.
+		 */
+		chrome: string;
+	}
+
 	interface Process {
 		/**
 		 * Setting this to true can disable the support for asar archives in Node's built-in modules.
