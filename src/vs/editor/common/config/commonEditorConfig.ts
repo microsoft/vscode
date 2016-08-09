@@ -405,13 +405,6 @@ function toIntegerWithDefault(source:any, defaultValue:number): number {
 	return toInteger(source);
 }
 
-interface IValidatedIndentationOptions {
-	tabSizeIsAuto: boolean;
-	tabSize: number;
-	insertSpacesIsAuto: boolean;
-	insertSpaces: boolean;
-}
-
 export interface IElementSizeObserver {
 	startObserving(): void;
 	observe(dimension?:editorCommon.IDimension): void;
@@ -622,13 +615,13 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'number',
 			'default': DEFAULT_INDENTATION.tabSize,
 			'minimum': 1,
-			'description': nls.localize('tabSize', "The number of spaces a tab is equal to."),
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.insertSpaces' : {
 			'type': 'boolean',
 			'default': DEFAULT_INDENTATION.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab."),
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation' : {
