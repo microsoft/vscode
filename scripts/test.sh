@@ -14,7 +14,11 @@ cd $ROOT
 test -d node_modules || ./scripts/npm.sh install
 
 # Get electron
-./node_modules/.bin/gulp electron
+if [[ "$OSTYPE" == "darwin"* ]]; then
+	test -d .build/electron/Code\ -\ OSS.app || ./node_modules/.bin/gulp electron
+else
+	test -d .build/electron/code-oss || ./node_modules/.bin/gulp electron
+fi
 
 # Build
 test -d out || ./node_modules/.bin/gulp compile
