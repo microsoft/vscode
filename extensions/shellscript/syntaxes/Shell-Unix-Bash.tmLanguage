@@ -8,6 +8,7 @@
 		<string>bash</string>
 		<string>zsh</string>
 		<string>bashrc</string>
+		<string>bash_aliases</string>
 		<string>bash_profile</string>
 		<string>bash_login</string>
 		<string>profile</string>
