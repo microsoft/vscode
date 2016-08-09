@@ -96,22 +96,28 @@ export class UserSettings {
 			self.watcher.on('change', (eventType: string, fileName: string) => self.onSettingsFileChange(eventType, fileName));
 		}
 
-		let settingsDir = path.dirname(this.appSettingsPath);
-		let settingsPath = path.join(settingsDir, 'settings.json');
-		fs.lstat(settingsPath, function(err, stats) {
-			if (err) {
-				// Attach to the directory if the file doesn't exist
-				attachSettingsChangeWatcher(settingsDir);
-			} else if (stats.isSymbolicLink()) {
-				fs.readlink(self.appSettingsPath, function(err, realPath) {
-					if (err) {
-						attachSettingsChangeWatcher(self.appSettingsPath);
-					}
-					attachSettingsChangeWatcher(realPath);
-				});
-			} else {
-				attachSettingsChangeWatcher(self.appSettingsPath);
-			}
+		// Attach a watcher to the settings directory
+		attachSettingsChangeWatcher(path.dirname(this.appSettingsPath));
+
+		// Follow symlinks for settings and keybindings and attach watchers if they resolve
+		let followSymlinkPaths = [
+			this.appSettingsPath,
+			this.appKeybindingsPath
+		];
+		followSymlinkPaths.forEach((path) => {
+			fs.lstat(path, function(err, stats) {
+				if (err) {
+					return;
+				}
+				if (stats.isSymbolicLink()) {
+					fs.readlink(path, function(err, realPath) {
+						if (err) {
+							return;
+						}
+						attachSettingsChangeWatcher(realPath);
+					});
+				}
+			});
 		});
 	}
 
