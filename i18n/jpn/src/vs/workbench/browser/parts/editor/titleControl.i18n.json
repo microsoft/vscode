@@ -9,7 +9,5 @@
 	"closeAll": "すべて閉じる",
 	"closeOthers": "その他を閉じる",
 	"closeRight": "右側を閉じる",
-	"keepOpen": "開いたままにする",
-	"moveLeft": "左に移動",
-	"moveRight": "右に移動"
+	"keepOpen": "開いたままにする"
 }

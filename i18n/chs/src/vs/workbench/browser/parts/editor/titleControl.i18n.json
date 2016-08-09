@@ -9,7 +9,5 @@
 	"closeAll": "全部关闭",
 	"closeOthers": "关闭其他",
 	"closeRight": "关闭到右侧",
-	"keepOpen": "保持打开状态",
-	"moveLeft": "左移",
-	"moveRight": "右移"
+	"keepOpen": "保持打开状态"
 }

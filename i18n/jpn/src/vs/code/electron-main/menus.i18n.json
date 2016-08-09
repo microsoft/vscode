@@ -44,7 +44,6 @@
 	"miGotoLine": "行に移動(&&L)...",
 	"miGotoSymbol": "シンボルに移動(&&S)...",
 	"miInstallingUpdate": "更新プログラムをインストールしています...",
-	"miLastCheckedAt": "最終確認: {0}",
 	"miLicense": "ライセンスを表示(&&V)",
 	"miMarker": "問題(&&P)",
 	"miMoveSidebar": "サイドバーを移動(&&M)",
