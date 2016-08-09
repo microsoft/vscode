@@ -27,17 +27,17 @@ function onError(error, enableDeveloperTools) {
 
 function assign(destination, source) {
 	return Object.keys(source)
-		.reduce((r, key) => { r[key] = source[key]; return r; }, destination);
+		.reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
 }
 
 function parseURLQueryArgs() {
 	const search = window.location.search || '';
 
 	return search.split(/[?&]/)
-		.filter(param => !!param)
-		.map(param => param.split('='))
-		.filter(param => param.length === 2)
-		.reduce((r, param) => assign(r, { [param[0]]: decodeURIComponent(param[1])}), {});
+		.filter(function (param) { return !!param; })
+		.map(function (param) { return param.split('='); })
+		.filter(function (param) { return param.length === 2; })
+		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
 }
 
 function createScript(src, onload) {
@@ -50,7 +50,7 @@ function createScript(src, onload) {
 }
 
 function uriFromPath(_path) {
-	let pathName = path.resolve(_path).replace(/\\/g, '/');
+	var pathName = path.resolve(_path).replace(/\\/g, '/');
 
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;
@@ -110,7 +110,7 @@ function main() {
 	assign(process.env, configuration.userEnv);
 
 	// Get the nls configuration into the process.env as early as possible.
-	let nlsConfig = { availableLanguages: {} };
+	var nlsConfig = { availableLanguages: {} };
 	const config = process.env['VSCODE_NLS_CONFIG'];
 	if (config) {
 		process.env['VSCODE_NLS_CONFIG'] = config;
@@ -119,7 +119,7 @@ function main() {
 		} catch (e) { /*noop*/ }
 	}
 
-	let locale = nlsConfig.availableLanguages['*'] || 'en';
+	var locale = nlsConfig.availableLanguages['*'] || 'en';
 
 	if (locale === 'zh-tw') {
 		locale = 'zh-Hant';
@@ -187,12 +187,12 @@ function main() {
 			'vs/workbench/workbench.main',
 			'vs/nls!vs/workbench/workbench.main',
 			'vs/css!vs/workbench/workbench.main'
-		], () => {
+		], function () {
 			timers.afterLoad = new Date();
 
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration, globalSettings)
-				.done(null, error => onError(error, enableDeveloperTools));
+				.done(null, function (error) { onError(error, enableDeveloperTools); });
 		});
 	});
 }
