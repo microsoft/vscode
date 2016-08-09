@@ -90,11 +90,38 @@ export class UserSettings {
 	}
 
 	private registerWatchers(): void {
-		this.watcher = fs.watch(path.dirname(this.appSettingsPath));
-		this.watcher.on('change', (eventType: string, fileName: string) => this.onSettingsFileChange(eventType, fileName));
+		let self = this;
+		function attachSettingsChangeWatcher(watchPath: string): void {
+			self.watcher = fs.watch(watchPath);
+			self.watcher.on('change', () => self.onSettingsFileChange());
+		}
+
+		// Attach a watcher to the settings directory
+		attachSettingsChangeWatcher(path.dirname(this.appSettingsPath));
+
+		// Follow symlinks for settings and keybindings and attach watchers if they resolve
+		let followSymlinkPaths = [
+			this.appSettingsPath,
+			this.appKeybindingsPath
+		];
+		followSymlinkPaths.forEach((path) => {
+			fs.lstat(path, function(err, stats) {
+				if (err) {
+					return;
+				}
+				if (stats.isSymbolicLink() && !stats.isDirectory()) {
+					fs.readlink(path, function(err, realPath) {
+						if (err) {
+							return;
+						}
+						attachSettingsChangeWatcher(realPath);
+					});
+				}
+			});
+		});
 	}
 
-	private onSettingsFileChange(eventType: string, fileName: string): void {
+	private onSettingsFileChange(): void {
 
 		// we can get multiple change events for one change, so we buffer through a timeout
 		if (this.timeoutHandle) {
