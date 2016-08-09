@@ -22,10 +22,10 @@ test -d out || ./node_modules/.bin/gulp compile
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
-		./.build/electron/Electron.app/Contents/MacOS/Electron \
+		./.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron \
 		node_modules/mocha/bin/_mocha $*
 else
 	cd $ROOT ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
-		./.build/electron/electron \
+		./.build/electron/code-oss \
 		node_modules/mocha/bin/_mocha $*
 fi
