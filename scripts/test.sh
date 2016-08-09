@@ -15,7 +15,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
 else
 	NAME=`node -p "require('./product.json').applicationName"`
-	CODE=".build/electron/code-oss"
+	CODE=".build/electron/$NAME"
 fi
 
 # Node modules
