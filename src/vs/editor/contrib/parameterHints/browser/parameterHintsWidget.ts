@@ -314,47 +314,50 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		if(!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
-			return code;
+
+		} else {
+			this.renderParameters(code, signature, currentParameter);
 		}
 
-		const parameters = $('span.parameters');
-		let offset = 0;
-		let idx = 0;
+		return signatureElement;
+	}
 
-		for (let i = 0, len = signature.parameters.length; i < len; i++) {
+	private renderParameters(parent: HTMLElement, signature: SignatureInformation, currentParameter: number): void {
+
+		let end = signature.label.length;
+		let idx = 0;
+		let element: HTMLSpanElement;
+
+		for (let i = signature.parameters.length - 1; i >= 0; i--) {
 			const parameter = signature.parameters[i];
-			idx = signature.label.indexOf(parameter.label, idx);
+			idx = signature.label.lastIndexOf(parameter.label, end);
 
 			let signatureLabelOffset = 0;
 			let signatureLabelEnd = 0;
 
 			if (idx >= 0) {
 				signatureLabelOffset = idx;
-				idx += parameter.label.length;
-				signatureLabelEnd = idx;
+				signatureLabelEnd = idx + parameter.label.length;
 			}
 
-			const element = i === 0 ? code : parameters;
+			// non parameter part
+			element = document.createElement('span');
+			element.textContent = signature.label.substring(signatureLabelEnd, end);
+			dom.prepend(parent, element);
 
-			const label = $('span');
-			label.textContent = signature.label.substring(offset, signatureLabelOffset);
-			dom.append(element, label);
+			// parameter part
+			element = document.createElement('span');
+			element.className = `parameter ${i === currentParameter ? 'active' : ''}`;
+			element.textContent = signature.label.substring(signatureLabelOffset, signatureLabelEnd);
+			dom.prepend(parent, element);
 
-			const parameterElement = $('span.parameter');
-			dom.addClass(parameterElement, i === currentParameter ? 'active' : '');
-			parameterElement.textContent = signature.label.substring(signatureLabelOffset, signatureLabelEnd);
-			dom.append(parameters, parameterElement);
-
-			offset = signatureLabelEnd;
+			end = signatureLabelOffset;
 		}
+		// non parameter part
+		element = document.createElement('span');
+		element.textContent = signature.label.substring(0, end);
+		dom.prepend(parent, element);
 
-		const label = $('span');
-		label.textContent = signature.label.substring(offset);
-
-		dom.append(code, parameters);
-		dom.append(code, label);
-
-		return signatureElement;
 	}
 
 	private renderDocumentation(element: HTMLElement, signature:SignatureInformation, activeParameterIdx:number): void {
