@@ -89,7 +89,7 @@ let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 		throw new Error('illegal argument, uri');
 	}
 	if (!position) {
-		throw new Error('illega argument, position');
+		throw new Error('illegal argument, position');
 	}
 
 	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
