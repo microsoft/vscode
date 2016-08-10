@@ -25,7 +25,7 @@ export function findFreePort(startPort: number, giveUpAfter: number, timeout: nu
 	doFindFreePort(startPort, giveUpAfter, (port) => {
 		if (!done) {
 			done = true;
-			window.clearTimeout(timeoutHandle);
+			clearTimeout(timeoutHandle);
 
 			return clb(port);
 		}
