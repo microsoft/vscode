@@ -16,7 +16,6 @@ import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import {Event, EventType as CommonEventType} from 'vs/base/common/events';
-import {getPathLabel} from 'vs/base/common/labels';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -28,7 +27,7 @@ import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, ConfirmResult, IEditorIdentifier} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -144,23 +143,6 @@ export class BaseFileAction extends Action {
 		};
 
 		this._messageService.show(Severity.Error, errorWithRetry);
-	}
-
-	protected handleDirty(): TPromise<boolean /* cancel */> {
-		if (this.textFileService.isDirty(this._element.resource)) {
-			let res = this.textFileService.confirmSave([this._element.resource]);
-			if (res === ConfirmResult.SAVE) {
-				return this.textFileService.save(this._element.resource).then(() => false);
-			}
-
-			if (res === ConfirmResult.DONT_SAVE) {
-				return this.textFileService.revert(this._element.resource).then(() => false);
-			}
-
-			return TPromise.as(true);
-		}
-
-		return TPromise.as(false);
 	}
 }
 
@@ -337,19 +319,36 @@ export class RenameFileAction extends BaseRenameAction {
 
 	public runAction(newName: string): TPromise<any> {
 
-		// Check if file is dirty in editor and save it to avoid data loss
-		return this.handleDirty().then((cancel: boolean) => {
-			if (cancel) {
+		// Handle dirty
+		let revertPromise: TPromise<any> = TPromise.as(null);
+		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath));
+		if (dirty.length) {
+			let message: string;
+			if (this.element.isDirectory) {
+				if (dirty.length === 1) {
+					message = nls.localize('dirtyMessageFolderOne', "You are renaming a folder with unsaved changes in 1 file. Do you want to continue?");
+				} else {
+					message = nls.localize('dirtyMessageFolder', "You are renaming a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
+				}
+			} else {
+				message = nls.localize('dirtyMessageFile', "You are renaming a file with unsaved changes. Do you want to continue?");
+			}
+
+			const res = this.messageService.confirm({
+				message,
+				type: 'warning',
+				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
+				primaryButton: nls.localize({ key: 'renameLabel', comment: ['&& denotes a mnemonic'] }, "&&Rename")
+			});
+
+			if (!res) {
 				return TPromise.as(null);
 			}
 
-			// If the file is still dirty, do not touch it because a save is pending to disk and we can not abort it
-			if (this.textFileService.isDirty(this.element.resource)) {
-				this.onWarning(nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", getPathLabel(this.element.resource)));
+			revertPromise = this.textFileService.revertAll(dirty);
+		}
 
-				return TPromise.as(null);
-			}
-
+		return revertPromise.then(() => {
 			return this.fileService.rename(this.element.resource, newName).then(null, (error: Error) => {
 				this.onErrorWithRetry(error, () => this.runAction(newName));
 			});
@@ -690,56 +689,97 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			this.tree.clearHighlight();
 		}
 
-		// Ask for Confirm
-		if (!this.skipConfirm) {
-			let confirm: IConfirmation;
-			if (this.useTrash) {
-				confirm = {
-					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
-					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-					primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash")
-				};
-			} else {
-				confirm = {
-					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
-					detail: nls.localize('irreversible', "This action is irreversible!"),
-					primaryButton: nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete")
-				};
-			}
-
-			if (!this.messageService.confirm(confirm)) {
-				return TPromise.as(null);
-			}
+		let primaryButton: string;
+		if (this.useTrash) {
+			primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
+		} else {
+			primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 		}
 
-		// Since a delete operation can take a while we want to emit the event proactively to avoid issues
-		// with stale entries in the explorer tree.
-		this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(this.element.clone(), null));
-
-		// Call function
-		let servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
-			if (this.element.parent) {
-				this.tree.setFocus(this.element.parent); // move focus to parent
-			}
-		}, (error: any) => {
-
-			// Allow to retry
-			let extraAction: Action;
-			if (this.useTrash) {
-				extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+		// Handle dirty
+		let revertPromise: TPromise<any> = TPromise.as(null);
+		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath));
+		if (dirty.length) {
+			let message: string;
+			if (this.element.isDirectory) {
+				if (dirty.length === 1) {
+					message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
+				} else {
+					message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
+				}
+			} else {
+				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			this.onErrorWithRetry(error, () => this.run(), extraAction);
+			const res = this.messageService.confirm({
+				message,
+				type: 'warning',
+				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
+				primaryButton
+			});
 
-			// Since the delete failed, best we can do is to refresh the explorer from the root to show the current state of files.
-			let event = new LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
-			this.eventService.emit('files.internal:fileChanged', event);
+			if (!res) {
+				return TPromise.as(null);
+			}
 
-			// Focus back to tree
-			this.tree.DOMFocus();
+			this.skipConfirm = true; // since we already asked for confirmation
+			revertPromise = this.textFileService.revertAll(dirty);
+		}
+
+		// Check if file is dirty in editor and save it to avoid data loss
+		return revertPromise.then(() => {
+
+			// Ask for Confirm
+			if (!this.skipConfirm) {
+				let confirm: IConfirmation;
+				if (this.useTrash) {
+					confirm = {
+						message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
+						detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
+						primaryButton
+					};
+				} else {
+					confirm = {
+						message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
+						detail: nls.localize('irreversible', "This action is irreversible!"),
+						primaryButton
+					};
+				}
+
+				if (!this.messageService.confirm(confirm)) {
+					return TPromise.as(null);
+				}
+			}
+
+			// Since a delete operation can take a while we want to emit the event proactively to avoid issues
+			// with stale entries in the explorer tree.
+			this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(this.element.clone(), null));
+
+			// Call function
+			let servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
+				if (this.element.parent) {
+					this.tree.setFocus(this.element.parent); // move focus to parent
+				}
+			}, (error: any) => {
+
+				// Allow to retry
+				let extraAction: Action;
+				if (this.useTrash) {
+					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+				}
+
+				this.onErrorWithRetry(error, () => this.run(), extraAction);
+
+				// Since the delete failed, best we can do is to refresh the explorer from the root to show the current state of files.
+				let event = new LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
+				this.eventService.emit('files.internal:fileChanged', event);
+
+				// Focus back to tree
+				this.tree.DOMFocus();
+			});
+
+			return servicePromise;
 		});
-
-		return servicePromise;
 	}
 }
 

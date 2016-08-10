@@ -27,9 +27,7 @@ import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/wo
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
-import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
-import labels = require('vs/base/common/labels');
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -846,29 +844,36 @@ export class FileDragAndDrop implements IDragAndDrop {
 					return copyAction.run();
 				}
 
-				// Handle dirty
-				let saveOrRevertPromise: TPromise<boolean> = TPromise.as(null);
-				if (this.textFileService.isDirty(source.resource)) {
-					let res = this.textFileService.confirmSave([source.resource]);
-					if (res === ConfirmResult.SAVE) {
-						saveOrRevertPromise = this.textFileService.save(source.resource);
-					} else if (res === ConfirmResult.DONT_SAVE) {
-						saveOrRevertPromise = this.textFileService.revert(source.resource);
-					} else if (res === ConfirmResult.CANCEL) {
+				// Handle dirty (in file or inside the folder if any)
+				let revertPromise: TPromise<any> = TPromise.as(null);
+				const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath));
+				if (dirty.length) {
+					let message:string;
+					if (source.isDirectory) {
+						if (dirty.length === 1) {
+							message = nls.localize('dirtyMessageFolderOne', "You are moving a folder with unsaved changes in 1 file. Do you want to continue?");
+						} else {
+							message = nls.localize('dirtyMessageFolder', "You are moving a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
+						}
+					} else {
+						message = nls.localize('dirtyMessageFile', "You are moving a file with unsaved changes. Do you want to continue?");
+					}
+
+					const res = this.messageService.confirm({
+						message,
+						type: 'warning',
+						detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
+						primaryButton: nls.localize({ key: 'moveLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
+					});
+
+					if (!res) {
 						return TPromise.as(null);
 					}
+
+					revertPromise = this.textFileService.revertAll(dirty);
 				}
 
-				// For move, first check if file is dirty and save
-				return saveOrRevertPromise.then(() => {
-
-					// If the file is still dirty, do not touch it because a save is pending to the disk and we can not abort it
-					if (this.textFileService.isDirty(source.resource)) {
-						this.messageService.show(Severity.Warning, nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", labels.getPathLabel(source.resource)));
-
-						return TPromise.as(null);
-					}
-
+				return revertPromise.then(() => {
 					let targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
 					let didHandleConflict = false;
 
