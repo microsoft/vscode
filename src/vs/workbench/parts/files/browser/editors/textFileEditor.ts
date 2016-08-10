@@ -74,7 +74,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
-		let deleted = e.getDeleted();
+		const deleted = e.getDeleted();
 		if (deleted && deleted.length) {
 			this.clearTextEditorViewState(this.storageService, deleted.map((d) => d.resource.toString()));
 		}
@@ -85,11 +85,11 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		let oldInput = this.getInput();
+		const oldInput = this.getInput();
 		super.setInput(input, options);
 
 		// Detect options
-		let forceOpen = options && options.forceOpen;
+		const forceOpen = options && options.forceOpen;
 
 		// Same Input
 		if (!forceOpen && input.matches(oldInput)) {
@@ -122,29 +122,25 @@ export class TextFileEditor extends BaseTextEditor {
 				return TPromise.wrapError<void>('Invalid editor input. Text file editor requires a model instance of TextFileEditorModel.');
 			}
 
-			let textFileModel = <TextFileEditorModel>resolvedModel;
-			let textEditor = this.getControl();
-
-			// Assert Text Model
-			if (!textFileModel.textEditorModel) {
-				return TPromise.wrapError<void>('Unable to open the file because the associated text model is undefined.');
-			}
-
-			// First assert that the current input is still the one we expect
-			// This prevents a race condition when reloading a content takes long
-			// and the user meanwhile decided to open another file
-			if (!this.getInput() || (<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString()) {
+			// Check Model state
+			const textFileModel = <TextFileEditorModel>resolvedModel;
+			if (
+				!this.getInput() ||	// editor got hidden meanwhile
+				textFileModel.isDisposed() || // input got disposed meanwhile
+				(<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString() // a different input was set meanwhile
+			) {
 				return null;
 			}
 
 			// log the time it takes the editor to render the resource
-			let mode = textFileModel.textEditorModel.getMode();
-			let setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
+			const mode = textFileModel.textEditorModel.getMode();
+			const setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
 				mode: mode && mode.getId(),
 				resource: textFileModel.textEditorModel.uri.toString(),
 			});
 
 			// Editor
+			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// stop the event
@@ -206,9 +202,9 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private openAsBinary(input: EditorInput, options: EditorOptions): boolean {
 		if (input instanceof FileEditorInput) {
-			let fileEditorInput = <FileEditorInput>input;
+			const fileEditorInput = <FileEditorInput>input;
 
-			let fileInputBinary = this.instantiationService.createInstance(FileEditorInput, fileEditorInput.getResource(), MIME_BINARY, void 0);
+			const fileInputBinary = this.instantiationService.createInstance(FileEditorInput, fileEditorInput.getResource(), MIME_BINARY, void 0);
 			this.editorService.openEditor(fileInputBinary, options, this.position).done(null, errors.onUnexpectedError);
 
 			return true;
@@ -224,7 +220,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (input instanceof FileEditorInput) {
-				let fileEditorInput = <FileEditorInput>input;
+				const fileEditorInput = <FileEditorInput>input;
 
 				// Reveal if we have a workspace path
 				if (this.contextService.isInsideWorkspace(fileEditorInput.getResource())) {
@@ -239,10 +235,10 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
-		let options = super.getCodeEditorOptions();
+		const options = super.getCodeEditorOptions();
 
-		let input = this.getInput();
-		let inputName = input && input.getName();
+		const input = this.getInput();
+		const inputName = input && input.getName();
 		options.ariaLabel = inputName ? nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName) : nls.localize('fileEditorAriaLabel', "Text file editor.");
 
 		return options;
