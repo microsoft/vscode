@@ -687,8 +687,8 @@ export class GitService extends ee.EventEmitter
 		}
 	}
 
-	public commit(message:string, amend: boolean = false, stage: boolean = false): winjs.Promise {
-		return this.run(git.ServiceOperations.COMMIT, () => this.raw.commit(message, amend, stage));
+	public commit(message:string, amend: boolean = false, stage: boolean = false, signoff: boolean = false): winjs.Promise {
+		return this.run(git.ServiceOperations.COMMIT, () => this.raw.commit(message, amend, stage, signoff));
 	}
 
 	public getCommitTemplate(): winjs.Promise {
