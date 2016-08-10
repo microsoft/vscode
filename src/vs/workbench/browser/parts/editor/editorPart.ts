@@ -239,6 +239,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const active = (group.count === 0) || !options || !options.inactive;
 		group.openEditor(input, { active, pinned, index: options && options.index });
 
+		// indicate to the UI that an editor is about to open. we need to update the title because it could be that
+		// the input is already opened but the title has changed and the UI should reflect that
+		this.sideBySideControl.updateTitle({ group, editor: input });
+
 		// Return early if the editor is to be open inactive and there are other editors in this group to show
 		if (!active) {
 			return TPromise.as<BaseEditor>(null);

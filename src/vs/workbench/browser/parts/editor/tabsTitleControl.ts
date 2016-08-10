@@ -178,13 +178,23 @@ export class TabsTitleControl extends TitleControl {
 			DOM.removeClass(this.titleContainer, 'active');
 		}
 
-		// Tab styles
+		// Tab label and styles
 		this.context.getEditors().forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
+				const tabLabel = <HTMLAnchorElement>(<HTMLElement>tabContainer.children[0]).children[0];
+
 				const isPinned = group.isPinned(editor);
 				const isActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
+
+				const description = editor.getDescription(true) || '';
+				const name = editor.getName();
+
+				// Label & Description
+				tabContainer.setAttribute('aria-label', `tab, ${name}`);
+				tabContainer.title = description;
+				tabLabel.innerText = name;
 
 				// Pinned state
 				if (isPinned) {
@@ -233,7 +243,7 @@ export class TabsTitleControl extends TitleControl {
 		// Refresh Tabs
 		this.refreshTabs(group);
 
-		// Update styles
+		// Update Tabs
 		this.doUpdate();
 	}
 
@@ -252,14 +262,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
-			const description = editor.getDescription(true) || '';
 
+			// Tab Container
 			const tabContainer = document.createElement('div');
-			tabContainer.title = description;
 			tabContainer.draggable = true;
 			tabContainer.tabIndex = 0;
 			tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
-			tabContainer.setAttribute('aria-label', `tab, ${editor.getName()}`);
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
@@ -270,7 +278,6 @@ export class TabsTitleControl extends TitleControl {
 
 			// Tab Label
 			const tabLabel = document.createElement('a');
-			tabLabel.innerText = editor.getName();
 			tabLabelContainer.appendChild(tabLabel);
 
 			// Tab Close
