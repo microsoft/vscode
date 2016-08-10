@@ -1770,18 +1770,28 @@ export class OneCursorOp {
 
 	public static paste(cursor:OneCursor, text: string, pasteOnNewLine: boolean, ctx: IOneCursorOperationContext): boolean {
 		let position = cursor.getPosition();
+		let selection = cursor.getSelection();
 
 		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Paste;
-		if (pasteOnNewLine && text.charAt(text.length - 1) === '\n') {
-			if (text.indexOf('\n') === text.length - 1) {
-				// Paste entire line at the beginning of line
 
-				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				ctx.executeCommand = new ReplaceCommand(typeSelection, text);
-				return true;
-			}
+		if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
+			pasteOnNewLine = false;
 		}
-		ctx.executeCommand = new ReplaceCommand(cursor.getSelection(), text);
+		if (pasteOnNewLine && selection.startLineNumber !== selection.endLineNumber) {
+			pasteOnNewLine = false;
+		}
+		if (pasteOnNewLine && selection.startColumn === cursor.model.getLineMinColumn(selection.startLineNumber) && selection.endColumn === cursor.model.getLineMaxColumn(selection.startLineNumber)) {
+			pasteOnNewLine = false;
+		}
+
+		if (pasteOnNewLine) {
+			// Paste entire line at the beginning of line
+
+			let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
+			ctx.executeCommand = new ReplaceCommand(typeSelection, text);
+			return true;
+		}
+		ctx.executeCommand = new ReplaceCommand(selection, text);
 		return true;
 	}
 

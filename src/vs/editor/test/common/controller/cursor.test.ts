@@ -1504,6 +1504,24 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #10212: Pasting entire line does not replace selection', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1, false);
+			moveTo(cursor, 2, 6, true);
+
+			cursorCommand(cursor, H.Paste, { text: 'line1\n', pasteOnNewLine: true });
+
+			assert.equal(model.getLineContent(1), 'line1');
+			assert.equal(model.getLineContent(2), 'line1');
+			assert.equal(model.getLineContent(3), '');
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		usingCursor({
 			text: [
