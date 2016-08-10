@@ -69,6 +69,8 @@ export interface ISideBySideEditorControl {
 
 	isDragging(): boolean;
 
+	updateTitle(identifier: IEditorIdentifier): void;
+
 	getInstantiationService(position: Position): IInstantiationService;
 	getProgressBar(position: Position): ProgressBar;
 	updateProgress(position: Position, state: ProgressState): void;
@@ -1690,6 +1692,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private getFromContainer(position: Position, key: string): any {
 		return this.silos[position].child().getProperty(key);
+	}
+
+	public updateTitle(identifier: IEditorIdentifier): void {
+		this.onStacksChanged({ editor: identifier.editor, group: identifier.group });
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {
