@@ -17,6 +17,7 @@ export interface IMessageWithAction {
 
 export interface IConfirmation {
 	title?: string;
+	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
 	message: string;
 	detail?: string;
 	primaryButton?: string;

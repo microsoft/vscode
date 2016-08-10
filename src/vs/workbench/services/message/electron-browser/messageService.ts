@@ -53,6 +53,10 @@ export class MessageService extends WorkbenchMessageService {
 			opts.detail = confirmation.detail;
 		}
 
+		if (confirmation.type) {
+			opts.type = confirmation.type;
+		}
+
 		let result = this.windowService.getWindow().showMessageBox(opts);
 
 		if (isLinux) {
