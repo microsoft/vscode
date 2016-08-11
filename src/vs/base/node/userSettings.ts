@@ -105,12 +105,12 @@ export class UserSettings {
 			this.appKeybindingsPath
 		];
 		followSymlinkPaths.forEach((path) => {
-			fs.lstat(path, function(err, stats) {
+			fs.lstat(path, (err, stats) => {
 				if (err) {
 					return;
 				}
 				if (stats.isSymbolicLink() && !stats.isDirectory()) {
-					fs.readlink(path, function(err, realPath) {
+					fs.readlink(path, (err, realPath) => {
 						if (err) {
 							return;
 						}
