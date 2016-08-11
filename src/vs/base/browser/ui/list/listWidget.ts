@@ -376,16 +376,6 @@ export class List<T> implements IDisposable {
 		}
 	}
 
-	focusFirst(): void {
-		if (this.length === 0) { return; }
-		this.setFocus(0);
-	}
-
-	focusLast(): void {
-		if (this.length === 0) { return; }
-		this.setFocus(this.length - 1);
-	}
-
 	getFocus(): number[] {
 		return this.focus.get();
 	}
