@@ -563,6 +563,11 @@ export function registerContributions(): void {
 				type: 'boolean',
 				description: nls.localize('confirmSync', "Confirm before synchronizing git repositories."),
 				default: false
+			},
+			'git.countUntracked': {
+				type: 'boolean',
+				description: nls.localize('countUntracked', "Count untracked files in the changes badge."),
+				default: true
 			}
 		}
 	});
