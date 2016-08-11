@@ -24,11 +24,11 @@
 .monaco-action-bar .action-item {
 	cursor: pointer;
 	display: inline-block;
-	-ms-transition: -ms-transform 80ms ease;
-	-webkit-transition: -webkit-transform 80ms ease;
-	-moz-transition: -moz-transform 80ms ease;
-	-o-transition: -o-transform 80ms ease;
-	transition: transform 80ms ease;
+	-ms-transition: -ms-transform 50ms ease;
+	-webkit-transition: -webkit-transform 50ms ease;
+	-moz-transition: -moz-transform 50ms ease;
+	-o-transition: -o-transform 50ms ease;
+	transition: transform 50ms ease;
 	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
 }
 
