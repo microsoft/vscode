@@ -58,7 +58,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 	const acceptSuggestion = createSuggesionFilter(options);
 
 	// get provider groups, always add snippet suggestion provider
-	const supports = (options.groups || SuggestRegistry.orderedGroups(model));
+	const supports = (options.groups || SuggestRegistry.orderedGroups(model)).slice(0);
 	supports.unshift([snippetSuggestSupport]);
 
 	// add suggestions from contributed providers - providers are ordered in groups of
