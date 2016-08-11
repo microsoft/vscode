@@ -106,7 +106,6 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this.builder = $(container);
 		this.gesture = new Gesture(container);
 
-		this.builder.on(DOM.EventType.CLICK, (event: Event) => this.onClick(event));
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
 		if (platform.isMacintosh) {
@@ -115,18 +114,18 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
-
-			if (e.button === 0 && this._action.enabled) {
+			if (this._action.enabled) {
 				this.builder.addClass('active');
 			}
+		});
+		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(event, true);
+			setTimeout(() => this.onClick(e), 50);
 		});
 
 		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
-
-			if (e.button === 0 && this._action.enabled) {
-				this.builder.removeClass('active');
-			}
+			this.builder.removeClass('active');
 		});
 	}
 
