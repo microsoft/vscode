@@ -355,9 +355,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(container: HTMLElement, options?: IActionBarOptions);
-	constructor(container: Builder, options?: IActionBarOptions);
-	constructor(container: any, options: IActionBarOptions = defaultOptions) {
+	constructor(container: HTMLElement | Builder, options: IActionBarOptions = defaultOptions) {
 		super();
 		this.options = options;
 		this._context = options.context;
@@ -449,8 +447,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		this.domNode.appendChild(this.actionsList);
 
-		container = (container instanceof Builder) ? container.getHTMLElement() : container;
-		container.appendChild(this.domNode);
+		((container instanceof Builder) ? container.getHTMLElement() : container).appendChild(this.domNode);
 	}
 
 	public setAriaLabel(label: string): void {
@@ -495,17 +492,14 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		return $(this.domNode);
 	}
 
-	public push(actions: IAction, options?: IActionOptions): void;
-	public push(actions: IAction[], options?: IActionOptions): void;
-	public push(actions: any, options: IActionOptions = {}): void {
-		if (!Array.isArray(actions)) {
-			actions = [actions];
-		}
+	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
+
+		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
 
 		let index = types.isNumber(options.index) ? options.index : null;
 
 		actions.forEach((action: IAction) => {
-			let actionItemElement = document.createElement('li');
+			const actionItemElement = document.createElement('li');
 			actionItemElement.className = 'action-item';
 			actionItemElement.setAttribute('role', 'presentation');
 
@@ -535,10 +529,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	public clear(): void {
-		let item: IActionItem;
-		while (item = this.items.pop()) {
-			item.dispose();
-		}
+		this.items = lifecycle.dispose(this.items);
 		$(this.actionsList).empty();
 	}
 
@@ -548,10 +539,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	public isEmpty(): boolean {
 		return this.items.length === 0;
-	}
-
-	public onContentsChange(): void {
-		this.emit(CommonEventType.CONTENTS_CHANGED);
 	}
 
 	public focus(selectFirst?: boolean): void {

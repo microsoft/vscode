@@ -67,7 +67,6 @@ export const EventType = {
 	EXPAND: 'expand',
 	COLLAPSE: 'collapse',
 	TOGGLE: 'toggle',
-	CONTENTS_CHANGED: 'contentsChanged',
 	BEFORE_RUN: 'beforeRun',
 	RUN: 'run',
 	EDIT: 'edit',
