@@ -8,6 +8,7 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import Event, {Emitter} from 'vs/base/common/event';
 import {addDisposableListener, addClass} from 'vs/base/browser/dom';
 import {isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
@@ -45,8 +46,10 @@ export default class Webview {
 	private _webview: WebviewElement;
 	private _ready: TPromise<this>;
 	private _disposables: IDisposable[];
+	private _onDidClickLink = new Emitter<URI>();
+	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
-	constructor(private _parent: HTMLElement, private _styleElement: Element, onDidClickLink:(uri:URI)=>any) {
+	constructor(private _parent: HTMLElement, private _styleElement: Element) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -80,12 +83,14 @@ export default class Webview {
 			addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'did-click-link') {
 					let [uri] = event.args;
-					onDidClickLink(URI.parse(uri));
+					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 				}
 
 				if (event.channel === 'did-set-content') {
 					this._webview.style.opacity = '';
+					let [stats] = event.args;
+					this._onDidLoadContent.fire({ stats });
 					return;
 				}
 			})
@@ -95,8 +100,18 @@ export default class Webview {
 	}
 
 	dispose(): void {
+		this._onDidClickLink.dispose();
+		this._onDidLoadContent.dispose();
 		this._disposables = dispose(this._disposables);
 		this._webview.parentElement.removeChild(this._webview);
+	}
+
+	get onDidClickLink(): Event<URI> {
+		return this._onDidClickLink.event;
+	}
+
+	get onDidLoadContent(): Event<{ stats: any }> {
+		return this._onDidLoadContent.event;
 	}
 
 	private _send(channel: string, ...args: any[]): void {
