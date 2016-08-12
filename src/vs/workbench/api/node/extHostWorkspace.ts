@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import {relative, isEqualOrParent} from 'vs/base/common/paths';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -28,7 +29,7 @@ export class ExtHostWorkspace {
 		return this._workspacePath;
 	}
 
-	getRelativePath(pathOrUri: string|Uri): string {
+	getRelativePath(pathOrUri: string | Uri): string {
 
 		let path: string;
 		if (typeof pathOrUri === 'string') {
@@ -37,9 +38,8 @@ export class ExtHostWorkspace {
 			path = pathOrUri.fsPath;
 		}
 
-		if (this._workspacePath && this._workspacePath.length < path.length) {
-			// return relative(workspacePath, path);
-			return path.substring(this._workspacePath.length);
+		if (isEqualOrParent(path, this._workspacePath)) {
+			return relative(this._workspacePath, path);
 		}
 
 		return path;
