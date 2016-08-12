@@ -7,7 +7,7 @@
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -35,7 +35,7 @@ export interface IKeybindings {
 export interface IKeybindingItem {
 	keybinding: number;
 	command: string;
-	when: KbExpr;
+	when: ContextKeyExpr;
 	weight1: number;
 	weight2: number;
 }

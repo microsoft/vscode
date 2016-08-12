@@ -12,7 +12,7 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {KbCtxKey, IKeybindingContextKey, IContextKeyService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {KbCtxKey, IKeybindingContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
@@ -153,7 +153,7 @@ export class RenameAction extends EditorAction {
 			id: 'editor.action.rename',
 			label: nls.localize('rename.label', "Rename Symbol"),
 			alias: 'Rename Symbol',
-			precondition: KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasRenameProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyCode.F2

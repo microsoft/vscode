@@ -7,7 +7,7 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingContextKey, IKeybindingScopeLocation, IContextKeyService, SET_CONTEXT_COMMAND_ID, KEYBINDING_CONTEXT_ATTR, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {IKeybindingContextKey, IKeybindingScopeLocation, IContextKeyService, SET_CONTEXT_COMMAND_ID, KEYBINDING_CONTEXT_ATTR, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
@@ -166,7 +166,7 @@ export abstract class AbstractKeybindingService {
 		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
 	}
 
-	public contextMatchesRules(rules: KbExpr): boolean {
+	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		const ctx = Object.create(null);
 		this.getContext(this._myContextId).fillInContext(ctx);
 		const result = KeybindingResolver.contextMatchesRules(ctx, rules);

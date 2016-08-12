@@ -19,13 +19,13 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {IOptions, ZoneWidget} from './zoneWidget';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import {KbExpr, KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
 export namespace PeekContext {
 	export const inPeekEditor = new KbCtxKey<boolean>('inReferenceSearchEditor', true);
-	export const notInPeekEditor:KbExpr = inPeekEditor.toNegated();
+	export const notInPeekEditor:ContextKeyExpr = inPeekEditor.toNegated();
 }
 
 export const NOT_INNER_EDITOR_CONTEXT_KEY = new KbCtxKey<boolean>('inReferenceSearchEditor', true);

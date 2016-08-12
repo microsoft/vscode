@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {KbExpr, KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -122,7 +122,7 @@ export class QuickFixAction extends EditorAction {
 			id: 'editor.action.quickFix',
 			label: nls.localize('quickfix.trigger.label', "Quick Fix"),
 			alias: 'Quick Fix',
-			precondition: KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCodeActionsProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_DOT

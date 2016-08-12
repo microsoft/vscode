@@ -6,7 +6,7 @@
 'use strict';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {KbCtxKey, IContextKeyService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {KbCtxKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -87,10 +87,10 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 	handler: x => x.performSnippetCompletions(),
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-		kbExpr: KbExpr.and(
+		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.TextFocus,
 			EditorContextKeys.TabDoesNotMoveFocus,
-			KbExpr.has('config.editor.tabCompletion')
+			ContextKeyExpr.has('config.editor.tabCompletion')
 		),
 		primary: KeyCode.Tab
 	}

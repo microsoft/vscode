@@ -20,7 +20,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {KbExpr, KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * @internal
@@ -3046,7 +3046,7 @@ export namespace EditorContextKeys {
 	/**
 	 * @internal
 	 */
-	export const Writable:KbExpr = ReadOnly.toNegated();
+	export const Writable:ContextKeyExpr = ReadOnly.toNegated();
 
 	/**
 	 * A context key that is set when the editor has a non-collapsed selection.
@@ -3056,7 +3056,7 @@ export namespace EditorContextKeys {
 	/**
 	 * @internal
 	 */
-	export const HasOnlyEmptySelection:KbExpr = HasNonEmptySelection.toNegated();
+	export const HasOnlyEmptySelection:ContextKeyExpr = HasNonEmptySelection.toNegated();
 
 	/**
 	 * A context key that is set when the editor has multiple selections (multiple cursors).
@@ -3066,7 +3066,7 @@ export namespace EditorContextKeys {
 	/**
 	 * @internal
 	 */
-	export const HasSingleSelection:KbExpr = HasMultipleSelections.toNegated();
+	export const HasSingleSelection:ContextKeyExpr = HasMultipleSelections.toNegated();
 
 	/**
 	 * @internal
@@ -3075,7 +3075,7 @@ export namespace EditorContextKeys {
 	/**
 	 * @internal
 	 */
-	export const TabDoesNotMoveFocus:KbExpr = TabMovesFocus.toNegated();
+	export const TabDoesNotMoveFocus:ContextKeyExpr = TabMovesFocus.toNegated();
 
 	/**
 	 * A context key that is set to the language associated with the model associated with the editor.
