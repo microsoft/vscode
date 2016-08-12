@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions, ICommit } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter, fromPromise } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
@@ -150,7 +150,7 @@ export class RawGitService implements IRawGitService {
 		return this.repo.sync().then(() => this.status());
 	}
 
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> {
 		let promise: Promise = TPromise.as(null);
 
 		if (stage) {
@@ -158,7 +158,7 @@ export class RawGitService implements IRawGitService {
 		}
 
 		return promise
-			.then(() => this.repo.commit(message, stage, amend))
+			.then(() => this.repo.commit(message, stage, amend, signoff))
 			.then(() => this.status());
 	}
 
@@ -199,6 +199,10 @@ export class RawGitService implements IRawGitService {
 	getCommitTemplate(): TPromise<string> {
 		return this.repo.getCommitTemplate();
 	}
+
+	getCommit(ref: string): TPromise<ICommit> {
+		return this.repo.getCommit(ref);
+	}
 }
 
 export class DelayedRawGitService implements IRawGitService {
@@ -221,8 +225,9 @@ export class DelayedRawGitService implements IRawGitService {
 	pull(rebase?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.pull(rebase)); }
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> { return this.raw.then(r => r.push(remote, name, options)); }
 	sync(): TPromise<IRawStatus> { return this.raw.then(r => r.sync()); }
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage)); }
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage, signoff)); }
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> { return this.raw.then(r => r.detectMimetypes(path, treeish)); }
 	show(path: string, treeish?: string): TPromise<string> { return this.raw.then(r => r.show(path, treeish)); }
 	getCommitTemplate(): TPromise<string> { return this.raw.then(r => r.getCommitTemplate()); }
+	getCommit(ref: string): TPromise<ICommit> { return this.raw.then(r => r.getCommit(ref)); }
 }

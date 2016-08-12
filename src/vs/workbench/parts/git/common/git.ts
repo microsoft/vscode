@@ -54,6 +54,11 @@ export interface IRawStatus {
 	remotes: IRemote[];
 }
 
+export interface ICommit {
+	hash: string;
+	message: string;
+}
+
 // Model enums
 
 export enum StatusType {
@@ -217,6 +222,7 @@ export const ServiceOperations = {
 	CLEAN: 'clean',
 	UNDO: 'undo',
 	RESET: 'reset',
+	REVERT: 'revert',
 	COMMIT: 'commit',
 	COMMAND: 'command',
 	BACKGROUND_FETCH: 'backgroundfetch',
@@ -235,6 +241,7 @@ export interface IGitConfiguration {
 	enableLongCommitWarning: boolean;
 	allowLargeRepositories: boolean;
 	confirmSync: boolean;
+	countBadge: string;
 }
 
 // Service interfaces
@@ -283,10 +290,11 @@ export interface IRawGitService {
 	pull(rebase?: boolean): TPromise<IRawStatus>;
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus>;
 	sync(): TPromise<IRawStatus>;
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
 	getCommitTemplate(): TPromise<string>;
+	getCommit(ref: string): TPromise<ICommit>;
 }
 
 export const GIT_SERVICE_ID = 'gitService';
@@ -311,7 +319,7 @@ export interface IGitService extends IEventEmitter {
 	pull(rebase?: boolean): TPromise<IModel>;
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IModel>;
 	sync(): TPromise<IModel>;
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IModel>;
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IModel>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	buffer(path: string, treeish?: string): TPromise<string>;
 
@@ -324,6 +332,7 @@ export interface IGitService extends IEventEmitter {
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
 	getCommitTemplate(): TPromise<string>;
+	getCommit(ref: string): TPromise<ICommit>;
 }
 
 export interface IAskpassService {

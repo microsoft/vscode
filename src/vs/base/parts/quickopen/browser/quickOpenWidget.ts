@@ -34,7 +34,7 @@ export interface IQuickOpenCallbacks {
 	onCancel: () => void;
 	onType: (value: string) => void;
 	onShow?: () => void;
-	onHide?: (focusLost?: boolean) => void;
+	onHide?: (reason: HideReason) => void;
 	onFocusLost?: () => boolean /* veto close */;
 }
 
@@ -720,14 +720,14 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		// Callbacks
-		if (reason === HideReason.CANCELED) {
-			this.callbacks.onCancel();
-		} else {
+		if (reason === HideReason.ELEMENT_SELECTED) {
 			this.callbacks.onOk();
+		} else {
+			this.callbacks.onCancel();
 		}
 
 		if (this.callbacks.onHide) {
-			this.callbacks.onHide(reason === HideReason.FOCUS_LOST);
+			this.callbacks.onHide(reason);
 		}
 	}
 

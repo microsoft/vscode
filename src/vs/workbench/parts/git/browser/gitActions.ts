@@ -29,6 +29,7 @@ import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBr
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -722,8 +723,10 @@ export abstract class BaseCommitAction extends GitAction {
 			return TPromise.as(null);
 		}
 
-		return this.gitService.commit(this.commitState.getCommitMessage());
+		return this.commit();
 	}
+
+	protected abstract commit(): Promise;
 }
 
 export class CommitAction extends BaseCommitAction {
@@ -734,6 +737,22 @@ export class CommitAction extends BaseCommitAction {
 		super(commitState, CommitAction.ID, nls.localize('commitStaged', "Commit Staged"), 'git-action commit', gitService);
 	}
 
+	protected commit(): Promise {
+		return this.gitService.commit(this.commitState.getCommitMessage());
+	}
+}
+
+export class CommitSignedOffAction extends BaseCommitAction {
+
+	static ID = 'workbench.action.git.commitSignedOff';
+
+	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
+		super(commitState, CommitAction.ID, nls.localize('commitStagedSignedOff', "Commit Staged (Signed Off)"), 'git-action commit-signed-off', gitService);
+	}
+
+	protected commit(): Promise {
+		return this.gitService.commit(this.commitState.getCommitMessage(), undefined, undefined, true);
+	}
 }
 
 export class InputCommitAction extends GitAction {
@@ -779,9 +798,17 @@ export class InputCommitAction extends GitAction {
 export class StageAndCommitAction extends BaseCommitAction {
 
 	static ID = 'workbench.action.git.stageAndCommit';
+	static LABEL = nls.localize('commitAll', "Commit All");
+	static CSSCLASS = 'git-action stage-and-commit';
 
-	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
-		super(commitState, StageAndCommitAction.ID, nls.localize('commitAll', "Commit All"), 'git-action stage-and-commit', gitService);
+	constructor(
+		commitState: ICommitState,
+		id: string = StageAndCommitAction.ID,
+		label: string = StageAndCommitAction.LABEL,
+		cssClass: string = StageAndCommitAction.CSSCLASS,
+		@IGitService gitService: IGitService
+	) {
+		super(commitState, id, label, cssClass, gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -799,13 +826,21 @@ export class StageAndCommitAction extends BaseCommitAction {
 			|| status.getWorkingTreeStatus().all().length > 0;
 	}
 
-	public run(context?: any):Promise {
-		if (!this.commitState.getCommitMessage()) {
-			this.commitState.onEmptyCommitMessage();
-			return TPromise.as(null);
-		}
-
+	protected commit(): Promise {
 		return this.gitService.commit(this.commitState.getCommitMessage(), false, true);
+	}
+}
+
+export class StageAndCommitSignedOffAction extends StageAndCommitAction {
+
+	static ID = 'workbench.action.git.stageAndCommitSignedOff';
+
+	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
+		super(commitState, StageAndCommitAction.ID, nls.localize('commitAllSignedOff', "Commit All (Signed Off)"), 'git-action stage-and-commit-signed-off', gitService);
+	}
+
+	protected commit(): Promise {
+		return this.gitService.commit(this.commitState.getCommitMessage(), false, true, true);
 	}
 }
 
@@ -857,14 +892,8 @@ export class SmartCommitAction extends BaseCommitAction {
 			|| status.getWorkingTreeStatus().all().length > 0;
 	}
 
-	public run(context?: any):Promise {
-		if (!this.commitState.getCommitMessage()) {
-			this.commitState.onEmptyCommitMessage();
-			return TPromise.as(null);
-		}
-
-		var status = this.gitService.getModel().getStatus();
-
+	protected commit(): Promise {
+		const status = this.gitService.getModel().getStatus();
 		return this.gitService.commit(this.commitState.getCommitMessage(), false, status.getIndexStatus().all().length === 0);
 	}
 }
@@ -1117,7 +1146,8 @@ export class UndoLastCommitAction extends GitAction {
 	constructor(
 		id = UndoLastCommitAction.ID,
 		label = UndoLastCommitAction.LABEL,
-		@IGitService gitService: IGitService
+		@IGitService gitService: IGitService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(UndoLastCommitAction.ID, UndoLastCommitAction.LABEL, 'git-action undo-last-commit', gitService);
 	}

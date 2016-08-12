@@ -661,7 +661,7 @@ export class GitService extends ee.EventEmitter
 	}
 
 	public revertFiles(treeish: string, files?: git.IFileStatus[]): winjs.Promise {
-		return this.run(git.ServiceOperations.RESET, () => this.raw.revertFiles(treeish, (files || []).map((s) => s.getPath())));
+		return this.run(git.ServiceOperations.REVERT, () => this.raw.revertFiles(treeish, (files || []).map((s) => s.getPath())));
 	}
 
 	public fetch(): winjs.Promise {
@@ -687,12 +687,16 @@ export class GitService extends ee.EventEmitter
 		}
 	}
 
-	public commit(message:string, amend: boolean = false, stage: boolean = false): winjs.Promise {
-		return this.run(git.ServiceOperations.COMMIT, () => this.raw.commit(message, amend, stage));
+	public commit(message:string, amend: boolean = false, stage: boolean = false, signoff: boolean = false): winjs.Promise {
+		return this.run(git.ServiceOperations.COMMIT, () => this.raw.commit(message, amend, stage, signoff));
 	}
 
 	public getCommitTemplate(): winjs.Promise {
 		return this.raw.getCommitTemplate();
+	}
+
+	public getCommit(ref: string): winjs.TPromise<git.ICommit> {
+		return this.raw.getCommit(ref);
 	}
 
 	public detectMimetypes(path: string, treeish: string = '~'): winjs.Promise {

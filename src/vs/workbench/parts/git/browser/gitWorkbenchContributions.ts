@@ -26,6 +26,7 @@ import output = require('vs/workbench/parts/output/common/output');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import confregistry = require('vs/platform/configuration/common/configurationRegistry');
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import quickopen = require('vs/workbench/browser/quickopen');
 import editorcontrib = require('vs/workbench/parts/git/browser/gitEditorContributions');
 import {IActivityService, ProgressBadge, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
@@ -52,6 +53,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 	private eventService: IEventService;
 	private activityService:IActivityService;
 	private messageService:IMessageService;
+	private configurationService:IConfigurationService;
 	private progressBadgeDelayer: async.Delayer<void>;
 	private toDispose: lifecycle.IDisposable[];
 
@@ -59,16 +61,19 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 		@IGitService gitService: IGitService,
 		@IEventService eventService: IEventService,
 		@IActivityService activityService: IActivityService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this.gitService = gitService;
 		this.eventService = eventService;
 		this.activityService = activityService;
 		this.messageService = messageService;
+		this.configurationService = configurationService;
 
 		this.progressBadgeDelayer = new async.Delayer<void>(200);
 
 		this.toDispose = [];
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onGitServiceChange()));
 		this.toDispose.push(this.gitService.addBulkListener2(e => this.onGitServiceChange()));
 	}
 
@@ -86,13 +91,24 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 	}
 
 	private showChangesBadge(): void {
-		var count = this.gitService.getModel().getStatus().getGroups().map((g1: git.IStatusGroup) => {
-			return g1.all().length;
-		}).reduce((a, b) => a + b, 0);
-
-		var badge = new NumberBadge(count, (num)=>{ return nls.localize('gitPendingChangesBadge', '{0} pending changes', num); });
-
 		this.progressBadgeDelayer.cancel();
+
+		const { countBadge } = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+
+		if (countBadge === 'off') {
+			return;
+		}
+
+		const filter = countBadge === 'tracked'
+			? s => s.getStatus() !== git.Status.UNTRACKED
+			: () => true;
+
+		const statuses = this.gitService.getModel().getStatus().getGroups()
+			.map(g => g.all())
+			.reduce((r, g) => r.concat(g), [])
+			.filter(filter);
+
+		const badge = new NumberBadge(statuses.length, num => nls.localize('gitPendingChangesBadge', '{0} pending changes', num));
 		this.activityService.showActivity('workbench.view.git', badge, 'git-viewlet-label');
 	}
 
@@ -547,6 +563,12 @@ export function registerContributions(): void {
 				type: 'boolean',
 				description: nls.localize('confirmSync', "Confirm before synchronizing git repositories."),
 				default: false
+			},
+			'git.countBadge': {
+				type: 'string',
+				enum: ['all', 'tracked', 'off'],
+				default: 'all',
+				description: nls.localize('countBadge', "Controls the git badge counter."),
 			}
 		}
 	});
