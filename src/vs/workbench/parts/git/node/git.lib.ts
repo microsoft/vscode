@@ -261,6 +261,11 @@ export class Git {
 	}
 }
 
+export interface ICommit {
+	hash: string;
+	message: string;
+}
+
 export class Repository {
 
 	private git: Git;
@@ -721,6 +726,18 @@ export class Repository {
 
 			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
 		}, () => '');
+	}
+
+	getCommit(ref: string): TPromise<ICommit> {
+		return this.run(['show', '-s', '--format=%H\n%B', ref]).then(result => {
+			const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
+
+			if (!match) {
+				return TPromise.wrapError('bad commit format');
+			}
+
+			return { hash: match[1], message: match[2] };
+		});
 	}
 
 	onOutput(listener: (output: string) => void): () => void {

@@ -695,6 +695,10 @@ export class GitService extends ee.EventEmitter
 		return this.raw.getCommitTemplate();
 	}
 
+	public getCommit(ref: string): winjs.TPromise<git.ICommit> {
+		return this.raw.getCommit(ref);
+	}
+
 	public detectMimetypes(path: string, treeish: string = '~'): winjs.Promise {
 		return this.raw.detectMimetypes(path, treeish);
 	}

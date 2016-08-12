@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions, ICommit } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter, fromPromise } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
@@ -199,6 +199,10 @@ export class RawGitService implements IRawGitService {
 	getCommitTemplate(): TPromise<string> {
 		return this.repo.getCommitTemplate();
 	}
+
+	getCommit(ref: string): TPromise<ICommit> {
+		return this.repo.getCommit(ref);
+	}
 }
 
 export class DelayedRawGitService implements IRawGitService {
@@ -225,4 +229,5 @@ export class DelayedRawGitService implements IRawGitService {
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> { return this.raw.then(r => r.detectMimetypes(path, treeish)); }
 	show(path: string, treeish?: string): TPromise<string> { return this.raw.then(r => r.show(path, treeish)); }
 	getCommitTemplate(): TPromise<string> { return this.raw.then(r => r.getCommitTemplate()); }
+	getCommit(ref: string): TPromise<ICommit> { return this.raw.then(r => r.getCommit(ref)); }
 }
