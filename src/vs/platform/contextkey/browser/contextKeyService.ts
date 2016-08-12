@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./keybindings';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
