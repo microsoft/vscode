@@ -5,7 +5,7 @@
 'use strict';
 
 import {
-	IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
+	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType
 } from 'vscode-languageserver';
 
@@ -37,7 +37,7 @@ namespace VSCodeContentRequest {
 }
 
 // Create a connection for the server
-let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
+let connection: IConnection = createConnection();
 
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
