@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { SimpleMap } from 'vs/base/common/map';
+import { LinkedMap } from 'vs/base/common/map';
 import { ArraySet } from 'vs/base/common/set';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as Search from 'vs/platform/search/common/search';
@@ -100,7 +100,7 @@ export class FileMatch extends Disposable {
 	private _resource: URI;
 	private _model: IModel;
 	private _modelListener: IDisposable;
-	private _matches: SimpleMap<string, Match>;
+	private _matches: LinkedMap<string, Match>;
 	private _removedMatches: ArraySet<string>;
 	private _selectedMatch: Match;
 
@@ -111,7 +111,7 @@ export class FileMatch extends Disposable {
 		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
 		super();
 		this._resource = this.rawMatch.resource;
-		this._matches = new SimpleMap<string, Match>();
+		this._matches = new LinkedMap<string, Match>();
 		this._removedMatches = new ArraySet<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatches.bind(this), 250);
 
@@ -172,7 +172,7 @@ export class FileMatch extends Disposable {
 		if (!this._model) {
 			return;
 		}
-		this._matches = new SimpleMap<string, Match>();
+		this._matches = new LinkedMap<string, Match>();
 		let matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch);
 
@@ -298,8 +298,8 @@ export class SearchResult extends Disposable {
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	public onChange: Event<IChangeEvent> = this._onChange.event;
 
-	private _fileMatches: SimpleMap<URI, FileMatch>;
-	private _unDisposedFileMatches: SimpleMap<URI, FileMatch>;
+	private _fileMatches: LinkedMap<URI, FileMatch>;
+	private _unDisposedFileMatches: LinkedMap<URI, FileMatch>;
 	private _query: Search.IPatternInfo = null;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
@@ -307,8 +307,8 @@ export class SearchResult extends Disposable {
 	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
-		this._fileMatches = new SimpleMap<URI, FileMatch>();
-		this._unDisposedFileMatches = new SimpleMap<URI, FileMatch>();
+		this._fileMatches = new LinkedMap<URI, FileMatch>();
+		this._unDisposedFileMatches = new LinkedMap<URI, FileMatch>();
 	}
 
 	public set query(query: Search.IPatternInfo) {

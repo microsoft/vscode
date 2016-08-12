@@ -6,7 +6,7 @@
 
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {LinkedMap} from 'vs/base/common/map';
+import {BoundedLinkedMap} from 'vs/base/common/map';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
@@ -222,7 +222,7 @@ interface IParsedPattern {
 	trivia?: Trivia;
 }
 
-const CACHE = new LinkedMap<IParsedPattern>(10000); // bounded to 10000 elements
+const CACHE = new BoundedLinkedMap<IParsedPattern>(10000); // bounded to 10000 elements
 
 function parsePattern(pattern: string): IParsedPattern {
 	if (!pattern) {
