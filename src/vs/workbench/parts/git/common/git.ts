@@ -240,7 +240,7 @@ export interface IGitConfiguration {
 	enableLongCommitWarning: boolean;
 	allowLargeRepositories: boolean;
 	confirmSync: boolean;
-	countUntracked: boolean;
+	countBadge: string;
 }
 
 // Service interfaces
