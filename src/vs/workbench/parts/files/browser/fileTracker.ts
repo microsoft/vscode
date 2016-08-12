@@ -152,7 +152,7 @@ export class FileTracker implements IWorkbenchContribution {
 		let dirtyCount = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirtyCount;
 		if (dirtyCount > 0) {
-			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, (num) => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		} else {
 			this.activityService.clearActivity(VIEWLET_ID);
 		}
@@ -172,10 +172,11 @@ export class FileTracker implements IWorkbenchContribution {
 			this.handleMovedFileInVisibleEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
 		}
 
-		// Dispose all known inputs passed on resource
+		// Dispose all known inputs passed on resource if deleted or moved
 		let oldFile = e.getBefore();
-		if ((e.gotMoved() || e.gotDeleted())) {
-			this.handleDelete(oldFile.resource);
+		let movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
+		if (e.gotMoved() || e.gotDeleted()) {
+			this.handleDeleteOrMove(oldFile.resource, movedTo);
 		}
 	}
 
@@ -184,16 +185,16 @@ export class FileTracker implements IWorkbenchContribution {
 		// Dispose inputs that got deleted
 		let allDeleted = e.getDeleted();
 		if (allDeleted && allDeleted.length > 0) {
-			allDeleted.forEach((deleted) => {
-				this.handleDelete(deleted.resource);
+			allDeleted.forEach(deleted => {
+				this.handleDeleteOrMove(deleted.resource);
 			});
 		}
 
 		// Dispose models that got changed and are not visible. We do this because otherwise
 		// cached file models will be stale from the contents on disk.
 		e.getUpdated()
-			.map((u) => CACHE.get(u.resource))
-			.filter((model) => {
+			.map(u => CACHE.get(u.resource))
+			.filter(model => {
 				let canDispose = this.canDispose(model);
 				if (!canDispose) {
 					return false;
@@ -205,11 +206,11 @@ export class FileTracker implements IWorkbenchContribution {
 
 				return true; // ok boss
 			})
-			.forEach((model) => CACHE.dispose(model.getResource()));
+			.forEach(model => CACHE.dispose(model.getResource()));
 
 		// Update inputs that got updated
 		let editors = this.editorService.getVisibleEditors();
-		editors.forEach((editor) => {
+		editors.forEach(editor => {
 			let input = editor.input;
 			if (input instanceof DiffEditorInput) {
 				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, e);
@@ -357,7 +358,7 @@ export class FileTracker implements IWorkbenchContribution {
 		return null;
 	}
 
-	private handleDelete(resource: URI): void {
+	private handleDeleteOrMove(resource: URI, movedTo?: URI): void {
 		if (this.textFileService.isDirty(resource)) {
 			return; // never dispose dirty resources from a delete
 		}
@@ -382,9 +383,16 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 		});
 
-		inputsContainingPath.forEach((input) => {
+		inputsContainingPath.forEach(input => {
 			if (input.isDirty()) {
 				return; // never dispose dirty resources from a delete
+			}
+
+			// Special case: a resource was renamed to the same path with different casing. Since our paths
+			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
+			// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
+			if (input instanceof FileEditorInput && movedTo && movedTo.fsPath === input.getResource().fsPath) {
+				return;
 			}
 
 			// Editor History
