@@ -40,6 +40,17 @@ export class LinkedMap<K extends Key, T> {
 		return value ? value : null;
 	}
 
+	public getOrSet(k: K, t: T): T {
+		const res = this.get(k);
+		if (res) {
+			return res;
+		}
+
+		this.set(k, t);
+
+		return t;
+	}
+
 	public keys(): K[] {
 		var keys: K[] = [];
 		for (let key in this.map) {
@@ -150,6 +161,17 @@ export class BoundedLinkedMap<T> {
 		const entry = this.map[key];
 
 		return entry ? entry.value : null;
+	}
+
+	public getOrSet(k: string, t: T): T {
+		const res = this.get(k);
+		if (res) {
+			return res;
+		}
+
+		this.set(k, t);
+
+		return t;
 	}
 
 	public delete(key: string): T {
