@@ -30,7 +30,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
@@ -136,7 +136,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -774,7 +774,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// InstantiationServices
 			const instantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IKeybindingService, this.keybindingService.createScoped(container.getHTMLElement())]
+				[IContextKeyService, this.contextKeyService.createScoped(container.getHTMLElement())]
 			));
 			container.setProperty(SideBySideEditorControl.INSTANTIATION_SERVICE_KEY, instantiationService); // associate with container
 

@@ -5,27 +5,27 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
-export class ResourceContextKey implements IKeybindingContextKey<URI> {
+export class ResourceContextKey implements IContextKey<URI> {
 
 
-	static Scheme = new KbCtxKey<string>('resourceScheme', undefined);
-	static LangId = new KbCtxKey<string>('resourceLangId', undefined);
-	static Resource = new KbCtxKey<URI>('resource', undefined);
+	static Scheme = new RawContextKey<string>('resourceScheme', undefined);
+	static LangId = new RawContextKey<string>('resourceLangId', undefined);
+	static Resource = new RawContextKey<URI>('resource', undefined);
 
-	private _resourceKey: IKeybindingContextKey<URI>;
-	private _schemeKey: IKeybindingContextKey<string>;
-	private _langIdKey: IKeybindingContextKey<string>;
+	private _resourceKey: IContextKey<URI>;
+	private _schemeKey: IContextKey<string>;
+	private _langIdKey: IContextKey<string>;
 
 	constructor(
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModeService private _modeService: IModeService
 	) {
-		this._schemeKey = ResourceContextKey.Scheme.bindTo(keybindingService);
-		this._langIdKey = ResourceContextKey.LangId.bindTo(keybindingService);
-		this._resourceKey = ResourceContextKey.Resource.bindTo(keybindingService);
+		this._schemeKey = ResourceContextKey.Scheme.bindTo(contextKeyService);
+		this._langIdKey = ResourceContextKey.LangId.bindTo(contextKeyService);
+		this._resourceKey = ResourceContextKey.Resource.bindTo(contextKeyService);
 	}
 
 	set(value: URI) {

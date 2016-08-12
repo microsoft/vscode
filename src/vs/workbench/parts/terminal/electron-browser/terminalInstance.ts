@@ -11,7 +11,8 @@ import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
@@ -42,7 +43,7 @@ export class TerminalInstance {
 		private keybindingService: IKeybindingService,
 		private terminalService: ITerminalService,
 		private messageService: IMessageService,
-		private terminalFocusContextKey: IKeybindingContextKey<boolean>,
+		private terminalFocusContextKey: IContextKey<boolean>,
 		private onExitCallback: (TerminalInstance) => void
 	) {
 		let self = this;

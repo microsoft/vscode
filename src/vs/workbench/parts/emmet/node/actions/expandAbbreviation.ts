@@ -12,7 +12,7 @@ import {editorAction} from 'vs/editor/common/editorCommonExtensions';
 import {Handler, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 @editorAction
 class ExpandAbbreviationAction extends BasicEmmetEditorAction {
@@ -25,12 +25,12 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 			'expand_abbreviation',
 			{
 				primary: KeyCode.Tab,
-				kbExpr: KbExpr.and(
+				kbExpr: ContextKeyExpr.and(
 					EditorContextKeys.TextFocus,
 					EditorContextKeys.HasOnlyEmptySelection,
 					EditorContextKeys.HasSingleSelection,
 					EditorContextKeys.TabDoesNotMoveFocus,
-					KbExpr.has('config.emmet.triggerExpansionOnTab')
+					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab')
 				)
 			}
 		);

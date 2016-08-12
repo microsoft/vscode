@@ -14,7 +14,8 @@ import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ITerminalFont, TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -173,7 +174,7 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	public createNewTerminalInstance(terminalProcess: ITerminalProcess, terminalFocusContextKey: IKeybindingContextKey<boolean>): TPromise<void> {
+	public createNewTerminalInstance(terminalProcess: ITerminalProcess, terminalFocusContextKey: IContextKey<boolean>): TPromise<void> {
 		return this.createTerminal(terminalProcess, terminalFocusContextKey).then(() => {
 			this.updateConfig();
 			this.focus();
@@ -205,7 +206,7 @@ export class TerminalPanel extends Panel {
 		return super.setVisible(visible);
 	}
 
-	private createTerminal(terminalProcess: ITerminalProcess, terminalFocusContextKey: IKeybindingContextKey<boolean>): TPromise<TerminalInstance> {
+	private createTerminal(terminalProcess: ITerminalProcess, terminalFocusContextKey: IContextKey<boolean>): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
 			var terminalInstance = new TerminalInstance(
 				terminalProcess,

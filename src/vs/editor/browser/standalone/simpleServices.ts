@@ -10,7 +10,6 @@ import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
@@ -19,6 +18,7 @@ import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/comm
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -205,8 +205,13 @@ export class StandaloneKeybindingService extends KeybindingService {
 	private _dynamicKeybindings: IKeybindingItem[];
 	private _dynamicCommands: { [id: string]: ICommandHandler };
 
-	constructor(commandService: ICommandService, configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
-		super(commandService, configurationService, messageService);
+	constructor(
+		contextKeyService: IContextKeyService,
+		commandService: ICommandService,
+		messageService: IMessageService,
+		domNode: HTMLElement
+	) {
+		super(contextKeyService, commandService, messageService);
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);

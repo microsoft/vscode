@@ -21,6 +21,7 @@ import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -38,6 +39,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
@@ -89,6 +91,10 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	openerService?:IOpenerService;
+	/**
+	 * @internal
+	 */
+	contextKeyService?:IContextKeyService;
 	/**
 	 * @internal
 	 */
@@ -187,22 +193,33 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 }
 
 export function ensureDynamicPlatformServices(domElement:HTMLElement, services: IEditorOverrideServices): IDisposable[] {
-	var r:IDisposable[] = [];
+	let r:IDisposable[] = [];
 
-
+	let contextKeyService:IContextKeyService;
+	if (typeof services.contextKeyService === 'undefined') {
+		contextKeyService = new ContextKeyService(services.configurationService);
+		r.push(contextKeyService);
+		services.contextKeyService = contextKeyService;
+	} else {
+		contextKeyService = services.contextKeyService;
+	}
 	if (typeof services.keybindingService === 'undefined') {
-		var keybindingService = new StandaloneKeybindingService(services.commandService, services.configurationService, services.messageService, domElement);
+		let keybindingService = new StandaloneKeybindingService(contextKeyService, services.commandService, services.messageService, domElement);
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
 	}
 
+	let contextViewService:IEditorContextViewService;
 	if (typeof services.contextViewService === 'undefined') {
-		var contextViewService = new ContextViewService(domElement, services.telemetryService, services.messageService);
+		contextViewService = new ContextViewService(domElement, services.telemetryService, services.messageService);
 		r.push(contextViewService);
 		services.contextViewService = contextViewService;
+	} else {
+		contextViewService = services.contextViewService;
 	}
+
 	if (typeof services.contextMenuService === 'undefined') {
-		var contextMenuService = new ContextMenuService(domElement, services.telemetryService, services.messageService, contextViewService);
+		let contextMenuService = new ContextMenuService(domElement, services.telemetryService, services.messageService, contextViewService);
 		r.push(contextMenuService);
 		services.contextMenuService = contextMenuService;
 	}

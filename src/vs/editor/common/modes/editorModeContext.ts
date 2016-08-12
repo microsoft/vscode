@@ -5,7 +5,7 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
 import {ICommonCodeEditor, ModeContextKeys} from 'vs/editor/common/editorCommon';
 
@@ -14,35 +14,35 @@ export class EditorModeContext {
 	private _disposables: IDisposable[] = [];
 	private _editor: ICommonCodeEditor;
 
-	private _hasCompletionItemProvider: IKeybindingContextKey<boolean>;
-	private _hasCodeActionsProvider: IKeybindingContextKey<boolean>;
-	private _hasCodeLensProvider: IKeybindingContextKey<boolean>;
-	private _hasDefinitionProvider: IKeybindingContextKey<boolean>;
-	private _hasHoverProvider: IKeybindingContextKey<boolean>;
-	private _hasDocumentHighlightProvider: IKeybindingContextKey<boolean>;
-	private _hasDocumentSymbolProvider: IKeybindingContextKey<boolean>;
-	private _hasReferenceProvider: IKeybindingContextKey<boolean>;
-	private _hasRenameProvider: IKeybindingContextKey<boolean>;
-	private _hasFormattingProvider: IKeybindingContextKey<boolean>;
-	private _hasSignatureHelpProvider: IKeybindingContextKey<boolean>;
+	private _hasCompletionItemProvider: IContextKey<boolean>;
+	private _hasCodeActionsProvider: IContextKey<boolean>;
+	private _hasCodeLensProvider: IContextKey<boolean>;
+	private _hasDefinitionProvider: IContextKey<boolean>;
+	private _hasHoverProvider: IContextKey<boolean>;
+	private _hasDocumentHighlightProvider: IContextKey<boolean>;
+	private _hasDocumentSymbolProvider: IContextKey<boolean>;
+	private _hasReferenceProvider: IContextKey<boolean>;
+	private _hasRenameProvider: IContextKey<boolean>;
+	private _hasFormattingProvider: IContextKey<boolean>;
+	private _hasSignatureHelpProvider: IContextKey<boolean>;
 
 	constructor(
 		editor: ICommonCodeEditor,
-		keybindingService: IKeybindingService
+		contextKeyService: IContextKeyService
 	) {
 		this._editor = editor;
 
-		this._hasCompletionItemProvider = ModeContextKeys.hasCompletionItemProvider.bindTo(keybindingService);
-		this._hasCodeActionsProvider = ModeContextKeys.hasCodeActionsProvider.bindTo(keybindingService);
-		this._hasCodeLensProvider = ModeContextKeys.hasCodeLensProvider.bindTo(keybindingService);
-		this._hasDefinitionProvider = ModeContextKeys.hasDefinitionProvider.bindTo(keybindingService);
-		this._hasHoverProvider = ModeContextKeys.hasHoverProvider.bindTo(keybindingService);
-		this._hasDocumentHighlightProvider = ModeContextKeys.hasDocumentHighlightProvider.bindTo(keybindingService);
-		this._hasDocumentSymbolProvider = ModeContextKeys.hasDocumentSymbolProvider.bindTo(keybindingService);
-		this._hasReferenceProvider = ModeContextKeys.hasReferenceProvider.bindTo(keybindingService);
-		this._hasRenameProvider = ModeContextKeys.hasRenameProvider.bindTo(keybindingService);
-		this._hasFormattingProvider = ModeContextKeys.hasFormattingProvider.bindTo(keybindingService);
-		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(keybindingService);
+		this._hasCompletionItemProvider = ModeContextKeys.hasCompletionItemProvider.bindTo(contextKeyService);
+		this._hasCodeActionsProvider = ModeContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
+		this._hasCodeLensProvider = ModeContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
+		this._hasDefinitionProvider = ModeContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
+		this._hasHoverProvider = ModeContextKeys.hasHoverProvider.bindTo(contextKeyService);
+		this._hasDocumentHighlightProvider = ModeContextKeys.hasDocumentHighlightProvider.bindTo(contextKeyService);
+		this._hasDocumentSymbolProvider = ModeContextKeys.hasDocumentSymbolProvider.bindTo(contextKeyService);
+		this._hasReferenceProvider = ModeContextKeys.hasReferenceProvider.bindTo(contextKeyService);
+		this._hasRenameProvider = ModeContextKeys.hasRenameProvider.bindTo(contextKeyService);
+		this._hasFormattingProvider = ModeContextKeys.hasFormattingProvider.bindTo(contextKeyService);
+		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
 
 		// update when model/mode changes
 		this._disposables.push(editor.onDidChangeModel(() => this._update()));

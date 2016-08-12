@@ -30,7 +30,7 @@ import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/re
 import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {PeekContext} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -195,7 +195,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 			id: 'editor.action.previewDeclaration',
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
-			precondition: KbExpr.and(ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor),
+			precondition: ContextKeyExpr.and(ModeContextKeys.hasDefinitionProvider, PeekContext.notInPeekEditor),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,

@@ -10,7 +10,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
@@ -657,7 +658,7 @@ export class SelectionToReplAction extends EditorAction {
 			id: 'editor.debug.action.selectionToRepl',
 			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
 			alias: 'Debug: Evaluate',
-			precondition: KbExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
 			menuOpts: {
 				group: 'debug'
 			}

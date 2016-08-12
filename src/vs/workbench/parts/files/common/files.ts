@@ -14,14 +14,14 @@ import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEd
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
+import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
 
-export const ExplorerViewletVisible = new KbCtxKey<boolean>('explorerViewletVisible', true);
+export const ExplorerViewletVisible = new RawContextKey<boolean>('explorerViewletVisible', true);
 
 /**
  * File editor input id.

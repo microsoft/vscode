@@ -11,7 +11,7 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService, KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey, IContextKeyService, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
@@ -25,7 +25,7 @@ import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
 import {Range} from 'vs/editor/common/core/range';
 
-export const ctxReferenceSearchVisible = new KbCtxKey<boolean>('referenceSearchVisible', false);
+export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
@@ -43,7 +43,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	private _disposables: IDisposable[] = [];
 	private _ignoreModelChangeEvent = false;
 
-	private _referenceSearchVisible: IKeybindingContextKey<boolean>;
+	private _referenceSearchVisible: IContextKey<boolean>;
 
 	static getController(editor:editorCommon.ICommonCodeEditor): ReferencesController {
 		return <ReferencesController> editor.getContribution(ReferencesController.ID);
@@ -51,7 +51,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 	public constructor(
 		editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
@@ -62,7 +62,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
 		this._editor = editor;
-		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(keybindingService);
+		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
 	}
 
 	public getId(): string {

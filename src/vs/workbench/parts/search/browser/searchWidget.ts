@@ -15,7 +15,8 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -64,11 +65,11 @@ class ReplaceAllAction extends Action {
 
 export class SearchWidget extends Widget {
 
-	static REPLACE_ACTIVE_CONTEXT_KEY= new KbCtxKey<boolean>('replaceActive', false);
+	static REPLACE_ACTIVE_CONTEXT_KEY= new RawContextKey<boolean>('replaceActive', false);
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
-	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService: IKeybindingService):string=>{
-		let keybindings = keyBindingService.lookupKeybindings(ReplaceAllAction.ID);
-		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), keybindings[0], keyBindingService);
+	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService2: IKeybindingService):string=>{
+		let keybindings = keyBindingService2.lookupKeybindings(ReplaceAllAction.ID);
+		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), keybindings[0], keyBindingService2);
 	};
 
 	public domNode: HTMLElement;
@@ -78,7 +79,7 @@ export class SearchWidget extends Widget {
 	private replaceContainer: HTMLElement;
 	private toggleReplaceButton: Button;
 	private replaceAllAction: ReplaceAllAction;
-	private replaceActive: IKeybindingContextKey<boolean>;
+	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar: ActionBar;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
@@ -103,7 +104,7 @@ export class SearchWidget extends Widget {
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
-					private keyBindingService: IKeybindingService, private instantiationService: IInstantiationService) {
+					private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
 		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService);
 		this.render(container, options);
@@ -220,7 +221,7 @@ export class SearchWidget extends Widget {
 	public setReplaceAllActionState(enabled:boolean):void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled= enabled;
-			this.replaceAllAction.label= enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+			this.replaceAllAction.label= enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService2) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 			this.updateReplaceActiveState();
 		}
 	}
@@ -338,7 +339,7 @@ export class SearchWidget extends Widget {
 export function registerContributions() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({id: ReplaceAllAction.ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: KbExpr.and(KbExpr.has('searchViewletVisible'), SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
+		when: ContextKeyExpr.and(ContextKeyExpr.has('searchViewletVisible'), SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
 			if (isSearchViewletFocussed(accessor.get(IViewletService))) {

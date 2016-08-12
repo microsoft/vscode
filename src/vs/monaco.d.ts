@@ -884,20 +884,20 @@ declare module monaco.editor {
 
     export interface IStandaloneCodeEditor extends ICodeEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
-        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): void;
     }
 
     export interface IStandaloneDiffEditor extends IDiffEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
-        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): void;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
     }
 
-    export interface IKeybindingContextKey<T> {
+    export interface IContextKey<T> {
         set(value: T): void;
         reset(): void;
         get(): T;

@@ -19,7 +19,7 @@ import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/w
 import panel = require('vs/workbench/browser/panel');
 import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -66,13 +66,13 @@ interface IActionDescriptor {
 	//
 	menu?: {
 		menuId: MenuId,
-		when?: KbExpr;
+		when?: ContextKeyExpr;
 		group?: string;
 	};
 
 	//
 	keybinding?: {
-		when?: KbExpr;
+		when?: ContextKeyExpr;
 		weight: number;
 		keys: IKeybindings;
 	};

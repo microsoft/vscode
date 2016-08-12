@@ -16,7 +16,8 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {KbExpr, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
@@ -455,7 +456,7 @@ export class DefineKeybindingAction extends EditorAction {
 			id: DefineKeybindingAction.ID,
 			label: nls.localize('DefineKeybindingAction',"Define Keybinding"),
 			alias: 'Define Keybinding',
-			precondition: KbExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json')),
+			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json')),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)

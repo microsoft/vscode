@@ -6,14 +6,15 @@
 
 import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingItem, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {Registry} from 'vs/platform/platform';
 
 export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
-	when: KbExpr;
+	when: ContextKeyExpr;
 }
 
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
@@ -101,7 +102,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		CommandsRegistry.registerCommand(desc.id, desc);
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: KbExpr): void {
+	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
 				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {

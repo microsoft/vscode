@@ -30,7 +30,7 @@ import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -48,7 +48,7 @@ export class ExplorerViewlet extends Viewlet {
 	private viewletState: FileViewletState;
 	private dimension: Dimension;
 
-	private viewletVisibleContextKey: IKeybindingContextKey<boolean>;
+	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -58,14 +58,14 @@ export class ExplorerViewlet extends Viewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
 		this.views = [];
 
 		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo(keybindingService);
+		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo(contextKeyService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));

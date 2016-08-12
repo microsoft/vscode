@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
@@ -33,15 +33,15 @@ export interface IFindStartOptions {
 	shouldAnimate:boolean;
 }
 
-export const CONTEXT_FIND_WIDGET_VISIBLE = new KbCtxKey<boolean>('findWidgetVisible', false);
-export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: KbExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
+export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
+export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.findController';
 
 	private _editor: editorCommon.ICommonCodeEditor;
-	private _findWidgetVisible: IKeybindingContextKey<boolean>;
+	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	private _model: FindModelBoundToEditorModel;
 
@@ -49,10 +49,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		return <CommonFindController>editor.getContribution(CommonFindController.ID);
 	}
 
-	constructor(editor:editorCommon.ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(editor:editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();
 		this._editor = editor;
-		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(keybindingService);
+		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 
 		this._state = this._register(new FindReplaceState());
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));

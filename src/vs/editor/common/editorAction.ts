@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IActionDescriptor, ICommonCodeEditor, IEditorAction} from 'vs/editor/common/editorCommon';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 
 export abstract class AbstractInternalEditorAction {
 
@@ -29,22 +29,22 @@ export class InternalEditorAction extends AbstractInternalEditorAction implement
 
 	private _actual: EditorAction;
 	private _instantiationService:IInstantiationService;
-	private _keybindingService:IKeybindingService;
+	private _contextKeyService:IContextKeyService;
 
 	constructor(
 		actual:EditorAction,
 		editor:ICommonCodeEditor,
 		@IInstantiationService instantiationService:IInstantiationService,
-		@IKeybindingService keybindingService:IKeybindingService
+		@IContextKeyService contextKeyService:IContextKeyService
 	) {
 		super(actual.id, actual.label, actual.alias, editor);
 		this._actual = actual;
 		this._instantiationService = instantiationService;
-		this._keybindingService = keybindingService;
+		this._contextKeyService = contextKeyService;
 	}
 
 	public isSupported():boolean {
-		return this._keybindingService.contextMatchesRules(this._actual.precondition);
+		return this._contextKeyService.contextMatchesRules(this._actual.precondition);
 	}
 
 	public run(): TPromise<void> {

@@ -17,10 +17,10 @@ import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
@@ -122,15 +122,15 @@ export class WorkbenchKeybindingService extends KeybindingService {
 
 	constructor(
 		domNode: HTMLElement,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEventService eventService: IEventService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
-		super(commandService, configurationService, messageService, statusBarService);
+		super(contextKeyService, commandService, messageService, statusBarService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
