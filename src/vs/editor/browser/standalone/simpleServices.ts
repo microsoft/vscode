@@ -10,14 +10,12 @@ import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
@@ -244,12 +242,6 @@ export class StandaloneKeybindingService2 extends KeybindingService2 {
 
 	protected _getCommandHandler(commandId:string): ICommandHandler {
 		return super._getCommandHandler(commandId) || this._dynamicCommands[commandId];
-	}
-}
-
-export class StandaloneKeybindingService extends KeybindingService {
-	constructor(configurationService: IConfigurationService) {
-		super(configurationService);
 	}
 }
 

@@ -11,12 +11,12 @@ import {IContextKey, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_C
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
-export class KeybindingContext {
-	protected _parent: KeybindingContext;
+export class ContextValuesProvider {
+	protected _parent: ContextValuesProvider;
 	protected _value: any;
 	protected _id: number;
 
-	constructor(id: number, parent: KeybindingContext) {
+	constructor(id: number, parent: ContextValuesProvider) {
 		this._id = id;
 		this._parent = parent;
 		this._value = Object.create(null);
@@ -54,7 +54,7 @@ export class KeybindingContext {
 	}
 }
 
-class ConfigAwareKeybindingContext extends KeybindingContext {
+class ConfigAwareContextValuesProvider extends ContextValuesProvider {
 
 	private _emitter: Emitter<string>;
 	private _subscription: IDisposable;
@@ -101,13 +101,13 @@ class ConfigAwareKeybindingContext extends KeybindingContext {
 	}
 }
 
-class KeybindingContextKey<T> implements IContextKey<T> {
+class ContextKey<T> implements IContextKey<T> {
 
-	private _parent: AbstractKeybindingService;
+	private _parent: AbstractContextKeyService;
 	private _key: string;
 	private _defaultValue: T;
 
-	constructor(parent: AbstractKeybindingService, key: string, defaultValue: T) {
+	constructor(parent: AbstractContextKeyService, key: string, defaultValue: T) {
 		this._parent = parent;
 		this._key = key;
 		this._defaultValue = defaultValue;
@@ -129,10 +129,9 @@ class KeybindingContextKey<T> implements IContextKey<T> {
 	public get(): T {
 		return this._parent.getContextValue<T>(this._key);
 	}
-
 }
 
-export abstract class AbstractKeybindingService {
+export abstract class AbstractContextKeyService {
 	public _serviceBrand: any;
 
 	protected _onDidChangeContext: Event<string[]>;
@@ -145,7 +144,7 @@ export abstract class AbstractKeybindingService {
 	}
 
 	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		return new KeybindingContextKey(this, key, defaultValue);
+		return new ContextKey(this, key, defaultValue);
 	}
 
 	public get onDidChangeContext(): Event<string[]> {
@@ -163,7 +162,7 @@ export abstract class AbstractKeybindingService {
 	}
 
 	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
-		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
+		return new ScopedContextKeyService(this, this._onDidChangeContextKey, domNode);
 	}
 
 	public contextMatchesRules(rules: ContextKeyExpr): boolean {
@@ -192,17 +191,16 @@ export abstract class AbstractKeybindingService {
 		}
 	}
 
-	public abstract getContext(contextId: number): KeybindingContext;
+	public abstract getContext(contextId: number): ContextValuesProvider;
 	public abstract createChildContext(parentContextId?: number): number;
 	public abstract disposeContext(contextId: number): void;
-
 }
 
-export class KeybindingService extends AbstractKeybindingService implements IContextKeyService {
+export class ContextKeyService extends AbstractContextKeyService implements IContextKeyService {
 
 	private _lastContextId: number;
 	private _contexts: {
-		[contextId: string]: KeybindingContext;
+		[contextId: string]: ContextValuesProvider;
 	};
 
 	private _toDispose: IDisposable[] = [];
@@ -212,7 +210,7 @@ export class KeybindingService extends AbstractKeybindingService implements ICon
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
 
-		const myContext = new ConfigAwareKeybindingContext(this._myContextId, configurationService, this._onDidChangeContextKey);
+		const myContext = new ConfigAwareContextValuesProvider(this._myContextId, configurationService, this._onDidChangeContextKey);
 		this._contexts[String(this._myContextId)] = myContext;
 		this._toDispose.push(myContext);
 
@@ -232,13 +230,13 @@ export class KeybindingService extends AbstractKeybindingService implements ICon
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public getContext(contextId: number): KeybindingContext {
+	public getContext(contextId: number): ContextValuesProvider {
 		return this._contexts[String(contextId)];
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
 		let id = (++this._lastContextId);
-		this._contexts[String(id)] = new KeybindingContext(id, this.getContext(parentContextId));
+		this._contexts[String(id)] = new ContextValuesProvider(id, this.getContext(parentContextId));
 		return id;
 	}
 
@@ -247,16 +245,12 @@ export class KeybindingService extends AbstractKeybindingService implements ICon
 	}
 }
 
-CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
-	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
-});
+class ScopedContextKeyService extends AbstractContextKeyService {
 
-class ScopedKeybindingService extends AbstractKeybindingService {
-
-	private _parent: AbstractKeybindingService;
+	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget;
 
-	constructor(parent: AbstractKeybindingService, emitter: Emitter<string>, domNode: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, emitter: Emitter<string>, domNode: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
 		this._onDidChangeContextKey = emitter;
@@ -273,7 +267,7 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 		return this._parent.onDidChangeContext;
 	}
 
-	public getContext(contextId: number): KeybindingContext {
+	public getContext(contextId: number): ContextValuesProvider {
 		return this._parent.getContext(contextId);
 	}
 
@@ -285,3 +279,7 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 		this._parent.disposeContext(contextId);
 	}
 }
+
+CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
+	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
+});
