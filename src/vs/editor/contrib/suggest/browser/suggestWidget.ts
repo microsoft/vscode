@@ -18,7 +18,8 @@ import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from '
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
@@ -319,9 +320,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
-	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
-	private suggestWidgetMultipleSuggestions: IKeybindingContextKey<boolean>;
-	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
+	private suggestWidgetVisible: IContextKey<boolean>;
+	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
 	private onDidSelectEmitter = new Emitter<CompletionItem>();
 
@@ -332,7 +333,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.isAuto = false;
@@ -365,9 +366,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
 		];
 
-		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(keybindingService);
-		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(keybindingService);
-		this.suggestionSupportsAutoAccept = SuggestContext.AcceptOnKey.bindTo(keybindingService);
+		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
+		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
+		this.suggestionSupportsAutoAccept = SuggestContext.AcceptOnKey.bindTo(contextKeyService);
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);

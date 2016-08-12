@@ -38,7 +38,6 @@ import {PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
-import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
@@ -46,8 +45,10 @@ import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -68,9 +69,9 @@ import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 
-export const MessagesVisibleContext = new KbCtxKey<boolean>('globalMessageVisible', false);
-export const EditorsVisibleContext = new KbCtxKey<boolean>('editorIsOpen', false);
-export const NoEditorsVisibleContext:KbExpr = EditorsVisibleContext.toNegated();
+export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
+export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
+export const NoEditorsVisibleContext:ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;
@@ -104,6 +105,7 @@ export class Workbench implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 	private editorService: WorkbenchEditorService;
+	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
@@ -122,8 +124,8 @@ export class Workbench implements IPartService {
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
-	private messagesVisibleContext: IKeybindingContextKey<boolean>;
-	private editorsVisibleContext: IKeybindingContextKey<boolean>;
+	private messagesVisibleContext: IContextKey<boolean>;
+	private editorsVisibleContext: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -203,8 +205,8 @@ export class Workbench implements IPartService {
 			}
 
 			// Contexts
-			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.keybindingService);
-			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.keybindingService);
+			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
+			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 
 			// Register Listeners
 			this.registerListeners();
@@ -351,6 +353,9 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// Keybindings
+		this.contextKeyService = this.instantiationService.createInstance(ContextKeyService);
+		serviceCollection.set(IContextKeyService, this.contextKeyService);
+
 		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, <any>window);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
@@ -400,8 +405,6 @@ export class Workbench implements IPartService {
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
-
-		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);
 
 		// Set the some services to registries that have been created eagerly
 		<IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);

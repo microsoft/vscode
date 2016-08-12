@@ -7,9 +7,10 @@
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
-import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
-class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
+class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _key: string;
 	private _defaultValue: T;
 	private _value: T;
@@ -33,23 +34,33 @@ class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 	}
 }
 
-export class MockKeybindingService implements IKeybindingService {
+export class MockKeybindingService implements IContextKeyService {
 	public _serviceBrand: any;
 
 	public dispose(): void { }
 
-	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
+	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		return new MockKeybindingContextKey(key, defaultValue);
 	}
-	public contextMatchesRules(rules: KbExpr): boolean {
+	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		return false;
 	}
 	public get onDidChangeContext(): Event<string[]> {
 		return Event.None;
 	}
-	public getContextValue(key: string) {
+	public getContextKeyValue(key: string) {
 		return;
 	}
+	public getContextValue(domNode: HTMLElement): any {
+		return null;
+	}
+	public createScoped(domNode: HTMLElement): IContextKeyService {
+		return this;
+	}
+}
+
+export class MockKeybindingService2 implements IKeybindingService {
+	public _serviceBrand: any;
 
 	public getLabelFor(keybinding: Keybinding): string {
 		return keybinding._toUSLabel();
@@ -65,10 +76,6 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
 		return keybinding._toElectronAccelerator();
-	}
-
-	public createScoped(domNode: HTMLElement): IKeybindingService {
-		return this;
 	}
 
 	public getDefaultKeybindings(): string {

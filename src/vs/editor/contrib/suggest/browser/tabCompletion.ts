@@ -6,7 +6,7 @@
 'use strict';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {KbCtxKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {RawContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -22,7 +22,7 @@ let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 class TabCompletionController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.tabCompletionController';
-	static ContextKey = new KbCtxKey<boolean>('hasSnippetCompletions', undefined);
+	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
 	public static get(editor:editorCommon.ICommonCodeEditor): TabCompletionController {
 		return <TabCompletionController>editor.getContribution(TabCompletionController.ID);
@@ -34,10 +34,10 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._snippetController = getSnippetController(editor);
-		const hasSnippets = TabCompletionController.ContextKey.bindTo(keybindingService);
+		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
 		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 
 			this._currentSnippets.length = 0;
@@ -87,10 +87,10 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 	handler: x => x.performSnippetCompletions(),
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-		kbExpr: KbExpr.and(
+		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.TextFocus,
 			EditorContextKeys.TabDoesNotMoveFocus,
-			KbExpr.has('config.editor.tabCompletion')
+			ContextKeyExpr.has('config.editor.tabCompletion')
 		),
 		primary: KeyCode.Tab
 	}

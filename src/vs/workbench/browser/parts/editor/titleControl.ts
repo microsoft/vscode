@@ -30,6 +30,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {createActionItem, fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
@@ -94,6 +95,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IMessageService protected messageService: IMessageService,
@@ -111,7 +113,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 
-		this.contributedTitleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, this.keybindingService);
+		this.contributedTitleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, this.contextKeyService);
 		this.toDispose.push(this.contributedTitleBarMenu);
 		this.toDispose.push(this.contributedTitleBarMenu.onDidChange(e => this.update()));
 

@@ -8,7 +8,7 @@
 import * as collections from 'vs/base/common/collections';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
-import {KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -743,12 +743,12 @@ class SnippetController implements ISnippetController {
 
 	private _editor: editorCommon.ICommonCodeEditor;
 	private _currentController: InsertSnippetController;
-	private _inSnippetMode: IKeybindingContextKey<boolean>;
+	private _inSnippetMode: IContextKey<boolean>;
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		this._editor = editor;
 		this._currentController = null;
-		this._inSnippetMode = CONTEXT_SNIPPET_MODE.bindTo(keybindingService);
+		this._inSnippetMode = CONTEXT_SNIPPET_MODE.bindTo(contextKeyService);
 	}
 
 	public dispose(): void {
@@ -939,7 +939,7 @@ class SnippetController implements ISnippetController {
 	}
 }
 
-export var CONTEXT_SNIPPET_MODE = new KbCtxKey<boolean>('inSnippetMode', false);
+export var CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('inSnippetMode', false);
 
 const SnippetCommand = EditorCommand.bindToContribution<ISnippetController>(SnippetController.get);
 

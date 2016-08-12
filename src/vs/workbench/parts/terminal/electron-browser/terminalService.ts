@@ -14,7 +14,7 @@ import {Builder} from 'vs/base/browser/builder';
 import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -30,7 +30,7 @@ export class TerminalService implements ITerminalService {
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
-	protected _terminalFocusContextKey: IKeybindingContextKey<boolean>;
+	protected _terminalFocusContextKey: IContextKey<boolean>;
 
 	private configHelper: TerminalConfigHelper;
 	private _onActiveInstanceChanged: Emitter<string>;
@@ -40,7 +40,7 @@ export class TerminalService implements ITerminalService {
 	constructor(
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMessageService private messageService: IMessageService,
 		@IPanelService private panelService: IPanelService,
 		@IPartService private partService: IPartService,
@@ -49,7 +49,7 @@ export class TerminalService implements ITerminalService {
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 		this._onInstanceTitleChanged = new Emitter<string>();
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.keybindingService);
+		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.contextKeyService);
 	}
 
 	public get onActiveInstanceChanged(): Event<string> {

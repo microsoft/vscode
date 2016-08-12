@@ -11,7 +11,7 @@ import {IdGenerator} from 'vs/base/common/idGenerator';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {forEach} from 'vs/base/common/collections';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
 
 namespace schema {
@@ -294,7 +294,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					alt,
 					group,
 					order,
-					when: KbExpr.deserialize(item.when)
+					when: ContextKeyExpr.deserialize(item.when)
 				});
 			}
 		});

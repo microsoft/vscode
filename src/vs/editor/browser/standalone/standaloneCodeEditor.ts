@@ -8,9 +8,9 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
@@ -46,13 +46,13 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
 	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
-	createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor:IActionDescriptor): void;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
-	createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor:IActionDescriptor): void;
 }
 
@@ -70,19 +70,16 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		if (keybindingService instanceof AbstractKeybindingService) {
-			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
-		}
-
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, commandService, keybindingService.createScoped(domElement), telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService.createScoped(domElement), telemetryService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
+			this._standaloneKeybindingService = keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
@@ -125,12 +122,12 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		return this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
+	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot create context key because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		return this._standaloneKeybindingService.createKey(key, defaultValue);
+		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
 	public addAction(descriptor:IActionDescriptor): void {
@@ -176,18 +173,15 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		options:IDiffEditorConstructionOptions,
 		toDispose: IDisposable[],
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		if (keybindingService instanceof AbstractKeybindingService) {
-			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
-		}
-
-		super(domElement, options, editorWorkerService, keybindingService, instantiationService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
+			this._standaloneKeybindingService = keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
@@ -214,12 +208,12 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
+	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot create context key because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		return this._standaloneKeybindingService.createKey(key, defaultValue);
+		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
 	public addAction(descriptor:IActionDescriptor): void {

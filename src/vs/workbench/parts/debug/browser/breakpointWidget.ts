@@ -18,12 +18,12 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
-const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new KbCtxKey<boolean>('breakpointWidgetVisible', false);
+const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 
 export class BreakpointWidget extends ZoneWidget {
@@ -32,18 +32,18 @@ export class BreakpointWidget extends ZoneWidget {
 
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
-	private breakpointWidgetVisible: IKeybindingContextKey<boolean>;
+	private breakpointWidgetVisible: IContextKey<boolean>;
 
 	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { showFrame: true, showArrow: false });
 
 		this.toDispose = [];
 		this.create();
-		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(keybindingService);
+		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
 		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));

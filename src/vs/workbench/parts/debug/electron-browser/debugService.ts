@@ -17,7 +17,7 @@ import severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
@@ -73,7 +73,7 @@ export class DebugService implements debug.IDebugService {
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
-	private inDebugMode: IKeybindingContextKey<boolean>;
+	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: { [uri: string]: boolean };
 
 	constructor(
@@ -88,7 +88,7 @@ export class DebugService implements debug.IDebugService {
 		@IWindowService private windowService: IWindowService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -109,7 +109,7 @@ export class DebugService implements debug.IDebugService {
 			this._state = debug.State.Disabled;
 		}
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
-		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(keybindingService);
+		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());

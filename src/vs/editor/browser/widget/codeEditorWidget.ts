@@ -12,7 +12,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
@@ -77,10 +77,10 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, keybindingService, telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChage(() => {
@@ -109,7 +109,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		}
 
 		CommonEditorRegistry.getEditorActions().forEach((action) => {
-			let internalAction = new InternalEditorAction(action, this, this._instantiationService, this._keybindingService);
+			let internalAction = new InternalEditorAction(action, this, this._instantiationService, this._contextKeyService);
 			this._actions[internalAction.id] = internalAction;
 		});
 	}
@@ -507,7 +507,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	protected _createView(): void {
 		this._view = new View(
-			this._keybindingService,
+			this._contextKeyService,
 			this._commandService,
 			this._configuration,
 			this.viewModel,

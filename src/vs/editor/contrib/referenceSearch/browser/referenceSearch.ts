@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -38,11 +38,11 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 
 	constructor(
 		editor:editorCommon.ICommonCodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@optional(IPeekViewService) peekViewService: IPeekViewService
 	) {
 		if (peekViewService) {
-			PeekContext.inPeekEditor.bindTo(keybindingService);
+			PeekContext.inPeekEditor.bindTo(contextKeyService);
 		}
 	}
 
@@ -62,7 +62,7 @@ export class ReferenceAction extends EditorAction {
 			id: 'editor.action.referenceSearch.trigger',
 			label: nls.localize('references.action.label', "Find All References"),
 			alias: 'Find All References',
-			precondition: KbExpr.and(ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor),
+			precondition: ContextKeyExpr.and(ModeContextKeys.hasReferenceProvider, PeekContext.notInPeekEditor),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.Shift | KeyCode.F12
@@ -160,7 +160,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: CommonEditorRegistry.commandWeight(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(ctxReferenceSearchVisible, KbExpr.not('config.editor.stablePeek')),
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });
 
@@ -169,6 +169,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: CommonEditorRegistry.commandWeight(-101),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(PeekContext.inPeekEditor, KbExpr.not('config.editor.stablePeek')),
+	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });

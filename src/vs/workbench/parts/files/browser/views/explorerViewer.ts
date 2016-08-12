@@ -38,7 +38,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -371,11 +371,11 @@ export class FileController extends DefaultController {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
-		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, keybindingService);
+		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
 		this.workspace = contextService.getWorkspace();
 

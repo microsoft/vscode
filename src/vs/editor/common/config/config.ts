@@ -8,7 +8,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandAndKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -21,19 +22,19 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
-	kbExpr?: KbExpr;
+	kbExpr?: ContextKeyExpr;
 	weight?: number;
 }
 
 export interface ICommandOptions {
 	id: string;
-	precondition: KbExpr;
+	precondition: ContextKeyExpr;
 	kbOpts?: ICommandKeybindingsOptions;
 }
 
 export abstract class Command {
 	public id: string;
-	public precondition: KbExpr;
+	public precondition: ContextKeyExpr;
 	private kbOpts: ICommandKeybindingsOptions;
 
 	constructor(opts:ICommandOptions) {
@@ -50,7 +51,7 @@ export abstract class Command {
 		let kbWhen = kbOpts.kbExpr;
 		if (this.precondition) {
 			if (kbWhen) {
-				kbWhen = KbExpr.and(kbWhen, this.precondition);
+				kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
 			} else {
 				kbWhen = this.precondition;
 			}
@@ -111,7 +112,7 @@ export abstract class EditorCommand extends Command {
 			return;
 		}
 		return editor.invokeWithinContext((editorAccessor) => {
-			const kbService = editorAccessor.get(IKeybindingService);
+			const kbService = editorAccessor.get(IContextKeyService);
 			if (!kbService.contextMatchesRules(this.precondition)) {
 				// precondition does not hold
 				return;
@@ -171,7 +172,7 @@ class CoreCommand extends Command {
 }
 
 class UnboundCoreCommand extends CoreCommand {
-	constructor(handlerId:string, precondition: KbExpr = null) {
+	constructor(handlerId:string, precondition: ContextKeyExpr = null) {
 		super({
 			id: handlerId,
 			precondition: precondition
@@ -225,7 +226,7 @@ class WordCommand extends CoreCommand {
 		}
 	}
 
-	constructor(handlerId: string, shift:boolean, key:KeyCode, precondition: KbExpr = null) {
+	constructor(handlerId: string, shift:boolean, key:KeyCode, precondition: ContextKeyExpr = null) {
 		super({
 			id: handlerId,
 			precondition: precondition,
@@ -562,7 +563,7 @@ registerCommand(new CoreCommand({
 	precondition: EditorContextKeys.Writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: KbExpr.and(
+		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.TextFocus,
 			EditorContextKeys.TabDoesNotMoveFocus
 		),
@@ -574,7 +575,7 @@ registerCommand(new CoreCommand({
 	precondition: EditorContextKeys.Writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: KbExpr.and(
+		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.TextFocus,
 			EditorContextKeys.TabDoesNotMoveFocus
 		),

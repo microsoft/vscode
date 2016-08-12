@@ -11,7 +11,7 @@ import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {EndOfLinePreference, IEditorContribution, ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 
@@ -19,7 +19,7 @@ class SelectionClipboard extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.selectionClipboard';
 
-	constructor(editor:ICodeEditor, @IKeybindingService keybindingService:IKeybindingService) {
+	constructor(editor:ICodeEditor, @IContextKeyService contextKeyService:IContextKeyService) {
 		super();
 
 		if (platform.isLinux) {

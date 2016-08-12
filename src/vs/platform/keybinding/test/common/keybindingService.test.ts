@@ -7,13 +7,14 @@
 import * as assert from 'assert';
 import {BinaryKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IOSupport, KeybindingResolver, NormalizedKeybindingItem} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem, KbAndExpression, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyAndExpr, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 suite('Keybinding Service', () => {
 
 	test('resolve key', function() {
 		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
-		let contextRules = KbExpr.equals('bar', 'baz');
+		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem: IKeybindingItem = {
 			command: 'yes',
 			when: contextRules,
@@ -31,27 +32,27 @@ suite('Keybinding Service', () => {
 	});
 
 	test('KbAndExpression.equals', function() {
-		let a = KbExpr.and(
-			KbExpr.has('a1'),
-			KbExpr.and(KbExpr.has('and.a')),
-			KbExpr.has('a2'),
-			KbExpr.equals('b1', 'bb1'),
-			KbExpr.equals('b2', 'bb2'),
-			KbExpr.notEquals('c1', 'cc1'),
-			KbExpr.notEquals('c2', 'cc2'),
-			KbExpr.not('d1'),
-			KbExpr.not('d2')
+		let a = ContextKeyExpr.and(
+			ContextKeyExpr.has('a1'),
+			ContextKeyExpr.and(ContextKeyExpr.has('and.a')),
+			ContextKeyExpr.has('a2'),
+			ContextKeyExpr.equals('b1', 'bb1'),
+			ContextKeyExpr.equals('b2', 'bb2'),
+			ContextKeyExpr.notEquals('c1', 'cc1'),
+			ContextKeyExpr.notEquals('c2', 'cc2'),
+			ContextKeyExpr.not('d1'),
+			ContextKeyExpr.not('d2')
 		);
-		let b = KbExpr.and(
-			KbExpr.equals('b2', 'bb2'),
-			KbExpr.notEquals('c1', 'cc1'),
-			KbExpr.not('d1'),
-			KbExpr.notEquals('c2', 'cc2'),
-			KbExpr.has('a2'),
-			KbExpr.equals('b1', 'bb1'),
-			KbExpr.has('a1'),
-			KbExpr.and(KbExpr.equals('and.a', true)),
-			KbExpr.not('d2')
+		let b = ContextKeyExpr.and(
+			ContextKeyExpr.equals('b2', 'bb2'),
+			ContextKeyExpr.notEquals('c1', 'cc1'),
+			ContextKeyExpr.not('d1'),
+			ContextKeyExpr.notEquals('c2', 'cc2'),
+			ContextKeyExpr.has('a2'),
+			ContextKeyExpr.equals('b1', 'bb1'),
+			ContextKeyExpr.has('a1'),
+			ContextKeyExpr.and(ContextKeyExpr.equals('and.a', true)),
+			ContextKeyExpr.not('d2')
 		);
 		assert(a.equals(b), 'expressions should be equal');
 	});
@@ -59,174 +60,174 @@ suite('Keybinding Service', () => {
 	test('KeybindingResolver.combine simple 1', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}];
 		let overrides:IKeybindingItem[] = [{
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), false),
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), false),
 		]);
 	});
 
 	test('KeybindingResolver.combine simple 2', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
 		}];
 		let overrides:IKeybindingItem[] = [{
 			command: 'yes3',
-			when: KbExpr.equals('3', 'c'),
+			when: ContextKeyExpr.equals('3', 'c'),
 			keybinding: KeyCode.KEY_C,
 			weight1: 0,
 			weight2: 0
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_C, 'yes3', KbExpr.equals('3', 'c'), false),
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_C, 'yes3', ContextKeyExpr.equals('3', 'c'), false),
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with not matching when', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
 		}];
 		let overrides:IKeybindingItem[] = [{
 			command: '-yes1',
-			when: KbExpr.equals('1', 'b'),
+			when: ContextKeyExpr.equals('1', 'b'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with not matching keybinding', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
 		}];
 		let overrides:IKeybindingItem[] = [{
 			command: '-yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', KbExpr.equals('1', 'a'), true),
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_A, 'yes1', ContextKeyExpr.equals('1', 'a'), true),
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with matching keybinding and when', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
 		}];
 		let overrides:IKeybindingItem[] = [{
 			command: '-yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with unspecified keybinding', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
 		}];
 		let overrides:IKeybindingItem[] = [{
 			command: '-yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: 0,
 			weight1: 0,
 			weight2: 0
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with unspecified when', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
@@ -240,20 +241,20 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: 'yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
@@ -267,20 +268,20 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function() {
 		let defaults:IKeybindingItem[] = [{
 			command: '^yes1',
-			when: KbExpr.equals('1', 'a'),
+			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}, {
 			command: 'yes2',
-			when: KbExpr.equals('2', 'b'),
+			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
 			weight1: 0,
 			weight2: 0
@@ -294,37 +295,37 @@ suite('Keybinding Service', () => {
 		}];
 		let actual = KeybindingResolver.combine(defaults, overrides);
 		assert.deepEqual(actual, [
-			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('normalizeRule', function() {
-		let key1IsTrue = KbExpr.equals('key1', true);
-		let key1IsNotFalse = KbExpr.notEquals('key1', false);
-		let key1IsFalse = KbExpr.equals('key1', false);
-		let key1IsNotTrue = KbExpr.notEquals('key1', true);
+		let key1IsTrue = ContextKeyExpr.equals('key1', true);
+		let key1IsNotFalse = ContextKeyExpr.notEquals('key1', false);
+		let key1IsFalse = ContextKeyExpr.equals('key1', false);
+		let key1IsNotTrue = ContextKeyExpr.notEquals('key1', true);
 
-		assert.ok(key1IsTrue.normalize().equals(KbExpr.has('key1')));
-		assert.ok(key1IsNotFalse.normalize().equals(KbExpr.has('key1')));
-		assert.ok(key1IsFalse.normalize().equals(KbExpr.not('key1')));
-		assert.ok(key1IsNotTrue.normalize().equals(KbExpr.not('key1')));
+		assert.ok(key1IsTrue.normalize().equals(ContextKeyExpr.has('key1')));
+		assert.ok(key1IsNotFalse.normalize().equals(ContextKeyExpr.has('key1')));
+		assert.ok(key1IsFalse.normalize().equals(ContextKeyExpr.not('key1')));
+		assert.ok(key1IsNotTrue.normalize().equals(ContextKeyExpr.not('key1')));
 	});
 
 	test('contextIsEntirelyIncluded', function() {
-		let assertIsIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
+		let assertIsIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), true);
 		};
-		let assertIsNotIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
+		let assertIsNotIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), false);
 		};
-		let key1IsTrue = KbExpr.equals('key1', true);
-		let key1IsNotFalse = KbExpr.notEquals('key1', false);
-		let key1IsFalse = KbExpr.equals('key1', false);
-		let key1IsNotTrue = KbExpr.notEquals('key1', true);
-		let key2IsTrue = KbExpr.equals('key2', true);
-		let key2IsNotFalse = KbExpr.notEquals('key2', false);
-		let key3IsTrue = KbExpr.equals('key3', true);
-		let key4IsTrue = KbExpr.equals('key4', true);
+		let key1IsTrue = ContextKeyExpr.equals('key1', true);
+		let key1IsNotFalse = ContextKeyExpr.notEquals('key1', false);
+		let key1IsFalse = ContextKeyExpr.equals('key1', false);
+		let key1IsNotTrue = ContextKeyExpr.notEquals('key1', true);
+		let key2IsTrue = ContextKeyExpr.equals('key2', true);
+		let key2IsNotFalse = ContextKeyExpr.notEquals('key2', false);
+		let key3IsTrue = ContextKeyExpr.equals('key3', true);
+		let key4IsTrue = ContextKeyExpr.equals('key4', true);
 
 		assertIsIncluded([key1IsTrue], null);
 		assertIsIncluded([key1IsTrue], []);
@@ -368,9 +369,9 @@ suite('Keybinding Service', () => {
 			// This one will never match because its "when" is always overwritten by another one
 			{
 				keybinding: KeyCode.KEY_X,
-				when: KbExpr.and(
-					KbExpr.equals('key1', true),
-					KbExpr.notEquals('key2', false)
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('key1', true),
+					ContextKeyExpr.notEquals('key2', false)
 				),
 				command: 'first',
 				weight1: 1,
@@ -379,7 +380,7 @@ suite('Keybinding Service', () => {
 			// This one always overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				when: KbExpr.equals('key2', true),
+				when: ContextKeyExpr.equals('key2', true),
 				command: 'second',
 				weight1: 2,
 				weight2: 0
@@ -395,7 +396,7 @@ suite('Keybinding Service', () => {
 			// This one sometimes overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				when: KbExpr.equals('key3', true),
+				when: ContextKeyExpr.equals('key3', true),
 				command: 'third',
 				weight1: 3,
 				weight2: 0
@@ -403,7 +404,7 @@ suite('Keybinding Service', () => {
 			// This one is always overwritten by another one
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				when: KbExpr.equals('key4', true),
+				when: ContextKeyExpr.equals('key4', true),
 				command: 'fourth',
 				weight1: 4,
 				weight2: 0
