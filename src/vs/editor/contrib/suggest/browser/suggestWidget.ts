@@ -71,7 +71,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 		const docs = append(text, $('.docs'));
 		data.documentation = append(docs, $('span.docs-text'));
-		data.documentationDetails = append(docs, $('span.docs-details.octicon.octicon-info'));
+		data.documentationDetails = append(docs, $('span.docs-details'));
 		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
@@ -211,7 +211,7 @@ class SuggestionDetails {
 
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
-		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
+		this.back = append(header, $('span.go-back'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
 
