@@ -191,26 +191,33 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 }
 
 export function ensureDynamicPlatformServices(domElement:HTMLElement, services: IEditorOverrideServices): IDisposable[] {
-	var r:IDisposable[] = [];
+	let r:IDisposable[] = [];
 
-
+	let keybindingService:IKeybindingService;
 	if (typeof services.keybindingService === 'undefined') {
-		var keybindingService = new StandaloneKeybindingService(services.commandService, services.configurationService, services.messageService, domElement);
+		keybindingService = new StandaloneKeybindingService(services.configurationService);
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
+	} else {
+		keybindingService = services.keybindingService;
 	}
 	if (typeof services.keybindingService2 === 'undefined') {
-		var keybindingService2 = new StandaloneKeybindingService2();
+		let keybindingService2 = new StandaloneKeybindingService2(keybindingService, services.commandService, services.messageService, domElement);
 		r.push(keybindingService2);
 		services.keybindingService2 = keybindingService2;
 	}
+
+	let contextViewService:IEditorContextViewService;
 	if (typeof services.contextViewService === 'undefined') {
-		var contextViewService = new ContextViewService(domElement, services.telemetryService, services.messageService);
+		contextViewService = new ContextViewService(domElement, services.telemetryService, services.messageService);
 		r.push(contextViewService);
 		services.contextViewService = contextViewService;
+	} else {
+		contextViewService = services.contextViewService;
 	}
+
 	if (typeof services.contextMenuService === 'undefined') {
-		var contextMenuService = new ContextMenuService(domElement, services.telemetryService, services.messageService, contextViewService);
+		let contextMenuService = new ContextMenuService(domElement, services.telemetryService, services.messageService, contextViewService);
 		r.push(contextMenuService);
 		services.contextMenuService = contextMenuService;
 	}

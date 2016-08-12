@@ -16,7 +16,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor, Direction, IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -1024,7 +1024,7 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService2 private keybindingService2: IKeybindingService2,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
@@ -1032,7 +1032,7 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
+		let keys = this.keybindingService2.lookupKeybindings(this.id);
 
 		const stacks = this.editorGroupService.getStacksModel();
 		if (stacks.activeGroup) {
@@ -1062,11 +1062,11 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEd
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService, editorService);
+		super(id, label, quickOpenService, keybindingService2, editorGroupService, editorService);
 	}
 }
 
@@ -1079,11 +1079,11 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditor
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService, editorService);
+		super(id, label, quickOpenService, keybindingService2, editorGroupService, editorService);
 	}
 }
 
@@ -1115,13 +1115,13 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService2 private keybindingService2: IKeybindingService2
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
+		let keys = this.keybindingService2.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(null, { quickNavigateConfiguration: { keybindings: keys } });
 
@@ -1195,7 +1195,7 @@ export class BaseQuickOpenNavigateAction extends Action {
 		label: string,
 		navigateNext: boolean,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService2 private keybindingService2: IKeybindingService2
 	) {
 		super(id, label);
 
@@ -1203,7 +1203,7 @@ export class BaseQuickOpenNavigateAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
+		let keys = this.keybindingService2.lookupKeybindings(this.id);
 
 		this.quickOpenService.quickNavigate({
 			keybindings: keys
@@ -1222,9 +1222,9 @@ export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService2 keybindingService2: IKeybindingService2
 	) {
-		super(id, label, true, quickOpenService, keybindingService);
+		super(id, label, true, quickOpenService, keybindingService2);
 	}
 }
 
@@ -1237,9 +1237,9 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService2 keybindingService2: IKeybindingService2
 	) {
-		super(id, label, false, quickOpenService, keybindingService);
+		super(id, label, false, quickOpenService, keybindingService2);
 	}
 }
 

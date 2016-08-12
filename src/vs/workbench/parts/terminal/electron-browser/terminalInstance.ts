@@ -11,7 +11,7 @@ import xterm = require('xterm');
 import {Dimension} from 'vs/base/browser/builder';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {ITerminalProcess, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
@@ -39,7 +39,7 @@ export class TerminalInstance {
 		private contextMenuService: IContextMenuService,
 		private contextService: IWorkspaceContextService,
 		private instantiationService: IInstantiationService,
-		private keybindingService: IKeybindingService,
+		private keybindingService2: IKeybindingService2,
 		private terminalService: ITerminalService,
 		private messageService: IMessageService,
 		private terminalFocusContextKey: IKeybindingContextKey<boolean>,
@@ -169,7 +169,7 @@ export class TerminalInstance {
 
 	public setCommandsToSkipShell(commands: string[]): void {
 		this.skipTerminalKeybindings = commands.map((c) => {
-			return this.keybindingService.lookupKeybindings(c);
+			return this.keybindingService2.lookupKeybindings(c);
 		}).reduce((prev, curr) => {
 			return prev.concat(curr);
 		});

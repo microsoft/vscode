@@ -45,7 +45,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindingService2, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
@@ -100,6 +100,7 @@ export class SearchViewlet extends Viewlet {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService2 private keybindingService2: IKeybindingService2,
 		@IReplaceService private replaceService: IReplaceService
 	) {
 		super(VIEWLET_ID, telemetryService);
@@ -267,7 +268,7 @@ export class SearchViewlet extends Viewlet {
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords
-		}, this.keybindingService, this.instantiationService);
+		}, this.keybindingService, this.keybindingService2, this.instantiationService);
 
 		if (this.storageService.getBoolean(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
 			this.searchWidget.toggleReplace(true);

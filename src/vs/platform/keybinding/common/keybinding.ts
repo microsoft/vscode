@@ -483,19 +483,25 @@ export interface IKeybindingService {
 
 	createScoped(domNode: IKeybindingScopeLocation): IKeybindingService;
 
-	getDefaultKeybindings(): string;
-	lookupKeybindings(commandId: string): Keybinding[];
-	customKeybindingsCount(): number;
+	getContext(contextId: number): IKeybindingContext;
+}
 
-	getLabelFor(keybinding: Keybinding): string;
-	getAriaLabelFor(keybinding: Keybinding): string;
-	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
-	getElectronAcceleratorFor(keybinding: Keybinding): string;
+export interface IKeybindingContext {
+	fillInContext(bucket: any): void;
 }
 
 export let IKeybindingService2 = createDecorator<IKeybindingService2>('keybindingService2');
 export interface IKeybindingService2 {
 	_serviceBrand: any;
+
+	getLabelFor(keybinding: Keybinding): string;
+	getAriaLabelFor(keybinding: Keybinding): string;
+	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
+	getElectronAcceleratorFor(keybinding: Keybinding): string;
+
+	getDefaultKeybindings(): string;
+	lookupKeybindings(commandId: string): Keybinding[];
+	customKeybindingsCount(): number;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

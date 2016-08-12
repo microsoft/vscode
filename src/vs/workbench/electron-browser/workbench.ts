@@ -104,6 +104,7 @@ export class Workbench implements IPartService {
 	private workbenchShutdown: boolean;
 	private editorService: WorkbenchEditorService;
 	private keybindingService: IKeybindingService;
+	private keybindingService2: IKeybindingService2;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -272,7 +273,7 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount());
+					this.callbacks.onWorkbenchStarted(this.keybindingService2.customKeybindingsCount());
 				}
 
 				if (error) {
@@ -350,10 +351,11 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// Keybindings
-		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, <any>window);
+		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
-		serviceCollection.set(IKeybindingService2, this.instantiationService.createInstance(WorkbenchKeybindingService2));
+		this.keybindingService2 = this.instantiationService.createInstance(WorkbenchKeybindingService2, <any>window);
+		serviceCollection.set(IKeybindingService2, this.keybindingService2);
 
 		// Context Menu
 		serviceCollection.set(IContextMenuService, this.instantiationService.createInstance(ContextMenuService));

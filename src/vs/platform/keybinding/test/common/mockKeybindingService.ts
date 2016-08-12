@@ -7,7 +7,7 @@
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
-import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingService, IKeybindingContext, IKeybindingService2, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 
 class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 	private _key: string;
@@ -50,6 +50,16 @@ export class MockKeybindingService implements IKeybindingService {
 	public getContextValue(key: string) {
 		return;
 	}
+	public getContext(contextId: number): IKeybindingContext {
+		return null;
+	}
+	public createScoped(domNode: HTMLElement): IKeybindingService {
+		return this;
+	}
+}
+
+export class MockKeybindingService2 implements IKeybindingService2 {
+	public _serviceBrand: any;
 
 	public getLabelFor(keybinding: Keybinding): string {
 		return keybinding._toUSLabel();
@@ -65,10 +75,6 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
 		return keybinding._toElectronAccelerator();
-	}
-
-	public createScoped(domNode: HTMLElement): IKeybindingService {
-		return this;
 	}
 
 	public getDefaultKeybindings(): string {

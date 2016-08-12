@@ -14,7 +14,7 @@ import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ITerminalFont, TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -48,7 +48,7 @@ export class TerminalPanel extends Panel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService2 private keybindingService2: IKeybindingService2,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IThemeService private themeService: IThemeService,
@@ -148,7 +148,7 @@ export class TerminalPanel extends Panel {
 					getActions: () => TPromise.as(this.getContextMenuActions()),
 					getActionsContext: () => this.parentDomElement,
 					getKeyBinding: (action) => {
-						const opts = this.keybindingService.lookupKeybindings(action.id);
+						const opts = this.keybindingService2.lookupKeybindings(action.id);
 						if (opts.length > 0) {
 							return opts[0]; // only take the first one
 						}
@@ -214,7 +214,7 @@ export class TerminalPanel extends Panel {
 				this.contextMenuService,
 				this.contextService,
 				this.instantiationService,
-				this.keybindingService,
+				this.keybindingService2,
 				this.terminalService,
 				this.messageService,
 				terminalFocusContextKey,
