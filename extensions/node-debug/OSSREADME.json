@@ -1,16 +1,52 @@
-// These dependencies come in at build time
-
-[{
-	"name": "source-map",
-	"repositoryURL": "https://github.com/mozilla/source-map",
-	"version": "0.4.4",
-	"license": "BSD-3-Clause",
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[
+{
+	"name": "agent-base",
+	"repositoryURL": "https://github.com/TooTallNate/node-agent-base",
+	"version": "1.0.2",
+	"license": "MIT",
 	"isProd": true
 },
 {
-	"name": "amdefine",
-	"repositoryURL": "https://github.com/jrburke/amdefine",
-	"version": "1.0.0",
-	"license": "BSD-3-Clause and MIT",
+	"name": "debug",
+	"repositoryURL": "https://github.com/visionmedia/debug",
+	"version": "2.2.0",
+	"license": "MIT",
 	"isProd": true
-}]
+},
+{
+	"name": "extend",
+	"repositoryURL": "https://github.com/justmoon/node-extend",
+	"version": "3.0.0",
+	"license": "MIT",
+	"isProd": true
+},
+{
+	"name": "http-proxy-agent",
+	"repositoryURL": "https://github.com/TooTallNate/node-http-proxy-agent",
+	"version": "0.2.7",
+	"license": "MIT",
+	"isProd": true
+},
+{
+	"name": "https-proxy-agent",
+	"repositoryURL": "https://github.com/TooTallNate/node-https-proxy-agent",
+	"version": "0.3.6",
+	"license": "MIT",
+	"isProd": true
+},
+{
+	"name": "ms",
+	"repositoryURL": "https://github.com/rauchg/ms.js",
+	"version": "0.7.1",
+	"license": "MIT",
+	"isProd": true
+},
+{
+	"name": "source-map",
+	"repositoryURL": "https://github.com/mozilla/source-map",
+	"version": "0.5.6",
+	"license": "BSD-3-Clause",
+	"isProd": true
+}
+]
