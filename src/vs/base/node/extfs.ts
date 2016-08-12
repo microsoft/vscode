@@ -319,7 +319,12 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
+let canFlush = true;
 export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { encoding?: string; mode?: number; flag?: string; }, callback: (error: Error) => void): void {
+	if (!canFlush) {
+		return fs.writeFile(path, data, options, callback);
+	}
+
 	if (!options) {
 		options = { encoding: 'utf8', mode: 0o666, flag: 'w' };
 	} else if (typeof options === 'string') {
@@ -340,7 +345,15 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 
 			// Flush contents (not metadata) of the file to disk
 			fs.fdatasync(fd, (syncError) => {
-				return fs.close(fd, (closeError) => callback(syncError || closeError)); // make sure to carry over the fdatasync error if any!
+
+				// In some exotic setups it is well possible that node fails to sync
+				// In that case we disable flushing and warn to the console
+				if (syncError) {
+					console.warn('[node.js fs] fdatasync is now disabled for this session because it failed: ', syncError);
+					canFlush = false;
+				}
+
+				return fs.close(fd, (closeError) => callback(closeError));
 			});
 		});
 	});
