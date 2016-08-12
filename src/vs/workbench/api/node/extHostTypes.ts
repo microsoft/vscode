@@ -829,6 +829,22 @@ export enum TextEditorRevealType {
 	InCenterIfOutsideViewport = 2
 }
 
+export enum TextEditorSelectionChangeKind {
+	Keyboard = 1,
+	Mouse = 2,
+	Command = 3
+}
+
+export namespace TextEditorSelectionChangeKind {
+	export function fromValue(s: string) {
+		switch (s) {
+			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
+			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
+			case 'api': return TextEditorSelectionChangeKind.Command;
+		}
+	}
+}
+
 export class DocumentLink {
 
 	range: Range;

@@ -506,6 +506,24 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents sources that can cause [selection change events](#window.onDidChangeTextEditorSelection).
+	*/
+	export enum TextEditorSelectionChangeKind {
+		/**
+		 * Selection changed due to typing in the editor.
+		 */
+		Keyboard = 1,
+		/**
+		 * Selection change due to clicking in the editor.
+		 */
+		Mouse = 2,
+		/**
+		 * Selection changed because a command ran.
+		 */
+		Command = 3
+	}
+
+	/**
 	 * Represents an event describing the change in a [text editor's selections](#TextEditor.selections).
 	 */
 	export interface TextEditorSelectionChangeEvent {
@@ -513,6 +531,11 @@ declare namespace vscode {
 		 * The [text editor](#TextEditor) for which the selections have changed.
 		 */
 		textEditor: TextEditor;
+		/**
+		 * The [change kind](#TextEditorSelectionChangeKind) which has triggered this
+		 * event. Can be `undefined`.
+		 */
+		kind: TextEditorSelectionChangeKind;
 		/**
 		 * The new value for the [text editor's selections](#TextEditor.selections).
 		 */
