@@ -244,6 +244,14 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
+	private onUndoLastCommit(commit: git.ICommit): void {
+		if (this.commitInputBox.value) {
+			return;
+		}
+
+		this.commitInputBox.value = commit.message;
+	}
+
 	private updateCommitInputTemplate(): void {
 		if (this.commitInputBox.value) {
 			return;
@@ -401,6 +409,14 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			if (this.commitInputBox) {
 				this.commitInputBox.disable();
 			}
+		} else if (operation.id === git.ServiceOperations.RESET) {
+			const promise = this.gitService.getCommit('HEAD');
+			const listener = this.gitService.addListener2(git.ServiceEvents.OPERATION_END, e => {
+				if (e.operation.id === git.ServiceOperations.RESET && !e.error) {
+					promise.done(c => this.onUndoLastCommit(c));
+					listener.dispose();
+				}
+			});
 		}
 	}
 

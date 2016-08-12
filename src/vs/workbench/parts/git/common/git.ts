@@ -54,6 +54,11 @@ export interface IRawStatus {
 	remotes: IRemote[];
 }
 
+export interface ICommit {
+	hash: string;
+	message: string;
+}
+
 // Model enums
 
 export enum StatusType {
@@ -287,6 +292,7 @@ export interface IRawGitService {
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
 	getCommitTemplate(): TPromise<string>;
+	getCommit(ref: string): TPromise<ICommit>;
 }
 
 export const GIT_SERVICE_ID = 'gitService';
@@ -324,6 +330,7 @@ export interface IGitService extends IEventEmitter {
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
 	getCommitTemplate(): TPromise<string>;
+	getCommit(ref: string): TPromise<ICommit>;
 }
 
 export interface IAskpassService {

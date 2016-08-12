@@ -29,6 +29,7 @@ import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBr
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -1117,7 +1118,8 @@ export class UndoLastCommitAction extends GitAction {
 	constructor(
 		id = UndoLastCommitAction.ID,
 		label = UndoLastCommitAction.LABEL,
-		@IGitService gitService: IGitService
+		@IGitService gitService: IGitService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(UndoLastCommitAction.ID, UndoLastCommitAction.LABEL, 'git-action undo-last-commit', gitService);
 	}
