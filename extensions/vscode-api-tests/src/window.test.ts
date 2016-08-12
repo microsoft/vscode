@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource} from 'vscode';
+import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind} from 'vscode';
 import {join} from 'path';
 import {cleanUp, pathEquals} from './utils';
 
@@ -187,6 +187,26 @@ suite('window namespace tests', () => {
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 		return p.then(value => {
 			assert.equal(value, undefined);
+		});
+	});
+
+	test('editor, selection change kind', () => {
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
+
+
+			return new Promise((resolve, reject) => {
+
+				let subscription = window.onDidChangeTextEditorSelection(e => {
+					assert.ok(e.textEditor === editor);
+					assert.equal(e.kind, TextEditorSelectionChangeKind.Command);
+
+					subscription.dispose();
+					resolve();
+				});
+
+				editor.selection = new Selection(editor.selection.anchor, editor.selection.active.translate(2));
+			});
+
 		});
 	});
 });
