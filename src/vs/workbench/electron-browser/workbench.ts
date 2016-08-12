@@ -47,7 +47,7 @@ import {ContextMenuService} from 'vs/workbench/services/contextview/electron-bro
 import {WorkbenchKeybindingService2} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -106,7 +106,7 @@ export class Workbench implements IPartService {
 	private workbenchShutdown: boolean;
 	private editorService: WorkbenchEditorService;
 	private contextKeyService: IContextKeyService;
-	private keybindingService2: IKeybindingService2;
+	private keybindingService: IKeybindingService;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -275,7 +275,7 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted(this.keybindingService2.customKeybindingsCount());
+					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount());
 				}
 
 				if (error) {
@@ -356,8 +356,8 @@ export class Workbench implements IPartService {
 		this.contextKeyService = this.instantiationService.createInstance(ContextKeyService);
 		serviceCollection.set(IContextKeyService, this.contextKeyService);
 
-		this.keybindingService2 = this.instantiationService.createInstance(WorkbenchKeybindingService2, <any>window);
-		serviceCollection.set(IKeybindingService2, this.keybindingService2);
+		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService2, <any>window);
+		serviceCollection.set(IKeybindingService, this.keybindingService);
 
 		// Context Menu
 		serviceCollection.set(IContextMenuService, this.instantiationService.createInstance(ContextMenuService));

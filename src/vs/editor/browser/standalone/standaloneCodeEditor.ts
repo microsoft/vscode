@@ -9,7 +9,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -71,15 +71,15 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService2 keybindingService2: IKeybindingService2,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		options = options || {};
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService.createScoped(domElement), telemetryService);
 
-		if (keybindingService2 instanceof StandaloneKeybindingService2) {
-			this._standaloneKeybindingService = keybindingService2;
+		if (keybindingService instanceof StandaloneKeybindingService2) {
+			this._standaloneKeybindingService = keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
@@ -174,14 +174,14 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		toDispose: IDisposable[],
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService2 keybindingService2: IKeybindingService2,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService);
 
-		if (keybindingService2 instanceof StandaloneKeybindingService2) {
-			this._standaloneKeybindingService = keybindingService2;
+		if (keybindingService instanceof StandaloneKeybindingService2) {
+			this._standaloneKeybindingService = keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;

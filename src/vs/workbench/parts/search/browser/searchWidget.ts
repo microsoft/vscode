@@ -15,7 +15,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -67,7 +67,7 @@ export class SearchWidget extends Widget {
 
 	static REPLACE_ACTIVE_CONTEXT_KEY= new RawContextKey<boolean>('replaceActive', false);
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
-	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService2: IKeybindingService2):string=>{
+	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService2: IKeybindingService):string=>{
 		let keybindings = keyBindingService2.lookupKeybindings(ReplaceAllAction.ID);
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), keybindings[0], keyBindingService2);
 	};
@@ -104,7 +104,7 @@ export class SearchWidget extends Widget {
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
-					private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService2, private instantiationService: IInstantiationService) {
+					private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
 		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService);
 		this.render(container, options);

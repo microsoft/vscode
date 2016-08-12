@@ -25,7 +25,7 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -46,7 +46,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
-		@IKeybindingService2 keybindingService2: IKeybindingService2,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(
@@ -55,7 +55,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			telemetryService,
 			contextMenuService,
 			partService,
-			keybindingService2,
+			keybindingService,
 			instantiationService,
 			(<PanelRegistry>Registry.as(PanelExtensions.Panels)),
 			PanelPart.activePanelSettingsKey,

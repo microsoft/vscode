@@ -20,7 +20,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -98,7 +98,7 @@ export interface IEditorOverrideServices {
 	/**
 	 * @internal
 	 */
-	keybindingService2?:IKeybindingService2;
+	keybindingService?:IKeybindingService;
 	/**
 	 * @internal
 	 */
@@ -203,10 +203,10 @@ export function ensureDynamicPlatformServices(domElement:HTMLElement, services: 
 	} else {
 		contextKeyService = services.contextKeyService;
 	}
-	if (typeof services.keybindingService2 === 'undefined') {
-		let keybindingService2 = new StandaloneKeybindingService2(contextKeyService, services.commandService, services.messageService, domElement);
-		r.push(keybindingService2);
-		services.keybindingService2 = keybindingService2;
+	if (typeof services.keybindingService === 'undefined') {
+		let keybindingService = new StandaloneKeybindingService2(contextKeyService, services.commandService, services.messageService, domElement);
+		r.push(keybindingService);
+		services.keybindingService = keybindingService;
 	}
 
 	let contextViewService:IEditorContextViewService;

@@ -14,7 +14,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
@@ -23,7 +23,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IKeybindingService2 private keybindingService2: IKeybindingService2
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -123,7 +123,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			// Any other item with keybinding
 			let keybinding = keybindingForAction(action.id);
 			if (keybinding) {
-				return new ActionItem(context, action, { label: true, keybinding: this.keybindingService2.getLabelFor(keybinding) });
+				return new ActionItem(context, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
 			}
 		}
 

@@ -23,7 +23,7 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -305,7 +305,7 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		collapsed: boolean,
 		private viewName: string,
 		private messageService: IMessageService,
-		private keybindingService2: IKeybindingService2,
+		private keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService
 	) {
 		super({
@@ -331,7 +331,7 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
 			getKeyBinding: (action) => {
-				const opts = this.keybindingService2.lookupKeybindings(action.id);
+				const opts = this.keybindingService.lookupKeybindings(action.id);
 				if (opts.length > 0) {
 					return opts[0]; // only take the first one
 				}
@@ -434,7 +434,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		collapsed: boolean,
 		private viewName: string,
 		protected messageService: IMessageService,
-		private keybindingService2: IKeybindingService2,
+		private keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService,
 		headerSize?: number
 	) {
@@ -467,7 +467,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 			actionItemProvider: (action) => { return this.getActionItem(action); },
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
 			getKeyBinding: (action) => {
-				const opts = this.keybindingService2.lookupKeybindings(action.id);
+				const opts = this.keybindingService.lookupKeybindings(action.id);
 				if (opts.length > 0) {
 					return opts[0]; // only take the first one
 				}

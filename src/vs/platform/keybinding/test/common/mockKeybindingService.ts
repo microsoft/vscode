@@ -7,7 +7,7 @@
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKey, IContextKeyService, IContextValuesProvider, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
@@ -59,7 +59,7 @@ export class MockKeybindingService implements IContextKeyService {
 	}
 }
 
-export class MockKeybindingService2 implements IKeybindingService2 {
+export class MockKeybindingService2 implements IKeybindingService {
 	public _serviceBrand: any;
 
 	public getLabelFor(keybinding: Keybinding): string {
