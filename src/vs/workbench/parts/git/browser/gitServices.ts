@@ -661,7 +661,7 @@ export class GitService extends ee.EventEmitter
 	}
 
 	public revertFiles(treeish: string, files?: git.IFileStatus[]): winjs.Promise {
-		return this.run(git.ServiceOperations.RESET, () => this.raw.revertFiles(treeish, (files || []).map((s) => s.getPath())));
+		return this.run(git.ServiceOperations.REVERT, () => this.raw.revertFiles(treeish, (files || []).map((s) => s.getPath())));
 	}
 
 	public fetch(): winjs.Promise {
