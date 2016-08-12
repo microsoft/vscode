@@ -9,7 +9,6 @@ import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {LinkedMap} from 'vs/base/common/map';
 
 export interface ILabelProvider {
 
@@ -71,34 +70,4 @@ function getPath(arg1: URI | string | IWorkspaceProvider): string {
 	}
 
 	return (<URI>arg1).fsPath;
-}
-
-export interface IPathLabel {
-	resource: URI;
-	label: string;
-	meta?: string;
-}
-
-export function getPathLabels(resources: URI[], provider?: IWorkspaceProvider): LinkedMap<URI, IPathLabel> {
-	const labels = new LinkedMap<URI, IPathLabel>();
-	const mapLabelToDuplicates = new LinkedMap<string, IPathLabel[]>();
-
-	resources.forEach(resource => {
-		const item = { resource, label: paths.basename(resource.fsPath) };
-		labels.set(resource, item);
-
-		const duplicates = mapLabelToDuplicates.getOrSet(item.label, []);
-		duplicates.push(item);
-	});
-
-	const duplicates = mapLabelToDuplicates.values();
-	duplicates.forEach(duplicates => {
-		if (duplicates.length > 1) {
-			duplicates.forEach(duplicate => {
-				duplicate.meta = getPathLabel(paths.dirname(duplicate.resource.fsPath), provider);
-			});
-		}
-	});
-
-	return labels;
 }

@@ -35,22 +35,6 @@
 	padding-left: 2px;
 }
 
-/* Title Description */
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
-	margin-left: 0.5em;
-	font-size: 0.9em;
-	cursor: default;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
-	color: rgba(108, 108, 108, 0.7);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
-	color: rgba(204, 204, 204, 0.7);
-}
-
 /* Title Actions */
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions {
 	display: flex;
