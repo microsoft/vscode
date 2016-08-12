@@ -29,7 +29,7 @@ import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {createActionItem, fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
@@ -95,6 +95,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IKeybindingService2 protected keybindingService2: IKeybindingService2,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IMessageService protected messageService: IMessageService,
 		@IMenuService protected menuService: IMenuService,
@@ -234,7 +235,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
+				const opts = this.keybindingService2.lookupKeybindings(action.id);
 				if (opts.length > 0) {
 					return opts[0]; // only take the first one
 				}
@@ -282,7 +283,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 		// Check extensions
 		if (!actionItem) {
-			actionItem = createActionItem(action, this.keybindingService, this.messageService);
+			actionItem = createActionItem(action, this.keybindingService2, this.messageService);
 		}
 
 		return actionItem;
@@ -414,7 +415,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
 			getActionsContext: () => identifier,
 			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
+				const opts = this.keybindingService2.lookupKeybindings(action.id);
 				if (opts.length > 0) {
 					return opts[0]; // only take the first one
 				}

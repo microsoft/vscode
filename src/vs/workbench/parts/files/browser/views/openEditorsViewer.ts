@@ -20,7 +20,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
@@ -208,7 +208,7 @@ export class Controller extends treedefaults.DefaultController {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService2 private keybindingService2: IKeybindingService2
 	) {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
 	}
@@ -315,7 +315,7 @@ export class Controller extends treedefaults.DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
 			getKeyBinding: (action) => {
-				const opts = this.keybindingService.lookupKeybindings(action.id);
+				const opts = this.keybindingService2.lookupKeybindings(action.id);
 				if (opts.length > 0) {
 					return opts[0]; // only take the first one
 				}

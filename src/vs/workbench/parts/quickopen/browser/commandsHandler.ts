@@ -25,7 +25,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity, IMessageWithAction} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const ALL_COMMANDS_PREFIX = '>';
@@ -243,7 +243,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService2 private keybindingService2: IKeybindingService2,
 		@IMenuService private menuService: IMenuService
 	) {
 		super();
@@ -302,9 +302,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			let actionDescriptor = actionDescriptors[i];
-			let keys = this.keybindingService.lookupKeybindings(actionDescriptor.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			let keys = this.keybindingService2.lookupKeybindings(actionDescriptor.id);
+			let keyLabel = keys.map(k => this.keybindingService2.getLabelFor(k));
+			let keyAriaLabel = keys.map(k => this.keybindingService2.getAriaLabelFor(k));
 
 			if (actionDescriptor.label) {
 
@@ -334,9 +334,9 @@ export class CommandsHandler extends QuickOpenHandler {
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let keys = this.keybindingService.lookupKeybindings(action.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			let keys = this.keybindingService2.lookupKeybindings(action.id);
+			let keyLabel = keys.map(k => this.keybindingService2.getLabelFor(k));
+			let keyAriaLabel = keys.map(k => this.keybindingService2.getAriaLabelFor(k));
 			let label = action.label;
 
 			if (label) {
@@ -358,9 +358,9 @@ export class CommandsHandler extends QuickOpenHandler {
 		let entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			let keys = this.keybindingService.lookupKeybindings(action.id);
-			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
-			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			let keys = this.keybindingService2.lookupKeybindings(action.id);
+			let keyLabel = keys.map(k => this.keybindingService2.getLabelFor(k));
+			let keyAriaLabel = keys.map(k => this.keybindingService2.getAriaLabelFor(k));
 			let highlights = wordFilter(searchValue, action.label);
 			if (highlights) {
 				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel.join(', '), keyAriaLabel.join(', '), action.label, null, highlights, null, action));

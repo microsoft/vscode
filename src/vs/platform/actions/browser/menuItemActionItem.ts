@@ -6,7 +6,7 @@
 'use strict';
 
 import {localize} from 'vs/nls';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {IMenu, MenuItemAction} from 'vs/platform/actions/common/actions';
 import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
@@ -63,9 +63,9 @@ export function fillInActions(menu: IMenu, target: IAction[] | { primary: IActio
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService): ActionItem {
+export function createActionItem(action: IAction, keybindingService2: IKeybindingService2, messageService: IMessageService): ActionItem {
 	if (action instanceof MenuItemAction) {
-		return new MenuItemActionItem(action, keybindingService, messageService);
+		return new MenuItemActionItem(action, keybindingService2, messageService);
 	}
 }
 
@@ -94,7 +94,7 @@ class MenuItemActionItem extends ActionItem {
 
 	constructor(
 		action: MenuItemAction,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IKeybindingService2 private _keybindingService2: IKeybindingService2,
 		@IMessageService private _messageService: IMessageService
 	) {
 		super(undefined, action, { icon: !!action.command.iconClass, label: !action.command.iconClass });
@@ -151,8 +151,8 @@ class MenuItemActionItem extends ActionItem {
 
 	_updateTooltip(): void {
 		const element = this.$e.getHTMLElement();
-		const keybinding = this._keybindingService.lookupKeybindings(this._command.id)[0];
-		const keybindingLabel = keybinding && this._keybindingService.getLabelFor(keybinding);
+		const keybinding = this._keybindingService2.lookupKeybindings(this._command.id)[0];
+		const keybindingLabel = keybinding && this._keybindingService2.getLabelFor(keybinding);
 
 		element.title = keybindingLabel
 			? localize('titleAndKb', "{0} ({1})", this._command.title, keybindingLabel)

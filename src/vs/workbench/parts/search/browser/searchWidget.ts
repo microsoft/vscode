@@ -15,7 +15,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybinding';
+import { KbExpr, KbCtxKey, IKeybindingService, IKeybindingService2, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybinding';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -66,9 +66,9 @@ export class SearchWidget extends Widget {
 
 	static REPLACE_ACTIVE_CONTEXT_KEY= new KbCtxKey<boolean>('replaceActive', false);
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
-	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService: IKeybindingService):string=>{
-		let keybindings = keyBindingService.lookupKeybindings(ReplaceAllAction.ID);
-		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), keybindings[0], keyBindingService);
+	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService2: IKeybindingService2):string=>{
+		let keybindings = keyBindingService2.lookupKeybindings(ReplaceAllAction.ID);
+		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), keybindings[0], keyBindingService2);
 	};
 
 	public domNode: HTMLElement;
@@ -103,7 +103,7 @@ export class SearchWidget extends Widget {
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
-					private keyBindingService: IKeybindingService, private instantiationService: IInstantiationService) {
+					private keyBindingService: IKeybindingService, private keyBindingService2: IKeybindingService2, private instantiationService: IInstantiationService) {
 		super();
 		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService);
 		this.render(container, options);
@@ -220,7 +220,7 @@ export class SearchWidget extends Widget {
 	public setReplaceAllActionState(enabled:boolean):void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled= enabled;
-			this.replaceAllAction.label= enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+			this.replaceAllAction.label= enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService2) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 			this.updateReplaceActiveState();
 		}
 	}

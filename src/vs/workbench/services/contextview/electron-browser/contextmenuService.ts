@@ -13,7 +13,7 @@ import dom = require('vs/base/browser/dom');
 import {IContextMenuService, IContextMenuDelegate, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 
 import {remote, webFrame} from 'electron';
 
@@ -24,7 +24,7 @@ export class ContextMenuService implements IContextMenuService {
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService2 private keybindingService2: IKeybindingService2
 	) {
 	}
 
@@ -77,7 +77,7 @@ export class ContextMenuService implements IContextMenuService {
 				menu.append(submenu);
 			} else {
 				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : undefined;
-				const accelerator = keybinding && this.keybindingService.getElectronAcceleratorFor(keybinding);
+				const accelerator = keybinding && this.keybindingService2.getElectronAcceleratorFor(keybinding);
 
 				const item = new remote.MenuItem({
 					label: e.label,

@@ -17,7 +17,7 @@ import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from '
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingContextKey, IKeybindingService, IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
@@ -46,10 +46,10 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 	constructor(
 		private widget: SuggestWidget,
 		private editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService2 keybindingService2: IKeybindingService2
 	) {
-		const keybindings = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
-		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindingService.getLabelFor(keybindings[0])})`;
+		const keybindings = keybindingService2.lookupKeybindings('editor.action.triggerSuggest');
+		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindingService2.getLabelFor(keybindings[0])})`;
 	}
 
 	get templateId(): string {

@@ -22,7 +22,7 @@ import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSetti
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
 export function isSearchViewletFocussed(viewletService: IViewletService):boolean {
@@ -31,11 +31,11 @@ export function isSearchViewletFocussed(viewletService: IViewletService):boolean
 	return activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID && activeElement && DOM.isAncestor(activeElement, (<SearchViewlet>activeViewlet).getContainer().getHTMLElement());
 }
 
-export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, keyBindingService: IKeybindingService):string
-export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService: IKeybindingService):string
-export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService: IKeybindingService):string {
+export function appendKeyBindingLabel(label: string, keyBinding: Keybinding, keyBindingService2: IKeybindingService2):string
+export function appendKeyBindingLabel(label: string, keyBinding: number, keyBindingService2: IKeybindingService2):string
+export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService2: IKeybindingService2):string {
 	keyBinding= typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
-	return label + ' (' + keyBindingService.getLabelFor(keyBinding) + ')';
+	return label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')';
 }
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
@@ -191,9 +191,9 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
 							@IReplaceService private replaceService: IReplaceService,
-							@IKeybindingService keyBindingService: IKeybindingService,
+							@IKeybindingService2 keyBindingService2: IKeybindingService2,
 							@ITelemetryService private telemetryService: ITelemetryService) {
-		super('file-action-replace-all', appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), ReplaceAllAction.KEY_BINDING, keyBindingService), 'action-replace-all');
+		super('file-action-replace-all', appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), ReplaceAllAction.KEY_BINDING, keyBindingService2), 'action-replace-all');
 	}
 
 	public run(): TPromise<any> {
@@ -217,10 +217,10 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
 				@IReplaceService private replaceService: IReplaceService,
-				@IKeybindingService keyBindingService: IKeybindingService,
+				@IKeybindingService2 keyBindingService2: IKeybindingService2,
 				@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 				@ITelemetryService private telemetryService: ITelemetryService) {
-		super('action-replace', appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), ReplaceAction.KEY_BINDING, keyBindingService), 'action-replace');
+		super('action-replace', appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), ReplaceAction.KEY_BINDING, keyBindingService2), 'action-replace');
 	}
 
 	public run(): TPromise<any> {

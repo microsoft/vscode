@@ -204,7 +204,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _updateDecorationsRunner:RunOnceScheduler;
 
 	private _editorWorkerService: IEditorWorkerService;
-	private _keybindingService: IKeybindingService;
+	protected _keybindingService: IKeybindingService;
 
 	constructor(
 		domElement:HTMLElement,

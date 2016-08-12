@@ -16,7 +16,7 @@ import {KeybindingService, KeybindingService2} from 'vs/platform/keybinding/brow
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 import {IKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -115,10 +115,6 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 });
 
 export class WorkbenchKeybindingService2 extends KeybindingService2 {
-
-}
-
-export class WorkbenchKeybindingService extends KeybindingService {
 	private contextService: IWorkspaceContextService;
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;
@@ -126,15 +122,15 @@ export class WorkbenchKeybindingService extends KeybindingService {
 
 	constructor(
 		domNode: HTMLElement,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEventService eventService: IEventService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
-		super(commandService, configurationService, messageService, statusBarService);
+		super(keybindingService, commandService, messageService, statusBarService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
@@ -284,6 +280,14 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		}
 
 		return desc;
+	}
+}
+
+export class WorkbenchKeybindingService extends KeybindingService {
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(configurationService);
 	}
 }
 

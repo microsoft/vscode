@@ -15,7 +15,7 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingContextKey, IKeybindingService, IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
@@ -38,11 +38,15 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 	private _editor: ICodeEditor;
 	private _widget: AccessibilityHelpWidget;
 
-	constructor(editor:ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(
+		editor:ICodeEditor,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2
+	) {
 		super();
 
 		this._editor = editor;
-		this._widget = this._register(new AccessibilityHelpWidget(this._editor, keybindingService));
+		this._widget = this._register(new AccessibilityHelpWidget(this._editor, keybindingService, keybindingService2));
 	}
 
 	public getId(): string {
@@ -65,16 +69,16 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private static HEIGHT = 300;
 
 	private _editor: ICodeEditor;
-	private _keybindingService: IKeybindingService;
+	private _keybindingService2: IKeybindingService2;
 	private _domNode: HTMLElement;
 	private _isVisible: boolean;
 	private _isVisibleKey: IKeybindingContextKey<boolean>;
 
-	constructor(editor:ICodeEditor, keybindingService: IKeybindingService) {
+	constructor(editor:ICodeEditor, keybindingService: IKeybindingService, keybindingService2: IKeybindingService2) {
 		super();
 
 		this._editor = editor;
-		this._keybindingService = keybindingService;
+		this._keybindingService2 = keybindingService2;
 		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(keybindingService);
 
 		this._domNode = document.createElement('div');
@@ -133,9 +137,9 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _descriptionForCommand(commandId:string, msg:string, noKbMsg:string): string {
-		let keybindings = this._keybindingService.lookupKeybindings(commandId);
+		let keybindings = this._keybindingService2.lookupKeybindings(commandId);
 		if (keybindings.length > 0) {
-			return strings.format(msg, this._keybindingService.getAriaLabelFor(keybindings[0]));
+			return strings.format(msg, this._keybindingService2.getAriaLabelFor(keybindings[0]));
 		}
 		return strings.format(noKbMsg, commandId);
 	}

@@ -24,7 +24,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 
 import IDebugService = debug.IDebugService;
 
@@ -56,10 +56,10 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, keybindingService2, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -145,10 +145,10 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, keybindingService2, contextMenuService);
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			// only expand when a new watch expression is added.
 			if (we instanceof Expression) {
@@ -225,10 +225,10 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, keybindingService2, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -319,12 +319,12 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, BreakpointsView.getExpandedBodySize(
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
-			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), messageService, keybindingService, contextMenuService);
+			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), messageService, keybindingService2, contextMenuService);
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}

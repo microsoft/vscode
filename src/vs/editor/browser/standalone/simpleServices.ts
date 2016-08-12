@@ -18,7 +18,7 @@ import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KeybindingService, KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -200,19 +200,18 @@ export class SimpleMessageService implements IMessageService {
 }
 
 export class StandaloneKeybindingService2 extends KeybindingService2 {
-
-
-	
-}
-
-export class StandaloneKeybindingService extends KeybindingService {
 	private static LAST_GENERATED_ID = 0;
 
 	private _dynamicKeybindings: IKeybindingItem[];
 	private _dynamicCommands: { [id: string]: ICommandHandler };
 
-	constructor(commandService: ICommandService, configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
-		super(commandService, configurationService, messageService);
+	constructor(
+		keybindingService: IKeybindingService,
+		commandService: ICommandService,
+		messageService: IMessageService,
+		domNode: HTMLElement
+	) {
+		super(keybindingService, commandService, messageService);
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);
@@ -222,7 +221,7 @@ export class StandaloneKeybindingService extends KeybindingService {
 
 	public addDynamicKeybinding(keybinding: number, handler:ICommandHandler, when:string, commandId:string = null): string {
 		if (commandId === null) {
-			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService.LAST_GENERATED_ID);
+			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService2.LAST_GENERATED_ID);
 		}
 		var parsedContext = IOSupport.readKeybindingWhen(when);
 		this._dynamicKeybindings.push({
@@ -243,6 +242,12 @@ export class StandaloneKeybindingService extends KeybindingService {
 
 	protected _getCommandHandler(commandId:string): ICommandHandler {
 		return super._getCommandHandler(commandId) || this._dynamicCommands[commandId];
+	}
+}
+
+export class StandaloneKeybindingService extends KeybindingService {
+	constructor(configurationService: IConfigurationService) {
+		super(configurationService);
 	}
 }
 

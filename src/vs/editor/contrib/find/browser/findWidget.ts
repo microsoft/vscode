@@ -16,7 +16,7 @@ import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {IMessage as InputBoxMessage, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';
@@ -54,7 +54,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _state: FindReplaceState;
 	private _controller: IFindController;
 	private _contextViewProvider: IContextViewProvider;
-	private _keybindingService: IKeybindingService;
+	private _keybindingService2: IKeybindingService2;
 
 	private _domNode: HTMLElement;
 	private _findInput: FindInput;
@@ -79,14 +79,14 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		controller: IFindController,
 		state: FindReplaceState,
 		contextViewProvider: IContextViewProvider,
-		keybindingService: IKeybindingService
+		keybindingService2: IKeybindingService2
 	) {
 		super();
 		this._codeEditor = codeEditor;
 		this._controller = controller;
 		this._state = state;
 		this._contextViewProvider = contextViewProvider;
-		this._keybindingService = keybindingService;
+		this._keybindingService2 = keybindingService2;
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
@@ -372,11 +372,11 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	// ----- initialization
 
 	private _keybindingLabelFor(actionId:string): string {
-		let keybindings = this._keybindingService.lookupKeybindings(actionId);
+		let keybindings = this._keybindingService2.lookupKeybindings(actionId);
 		if (keybindings.length === 0) {
 			return '';
 		}
-		return ' (' + this._keybindingService.getLabelFor(keybindings[0]) + ')';
+		return ' (' + this._keybindingService2.getLabelFor(keybindings[0]) + ')';
 	}
 
 	private _buildFindPart(): HTMLElement {

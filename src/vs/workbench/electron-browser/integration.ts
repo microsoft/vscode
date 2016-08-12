@@ -18,7 +18,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
@@ -51,7 +51,7 @@ export class ElectronIntegration {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService2 private keybindingService2: IKeybindingService2,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
@@ -156,7 +156,7 @@ export class ElectronIntegration {
 						getAnchor: () => target,
 						getActions: () => TPromise.as(TextInputActions),
 						getKeyBinding: (action) => {
-							const opts = this.keybindingService.lookupKeybindings(action.id);
+							const opts = this.keybindingService2.lookupKeybindings(action.id);
 							if (opts.length > 0) {
 								return opts[0]; // only take the first one
 							}
@@ -172,12 +172,12 @@ export class ElectronIntegration {
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map((id) => {
-				let bindings = this.keybindingService.lookupKeybindings(id);
+				let bindings = this.keybindingService2.lookupKeybindings(id);
 
 				// return the first binding that can be represented by electron
 				for (let i = 0; i < bindings.length; i++) {
 					let binding = bindings[i];
-					let electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
+					let electronAccelerator = this.keybindingService2.getElectronAcceleratorFor(binding);
 					if (electronAccelerator) {
 						return {
 							id: id,

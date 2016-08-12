@@ -16,7 +16,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
@@ -52,11 +52,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService2, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
