@@ -5,7 +5,7 @@
 
 import * as sinon from 'sinon';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { SimpleMap } from 'vs/base/common/map';
+import { LinkedMap } from 'vs/base/common/map';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -34,12 +34,12 @@ interface IServiceMock<T> {
 
 export class TestInstantiationService extends InstantiationService {
 
-	private _servciesMap: SimpleMap<ServiceIdentifier<any>, any>;
+	private _servciesMap: LinkedMap<ServiceIdentifier<any>, any>;
 
 	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection()) {
 		super(_serviceCollection);
 
-		this._servciesMap= new SimpleMap<ServiceIdentifier<any>, any>();
+		this._servciesMap= new LinkedMap<ServiceIdentifier<any>, any>();
 		this._servciesMap.set(ITelemetryService, NullTelemetryService);
 		this._servciesMap.set(IEventService, EventService);
 		this._servciesMap.set(ISearchService, SearchService);

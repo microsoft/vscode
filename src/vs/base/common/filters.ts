@@ -5,7 +5,7 @@
 'use strict';
 
 import strings = require('vs/base/common/strings');
-import {LinkedMap} from 'vs/base/common/map';
+import {BoundedLinkedMap} from 'vs/base/common/map';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
@@ -299,7 +299,7 @@ export enum SubstringMatching {
 
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
-const fuzzyRegExpCache = new LinkedMap<RegExp>(10000); // bounded to 10000 elements
+const fuzzyRegExpCache = new BoundedLinkedMap<RegExp>(10000); // bounded to 10000 elements
 
 export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {

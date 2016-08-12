@@ -5,12 +5,12 @@
 
 'use strict';
 
-import {LinkedMap, LRUCache} from 'vs/base/common/map';
+import {BoundedLinkedMap, LRUCache} from 'vs/base/common/map';
 import * as assert from 'assert';
 
 suite('Map', () => {
-	test('LinkedMap - basics', function () {
-		const map = new LinkedMap<any>();
+	test('BoundedLinkedMap - basics', function () {
+		const map = new BoundedLinkedMap<any>();
 
 		assert.equal(map.size, 0);
 
@@ -66,8 +66,8 @@ suite('Map', () => {
 		assert.ok(!map.has('1'));
 	});
 
-	test('LinkedMap - bounded', function () {
-		const map = new LinkedMap<number>(5);
+	test('BoundedLinkedMap - bounded', function () {
+		const map = new BoundedLinkedMap<number>(5);
 
 		assert.equal(0, map.size);
 
@@ -135,8 +135,8 @@ suite('Map', () => {
 		assert.equal(map.get('14'), 14);
 	});
 
-	test('LinkedMap - bounded with ratio', function () {
-		const map = new LinkedMap<number>(6, 0.5);
+	test('BoundedLinkedMap - bounded with ratio', function () {
+		const map = new BoundedLinkedMap<number>(6, 0.5);
 
 		assert.equal(0, map.size);
 

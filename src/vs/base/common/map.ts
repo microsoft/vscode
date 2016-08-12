@@ -20,7 +20,7 @@ export interface Entry<K, T> {
  * A simple map to store value by a key object. Key can be any object that has toString() function to get
  * string value of the key.
  */
-export class SimpleMap<K extends Key, T> {
+export class LinkedMap<K extends Key, T> {
 
 	protected map: { [key: string]: Entry<K, T> };
 	protected _size: number;
@@ -114,7 +114,7 @@ export class SimpleMap<K extends Key, T> {
  * the cache will remove the entry that was last recently added. Or, if a ratio is provided below 1,
  * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
  */
-export class LinkedMap<T> {
+export class BoundedLinkedMap<T> {
 	protected map: { [key: string]: Entry<string, T> };
 	private head: Entry<string, T>;
 	private tail: Entry<string, T>;
@@ -252,7 +252,7 @@ export class LinkedMap<T> {
  * maximum number of elements in the cache, it helps to remove those
  * entries from the cache that are LRU.
  */
-export class LRUCache<T> extends LinkedMap<T> {
+export class LRUCache<T> extends BoundedLinkedMap<T> {
 
 	constructor(limit: number) {
 		super(limit);

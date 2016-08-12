@@ -25,11 +25,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class EditorInputCache {
 
-	private cache: Map.SimpleMap<URI, TPromise<DiffEditorInput>>;
+	private cache: Map.LinkedMap<URI, TPromise<DiffEditorInput>>;
 
 	constructor(private replaceService: ReplaceService, private editorService: IWorkbenchEditorService,
 					private modelService: IModelService) {
-		this.cache= new Map.SimpleMap<URI, TPromise<DiffEditorInput>>();
+		this.cache= new Map.LinkedMap<URI, TPromise<DiffEditorInput>>();
 	}
 
 	public hasInput(fileMatch: FileMatch): boolean {
