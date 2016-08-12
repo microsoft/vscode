@@ -38,6 +38,7 @@
     "azure-storage": "^0.3.1",
     "clean-css": "3.4.6",
     "clone": "^1.0.2",
+    "coveralls": "^2.11.11",
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",

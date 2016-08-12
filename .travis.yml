@@ -45,5 +45,8 @@ script:
   - gulp electron
   - gulp compile
   - gulp optimize-vscode
-  - ./scripts/test.sh
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage; else ./scripts/test.sh; fi
   - ./scripts/test-integration.sh
+
+after_success:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov.info; fi
