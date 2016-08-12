@@ -10,6 +10,7 @@ import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { ILogOptions } from 'vs/workbench/parts/git/node/git.lib';
 
 // Model raw interfaces
 
@@ -287,6 +288,7 @@ export interface IRawGitService {
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
 	getCommitTemplate(): TPromise<string>;
+	getLog(options?: ILogOptions): TPromise<string>;
 }
 
 export const GIT_SERVICE_ID = 'gitService';
@@ -324,6 +326,7 @@ export interface IGitService extends IEventEmitter {
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
 	getCommitTemplate(): TPromise<string>;
+	getLog(options?: ILogOptions): TPromise<string>;
 }
 
 export interface IAskpassService {
