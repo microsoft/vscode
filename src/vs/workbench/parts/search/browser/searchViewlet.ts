@@ -46,7 +46,7 @@ import {ISearchService} from 'vs/platform/search/common/search';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
@@ -69,7 +69,7 @@ export class SearchViewlet extends Viewlet {
 	private viewModel: SearchModel;
 	private callOnModelChange: lifecycle.IDisposable[];
 
-	private viewletVisible: IKeybindingContextKey<boolean>;
+	private viewletVisible: IContextKey<boolean>;
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
 	private viewletSettings: any;

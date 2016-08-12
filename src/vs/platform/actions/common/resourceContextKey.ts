@@ -5,19 +5,19 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
-export class ResourceContextKey implements IKeybindingContextKey<URI> {
+export class ResourceContextKey implements IContextKey<URI> {
 
 
-	static Scheme = new KbCtxKey<string>('resourceScheme', undefined);
-	static LangId = new KbCtxKey<string>('resourceLangId', undefined);
-	static Resource = new KbCtxKey<URI>('resource', undefined);
+	static Scheme = new RawContextKey<string>('resourceScheme', undefined);
+	static LangId = new RawContextKey<string>('resourceLangId', undefined);
+	static Resource = new RawContextKey<URI>('resource', undefined);
 
-	private _resourceKey: IKeybindingContextKey<URI>;
-	private _schemeKey: IKeybindingContextKey<string>;
-	private _langIdKey: IKeybindingContextKey<string>;
+	private _resourceKey: IContextKey<URI>;
+	private _schemeKey: IContextKey<string>;
+	private _langIdKey: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,

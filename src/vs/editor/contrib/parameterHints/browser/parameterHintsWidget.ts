@@ -17,7 +17,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
-import { IKeybindingContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 
 const $ = dom.emmet;
@@ -161,8 +161,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private static ID = 'editor.widget.parameterHintsWidget';
 
 	private model: ParameterHintsModel;
-	private keyVisible: IKeybindingContextKey<boolean>;
-	private keyMultipleSignatures: IKeybindingContextKey<boolean>;
+	private keyVisible: IContextKey<boolean>;
+	private keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
 	private signatures: HTMLElement;
 	private overloads: HTMLElement;

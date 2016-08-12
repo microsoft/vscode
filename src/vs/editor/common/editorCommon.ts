@@ -20,7 +20,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {ContextKeyExpr, KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * @internal
@@ -3030,18 +3030,18 @@ export namespace EditorContextKeys {
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 * @internal
 	 */
-	export const TextFocus = new KbCtxKey<boolean>('editorTextFocus', false);
+	export const TextFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**
 	 * A context key that is set when the editor's text or an editor's widget has focus.
 	 * @internal
 	 */
-	export const Focus = new KbCtxKey<boolean>('editorFocus', false);
+	export const Focus = new RawContextKey<boolean>('editorFocus', false);
 
 	/**
 	 * A context key that is set when the editor's text is readonly.
 	 * @internal
 	 */
-	export const ReadOnly = new KbCtxKey<boolean>('editorReadonly', false);
+	export const ReadOnly = new RawContextKey<boolean>('editorReadonly', false);
 
 	/**
 	 * @internal
@@ -3052,7 +3052,7 @@ export namespace EditorContextKeys {
 	 * A context key that is set when the editor has a non-collapsed selection.
 	 * @internal
 	 */
-	export const HasNonEmptySelection = new KbCtxKey<boolean>('editorHasSelection', false);
+	export const HasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
 	/**
 	 * @internal
 	 */
@@ -3062,7 +3062,7 @@ export namespace EditorContextKeys {
 	 * A context key that is set when the editor has multiple selections (multiple cursors).
 	 * @internal
 	 */
-	export const HasMultipleSelections = new KbCtxKey<boolean>('editorHasMultipleSelections', false);
+	export const HasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
 	/**
 	 * @internal
 	 */
@@ -3071,7 +3071,7 @@ export namespace EditorContextKeys {
 	/**
 	 * @internal
 	 */
-	export const TabMovesFocus = new KbCtxKey<boolean>('editorTabMovesFocus', false);
+	export const TabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
 	/**
 	 * @internal
 	 */
@@ -3081,7 +3081,7 @@ export namespace EditorContextKeys {
 	 * A context key that is set to the language associated with the model associated with the editor.
 	 * @internal
 	 */
-	export const LanguageId = new KbCtxKey<string>('editorLangId', undefined);
+	export const LanguageId = new RawContextKey<string>('editorLangId', undefined);
 
 };
 
@@ -3093,47 +3093,47 @@ export namespace ModeContextKeys {
 	/**
 	 * @internal
 	 */
-	export const hasCompletionItemProvider = new KbCtxKey<boolean>('editorHasCompletionItemProvider', undefined);
+	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasCodeActionsProvider = new KbCtxKey<boolean>('editorHasCodeActionsProvider', undefined);
+	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasCodeLensProvider = new KbCtxKey<boolean>('editorHasCodeLensProvider', undefined);
+	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDefinitionProvider = new KbCtxKey<boolean>('editorHasDefinitionProvider', undefined);
+	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasHoverProvider = new KbCtxKey<boolean>('editorHasHoverProvider', undefined);
+	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDocumentHighlightProvider = new KbCtxKey<boolean>('editorHasDocumentHighlightProvider', undefined);
+	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasDocumentSymbolProvider = new KbCtxKey<boolean>('editorHasDocumentSymbolProvider', undefined);
+	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasReferenceProvider = new KbCtxKey<boolean>('editorHasReferenceProvider', undefined);
+	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasRenameProvider = new KbCtxKey<boolean>('editorHasRenameProvider', undefined);
+	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasFormattingProvider = new KbCtxKey<boolean>('editorHasFormattingProvider', undefined);
+	export const hasFormattingProvider = new RawContextKey<boolean>('editorHasFormattingProvider', undefined);
 	/**
 	 * @internal
 	 */
-	export const hasSignatureHelpProvider = new KbCtxKey<boolean>('editorHasSignatureHelpProvider', undefined);
+	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
 }
 
 export class BareFontInfo {

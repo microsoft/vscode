@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {ContextKeyExpr, KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
@@ -33,7 +33,7 @@ export interface IFindStartOptions {
 	shouldAnimate:boolean;
 }
 
-export const CONTEXT_FIND_WIDGET_VISIBLE = new KbCtxKey<boolean>('findWidgetVisible', false);
+export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
@@ -41,7 +41,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private static ID = 'editor.contrib.findController';
 
 	private _editor: editorCommon.ICommonCodeEditor;
-	private _findWidgetVisible: IKeybindingContextKey<boolean>;
+	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	private _model: FindModelBoundToEditorModel;
 

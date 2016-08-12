@@ -9,7 +9,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ICommandService, NullCommandService} from 'vs/platform/commands/common/commands';
-import {IContextKeyService, IKeybindingScopeLocation} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService, IContextKeyServiceTarget} from 'vs/platform/contextkey/common/contextkey';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
@@ -65,7 +65,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 	}
 }
 
-export class MockScopeLocation implements IKeybindingScopeLocation {
+export class MockScopeLocation implements IContextKeyServiceTarget {
 	setAttribute(attr:string, value:string): void { }
 	removeAttribute(attr:string): void { }
 	hasAttribute(attr: string): boolean { return false; }

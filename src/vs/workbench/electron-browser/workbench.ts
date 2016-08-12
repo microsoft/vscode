@@ -48,7 +48,7 @@ import {WorkbenchKeybindingService2} from 'vs/workbench/services/keybinding/elec
 import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -69,8 +69,8 @@ import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 
-export const MessagesVisibleContext = new KbCtxKey<boolean>('globalMessageVisible', false);
-export const EditorsVisibleContext = new KbCtxKey<boolean>('editorIsOpen', false);
+export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
+export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const NoEditorsVisibleContext:ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
@@ -124,8 +124,8 @@ export class Workbench implements IPartService {
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
-	private messagesVisibleContext: IKeybindingContextKey<boolean>;
-	private editorsVisibleContext: IKeybindingContextKey<boolean>;
+	private messagesVisibleContext: IContextKey<boolean>;
+	private editorsVisibleContext: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,

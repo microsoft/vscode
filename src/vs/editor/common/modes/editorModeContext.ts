@@ -5,7 +5,7 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
 import {ICommonCodeEditor, ModeContextKeys} from 'vs/editor/common/editorCommon';
 
@@ -14,17 +14,17 @@ export class EditorModeContext {
 	private _disposables: IDisposable[] = [];
 	private _editor: ICommonCodeEditor;
 
-	private _hasCompletionItemProvider: IKeybindingContextKey<boolean>;
-	private _hasCodeActionsProvider: IKeybindingContextKey<boolean>;
-	private _hasCodeLensProvider: IKeybindingContextKey<boolean>;
-	private _hasDefinitionProvider: IKeybindingContextKey<boolean>;
-	private _hasHoverProvider: IKeybindingContextKey<boolean>;
-	private _hasDocumentHighlightProvider: IKeybindingContextKey<boolean>;
-	private _hasDocumentSymbolProvider: IKeybindingContextKey<boolean>;
-	private _hasReferenceProvider: IKeybindingContextKey<boolean>;
-	private _hasRenameProvider: IKeybindingContextKey<boolean>;
-	private _hasFormattingProvider: IKeybindingContextKey<boolean>;
-	private _hasSignatureHelpProvider: IKeybindingContextKey<boolean>;
+	private _hasCompletionItemProvider: IContextKey<boolean>;
+	private _hasCodeActionsProvider: IContextKey<boolean>;
+	private _hasCodeLensProvider: IContextKey<boolean>;
+	private _hasDefinitionProvider: IContextKey<boolean>;
+	private _hasHoverProvider: IContextKey<boolean>;
+	private _hasDocumentHighlightProvider: IContextKey<boolean>;
+	private _hasDocumentSymbolProvider: IContextKey<boolean>;
+	private _hasReferenceProvider: IContextKey<boolean>;
+	private _hasRenameProvider: IContextKey<boolean>;
+	private _hasFormattingProvider: IContextKey<boolean>;
+	private _hasSignatureHelpProvider: IContextKey<boolean>;
 
 	constructor(
 		editor: ICommonCodeEditor,

@@ -16,7 +16,7 @@ import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
@@ -25,7 +25,7 @@ import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/bro
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
-const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new KbCtxKey<boolean>('accessibilityHelpWidgetVisible', false);
+const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
@@ -73,7 +73,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private _keybindingService2: IKeybindingService2;
 	private _domNode: HTMLElement;
 	private _isVisible: boolean;
-	private _isVisibleKey: IKeybindingContextKey<boolean>;
+	private _isVisibleKey: IContextKey<boolean>;
 
 	constructor(editor:ICodeEditor, contextKeyService: IContextKeyService, keybindingService2: IKeybindingService2) {
 		super();

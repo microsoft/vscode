@@ -14,7 +14,7 @@ import {Builder} from 'vs/base/browser/builder';
 import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -30,7 +30,7 @@ export class TerminalService implements ITerminalService {
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
-	protected _terminalFocusContextKey: IKeybindingContextKey<boolean>;
+	protected _terminalFocusContextKey: IContextKey<boolean>;
 
 	private configHelper: TerminalConfigHelper;
 	private _onActiveInstanceChanged: Emitter<string>;
