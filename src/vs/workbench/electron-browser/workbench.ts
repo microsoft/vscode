@@ -38,16 +38,15 @@ import {PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
-import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
-import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import {WorkbenchKeybindingService, WorkbenchKeybindingService2} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
-import {KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey, IKeybindingService, IKeybindingService2, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -354,6 +353,8 @@ export class Workbench implements IPartService {
 		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, <any>window);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
+		serviceCollection.set(IKeybindingService2, this.instantiationService.createInstance(WorkbenchKeybindingService2));
+
 		// Context Menu
 		serviceCollection.set(IContextMenuService, this.instantiationService.createInstance(ContextMenuService));
 
@@ -400,8 +401,6 @@ export class Workbench implements IPartService {
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
 		}
-
-		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);
 
 		// Set the some services to registries that have been created eagerly
 		<IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);

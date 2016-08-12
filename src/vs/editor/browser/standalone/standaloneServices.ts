@@ -20,7 +20,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -37,7 +37,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService, StandaloneKeybindingService2} from 'vs/editor/browser/standalone/simpleServices';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
@@ -93,6 +93,10 @@ export interface IEditorOverrideServices {
 	 * @internal
 	 */
 	keybindingService?:IKeybindingService;
+	/**
+	 * @internal
+	 */
+	keybindingService2?:IKeybindingService2;
 	/**
 	 * @internal
 	 */
@@ -195,7 +199,11 @@ export function ensureDynamicPlatformServices(domElement:HTMLElement, services: 
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
 	}
-
+	if (typeof services.keybindingService2 === 'undefined') {
+		var keybindingService2 = new StandaloneKeybindingService2();
+		r.push(keybindingService2);
+		services.keybindingService2 = keybindingService2;
+	}
 	if (typeof services.contextViewService === 'undefined') {
 		var contextViewService = new ContextViewService(domElement, services.telemetryService, services.messageService);
 		r.push(contextViewService);

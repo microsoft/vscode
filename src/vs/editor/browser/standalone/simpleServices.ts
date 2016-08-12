@@ -16,7 +16,7 @@ import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, I
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {KeybindingService, KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
@@ -197,6 +197,12 @@ export class SimpleMessageService implements IMessageService {
 
 		return window.confirm(messageText);
 	}
+}
+
+export class StandaloneKeybindingService2 extends KeybindingService2 {
+
+
+	
 }
 
 export class StandaloneKeybindingService extends KeybindingService {

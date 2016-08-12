@@ -13,10 +13,9 @@ import Severity from 'vs/base/common/severity';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ICommandService, CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, IKeybindingService2, SET_CONTEXT_COMMAND_ID, KbExpr} from 'vs/platform/keybinding/common/keybinding';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -146,18 +145,28 @@ class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
 
 }
 
+export class KeybindingService2 implements IKeybindingService2 {
+	public _serviceBrand: any;
+
+	constructor() {
+
+	}
+
+	public dispose(): void {
+
+	}
+}
+
 export abstract class AbstractKeybindingService {
 	public _serviceBrand: any;
 
 	protected _onDidChangeContext: Event<string[]>;
 	protected _onDidChangeContextKey: Emitter<string>;
 	protected _myContextId: number;
-	protected _instantiationService: IInstantiationService;
 
 	constructor(myContextId: number) {
 		this._myContextId = myContextId;
 		this._onDidChangeContextKey = new Emitter<string>();
-		this._instantiationService = null;
 	}
 
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
@@ -176,10 +185,6 @@ export abstract class AbstractKeybindingService {
 			}, 25);
 		}
 		return this._onDidChangeContext;
-	}
-
-	public setInstantiationService(instantiationService: IInstantiationService): void {
-		this._instantiationService = instantiationService;
 	}
 
 	public createScoped(domNode: IKeybindingScopeLocation): IKeybindingService {
