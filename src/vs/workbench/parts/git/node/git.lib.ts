@@ -119,18 +119,6 @@ export class GitError {
 	}
 }
 
-export interface ILogOptions {
-	/**
-	 * @example `git log -1 --format=%B` to get the last commit log, message only
-	 */
-	prevCount?: number;
-
-	/**
-	 * @example format: "%B" translates to `git log --format=%B` to extract only the message
-	 */
-	format?: string;
-}
-
 export interface IGitOptions {
 	gitPath:string;
 	version: string;
@@ -271,6 +259,11 @@ export class Git {
 	private log(output: string): void {
 		this.outputListeners.forEach(l => l(output));
 	}
+}
+
+export interface ICommit {
+	hash: string;
+	message: string;
 }
 
 export class Repository {
@@ -735,17 +728,15 @@ export class Repository {
 		}, () => '');
 	}
 
-	/** Implemented for use case `git log` and `git log -N`. */
-	getLog(options?: ILogOptions): TPromise<string> {
-		const args = ['log'];
+	getCommit(ref: string): TPromise<ICommit> {
+		return this.run(['show', '-s', '--format=%H\n%B', ref]).then(result => {
+			const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
 
-		if (options) {
-			if (options.prevCount) { args.push(`-${options.prevCount}`); }
-			if (options.format) { args.push(`--format=${options.format}`); }
-		}
+			if (!match) {
+				return TPromise.wrapError('bad commit format');
+			}
 
-		return this.run(args, { log: false }).then(result => {
-			return result.stdout.trim();
+			return { hash: match[1], message: match[2] };
 		});
 	}
 

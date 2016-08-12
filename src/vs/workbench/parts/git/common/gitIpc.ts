@@ -9,8 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import Event from 'vs/base/common/event';
 import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials,
-	ServiceState, IRawFileStatus, IBranch, RefType, IRef, IRemote } from './git';
-import { ILogOptions } from 'vs/workbench/parts/git/node/git.lib';
+	ServiceState, IRawFileStatus, IBranch, RefType, IRef, IRemote, ICommit } from './git';
 
 type ISerializer<A,B> = { to(a: A): B; from(b: B): A; };
 
@@ -89,7 +88,7 @@ export interface IGitChannel extends IChannel {
 	call(command: 'show', args: [string, string]): TPromise<string>;
 	call(command: 'onOutput'): TPromise<void>;
 	call(command: 'getCommitTemplate'): TPromise<string>;
-	call(command: 'getLog', options?: ILogOptions): TPromise<string>;
+	call(command: 'getCommit', ref: string): TPromise<ICommit>;
 	call(command: string, args: any): TPromise<any>;
 }
 
@@ -121,7 +120,7 @@ export class GitChannel implements IGitChannel {
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
 			case 'getCommitTemplate': return this.service.then(s => s.getCommitTemplate());
-			case 'getLog': return this.service.then(s => s.getLog(args));
+			case 'getCommit': return this.service.then(s => s.getCommit(args));
 		}
 	}
 }
@@ -227,8 +226,8 @@ export class GitChannelClient implements IRawGitService {
 		return this.channel.call('getCommitTemplate');
 	}
 
-	getLog(options?: ILogOptions): TPromise<string> {
-		return this.channel.call('getLog', options);
+	getCommit(ref: string): TPromise<ICommit> {
+		return this.channel.call('getCommit', ref);
 	}
 }
 
