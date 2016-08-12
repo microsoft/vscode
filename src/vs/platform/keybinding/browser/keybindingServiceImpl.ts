@@ -16,12 +16,12 @@ import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEve
 import {ICommandService, CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService, KEYBINDING_CONTEXT_ATTR} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 
-export abstract class KeybindingService2 implements IKeybindingService {
+export abstract class KeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
 	private _toDispose: IDisposable[] = [];
@@ -141,8 +141,7 @@ export abstract class KeybindingService2 implements IKeybindingService {
 			return;
 		}
 
-		let contextValue = Object.create(null);
-		this._contextKeyService.getContext(this._findContextAttr(e.target)).fillInContext(contextValue);
+		let contextValue = this._contextKeyService.getContextValue(e.target);
 		// console.log(JSON.stringify(contextValue, null, '\t'));
 
 		let resolveResult = this._getResolver().resolve(contextValue, this._currentChord, e.asKeybinding());
@@ -182,13 +181,5 @@ export abstract class KeybindingService2 implements IKeybindingService {
 		}
 	}
 
-	private _findContextAttr(domNode: HTMLElement): number {
-		while (domNode) {
-			if (domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-				return parseInt(domNode.getAttribute(KEYBINDING_CONTEXT_ATTR), 10);
-			}
-			domNode = domNode.parentElement;
-		}
-		return 0;
-	}
+
 }

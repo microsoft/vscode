@@ -16,7 +16,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {StandaloneKeybindingService2} from 'vs/editor/browser/standalone/simpleServices';
+import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
@@ -58,7 +58,7 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 
 export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
 
-	private _standaloneKeybindingService: StandaloneKeybindingService2;
+	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _contextViewService:IEditorContextViewService;
 	private _ownsModel:boolean;
 	private _toDispose2: IDisposable[];
@@ -78,7 +78,7 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		options = options || {};
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService.createScoped(domElement), telemetryService);
 
-		if (keybindingService instanceof StandaloneKeybindingService2) {
+		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
 		}
 
@@ -165,7 +165,7 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService:IEditorContextViewService;
-	private _standaloneKeybindingService: StandaloneKeybindingService2;
+	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _toDispose2: IDisposable[];
 
 	constructor(
@@ -180,7 +180,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	) {
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService);
 
-		if (keybindingService instanceof StandaloneKeybindingService2) {
+		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
 		}
 

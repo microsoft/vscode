@@ -8,7 +8,7 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKey, IContextKeyService, IContextValuesProvider, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _key: string;
@@ -48,10 +48,10 @@ export class MockKeybindingService implements IContextKeyService {
 	public get onDidChangeContext(): Event<string[]> {
 		return Event.None;
 	}
-	public getContextValue(key: string) {
+	public getContextKeyValue(key: string) {
 		return;
 	}
-	public getContext(contextId: number): IContextValuesProvider {
+	public getContextValue(domNode: HTMLElement): any {
 		return null;
 	}
 	public createScoped(domNode: HTMLElement): IContextKeyService {
