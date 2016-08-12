@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IRawGitService, IRawStatus, ServiceState, RawServiceState } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, IRawStatus, ServiceState, RawServiceState, ICommit } from 'vs/workbench/parts/git/common/git';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ILogOptions } from 'vs/workbench/parts/git/node/git.lib';
 
 export class NoOpGitService implements IRawGitService {
 
@@ -107,7 +106,7 @@ export class NoOpGitService implements IRawGitService {
 		return TPromise.as(null);
 	}
 
-	getLog(options?: ILogOptions): TPromise<string> {
+	getCommit(ref: string): TPromise<ICommit> {
 		return TPromise.as(null);
 	}
 }

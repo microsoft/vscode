@@ -1125,7 +1125,9 @@ export class UndoLastCommitAction extends GitAction {
 	}
 
 	public run():Promise {
-		return this.gitService.getLog({ prevCount: 1, format: '%B' }).then(prevCommitMsg => this.storageService.store('prevCommitMsg', prevCommitMsg)).then(_ => this.gitService.reset('HEAD~'));
+		return this.gitService.getCommit('HEAD')
+			.then(commit => this.storageService.store('prevCommitMsg', commit.message))
+			.then(_ => this.gitService.reset('HEAD~'));
 	}
 }
 
