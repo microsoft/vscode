@@ -41,7 +41,6 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 
 import IGitService = git.IGitService;
 
@@ -90,8 +89,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		@IGitService gitService: IGitService,
 		@IOutputService outputService: IOutputService,
 		@IEventService eventService: IEventService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -246,12 +244,12 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
-	private updateCommitInputPrevCommitMsg(): void {
-		let prevCommitMsg = this.storageService.get('prevCommitMsg');
-		if (prevCommitMsg) {
-			this.commitInputBox.value = prevCommitMsg;
-			this.storageService.remove('prevCommitMsg');
+	private onUndoLastCommit(commit: git.ICommit): void {
+		if (this.commitInputBox.value) {
+			return;
 		}
+
+		this.commitInputBox.value = commit.message;
 	}
 
 	private updateCommitInputTemplate(): void {
@@ -411,6 +409,14 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			if (this.commitInputBox) {
 				this.commitInputBox.disable();
 			}
+		} else if (operation.id === git.ServiceOperations.RESET) {
+			const promise = this.gitService.getCommit('HEAD');
+			const listener = this.gitService.addListener2(git.ServiceEvents.OPERATION_END, e => {
+				if (e.operation.id === git.ServiceOperations.RESET && !e.error) {
+					promise.done(c => this.onUndoLastCommit(c));
+					listener.dispose();
+				}
+			});
 		}
 	}
 
@@ -423,12 +429,6 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 					this.commitInputBox.value = '';
 					this.updateCommitInputTemplate();
 				}
-			}
-		} else if (e.operation.id === git.ServiceOperations.RESET) {
-			if (!e.error) {
-				this.updateCommitInputPrevCommitMsg();
-			} else {
-				this.storageService.remove('prevCommitMsg');
 			}
 		}
 	}
