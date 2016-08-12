@@ -119,7 +119,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 			}
 		});
 		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
-			DOM.EventHelper.stop(event, true);
+			DOM.EventHelper.stop(e, true);
 			setTimeout(() => this.onClick(e), 50);
 		});
 
