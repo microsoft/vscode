@@ -211,12 +211,6 @@ export interface IMode {
 	tokenizationSupport?: ITokenizationSupport;
 
 	/**
-	 * Optional adapter to support inplace-replace.
-	 * @internal
-	 */
-	inplaceReplaceSupport?:IInplaceReplaceSupport;
-
-	/**
 	 * Optional adapter to support configuring this mode.
 	 * @internal
 	 */
@@ -808,14 +802,6 @@ export interface OnTypeFormattingEditProvider {
 export interface IInplaceReplaceSupportResult {
 	value: string;
 	range:editorCommon.IRange;
-}
-
-/**
- * Interface used to navigate with a value-set.
- * @internal
- */
-export interface IInplaceReplaceSupport {
-	navigateValueSet(resource:URI, range:editorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
 }
 
 /**
