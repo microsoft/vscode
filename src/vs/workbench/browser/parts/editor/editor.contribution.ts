@@ -189,8 +189,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 );
 
 const quickOpenKb: IKeybindings = {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-	secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E]
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_P
 };
 
 function navigateKeybinding(shift: boolean): IKeybindings {
@@ -206,10 +205,10 @@ function navigateKeybinding(shift: boolean): IKeybindings {
 	} else {
 		return {
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.Tab],
+			secondary: [KeyMod.CtrlCmd | KeyCode.Tab],
 			mac: {
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.WinCtrl | KeyCode.Tab]
+				secondary: [KeyMod.WinCtrl | KeyCode.Tab]
 			}
 		};
 	}
