@@ -107,8 +107,8 @@ function main() {
 			var collector = new istanbul.Collector();
 			collector.add(global.__coverage__);
 
-			var reporter = new istanbul.Reporter(null, path.join(path.dirname(path.dirname(__dirname)), 'Code-Coverage'));
-			reporter.add('html');
+			var reporter = new istanbul.Reporter(null, path.join(path.dirname(__dirname), '.build', 'coverage'));
+			reporter.addAll(['lcov', 'html']);
 			reporter.write(collector, true, function () {});
 		});
 	}
