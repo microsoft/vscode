@@ -62,10 +62,9 @@ export class TerminalPanel extends Panel {
 		if (!dimension) {
 			return;
 		}
-		let activeIndex = this.terminalService.getActiveTerminalIndex();
-		if (activeIndex !== -1 && this.terminalInstances.length > 0) {
-			this.terminalInstances[this.terminalService.getActiveTerminalIndex()].layout(dimension);
-		}
+		this.terminalInstances.forEach((t) => {
+			t.layout(dimension);
+		});
 	}
 
 	public getActions(): IAction[] {

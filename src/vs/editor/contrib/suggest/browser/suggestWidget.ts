@@ -8,6 +8,7 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
+import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -23,7 +24,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
 import { CompletionItem, CompletionModel } from '../common/completionModel';
-import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from '../common/suggestModel';
+import { ICancelEvent, ISuggestEvent, ITriggerEvent } from '../common/suggestModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -323,13 +324,14 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
+	private onDidSelectEmitter = new Emitter<CompletionItem>();
+
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
 
 	constructor(
 		private editor: ICodeEditor,
-		private model: SuggestModel,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -361,10 +363,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
-			this.model.onDidTrigger(e => this.onDidTrigger(e)),
-			this.model.onDidSuggest(e => this.onDidSuggest(e)),
-			this.model.onDidCancel(e => this.onDidCancel(e))
+			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
 		];
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
@@ -411,8 +410,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 
 		const item = e.elements[0];
-		const {overwriteBefore, overwriteAfter} = item.suggestion;
-		this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
+		this.onDidSelectEmitter.fire(item);
 
 		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 
@@ -544,7 +542,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	private onDidTrigger(e: ITriggerEvent) {
+	get onDidSelect():Event<CompletionItem> {
+		return this.onDidSelectEmitter.event;
+	}
+
+	showTriggered(e: ITriggerEvent) {
 		if (this.state !== State.Hidden) {
 			return;
 		}
@@ -559,7 +561,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	private onDidSuggest(e: ISuggestEvent): void {
+	showSuggestions(e: ISuggestEvent): void {
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
@@ -623,7 +625,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	private onDidCancel(e: ICancelEvent) {
+	showDidCancel(e: ICancelEvent) {
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
@@ -694,22 +696,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	acceptSelectedSuggestion(): boolean {
-		switch (this.state) {
-			case State.Hidden:
-				return false;
-			case State.Empty:
-				return false;
-			case State.Loading:
-				return !this.isAuto;
-			default:
-				const focus = this.list.getFocusedElements()[0];
-				if (focus) {
-					this.list.setSelection(this.completionModel.items.indexOf(focus));
-				} else {
-					this.model.cancel();
-				}
-				return true;
+	getFocusedItem(): CompletionItem {
+		if (this.state !== State.Hidden
+			&& this.state !== State.Empty
+			&& this.state !== State.Loading) {
+
+			return this.list.getFocusedElements()[0];
 		}
 	}
 
@@ -752,7 +744,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		if (this.state === State.Details) {
 			this.toggleDetails();
 		} else {
-			this.model.cancel();
+			this.showDidCancel({ retrigger: false });
 		}
 	}
 
