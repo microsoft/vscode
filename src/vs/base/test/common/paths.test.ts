@@ -13,6 +13,7 @@ suite('Paths', () => {
 		assert.equal(paths.relative('/test/api/files/test', '/test/api/files/lib/foo'), '../lib/foo');
 		assert.equal(paths.relative('far/boo', 'boo/far'), '../../boo/far');
 		assert.equal(paths.relative('far/boo', 'far/boo'), '');
+		assert.equal(paths.relative('far/boo', 'far/boo/bar/foo'), 'bar/foo');
 	});
 
 	test('dirname', () => {
