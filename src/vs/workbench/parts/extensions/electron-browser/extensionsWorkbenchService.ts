@@ -307,7 +307,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extension.gallery = gallery;
 
 		const start = new Date();
-		const operation = Operation.Uninstalling;
+		const operation = Operation.Installing;
 		this.installing.push({ id: stripVersion(id), operation, extension, start });
 
 		this._onChange.fire();
