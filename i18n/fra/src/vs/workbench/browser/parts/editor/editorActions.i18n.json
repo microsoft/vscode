@@ -24,6 +24,8 @@
 	"minimizeOtherEditorGroups": "Réduire les autres groupes d'éditeurs",
 	"moveActiveGroupLeft": "Déplacer le groupe d'éditeurs vers la gauche",
 	"moveActiveGroupRight": "Déplacer le groupe d'éditeurs vers la droite",
+	"moveEditorToLeftGroup": "Déplacer l'éditeur dans le groupe vers la gauche",
+	"moveEditorToRightGroup": "Déplacer l'éditeur dans le groupe vers la droite",
 	"navigateEditorGroups": "Naviguer entre les groupes d'éditeurs",
 	"navigateEditorHistoryByInput": "Ouvrir l'éditeur précédent dans l'historique",
 	"navigateNext": "Suivant",

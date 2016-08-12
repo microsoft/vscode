@@ -9,5 +9,6 @@
 	"closeAll": "Cerrar todo",
 	"closeOthers": "Cerrar otros",
 	"closeRight": "Cerrar a la derecha",
-	"keepOpen": "Mantener abierto"
+	"keepOpen": "Mantener abierto",
+	"showOpenedEditors": "Mostrar editores abiertos"
 }

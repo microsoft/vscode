@@ -9,5 +9,6 @@
 	"closeAll": "全部關閉",
 	"closeOthers": "關閉其他",
 	"closeRight": "關到右側",
-	"keepOpen": "保持開啟"
+	"keepOpen": "保持開啟",
+	"showOpenedEditors": "顯示開啟的編輯器"
 }

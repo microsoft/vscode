@@ -7,5 +7,5 @@
 	"extensions": "Estensioni",
 	"reloadNow": "Riavvia ora",
 	"success": "Le estensioni sono state installate. Riavviare per abilitarle.",
-	"successSingle": "{0} è stato installato. Riavviare per abilitarlo."
+	"successSingle": "L'estensione è stata installata. Riavviare per abilitarla."
 }

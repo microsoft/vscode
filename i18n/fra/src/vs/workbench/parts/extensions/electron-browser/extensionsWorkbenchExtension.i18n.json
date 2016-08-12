@@ -8,5 +8,5 @@
 	"outdatedExtensions": "{0} extensions obsolètes",
 	"reloadNow": "Redémarrer maintenant",
 	"success": "Les extensions ont été installées correctement. Redémarrez pour les activer.",
-	"successSingle": "{0} a été installé correctement. Redémarrez pour l'activer."
+	"successSingle": "L'extension a été installée correctement. Effectuez un redémarrage pour l'activer."
 }

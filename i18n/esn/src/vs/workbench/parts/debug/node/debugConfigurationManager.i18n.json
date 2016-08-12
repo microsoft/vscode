@@ -12,6 +12,8 @@
 	"duplicateDebuggerType": "El tipo de depuración '{0}' ya está registrado y tiene el atributo '{1}', se ignora el atributo '{1}'.",
 	"interactiveVariableNotFound": "El adaptador {0} no contribuye a la variable {1} que se especifica en la configuración de inicio.",
 	"selectDebug": "Seleccionar entorno",
+	"vscode.extension.contributes.breakpoints": "Aporta puntos de interrupción.",
+	"vscode.extension.contributes.breakpoints.language": "Permite puntos de interrupción para este lenguaje.",
 	"vscode.extension.contributes.debuggers": "Aporta adaptadores de depuración.",
 	"vscode.extension.contributes.debuggers.args": "Argumentos opcionales que se pasarán al adaptador.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Configuraciones de esquema JSON para validar \"launch.json\".",

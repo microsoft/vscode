@@ -12,6 +12,8 @@
 	"duplicateDebuggerType": "偵錯類型 '{0}' 已註冊並具有屬性 '{1}'，即將略過屬性 '{1}'。",
 	"interactiveVariableNotFound": "配接器 {0} 未參與在啟動設定中指定的變數 {1}。",
 	"selectDebug": "選取環境",
+	"vscode.extension.contributes.breakpoints": "提供中斷點。",
+	"vscode.extension.contributes.breakpoints.language": "允許此語言使用中斷點。",
 	"vscode.extension.contributes.debuggers": "提供偵錯配接器。",
 	"vscode.extension.contributes.debuggers.args": "要傳遞至配接器的選擇性引數。",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON 結構描述組態，用於驗證 'launch.json'。",

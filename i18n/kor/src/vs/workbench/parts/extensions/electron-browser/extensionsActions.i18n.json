@@ -10,9 +10,9 @@
 	"installing": "설치 중",
 	"restart": "이 확장을 사용하도록 설정하려면 이 VS Code 창을 다시 시작해야 합니다.\n\n계속할까요?",
 	"restartNow": "지금 다시 시작",
-	"showExtensionRecommendations": "확장 권장 사항 표시",
 	"showInstalledExtensions": "설치된 확장 표시",
 	"showOutdatedExtensions": "만료된 확장 표시",
+	"showRecommendedExtensions": "권장되는 확장 표시",
 	"toggleExtensionsViewlet": "확장 표시",
 	"uninstall": "제거",
 	"updateAction": "업데이트"

@@ -24,6 +24,8 @@
 	"minimizeOtherEditorGroups": "將其他編輯器群組最小化",
 	"moveActiveGroupLeft": "將編輯器群組向左移",
 	"moveActiveGroupRight": "將編輯器群組向右移",
+	"moveEditorToLeftGroup": "將編輯器移入左側群組中",
+	"moveEditorToRightGroup": "將編輯器移入右側群組中",
 	"navigateEditorGroups": "在編輯器群組間導覽",
 	"navigateEditorHistoryByInput": "從記錄中開啟上一個編輯器",
 	"navigateNext": "向前",

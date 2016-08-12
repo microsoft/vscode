@@ -24,6 +24,8 @@
 	"minimizeOtherEditorGroups": "Свернуть другие группы редакторов",
 	"moveActiveGroupLeft": "Переместить группу редакторов влево",
 	"moveActiveGroupRight": "Переместить группу редакторов вправо",
+	"moveEditorToLeftGroup": "Переместить редактор в группу слева",
+	"moveEditorToRightGroup": "Переместить редактор в группу справа",
 	"navigateEditorGroups": "Переход между группами редакторов",
 	"navigateEditorHistoryByInput": "Открыть предыдущий редактор из журнала",
 	"navigateNext": "Далее",
