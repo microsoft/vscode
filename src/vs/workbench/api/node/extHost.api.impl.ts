@@ -80,6 +80,7 @@ export class ExtHostAPIImplementation {
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
 	EndOfLine: typeof vscode.EndOfLine;
 	TextEditorCursorStyle: typeof vscode.TextEditorCursorStyle;
+	TextEditorSelectionChangeKind: typeof vscode.TextEditorSelectionChangeKind;
 	commands: typeof vscode.commands;
 	window: typeof vscode.window;
 	workspace: typeof vscode.workspace;
@@ -159,6 +160,7 @@ export class ExtHostAPIImplementation {
 		this.TextEditorRevealType = extHostTypes.TextEditorRevealType;
 		this.EndOfLine = extHostTypes.EndOfLine;
 		this.TextEditorCursorStyle = EditorCommon.TextEditorCursorStyle;
+		this.TextEditorSelectionChangeKind = extHostTypes.TextEditorSelectionChangeKind;
 
 		// env namespace
 		let telemetryInfo: ITelemetryInfo;
