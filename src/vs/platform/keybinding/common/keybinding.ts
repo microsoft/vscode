@@ -493,4 +493,9 @@ export interface IKeybindingService {
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
 }
 
+export let IKeybindingService2 = createDecorator<IKeybindingService2>('keybindingService2');
+export interface IKeybindingService2 {
+	_serviceBrand: any;
+}
+
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

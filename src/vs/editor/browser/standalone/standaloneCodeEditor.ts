@@ -8,7 +8,6 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
@@ -74,10 +73,6 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		if (keybindingService instanceof AbstractKeybindingService) {
-			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
-		}
-
 		options = options || {};
 		super(domElement, options, instantiationService, codeEditorService, commandService, keybindingService.createScoped(domElement), telemetryService);
 
@@ -180,10 +175,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextViewService contextViewService: IContextViewService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		if (keybindingService instanceof AbstractKeybindingService) {
-			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
-		}
-
 		super(domElement, options, editorWorkerService, keybindingService, instantiationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
