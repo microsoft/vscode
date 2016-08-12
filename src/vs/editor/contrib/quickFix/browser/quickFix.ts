@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {KbExpr, KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -36,7 +36,7 @@ export class QuickFixController implements IEditorContribution {
 
 	constructor(editor: ICodeEditor,
 		@IMarkerService private _markerService: IMarkerService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEditorService editorService: IEditorService,
@@ -45,7 +45,7 @@ export class QuickFixController implements IEditorContribution {
 		this.editor = editor;
 		this.model = new QuickFixModel(this.editor, this._markerService, this.onAccept.bind(this));
 
-		this.quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(this._keybindingService);
+		this.quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService,() => {
 			this.quickFixWidgetVisible.set(true);
 		},() => {

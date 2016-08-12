@@ -21,7 +21,7 @@ import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -93,7 +93,7 @@ export interface IEditorOverrideServices {
 	/**
 	 * @internal
 	 */
-	keybindingService?:IKeybindingService;
+	contextKeyService?:IContextKeyService;
 	/**
 	 * @internal
 	 */
@@ -194,16 +194,16 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 export function ensureDynamicPlatformServices(domElement:HTMLElement, services: IEditorOverrideServices): IDisposable[] {
 	let r:IDisposable[] = [];
 
-	let keybindingService:IKeybindingService;
-	if (typeof services.keybindingService === 'undefined') {
-		keybindingService = new StandaloneKeybindingService(services.configurationService);
-		r.push(keybindingService);
-		services.keybindingService = keybindingService;
+	let contextKeyService:IContextKeyService;
+	if (typeof services.contextKeyService === 'undefined') {
+		contextKeyService = new StandaloneKeybindingService(services.configurationService);
+		r.push(contextKeyService);
+		services.contextKeyService = contextKeyService;
 	} else {
-		keybindingService = services.keybindingService;
+		contextKeyService = services.contextKeyService;
 	}
 	if (typeof services.keybindingService2 === 'undefined') {
-		let keybindingService2 = new StandaloneKeybindingService2(keybindingService, services.commandService, services.messageService, domElement);
+		let keybindingService2 = new StandaloneKeybindingService2(contextKeyService, services.commandService, services.messageService, domElement);
 		r.push(keybindingService2);
 		services.keybindingService2 = keybindingService2;
 	}

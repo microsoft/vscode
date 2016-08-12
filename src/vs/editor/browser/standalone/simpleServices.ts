@@ -20,7 +20,7 @@ import {KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServi
 import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -208,12 +208,12 @@ export class StandaloneKeybindingService2 extends KeybindingService2 {
 	private _dynamicCommands: { [id: string]: ICommandHandler };
 
 	constructor(
-		keybindingService: IKeybindingService,
+		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
 		messageService: IMessageService,
 		domNode: HTMLElement
 	) {
-		super(keybindingService, commandService, messageService);
+		super(contextKeyService, commandService, messageService);
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);

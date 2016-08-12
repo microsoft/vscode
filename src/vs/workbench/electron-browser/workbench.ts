@@ -44,10 +44,11 @@ import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/p
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
-import {WorkbenchKeybindingService, WorkbenchKeybindingService2} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import {WorkbenchKeybindingService2} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {KbExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -104,7 +105,7 @@ export class Workbench implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 	private editorService: WorkbenchEditorService;
-	private keybindingService: IKeybindingService;
+	private contextKeyService: IContextKeyService;
 	private keybindingService2: IKeybindingService2;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
@@ -204,8 +205,8 @@ export class Workbench implements IPartService {
 			}
 
 			// Contexts
-			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.keybindingService);
-			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.keybindingService);
+			this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
+			this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 
 			// Register Listeners
 			this.registerListeners();
@@ -352,8 +353,8 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// Keybindings
-		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService);
-		serviceCollection.set(IKeybindingService, this.keybindingService);
+		this.contextKeyService = this.instantiationService.createInstance(KeybindingService);
+		serviceCollection.set(IContextKeyService, this.contextKeyService);
 
 		this.keybindingService2 = this.instantiationService.createInstance(WorkbenchKeybindingService2, <any>window);
 		serviceCollection.set(IKeybindingService2, this.keybindingService2);

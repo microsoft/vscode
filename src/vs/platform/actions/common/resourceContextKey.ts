@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
 export class ResourceContextKey implements IKeybindingContextKey<URI> {
@@ -20,12 +20,12 @@ export class ResourceContextKey implements IKeybindingContextKey<URI> {
 	private _langIdKey: IKeybindingContextKey<string>;
 
 	constructor(
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModeService private _modeService: IModeService
 	) {
-		this._schemeKey = ResourceContextKey.Scheme.bindTo(keybindingService);
-		this._langIdKey = ResourceContextKey.LangId.bindTo(keybindingService);
-		this._resourceKey = ResourceContextKey.Resource.bindTo(keybindingService);
+		this._schemeKey = ResourceContextKey.Scheme.bindTo(contextKeyService);
+		this._langIdKey = ResourceContextKey.LangId.bindTo(contextKeyService);
+		this._resourceKey = ResourceContextKey.Resource.bindTo(contextKeyService);
 	}
 
 	set(value: URI) {

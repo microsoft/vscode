@@ -14,7 +14,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
@@ -43,13 +43,13 @@ class ContextMenuController implements IEditorContribution {
 		editor: ICodeEditor,
 		@IContextMenuService private _contextMenuService: IContextMenuService,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IKeybindingService2 private _keybindingService2: IKeybindingService2,
 		@IMenuService private _menuService: IMenuService
 	) {
 		this._editor = editor;
 
-		this._contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._keybindingService);
+		this._contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
 		this._toDispose.push(this._contextMenu);
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));

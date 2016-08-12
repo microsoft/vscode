@@ -355,11 +355,11 @@ export class KbCtxKey<T> extends KbDefinedExpression {
 		this._defaultValue = defaultValue;
 	}
 
-	public bindTo(target:IKeybindingService): IKeybindingContextKey<T> {
+	public bindTo(target:IContextKeyService): IKeybindingContextKey<T> {
 		return target.createKey(this.key, this._defaultValue);
 	}
 
-	public getValue(target:IKeybindingService): T {
+	public getValue(target:IContextKeyService): T {
 		return target.getContextValue<T>(this.key);
 	}
 
@@ -443,9 +443,9 @@ export interface IKeybindingContext {
 	fillInContext(bucket: any): void;
 }
 
-export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
+export let IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
 
-export interface IKeybindingService {
+export interface IContextKeyService {
 	_serviceBrand: any;
 	dispose(): void;
 
@@ -454,7 +454,7 @@ export interface IKeybindingService {
 	contextMatchesRules(rules: KbExpr): boolean;
 	getContextValue<T>(key: string): T;
 
-	createScoped(domNode: IKeybindingScopeLocation): IKeybindingService;
+	createScoped(domNode: IKeybindingScopeLocation): IContextKeyService;
 
 	getContext(contextId: number): IKeybindingContext;
 }

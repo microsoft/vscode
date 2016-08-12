@@ -6,7 +6,7 @@
 'use strict';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {KbCtxKey, IKeybindingService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {KbCtxKey, IContextKeyService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -34,10 +34,10 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._snippetController = getSnippetController(editor);
-		const hasSnippets = TabCompletionController.ContextKey.bindTo(keybindingService);
+		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
 		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 
 			this._currentSnippets.length = 0;

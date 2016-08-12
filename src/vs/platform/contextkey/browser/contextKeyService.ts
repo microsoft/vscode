@@ -7,7 +7,7 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingContextKey, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID, KEYBINDING_CONTEXT_ATTR, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {IKeybindingContextKey, IKeybindingScopeLocation, IContextKeyService, SET_CONTEXT_COMMAND_ID, KEYBINDING_CONTEXT_ATTR, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
@@ -162,7 +162,7 @@ export abstract class AbstractKeybindingService {
 		return this._onDidChangeContext;
 	}
 
-	public createScoped(domNode: IKeybindingScopeLocation): IKeybindingService {
+	public createScoped(domNode: IKeybindingScopeLocation): IContextKeyService {
 		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
 	}
 
@@ -198,7 +198,7 @@ export abstract class AbstractKeybindingService {
 
 }
 
-export abstract class KeybindingService extends AbstractKeybindingService implements IKeybindingService {
+export class KeybindingService extends AbstractKeybindingService implements IContextKeyService {
 
 	private _lastContextId: number;
 	private _contexts: {
@@ -207,7 +207,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 	private _toDispose: IDisposable[] = [];
 
-	constructor(configurationService: IConfigurationService) {
+	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -248,7 +248,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 }
 
 CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
-	accessor.get(IKeybindingService).createKey(String(contextKey), contextValue);
+	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
 });
 
 class ScopedKeybindingService extends AbstractKeybindingService {

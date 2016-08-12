@@ -16,7 +16,7 @@ import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEve
 import {ICommandService, CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem, IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingService, KEYBINDING_CONTEXT_ATTR} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService, KEYBINDING_CONTEXT_ATTR} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -30,18 +30,18 @@ export abstract class KeybindingService2 implements IKeybindingService2 {
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
 
-	private _keybindingService: IKeybindingService;
+	private _contextKeyService: IContextKeyService;
 	private _commandService: ICommandService;
 	private _statusService: IStatusbarService;
 	private _messageService: IMessageService;
 
 	constructor(
-		keybindingService: IKeybindingService,
+		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
 		messageService: IMessageService,
 		statusService?: IStatusbarService
 	) {
-		this._keybindingService = keybindingService;
+		this._contextKeyService = contextKeyService;
 		this._commandService = commandService;
 		this._statusService = statusService;
 		this._messageService = messageService;
@@ -142,7 +142,7 @@ export abstract class KeybindingService2 implements IKeybindingService2 {
 		}
 
 		let contextValue = Object.create(null);
-		this._keybindingService.getContext(this._findContextAttr(e.target)).fillInContext(contextValue);
+		this._contextKeyService.getContext(this._findContextAttr(e.target)).fillInContext(contextValue);
 		// console.log(JSON.stringify(contextValue, null, '\t'));
 
 		let resolveResult = this._getResolver().resolve(contextValue, this._currentChord, e.asKeybinding());
