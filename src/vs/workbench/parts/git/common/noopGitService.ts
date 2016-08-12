@@ -90,7 +90,7 @@ export class NoOpGitService implements IRawGitService {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	commit(message: string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
+	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 

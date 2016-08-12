@@ -83,7 +83,7 @@ export interface IGitChannel extends IChannel {
 	call(command: 'pull', rebase?: boolean): TPromise<IPCRawStatus>;
 	call(command: 'push', args: [string, string, IPushOptions]): TPromise<IPCRawStatus>;
 	call(command: 'sync'): TPromise<IPCRawStatus>;
-	call(command: 'commit', args: [string, boolean, boolean]): TPromise<IPCRawStatus>;
+	call(command: 'commit', args: [string, boolean, boolean, boolean]): TPromise<IPCRawStatus>;
 	call(command: 'detectMimetypes', args: [string, string]): TPromise<string[]>;
 	call(command: 'show', args: [string, string]): TPromise<string>;
 	call(command: 'onOutput'): TPromise<void>;
@@ -115,7 +115,7 @@ export class GitChannel implements IGitChannel {
 			case 'pull': return this.service.then(s => s.pull(args)).then(RawStatusSerializer.to);
 			case 'push': return this.service.then(s => s.push(args[0], args[1], args[2])).then(RawStatusSerializer.to);
 			case 'sync': return this.service.then(s => s.sync()).then(RawStatusSerializer.to);
-			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2])).then(RawStatusSerializer.to);
+			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2], args[3])).then(RawStatusSerializer.to);
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
 			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
@@ -210,8 +210,8 @@ export class GitChannelClient implements IRawGitService {
 		return this.channel.call('sync').then(RawStatusSerializer.from);
 	}
 
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('commit', [message, amend, stage]).then(RawStatusSerializer.from);
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> {
+		return this.channel.call('commit', [message, amend, stage, signoff]).then(RawStatusSerializer.from);
 	}
 
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> {

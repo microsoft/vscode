@@ -416,7 +416,7 @@ export class Repository {
 		});
 	}
 
-	commit(message: string, all: boolean, amend: boolean): Promise {
+	commit(message: string, all: boolean, amend: boolean, signoff: boolean): Promise {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
 		if (all) {
@@ -425,6 +425,10 @@ export class Repository {
 
 		if (amend) {
 			args.push('--amend');
+		}
+
+		if (signoff) {
+			args.push('--signoff');
 		}
 
 		return this.run(args, { input: message || '' }).then(null, (commitErr: GitError) => {
