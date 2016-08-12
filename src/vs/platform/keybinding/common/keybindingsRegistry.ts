@@ -6,7 +6,8 @@
 
 import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingItem, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {Registry} from 'vs/platform/platform';
 

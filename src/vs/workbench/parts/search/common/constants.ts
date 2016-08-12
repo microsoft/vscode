@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.search';
 

@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {ISashEvent, IVerticalSashLayoutProvider, Sash} from 'vs/base/browser/ui/sash/sash';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';

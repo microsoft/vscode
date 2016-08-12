@@ -18,7 +18,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 

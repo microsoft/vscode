@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';

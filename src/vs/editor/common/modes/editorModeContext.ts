@@ -5,7 +5,7 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
 import {ICommonCodeEditor, ModeContextKeys} from 'vs/editor/common/editorCommon';
 

@@ -11,7 +11,7 @@ import processes = require('vs/base/node/processes');
 import {Builder} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {KbCtxKey, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 

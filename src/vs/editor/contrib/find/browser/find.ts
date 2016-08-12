@@ -5,7 +5,8 @@
 'use strict';
 
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService, IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {FindWidget, IFindController} from 'vs/editor/contrib/find/browser/findWidget';

@@ -10,7 +10,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';

@@ -12,7 +12,7 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {KbCtxKey, IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';

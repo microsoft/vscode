@@ -11,7 +11,7 @@ import * as timer from 'vs/base/common/timer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';

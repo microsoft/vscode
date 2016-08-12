@@ -20,7 +20,8 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
-import {IKeybindingService, IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';

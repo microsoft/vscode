@@ -30,7 +30,7 @@ import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;

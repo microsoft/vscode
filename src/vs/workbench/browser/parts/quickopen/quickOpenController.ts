@@ -37,7 +37,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IKeybindingService, KbCtxKey, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService, KbCtxKey, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';

@@ -11,7 +11,7 @@ import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
 import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {Range} from 'vs/editor/common/core/range';
-import {KbCtxKey, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
