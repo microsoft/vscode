@@ -73,6 +73,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 		this.progressBadgeDelayer = new async.Delayer<void>(200);
 
 		this.toDispose = [];
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onGitServiceChange()));
 		this.toDispose.push(this.gitService.addBulkListener2(e => this.onGitServiceChange()));
 	}
 
@@ -90,25 +91,24 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 	}
 
 	private showChangesBadge(): void {
-		const config = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
+		this.progressBadgeDelayer.cancel();
 
-		// only use the filter version of the map callback if filtering by file status is really necessary
-		var mapper = (g1: git.IStatusGroup) => {
-				return g1.all().filter((f1: git.IFileStatus) => {
-					return f1.getStatus() !== git.Status.UNTRACKED;
-				}).length;
-			};
+		const { countBadge } = this.configurationService.getConfiguration<git.IGitConfiguration>('git');
 
-		// no need to filter by file status if we count both tracked and untracked files
-		if (config.countUntracked) {
-			mapper = (g1: git.IStatusGroup) => g1.all().length;
+		if (countBadge === 'off') {
+			return;
 		}
 
-		var count = this.gitService.getModel().getStatus().getGroups().map(mapper).reduce((a, b) => a + b, 0);
+		const filter = countBadge === 'tracked'
+			? s => s.getStatus() !== git.Status.UNTRACKED
+			: () => true;
 
-		var badge = new NumberBadge(count, (num)=>{ return nls.localize('gitPendingChangesBadge', '{0} pending changes', num); });
+		const statuses = this.gitService.getModel().getStatus().getGroups()
+			.map(g => g.all())
+			.reduce((r, g) => r.concat(g), [])
+			.filter(filter);
 
-		this.progressBadgeDelayer.cancel();
+		const badge = new NumberBadge(statuses.length, num => nls.localize('gitPendingChangesBadge', '{0} pending changes', num));
 		this.activityService.showActivity('workbench.view.git', badge, 'git-viewlet-label');
 	}
 
@@ -564,10 +564,11 @@ export function registerContributions(): void {
 				description: nls.localize('confirmSync', "Confirm before synchronizing git repositories."),
 				default: false
 			},
-			'git.countUntracked': {
-				type: 'boolean',
-				description: nls.localize('countUntracked', "Count untracked files in the changes badge."),
-				default: true
+			'git.countBadge': {
+				type: 'string',
+				enum: ['all', 'tracked', 'off'],
+				default: 'all',
+				description: nls.localize('countBadge', "Controls the git badge counter."),
 			}
 		}
 	});
