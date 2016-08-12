@@ -179,7 +179,7 @@ export class ExtensionEditor extends BaseEditor {
 					webview.style(this.themeService.getTheme());
 					webview.contents = [renderBody(body)];
 
-					const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString());
+					const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString()));
 					const themeListener = this.themeService.onDidThemeChange(themeId => webview.style(themeId));
 					this.transientDisposables.push(webview, linkListener, themeListener);
 				})
