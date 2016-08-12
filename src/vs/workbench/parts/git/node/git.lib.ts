@@ -261,6 +261,11 @@ export class Git {
 	}
 }
 
+export interface ICommit {
+	hash: string;
+	message: string;
+}
+
 export class Repository {
 
 	private git: Git;
@@ -411,7 +416,7 @@ export class Repository {
 		});
 	}
 
-	commit(message: string, all: boolean, amend: boolean): Promise {
+	commit(message: string, all: boolean, amend: boolean, signoff: boolean): Promise {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
 		if (all) {
@@ -420,6 +425,10 @@ export class Repository {
 
 		if (amend) {
 			args.push('--amend');
+		}
+
+		if (signoff) {
+			args.push('--signoff');
 		}
 
 		return this.run(args, { input: message || '' }).then(null, (commitErr: GitError) => {
@@ -721,6 +730,18 @@ export class Repository {
 
 			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
 		}, () => '');
+	}
+
+	getCommit(ref: string): TPromise<ICommit> {
+		return this.run(['show', '-s', '--format=%H\n%B', ref]).then(result => {
+			const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
+
+			if (!match) {
+				return TPromise.wrapError('bad commit format');
+			}
+
+			return { hash: match[1], message: match[2] };
+		});
 	}
 
 	onOutput(listener: (output: string) => void): () => void {

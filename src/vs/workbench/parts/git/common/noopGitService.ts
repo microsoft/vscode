@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IRawGitService, IRawStatus, ServiceState, RawServiceState } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, IRawStatus, ServiceState, RawServiceState, ICommit } from 'vs/workbench/parts/git/common/git';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -90,7 +90,7 @@ export class NoOpGitService implements IRawGitService {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	commit(message: string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
+	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
@@ -103,6 +103,10 @@ export class NoOpGitService implements IRawGitService {
 	}
 
 	getCommitTemplate(): TPromise<string> {
+		return TPromise.as(null);
+	}
+
+	getCommit(ref: string): TPromise<ICommit> {
 		return TPromise.as(null);
 	}
 }

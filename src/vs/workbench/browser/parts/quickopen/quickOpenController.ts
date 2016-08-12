@@ -230,8 +230,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onCancel: () => { /* ignore, handle later */ },
 					onType: (value: string) => { /* ignore, handle later */ },
 					onShow: () => this.emitQuickOpenVisibilityChange(true),
-					onHide: (focusLost?: boolean) => {
-						if (!focusLost) {
+					onHide: (reason) => {
+						if (reason !== HideReason.FOCUS_LOST) {
 							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
 						}
 						this.emitQuickOpenVisibilityChange(false); // event
@@ -375,8 +375,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onShow: () => {
 						this.emitQuickOpenVisibilityChange(true); // event
 					},
-					onHide: (focusLost?: boolean) => {
-						if (!focusLost) {
+					onHide: (reason) => {
+						if (reason !== HideReason.FOCUS_LOST) {
 							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
 						}
 						this.emitQuickOpenVisibilityChange(false); // event
@@ -453,14 +453,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			this.quickOpenWidget = new QuickOpenWidget(
 				withElementById(Identifiers.WORKBENCH_CONTAINER).getHTMLElement(),
 				{
-					onOk: () => this.onClose(false),
-					onCancel: () => this.onCancel(),
+					onOk: () => { /* ignore */ },
+					onCancel: () => { /* ignore */ },
 					onType: (value: string) => this.onType(value || ''),
 					onShow: () => {
 						this.inQuickOpenMode.set(true);
 						this.emitQuickOpenVisibilityChange(true);
 					},
-					onHide: (focusLost?: boolean) => {
+					onHide: (reason) => {
+						this.onClose(reason);
+
 						this.inQuickOpenMode.reset();
 
 						// Complete promises that are waiting
@@ -468,7 +470,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 							this.promisesToCompleteOnHide.pop()(true);
 						}
 
-						if (!focusLost) {
+						if (reason !== HideReason.FOCUS_LOST) {
 							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
 						}
 						this.emitQuickOpenVisibilityChange(false);
@@ -532,15 +534,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return new QuickOpenModel(entries, this.actionProvider);
 	}
 
-	private onCancel(notifyHandlers = true): void {
-
-		// Indicate to handlers
-		if (notifyHandlers) {
-			this.onClose(true);
-		}
-	}
-
-	private onClose(canceled: boolean): void {
+	private onClose(reason: HideReason): void {
 
 		// Clear state
 		this.previousActiveHandlerDescriptor = null;
@@ -549,7 +543,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		for (let prefix in this.mapResolvedHandlersToPrefix) {
 			if (this.mapResolvedHandlersToPrefix.hasOwnProperty(prefix)) {
 				let handler = this.mapResolvedHandlersToPrefix[prefix];
-				handler.onClose(canceled);
+				handler.onClose(reason === HideReason.CANCELED);
 			}
 		}
 	}
