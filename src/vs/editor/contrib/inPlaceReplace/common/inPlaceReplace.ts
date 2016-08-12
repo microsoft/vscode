@@ -59,7 +59,6 @@ class InPlaceReplaceController implements IEditorContribution {
 
 		var selection = this.editor.getSelection(),
 			model = this.editor.getModel(),
-			support = model.getMode().inplaceReplaceSupport,
 			modelURI = model.uri;
 
 		if(selection.startLineNumber !== selection.endLineNumber) {
@@ -74,11 +73,6 @@ class InPlaceReplaceController implements IEditorContribution {
 			if (basicResult && basicResult.range && basicResult.value) {
 				return basicResult;
 			}
-
-			if (support) {
-				return support.navigateValueSet(modelURI, selection, up);
-			}
-
 			return null;
 		});
 
