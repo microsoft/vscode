@@ -38,6 +38,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import Event from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { ILogOptions } from 'vs/workbench/parts/git/node/git.lib';
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -693,6 +694,10 @@ export class GitService extends ee.EventEmitter
 
 	public getCommitTemplate(): winjs.Promise {
 		return this.raw.getCommitTemplate();
+	}
+
+	public getLog(options?: ILogOptions): winjs.Promise {
+		return this.raw.getLog(options);
 	}
 
 	public detectMimetypes(path: string, treeish: string = '~'): winjs.Promise {
