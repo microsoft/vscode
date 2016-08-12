@@ -10,6 +10,9 @@ import {languages, window, commands, ExtensionContext} from 'vscode';
 import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit, Protocol2Code} from 'vscode-languageclient';
 import {activateColorDecorations} from './colorDecorators';
 
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
+
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any> = { get method() { return 'css/colorSymbols'; } };
 }
@@ -40,7 +43,7 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('css', serverOptions, clientOptions);
+	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
 
 	let disposable = client.start();
 	// Push the disposable to the context's subscriptions so that the
