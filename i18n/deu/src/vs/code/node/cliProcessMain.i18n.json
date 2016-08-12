@@ -11,6 +11,7 @@
 	"notInstalled": "Die Erweiterung \"{0}\" ist nicht installiert.",
 	"successInstall": "Die Erweiterung \"{0}\" v{1} wurde erfolgreich installiert.",
 	"successUninstall": "Die Erweiterung \"{0}\" wurde erfolgreich deinstalliert.",
+	"successVsixInstall": "Die Extension \"{0}\" wurde erfolgreich installiert.",
 	"uninstalling": "{0} wird deinstalliert...",
 	"useId": "Stellen Sie sicher, dass Sie die vollständige Erweiterungs-ID (einschließlich des Herausgebers) verwenden. Beispiel: {0}"
 }

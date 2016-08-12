@@ -9,5 +9,6 @@
 	"closeAll": "Закрыть все",
 	"closeOthers": "Закрыть другие",
 	"closeRight": "Закрыть справа",
-	"keepOpen": "Оставить открытым"
+	"keepOpen": "Оставить открытым",
+	"showOpenedEditors": "Показать открытые редакторы"
 }

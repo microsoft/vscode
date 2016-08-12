@@ -11,6 +11,8 @@
 	"debugNoType": "L'adattatore di debug 'type' non può essere omesso e deve essere di tipo 'string'.",
 	"duplicateDebuggerType": "Il tipo di debug '{0}' è già registrato e include l'attributo '{1}'. L'attributo '{1}' verrà ignorato.",
 	"selectDebug": "Seleziona ambiente",
+	"vscode.extension.contributes.breakpoints": "Punti di interruzione per contributes.",
+	"vscode.extension.contributes.breakpoints.language": "Consente i punti di interruzione per questo linguaggio.",
 	"vscode.extension.contributes.debuggers": "Adattatori di debug per contributes.",
 	"vscode.extension.contributes.debuggers.args": "Argomenti facoltativi da passare all'adattatore.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Configurazioni dello schema JSON per la convalida di 'launch.json'.",

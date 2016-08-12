@@ -10,9 +10,9 @@
 	"installing": "Installation",
 	"restart": "Pour activer cette extension, cette fenêtre de code VS doit être redémarrée.\n\nVoulez-vous continuer ?",
 	"restartNow": "Redémarrer maintenant",
-	"showExtensionRecommendations": "Afficher les extensions recommandées",
 	"showInstalledExtensions": "Afficher les extensions installées",
 	"showOutdatedExtensions": "Afficher les extensions obsolètes",
+	"showRecommendedExtensions": "Afficher les extensions recommandées",
 	"toggleExtensionsViewlet": "Afficher les extensions",
 	"uninstall": "Désinstaller",
 	"updateAction": "Mettre à jour"

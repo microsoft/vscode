@@ -12,10 +12,10 @@
 	"installing": "Installazione",
 	"postUninstallMessage": "{0} è stato disinstallato. Riavviare per disattivarlo.",
 	"restartNow": "Riavvia ora",
-	"showExtensionRecommendations": "Mostra suggerimenti per estensioni",
 	"showInstalledExtensions": "Mostra estensioni installate",
 	"showOutdatedExtensions": "Mostra estensioni obsolete",
 	"showPopularExtensions": "Mostra estensioni più richieste",
+	"showRecommendedExtensions": "Mostra estensioni consigliate",
 	"uninstall": "Disinstalla",
 	"updateAction": "Aggiorna"
 }

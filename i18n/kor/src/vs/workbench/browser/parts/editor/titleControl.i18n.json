@@ -9,5 +9,6 @@
 	"closeAll": "모두 닫기",
 	"closeOthers": "기타 항목 닫기",
 	"closeRight": "오른쪽에 있는 항목 닫기",
-	"keepOpen": "열린 상태 유지"
+	"keepOpen": "열린 상태 유지",
+	"showOpenedEditors": "열려 있는 편집기 표시"
 }

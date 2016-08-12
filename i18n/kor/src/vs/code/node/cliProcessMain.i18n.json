@@ -11,6 +11,7 @@
 	"notInstalled": "'{0}' 확장이 설치되어 있지 않습니다.",
 	"successInstall": "확장 '{0}' v{1}이(가) 성공적으로 설치되었습니다!",
 	"successUninstall": "'{0}' 확장이 성공적으로 제거되었습니다!",
+	"successVsixInstall": "확장 '{0}'이(가) 설치되었습니다!",
 	"uninstalling": "{0} 제거 중...",
 	"useId": "게시자를 포함한 전체 확장 ID(예: {0})를 사용하세요."
 }

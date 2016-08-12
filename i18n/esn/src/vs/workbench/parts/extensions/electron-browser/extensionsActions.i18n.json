@@ -10,9 +10,9 @@
 	"installing": "Instalando",
 	"restart": "Para habilitar esta extensión, esta ventana de VS Code se debe reiniciar.\n\n¿Desea continuar?",
 	"restartNow": "Reiniciar ahora",
-	"showExtensionRecommendations": "Mostrar recomendaciones de extensión",
 	"showInstalledExtensions": "Mostrar extensiones instaladas",
 	"showOutdatedExtensions": "Mostrar extensiones obsoletas",
+	"showRecommendedExtensions": "Mostrar extensiones recomendadas",
 	"toggleExtensionsViewlet": "Mostrar extensiones",
 	"uninstall": "Desinstalación",
 	"updateAction": "Actualizar"

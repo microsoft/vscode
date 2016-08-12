@@ -8,5 +8,5 @@
 	"outdatedExtensions": "{0} veraltete Extensions",
 	"reloadNow": "Jetzt neu starten",
 	"success": "Extensions wurden erfolgreich installiert. Führen Sie einen Neustart aus, um sie zu aktivieren.",
-	"successSingle": "{0} wurde erfolgreich installiert. Führen Sie zur Aktivierung einen Neustart aus."
+	"successSingle": "Die Extension wurde erfolgreich installiert. Führen Sie zur Aktivierung einen Neustart aus."
 }

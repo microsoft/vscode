@@ -10,9 +10,9 @@
 	"installing": "正在安裝",
 	"restart": "為了啟用此擴充功能，必須重新啟動此 VS Code 視窗。\n\n要繼續嗎?",
 	"restartNow": "立即重新啟動",
-	"showExtensionRecommendations": "顯示擴充功能建議",
 	"showInstalledExtensions": "顯示安裝的擴充功能",
 	"showOutdatedExtensions": "顯示過期的擴充功能",
+	"showRecommendedExtensions": "顯示建議的擴充功能",
 	"toggleExtensionsViewlet": "顯示擴充功能",
 	"uninstall": "解除安裝",
 	"updateAction": "更新"

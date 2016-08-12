@@ -12,6 +12,8 @@
 	"duplicateDebuggerType": "Der Debugtyp \"{0}\" ist bereits registriert und weist das Attribut \"{1}\" auf. Das Attribut \"{1}\" wird ignoriert.",
 	"interactiveVariableNotFound": "Der Adapter {0} trägt nicht die Variable \"{1}\" bei, die in der Startkonfiguration angegeben ist.",
 	"selectDebug": "Umgebung auswählen",
+	"vscode.extension.contributes.breakpoints": "Trägt Haltepunkte bei.",
+	"vscode.extension.contributes.breakpoints.language": "Lässt Haltepunkte für diese Sprache zu.",
 	"vscode.extension.contributes.debuggers": "Trägt Debugadapter bei.",
 	"vscode.extension.contributes.debuggers.args": "Optionale Argumente, die an den Adapter übergeben werden sollen.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON-Schemakonfigurationen zum Überprüfen von \"launch.json\".",

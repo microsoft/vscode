@@ -13,10 +13,10 @@
 	"postUninstallMessage": "{0} wurde erfolgreich deinstalliert. Führen Sie zur Deaktivierung einen Neustart aus.",
 	"restart": "Damit diese Extension aktiviert wird, muss dieses Fenster von VS Code neu gestartet werden.\n\nMöchten Sie fortfahren?",
 	"restartNow": "Jetzt neu starten",
-	"showExtensionRecommendations": "Extensionempfehlungen anzeigen",
 	"showInstalledExtensions": "Installierte Extensions anzeigen",
 	"showOutdatedExtensions": "Veraltete Extensions anzeigen",
 	"showPopularExtensions": "Beliebte Extensions anzeigen",
+	"showRecommendedExtensions": "Empfohlene Extensions anzeigen",
 	"toggleExtensionsViewlet": "Extensions anzeigen",
 	"uninstall": "Deinstallieren",
 	"updateAction": "Aktualisieren"

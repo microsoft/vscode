@@ -9,8 +9,8 @@
 	"installAction": "Установить",
 	"installing": "Идет установка",
 	"restartNow": "Перезагрузка",
-	"showExtensionRecommendations": "Показать рекомендуемые расширения",
 	"showInstalledExtensions": "Показать установленные расширения",
 	"showOutdatedExtensions": "Показать устаревшие расширения",
+	"showRecommendedExtensions": "Показать рекомендуемые расширения",
 	"uninstall": "Удалить расширение"
 }

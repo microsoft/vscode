@@ -24,6 +24,8 @@
 	"minimizeOtherEditorGroups": "다른 편집기 그룹 최소화",
 	"moveActiveGroupLeft": "편집기 그룹을 왼쪽으로 이동",
 	"moveActiveGroupRight": "편집기 그룹을 오른쪽으로 이동",
+	"moveEditorToLeftGroup": "편집기를 왼쪽 그룹으로 이동",
+	"moveEditorToRightGroup": "편집기를 오른쪽 그룹으로 이동",
 	"navigateEditorGroups": "편집기 그룹 간 탐색",
 	"navigateEditorHistoryByInput": "기록에서 이전 편집기 열기",
 	"navigateNext": "앞으로 이동",
