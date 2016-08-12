@@ -16,7 +16,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -65,7 +65,7 @@ class ReplaceAllAction extends Action {
 
 export class SearchWidget extends Widget {
 
-	static REPLACE_ACTIVE_CONTEXT_KEY= new KbCtxKey<boolean>('replaceActive', false);
+	static REPLACE_ACTIVE_CONTEXT_KEY= new RawContextKey<boolean>('replaceActive', false);
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService2: IKeybindingService2):string=>{
 		let keybindings = keyBindingService2.lookupKeybindings(ReplaceAllAction.ID);
@@ -79,7 +79,7 @@ export class SearchWidget extends Widget {
 	private replaceContainer: HTMLElement;
 	private toggleReplaceButton: Button;
 	private replaceAllAction: ReplaceAllAction;
-	private replaceActive: IKeybindingContextKey<boolean>;
+	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar: ActionBar;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());

@@ -12,7 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingContextKey, IKeybindingScopeLocation, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKey, IContextKeyServiceTarget, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
@@ -84,7 +84,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this.addListener2(editorCommon.EventType.Disposed, listener);
 	}
 
-	protected domElement: IKeybindingScopeLocation;
+	protected domElement: IContextKeyServiceTarget;
 
 	protected id:number;
 
@@ -115,16 +115,16 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
 
 	private _codeEditorService: ICodeEditorService;
-	private _editorIdContextKey: IKeybindingContextKey<string>;
-	protected _editorFocusContextKey: IKeybindingContextKey<boolean>;
-	private _editorTabMovesFocusKey: IKeybindingContextKey<boolean>;
-	private _editorReadonly: IKeybindingContextKey<boolean>;
-	private _hasMultipleSelectionsKey: IKeybindingContextKey<boolean>;
-	private _hasNonEmptySelectionKey: IKeybindingContextKey<boolean>;
-	private _langIdKey: IKeybindingContextKey<string>;
+	private _editorIdContextKey: IContextKey<string>;
+	protected _editorFocusContextKey: IContextKey<boolean>;
+	private _editorTabMovesFocusKey: IContextKey<boolean>;
+	private _editorReadonly: IContextKey<boolean>;
+	private _hasMultipleSelectionsKey: IContextKey<boolean>;
+	private _hasNonEmptySelectionKey: IContextKey<boolean>;
+	private _langIdKey: IContextKey<string>;
 
 	constructor(
-		domElement: IKeybindingScopeLocation,
+		domElement: IContextKeyServiceTarget,
 		options:editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
 		codeEditorService: ICodeEditorService,

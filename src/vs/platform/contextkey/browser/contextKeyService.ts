@@ -7,7 +7,7 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingContextKey, IKeybindingScopeLocation, IContextKeyService, SET_CONTEXT_COMMAND_ID, KEYBINDING_CONTEXT_ATTR, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKey, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, KEYBINDING_CONTEXT_ATTR, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
@@ -101,7 +101,7 @@ class ConfigAwareKeybindingContext extends KeybindingContext {
 	}
 }
 
-class KeybindingContextKey<T> implements IKeybindingContextKey<T> {
+class KeybindingContextKey<T> implements IContextKey<T> {
 
 	private _parent: AbstractKeybindingService;
 	private _key: string;
@@ -144,7 +144,7 @@ export abstract class AbstractKeybindingService {
 		this._onDidChangeContextKey = new Emitter<string>();
 	}
 
-	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
+	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		return new KeybindingContextKey(this, key, defaultValue);
 	}
 
@@ -162,7 +162,7 @@ export abstract class AbstractKeybindingService {
 		return this._onDidChangeContext;
 	}
 
-	public createScoped(domNode: IKeybindingScopeLocation): IContextKeyService {
+	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
 		return new ScopedKeybindingService(this, this._onDidChangeContextKey, domNode);
 	}
 
@@ -254,9 +254,9 @@ CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, con
 class ScopedKeybindingService extends AbstractKeybindingService {
 
 	private _parent: AbstractKeybindingService;
-	private _domNode: IKeybindingScopeLocation;
+	private _domNode: IContextKeyServiceTarget;
 
-	constructor(parent: AbstractKeybindingService, emitter: Emitter<string>, domNode: IKeybindingScopeLocation) {
+	constructor(parent: AbstractKeybindingService, emitter: Emitter<string>, domNode: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
 		this._onDidChangeContextKey = emitter;

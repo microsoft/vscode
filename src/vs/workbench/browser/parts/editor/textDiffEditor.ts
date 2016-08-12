@@ -35,10 +35,10 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
-export const TextCompareEditorVisible = new KbCtxKey<boolean>('textCompareEditorVisible', false);
+export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -51,7 +51,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	private nextDiffAction: NavigateAction;
 	private previousDiffAction: NavigateAction;
 
-	private textDiffEditorVisible: IKeybindingContextKey<boolean>;
+	private textDiffEditorVisible: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

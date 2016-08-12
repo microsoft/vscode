@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {ContextKeyExpr, KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -32,7 +32,7 @@ export class QuickFixController implements IEditorContribution {
 	private editor:ICodeEditor;
 	private model:QuickFixModel;
 	private suggestWidget: QuickFixSelectionWidget;
-	private quickFixWidgetVisible: IKeybindingContextKey<boolean>;
+	private quickFixWidgetVisible: IContextKey<boolean>;
 
 	constructor(editor: ICodeEditor,
 		@IMarkerService private _markerService: IMarkerService,
@@ -135,7 +135,7 @@ export class QuickFixAction extends EditorAction {
 	}
 }
 
-var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new KbCtxKey<boolean>('quickFixWidgetVisible', false);
+var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new RawContextKey<boolean>('quickFixWidgetVisible', false);
 
 const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.getQuickFixController);
 

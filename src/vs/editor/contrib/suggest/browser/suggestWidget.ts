@@ -18,7 +18,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
-import { IKeybindingContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
@@ -319,9 +319,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
-	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
-	private suggestWidgetMultipleSuggestions: IKeybindingContextKey<boolean>;
-	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
+	private suggestWidgetVisible: IContextKey<boolean>;
+	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;

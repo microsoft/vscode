@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import {BinaryKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IOSupport, KeybindingResolver, NormalizedKeybindingItem} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
-import {KbAndExpression, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyAndExpr, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 suite('Keybinding Service', () => {
 
@@ -313,10 +313,10 @@ suite('Keybinding Service', () => {
 
 	test('contextIsEntirelyIncluded', function() {
 		let assertIsIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), true);
 		};
 		let assertIsNotIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), false);
 		};
 		let key1IsTrue = ContextKeyExpr.equals('key1', true);
 		let key1IsNotFalse = ContextKeyExpr.notEquals('key1', false);

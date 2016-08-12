@@ -17,7 +17,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
@@ -445,7 +445,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _model: MarkerModel;
 	private _zone: MarkerNavigationWidget;
 	private _callOnClose: IDisposable[] = [];
-	private _markersNavigationVisible: IKeybindingContextKey<boolean>;
+	private _markersNavigationVisible: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -544,7 +544,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 	}
 }
 
-var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new KbCtxKey<boolean>('markersNavigationVisible', false);
+var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 
 const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.getMarkerController);
 
