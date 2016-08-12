@@ -244,7 +244,11 @@ export class StartFindAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+					secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E]
+				}
 			}
 		});
 	}
