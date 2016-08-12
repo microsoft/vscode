@@ -15,7 +15,7 @@ import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, I
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
@@ -199,7 +199,7 @@ export class SimpleMessageService implements IMessageService {
 	}
 }
 
-export class StandaloneKeybindingService2 extends KeybindingService2 {
+export class StandaloneKeybindingService extends KeybindingService {
 	private static LAST_GENERATED_ID = 0;
 
 	private _dynamicKeybindings: IKeybindingItem[];
@@ -221,7 +221,7 @@ export class StandaloneKeybindingService2 extends KeybindingService2 {
 
 	public addDynamicKeybinding(keybinding: number, handler:ICommandHandler, when:string, commandId:string = null): string {
 		if (commandId === null) {
-			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService2.LAST_GENERATED_ID);
+			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService.LAST_GENERATED_ID);
 		}
 		var parsedContext = IOSupport.readKeybindingWhen(when);
 		this._dynamicKeybindings.push({

@@ -66,6 +66,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 }
 
 export class MockScopeLocation implements IContextKeyServiceTarget {
+	parentElement:IContextKeyServiceTarget = null;
 	setAttribute(attr:string, value:string): void { }
 	removeAttribute(attr:string): void { }
 	hasAttribute(attr: string): boolean { return false; }

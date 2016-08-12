@@ -7,8 +7,6 @@
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
-export const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
-
 export enum ContextKeyExprType {
 	Defined = 1,
 	Not = 2,
@@ -430,7 +428,7 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 	}
 
 	public getValue(target:IContextKeyService): T {
-		return target.getContextValue<T>(this.key);
+		return target.getContextKeyValue<T>(this.key);
 	}
 
 	public toNegated(): ContextKeyExpr {
@@ -449,12 +447,11 @@ export interface IContextKey<T> {
 }
 
 export interface IContextKeyServiceTarget {
+	parentElement: IContextKeyServiceTarget;
 	setAttribute(attr: string, value: string): void;
 	removeAttribute(attr: string): void;
-}
-
-export interface IContextValuesProvider {
-	fillInContext(bucket: any): void;
+	hasAttribute(attr: string): boolean;
+	getAttribute(attr: string): string;
 }
 
 export let IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
@@ -466,11 +463,10 @@ export interface IContextKeyService {
 	onDidChangeContext: Event<string[]>;
 	createKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpr): boolean;
-	getContextValue<T>(key: string): T;
+	getContextKeyValue<T>(key: string): T;
 
-	createScoped(domNode: IContextKeyServiceTarget): IContextKeyService;
-
-	getContext(contextId: number): IContextValuesProvider;
+	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
+	getContextValue(target: IContextKeyServiceTarget): any;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

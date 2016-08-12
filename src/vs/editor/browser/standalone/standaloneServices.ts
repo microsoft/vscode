@@ -38,7 +38,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService2} from 'vs/editor/browser/standalone/simpleServices';
+import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
@@ -204,7 +204,7 @@ export function ensureDynamicPlatformServices(domElement:HTMLElement, services: 
 		contextKeyService = services.contextKeyService;
 	}
 	if (typeof services.keybindingService === 'undefined') {
-		let keybindingService = new StandaloneKeybindingService2(contextKeyService, services.commandService, services.messageService, domElement);
+		let keybindingService = new StandaloneKeybindingService(contextKeyService, services.commandService, services.messageService, domElement);
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
 	}

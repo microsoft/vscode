@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -114,7 +114,7 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
-export class WorkbenchKeybindingService2 extends KeybindingService2 {
+export class WorkbenchKeybindingService extends KeybindingService {
 	private contextService: IWorkspaceContextService;
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;

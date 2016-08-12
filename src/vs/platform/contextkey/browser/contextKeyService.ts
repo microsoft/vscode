@@ -7,16 +7,18 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IContextKey, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, KEYBINDING_CONTEXT_ATTR, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKey, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 
-export class ContextValuesProvider {
-	protected _parent: ContextValuesProvider;
-	protected _value: any;
+const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
+
+export class ContextValuesContainer {
+	protected _parent: ContextValuesContainer;
+	protected _value: {[key:string]:any;};
 	protected _id: number;
 
-	constructor(id: number, parent: ContextValuesProvider) {
+	constructor(id: number, parent: ContextValuesContainer) {
 		this._id = id;
 		this._parent = parent;
 		this._value = Object.create(null);
@@ -54,7 +56,7 @@ export class ContextValuesProvider {
 	}
 }
 
-class ConfigAwareContextValuesProvider extends ContextValuesProvider {
+class ConfigAwareContextValuesContainer extends ContextValuesContainer {
 
 	private _emitter: Emitter<string>;
 	private _subscription: IDisposable;
@@ -127,7 +129,7 @@ class ContextKey<T> implements IContextKey<T> {
 	}
 
 	public get(): T {
-		return this._parent.getContextValue<T>(this._key);
+		return this._parent.getContextKeyValue<T>(this._key);
 	}
 }
 
@@ -167,7 +169,7 @@ export abstract class AbstractContextKeyService {
 
 	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		const ctx = Object.create(null);
-		this.getContext(this._myContextId).fillInContext(ctx);
+		this.getContextValuesContainer(this._myContextId).fillInContext(ctx);
 		const result = KeybindingResolver.contextMatchesRules(ctx, rules);
 		// console.group(rules.serialize() + ' -> ' + result);
 		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
@@ -175,23 +177,29 @@ export abstract class AbstractContextKeyService {
 		return result;
 	}
 
-	public getContextValue<T>(key: string): T {
-		return this.getContext(this._myContextId).getValue<T>(key);
+	public getContextKeyValue<T>(key: string): T {
+		return this.getContextValuesContainer(this._myContextId).getValue<T>(key);
 	}
 
 	public setContext(key: string, value: any): void {
-		if(this.getContext(this._myContextId).setValue(key, value)) {
+		if(this.getContextValuesContainer(this._myContextId).setValue(key, value)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}
 
 	public removeContext(key: string): void {
-		if(this.getContext(this._myContextId).removeValue(key)) {
+		if(this.getContextValuesContainer(this._myContextId).removeValue(key)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}
 
-	public abstract getContext(contextId: number): ContextValuesProvider;
+	public getContextValue(target: IContextKeyServiceTarget): any {
+		let res = Object.create(null);
+		this.getContextValuesContainer(findContextAttr(target)).fillInContext(res);
+		return res;
+	}
+
+	public abstract getContextValuesContainer(contextId: number): ContextValuesContainer;
 	public abstract createChildContext(parentContextId?: number): number;
 	public abstract disposeContext(contextId: number): void;
 }
@@ -200,7 +208,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	private _lastContextId: number;
 	private _contexts: {
-		[contextId: string]: ContextValuesProvider;
+		[contextId: string]: ContextValuesContainer;
 	};
 
 	private _toDispose: IDisposable[] = [];
@@ -210,7 +218,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
 
-		const myContext = new ConfigAwareContextValuesProvider(this._myContextId, configurationService, this._onDidChangeContextKey);
+		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContextKey);
 		this._contexts[String(this._myContextId)] = myContext;
 		this._toDispose.push(myContext);
 
@@ -230,13 +238,13 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public getContext(contextId: number): ContextValuesProvider {
+	public getContextValuesContainer(contextId: number): ContextValuesContainer {
 		return this._contexts[String(contextId)];
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
 		let id = (++this._lastContextId);
-		this._contexts[String(id)] = new ContextValuesProvider(id, this.getContext(parentContextId));
+		this._contexts[String(id)] = new ContextValuesContainer(id, this.getContextValuesContainer(parentContextId));
 		return id;
 	}
 
@@ -267,8 +275,8 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		return this._parent.onDidChangeContext;
 	}
 
-	public getContext(contextId: number): ContextValuesProvider {
-		return this._parent.getContext(contextId);
+	public getContextValuesContainer(contextId: number): ContextValuesContainer {
+		return this._parent.getContextValuesContainer(contextId);
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
@@ -278,6 +286,16 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	public disposeContext(contextId: number): void {
 		this._parent.disposeContext(contextId);
 	}
+}
+
+function findContextAttr(domNode: IContextKeyServiceTarget): number {
+	while (domNode) {
+		if (domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
+			return parseInt(domNode.getAttribute(KEYBINDING_CONTEXT_ATTR), 10);
+		}
+		domNode = domNode.parentElement;
+	}
+	return 0;
 }
 
 CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
