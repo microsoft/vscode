@@ -12,7 +12,7 @@ import {editorAction} from 'vs/editor/common/editorCommonExtensions';
 import {Handler, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr} from 'vs/platform/contextkey/common/contextkey';
 
 @editorAction
 class ExpandAbbreviationAction extends BasicEmmetEditorAction {

@@ -6,7 +6,8 @@
 
 import {BinaryKeybindings, ISimplifiedPlatform, Keybinding} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {IKeybindingItem, IUserFriendlyKeybinding, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr} from 'vs/platform/contextkey/common/contextkey';
 
 export interface IResolveResult {
 	enterChord: number;

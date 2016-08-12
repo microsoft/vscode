@@ -18,7 +18,8 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';

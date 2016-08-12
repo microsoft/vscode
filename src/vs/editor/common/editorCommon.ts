@@ -20,7 +20,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {KbExpr, KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbExpr, KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * @internal

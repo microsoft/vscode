@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IActionDescriptor, ICommonCodeEditor, IEditorAction} from 'vs/editor/common/editorCommon';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
 
 export abstract class AbstractInternalEditorAction {
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
 export class ResourceContextKey implements IKeybindingContextKey<URI> {

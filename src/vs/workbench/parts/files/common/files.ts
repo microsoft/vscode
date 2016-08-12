@@ -14,7 +14,7 @@ import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEd
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Explorer viewlet id.

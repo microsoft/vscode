@@ -16,7 +16,7 @@ import {ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/
 import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegistry';
 import {Position} from 'vs/editor/common/core/position';
 import {Registry} from 'vs/platform/platform';
-import {KbCtxKey} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey} from 'vs/platform/contextkey/common/contextkey';
 
 export const Context = {
 	Visible: new KbCtxKey<boolean>('suggestWidgetVisible', false),

@@ -6,7 +6,7 @@
 'use strict';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {KbCtxKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {KbCtxKey, IKeybindingService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';

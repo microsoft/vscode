@@ -17,7 +17,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 
 const $ = dom.emmet;

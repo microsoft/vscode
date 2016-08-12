@@ -16,9 +16,11 @@ import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, I
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {KeybindingService, KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingService, IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
