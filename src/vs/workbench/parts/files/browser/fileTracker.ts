@@ -169,7 +169,7 @@ export class FileTracker implements IWorkbenchContribution {
 			let before = e.getBefore();
 			let after = e.getAfter();
 
-			this.handleMovedFileInVisibleEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
+			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
 		}
 
 		// Dispose all known inputs passed on resource if deleted or moved
@@ -279,47 +279,29 @@ export class FileTracker implements IWorkbenchContribution {
 		return input instanceof FileEditorInput && (<FileEditorInput>input).getResource().toString() === resource.toString();
 	}
 
-	private handleMovedFileInVisibleEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
-		let stacks = this.editorGroupService.getStacksModel();
-		let editors = this.editorService.getVisibleEditors();
-		editors.forEach(editor => {
-			let group = stacks.groupAt(editor.position);
-			let input = editor.input;
-			if (input instanceof DiffEditorInput) {
-				input = (<DiffEditorInput>input).modifiedInput;
-			}
+	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
+		const stacks = this.editorGroupService.getStacksModel();
+		stacks.groups.forEach(group => {
+			group.getEditors().forEach(input => {
+				if (input instanceof FileEditorInput) {
+					const resource = input.getResource();
 
-			let inputResource: URI;
-			if (input instanceof FileEditorInput) {
-				inputResource = (<FileEditorInput>input).getResource();
-			}
+					// Update Editor if file (or any parent of the input) got renamed or moved
+					if (paths.isEqualOrParent(resource.fsPath, oldResource.fsPath)) {
+						let reopenFileResource: URI;
+						if (oldResource.toString() === resource.toString()) {
+							reopenFileResource = newResource; // file got moved
+						} else {
+							let index = resource.fsPath.indexOf(oldResource.fsPath);
+							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
+						}
 
-			// Editor Input with associated Resource
-			if (inputResource) {
-
-				// Update Editor if file (or any parent of the input) got renamed or moved
-				let updateInput = false;
-				if (paths.isEqualOrParent(inputResource.fsPath, oldResource.fsPath)) {
-					updateInput = true;
-				}
-
-				// Do update from move
-				if (updateInput) {
-					let reopenFileResource: URI;
-					if (oldResource.toString() === inputResource.toString()) {
-						reopenFileResource = newResource;
-					} else {
-						let index = inputResource.fsPath.indexOf(oldResource.fsPath);
-						reopenFileResource = URI.file(paths.join(newResource.fsPath, inputResource.fsPath.substr(index + oldResource.fsPath.length + 1))); // update the path by changing the old path value to the new one
-					}
-
-					// Reopen File Input
-					if (input instanceof FileEditorInput) {
+						// Reopen
 						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input) }, editor.position).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
-			}
+			});
 		});
 	}
 
