@@ -9,7 +9,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandAndKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -112,7 +112,7 @@ export abstract class EditorCommand extends Command {
 			return;
 		}
 		return editor.invokeWithinContext((editorAccessor) => {
-			const kbService = editorAccessor.get(IKeybindingService);
+			const kbService = editorAccessor.get(IContextKeyService);
 			if (!kbService.contextMatchesRules(this.precondition)) {
 				// precondition does not hold
 				return;

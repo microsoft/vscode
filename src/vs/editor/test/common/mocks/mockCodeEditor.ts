@@ -9,7 +9,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ICommandService, NullCommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingService, IKeybindingScopeLocation} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService, IKeybindingScopeLocation} from 'vs/platform/contextkey/common/contextkey';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
@@ -75,24 +75,24 @@ export class MockScopeLocation implements IKeybindingScopeLocation {
 export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:MockCodeEditor, cursor:Cursor)=>void): void {
 
 	let codeEditorService = new MockCodeEditorService();
-	let keybindingService = new MockKeybindingService();
+	let contextKeyService = new MockKeybindingService();
 	let telemetryService = NullTelemetryService;
 	let commandService = NullCommandService;
 
 	let services = new ServiceCollection();
 	services.set(ICodeEditorService, codeEditorService);
-	services.set(IKeybindingService, keybindingService);
+	services.set(IContextKeyService, contextKeyService);
 	services.set(ITelemetryService, telemetryService);
 	services.set(ICommandService, commandService);
 	let instantiationService = new InstantiationService(services);
 
 	let model = Model.createFromString(text.join('\n'));
-	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, commandService, keybindingService, telemetryService);
+	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
 	editor.setModel(model);
 
 	callback(editor, editor.getCursor());
 
 	editor.dispose();
 	model.dispose();
-	keybindingService.dispose();
+	contextKeyService.dispose();
 }

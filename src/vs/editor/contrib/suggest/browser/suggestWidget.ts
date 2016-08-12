@@ -18,7 +18,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
@@ -331,7 +331,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		private editor: ICodeEditor,
 		private model: SuggestModel,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.isAuto = false;
@@ -367,9 +367,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.model.onDidCancel(e => this.onDidCancel(e))
 		];
 
-		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(keybindingService);
-		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(keybindingService);
-		this.suggestionSupportsAutoAccept = SuggestContext.AcceptOnKey.bindTo(keybindingService);
+		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
+		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
+		this.suggestionSupportsAutoAccept = SuggestContext.AcceptOnKey.bindTo(contextKeyService);
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);

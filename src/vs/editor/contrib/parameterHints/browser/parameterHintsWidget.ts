@@ -17,7 +17,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 
 const $ = dom.emmet;
@@ -176,10 +176,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
 
-	constructor(private editor: ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(private editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		this.model = new ParameterHintsModel(editor);
-		this.keyVisible = Context.Visible.bindTo(keybindingService);
-		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(keybindingService);
+		this.keyVisible = Context.Visible.bindTo(contextKeyService);
+		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 		this.visible = false;
 		this.disposables = [];
 

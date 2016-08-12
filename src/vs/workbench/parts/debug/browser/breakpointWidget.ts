@@ -18,7 +18,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {KbCtxKey, IKeybindingService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
@@ -37,13 +37,13 @@ export class BreakpointWidget extends ZoneWidget {
 	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { showFrame: true, showArrow: false });
 
 		this.toDispose = [];
 		this.create();
-		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(keybindingService);
+		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
 		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));

@@ -13,16 +13,14 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {KeybindingService2} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
@@ -124,7 +122,7 @@ export class WorkbenchKeybindingService2 extends KeybindingService2 {
 
 	constructor(
 		domNode: HTMLElement,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEventService eventService: IEventService,
@@ -132,7 +130,7 @@ export class WorkbenchKeybindingService2 extends KeybindingService2 {
 		@IMessageService messageService: IMessageService,
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
-		super(keybindingService, commandService, messageService, statusBarService);
+		super(contextKeyService, commandService, messageService, statusBarService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
@@ -282,14 +280,6 @@ export class WorkbenchKeybindingService2 extends KeybindingService2 {
 		}
 
 		return desc;
-	}
-}
-
-export class WorkbenchKeybindingService extends KeybindingService {
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(configurationService);
 	}
 }
 

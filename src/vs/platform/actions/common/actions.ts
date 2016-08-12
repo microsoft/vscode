@@ -10,7 +10,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
 import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {KbExpr, IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {KbExpr, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
@@ -48,7 +48,7 @@ export interface IMenuService {
 
 	_serviceBrand: any;
 
-	createMenu(id: MenuId, scopedKeybindingService: IKeybindingService): IMenu;
+	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
 
 	getCommandActions(): ICommandAction[];
 }

@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {KbExpr, KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {KbExpr, KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
@@ -49,10 +49,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		return <CommonFindController>editor.getContribution(CommonFindController.ID);
 	}
 
-	constructor(editor:editorCommon.ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(editor:editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();
 		this._editor = editor;
-		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(keybindingService);
+		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 
 		this._state = this._register(new FindReplaceState());
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));

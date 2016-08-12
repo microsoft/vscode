@@ -16,7 +16,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
-import { KbExpr, KbCtxKey, IKeybindingService, IKeybindingContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { KbExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -104,7 +104,7 @@ export class SearchWidget extends Widget {
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
-					private keyBindingService: IKeybindingService, private keyBindingService2: IKeybindingService2, private instantiationService: IInstantiationService) {
+					private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService2, private instantiationService: IInstantiationService) {
 		super();
 		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService);
 		this.render(container, options);

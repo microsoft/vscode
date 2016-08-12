@@ -12,7 +12,7 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {KbCtxKey, IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {KbCtxKey, IKeybindingContextKey, IContextKeyService, KbExpr} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
@@ -44,10 +44,10 @@ class RenameController implements IEditorContribution {
 		@IEventService private _eventService: IEventService,
 		@IEditorService private _editorService: IEditorService,
 		@IProgressService private _progressService: IProgressService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._renameInputField = new RenameInputField(editor);
-		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(keybindingService);
+		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 	}
 
 	public dispose(): void {

@@ -26,7 +26,7 @@ const extensionService = new class extends AbstractExtensionService<ActivatedExt
 	}
 }(true);
 
-const keybindingService = new class extends MockKeybindingService {
+const contextKeyService = new class extends MockKeybindingService {
 	contextMatchesRules() {
 		return true;
 	}
@@ -75,7 +75,7 @@ suite('MenuService', function () {
 			group: 'navigation'
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
+		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
 
 		assert.equal(groups.length, 5);
 		const [one, two, three, four, five] = groups;
@@ -104,7 +104,7 @@ suite('MenuService', function () {
 			group: 'Hello'
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
+		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
 
 		assert.equal(groups.length, 1);
 		const [[, actions]] = groups;
@@ -141,7 +141,7 @@ suite('MenuService', function () {
 			order: -1
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
+		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
 
 		assert.equal(groups.length, 1);
 		const [[, actions]] = groups;
@@ -175,7 +175,7 @@ suite('MenuService', function () {
 			order: 1.1
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, keybindingService).getActions();
+		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
 
 		assert.equal(groups.length, 1);
 		const [[, actions]] = groups;

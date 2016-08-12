@@ -16,7 +16,7 @@ import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {KbCtxKey, IKeybindingContextKey, IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {KbCtxKey, IKeybindingContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
@@ -41,13 +41,13 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 	constructor(
 		editor:ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService2 keybindingService2: IKeybindingService2
 	) {
 		super();
 
 		this._editor = editor;
-		this._widget = this._register(new AccessibilityHelpWidget(this._editor, keybindingService, keybindingService2));
+		this._widget = this._register(new AccessibilityHelpWidget(this._editor, contextKeyService, keybindingService2));
 	}
 
 	public getId(): string {
@@ -75,12 +75,12 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private _isVisible: boolean;
 	private _isVisibleKey: IKeybindingContextKey<boolean>;
 
-	constructor(editor:ICodeEditor, keybindingService: IKeybindingService, keybindingService2: IKeybindingService2) {
+	constructor(editor:ICodeEditor, contextKeyService: IContextKeyService, keybindingService2: IKeybindingService2) {
 		super();
 
 		this._editor = editor;
 		this._keybindingService2 = keybindingService2;
-		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(keybindingService);
+		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(contextKeyService);
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'accessibilityHelpWidget';

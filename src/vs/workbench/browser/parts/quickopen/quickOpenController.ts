@@ -37,7 +37,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IKeybindingService, KbCtxKey, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService, KbCtxKey, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
@@ -88,7 +88,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -98,7 +98,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this.promisesToCompleteOnHide = [];
 
-		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(keybindingService);
+		this.inQuickOpenMode = QUICK_OPEN_MODE.bindTo(contextKeyService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();

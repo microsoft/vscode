@@ -25,7 +25,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -48,14 +48,14 @@ export class TabsTitleControl extends TitleControl {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService2 keybindingService2: IKeybindingService2,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, keybindingService2, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService2, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
 	}
