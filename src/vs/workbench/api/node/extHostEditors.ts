@@ -11,7 +11,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ExtHostDocuments, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
-import {Selection, Range, Position, EditorOptions, EndOfLine, TextEditorRevealType} from './extHostTypes';
+import {Selection, Range, Position, EditorOptions, EndOfLine, TextEditorRevealType, TextEditorSelectionChangeKind} from './extHostTypes';
 import {ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {IResolvedTextEditorConfiguration, ISelectionChangeEvent} from 'vs/workbench/api/node/mainThreadEditorsTracker';
 import * as TypeConverters from './extHostTypeConverters';
@@ -103,12 +103,14 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	}
 
 	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void {
-		let selections = event.selections.map(TypeConverters.toSelection);
-		let editor = this._editors[id];
-		editor._acceptSelections(selections);
+		const kind = TextEditorSelectionChangeKind.fromValue(event.source);
+		const selections = event.selections.map(TypeConverters.toSelection);
+		const textEditor = this._editors[id];
+		textEditor._acceptSelections(selections);
 		this._onDidChangeTextEditorSelection.fire({
-			textEditor: editor,
-			selections: selections
+			textEditor,
+			selections,
+			kind
 		});
 	}
 
