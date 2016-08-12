@@ -33,7 +33,7 @@ import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -83,10 +83,10 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
-		@IKeybindingService2 keybindingService2: IKeybindingService2,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService2, contextMenuService, headerSize);
+		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.workspace = contextService.getWorkspace();
 

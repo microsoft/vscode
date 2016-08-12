@@ -25,7 +25,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 // import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 // import Severity from 'vs/base/common/severity';
 // import {IAction} from 'vs/base/common/actions';
@@ -45,7 +45,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService2 private keybindingService2: IKeybindingService2,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
@@ -139,7 +139,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 			let action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
 
 			let keybinding: string = null;
-			let keys = this.keybindingService2.lookupKeybindings(viewlet.id).map(k => this.keybindingService2.getLabelFor(k));
+			let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
 			if (keys && keys.length) {
 				keybinding = keys[0];
 			}

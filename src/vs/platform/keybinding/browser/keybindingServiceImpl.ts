@@ -15,13 +15,13 @@ import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {ICommandService, CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem, IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingItem, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService, KEYBINDING_CONTEXT_ATTR} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 
-export abstract class KeybindingService2 implements IKeybindingService2 {
+export abstract class KeybindingService2 implements IKeybindingService {
 	public _serviceBrand: any;
 
 	private _toDispose: IDisposable[] = [];

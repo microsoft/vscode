@@ -14,7 +14,7 @@ import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -49,7 +49,7 @@ export class TerminalPanel extends Panel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IKeybindingService2 private keybindingService2: IKeybindingService2,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IThemeService private themeService: IThemeService,
@@ -149,7 +149,7 @@ export class TerminalPanel extends Panel {
 					getActions: () => TPromise.as(this.getContextMenuActions()),
 					getActionsContext: () => this.parentDomElement,
 					getKeyBinding: (action) => {
-						const opts = this.keybindingService2.lookupKeybindings(action.id);
+						const opts = this.keybindingService.lookupKeybindings(action.id);
 						if (opts.length > 0) {
 							return opts[0]; // only take the first one
 						}
@@ -215,7 +215,7 @@ export class TerminalPanel extends Panel {
 				this.contextMenuService,
 				this.contextService,
 				this.instantiationService,
-				this.keybindingService2,
+				this.keybindingService,
 				this.terminalService,
 				this.messageService,
 				terminalFocusContextKey,

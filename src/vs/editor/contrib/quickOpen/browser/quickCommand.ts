@@ -10,7 +10,7 @@ import {matchesFuzzy} from 'vs/base/common/filters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorAction, ICommonCodeEditor, IEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
 import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
@@ -86,11 +86,11 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		const keybindingService2 = accessor.get(IKeybindingService2);
+		const keybindingService = accessor.get(IKeybindingService);
 
 		this._show(this.getController(editor), {
 			getModel: (value:string):QuickOpenModel => {
-				return new QuickOpenModel(this._editorActionsToEntries(keybindingService2, editor, value));
+				return new QuickOpenModel(this._editorActionsToEntries(keybindingService, editor, value));
 			},
 
 			getAutoFocus: (searchValue:string):IAutoFocus => {
@@ -109,14 +109,14 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		return elementAName.localeCompare(elementBName);
 	}
 
-	private _editorActionsToEntries(keybindingService2:IKeybindingService2, editor:ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
+	private _editorActionsToEntries(keybindingService:IKeybindingService, editor:ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
 		let actions: IEditorAction[] = editor.getSupportedActions();
 		let entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let keys = keybindingService2.lookupKeybindings(action.id).map(k => keybindingService2.getLabelFor(k));
+			let keys = keybindingService.lookupKeybindings(action.id).map(k => keybindingService.getLabelFor(k));
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);

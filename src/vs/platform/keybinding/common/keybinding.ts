@@ -40,9 +40,9 @@ export interface IKeybindingItem {
 	weight2: number;
 }
 
-export let IKeybindingService2 = createDecorator<IKeybindingService2>('keybindingService2');
+export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
-export interface IKeybindingService2 {
+export interface IKeybindingService {
 	_serviceBrand: any;
 
 	getLabelFor(keybinding: Keybinding): string;
