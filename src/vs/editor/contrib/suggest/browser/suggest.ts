@@ -17,6 +17,7 @@ import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions
 import { getSnippetController } from 'vs/editor/contrib/snippet/common/snippet';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
+import { CompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
 
 export class SuggestController implements IEditorContribution {
@@ -29,18 +30,23 @@ export class SuggestController implements IEditorContribution {
 	private model: SuggestModel;
 	private widget: SuggestWidget;
 	private triggerCharacterListeners: IDisposable[];
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		private editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.model = new SuggestModel(this.editor);
-		this.widget = instantiationService.createInstance(SuggestWidget, this.editor, this.model);
+		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
+
+		this.toDispose.push(this.model.onDidTrigger(e => this.widget.showTriggered(e)));
+		this.toDispose.push(this.model.onDidSuggest(e => this.widget.showSuggestions(e)));
+		this.toDispose.push(this.model.onDidCancel(e => this.widget.showDidCancel(e)));
+
+		this.toDispose.push(this.widget.onDidSelect(this.onDidSelectItem, this));
 
 		this.triggerCharacterListeners = [];
 
-		this.toDispose = [];
 		this.toDispose.push(editor.onDidChangeConfiguration(() => this.update()));
 		this.toDispose.push(editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(editor.onDidChangeModelMode(() => this.update()));
@@ -67,6 +73,15 @@ export class SuggestController implements IEditorContribution {
 			this.model.dispose();
 			this.model = null;
 		}
+	}
+
+	private onDidSelectItem(item: CompletionItem): void {
+		if (!item) {
+			this.model.cancel();
+			return;
+		}
+		const {overwriteBefore, overwriteAfter} = item.suggestion;
+		this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 	}
 
 	private update(): void {
@@ -126,7 +141,8 @@ export class SuggestController implements IEditorContribution {
 
 	acceptSelectedSuggestion(): void {
 		if (this.widget) {
-			this.widget.acceptSelectedSuggestion();
+			const item = this.widget.getFocusedItem();
+			this.onDidSelectItem(item);
 		}
 	}
 
