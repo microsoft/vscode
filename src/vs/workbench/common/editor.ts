@@ -16,6 +16,7 @@ import {Event as BaseEvent} from 'vs/base/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {LinkedMap} from 'vs/base/common/map';
 
 export enum ConfirmResult {
 	SAVE,
@@ -845,3 +846,34 @@ export interface ActiveEditorMoveArguments {
 export var EditorCommands = {
 	MoveActiveEditor: 'moveActiveEditor'
 };
+
+export interface IEditorInputLabel {
+	name: string;
+	hasAmbiguosName?: boolean;
+	description?: string;
+	verboseDescription?: string;
+}
+
+export function getUniqueLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+	const labels: IEditorInputLabel[] = [];
+	const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+
+	editors.forEach(editor => {
+		const item:IEditorInputLabel = { name: editor.getName(), description: editor.getDescription(), verboseDescription: editor.getDescription(true) };
+		labels.push(item);
+
+		const duplicates = mapLabelToDuplicates.getOrSet(item.name, []);
+		duplicates.push(item);
+	});
+
+	const duplicates = mapLabelToDuplicates.values();
+	duplicates.forEach(duplicates => {
+		if (duplicates.length > 1) {
+			duplicates.forEach(duplicate => {
+				duplicate.hasAmbiguosName = true;
+			});
+		}
+	});
+
+	return labels;
+}

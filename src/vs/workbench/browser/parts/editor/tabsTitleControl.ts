@@ -12,7 +12,7 @@ import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput, getUniqueLabels} from 'vs/workbench/common/editor';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -178,23 +178,37 @@ export class TabsTitleControl extends TitleControl {
 			DOM.removeClass(this.titleContainer, 'active');
 		}
 
+		// Compute labels and protect against duplicates
+		const editorsOfGroup = this.context.getEditors();
+		const labels = getUniqueLabels(editorsOfGroup);
+
 		// Tab label and styles
-		this.context.getEditors().forEach((editor, index) => {
+		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
-				const tabLabel = <HTMLAnchorElement>(<HTMLElement>tabContainer.children[0]).children[0];
+				const tabLabelsContainer = <HTMLElement>tabContainer.children[0];
+				const tabLabel = <HTMLAnchorElement>tabLabelsContainer.children[0];
+				const tabDescription = <HTMLSpanElement>tabLabelsContainer.children[1];
 
 				const isPinned = group.isPinned(editor);
 				const isActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
 
-				const description = editor.getDescription(true) || '';
-				const name = editor.getName();
+				const label = labels[index];
+				const name = label.name;
+				const description = label.hasAmbiguosName && label.description ? label.description : '';
+				const verboseDescription = label.verboseDescription || '';
 
 				// Label & Description
 				tabContainer.setAttribute('aria-label', `tab, ${name}`);
-				tabContainer.title = description;
+				tabContainer.title = verboseDescription;
 				tabLabel.innerText = name;
+				tabDescription.innerText = description;
+				if (description) {
+					DOM.show(tabDescription);
+				} else {
+					DOM.hide(tabDescription);
+				}
 
 				// Pinned state
 				if (isPinned) {
@@ -279,6 +293,10 @@ export class TabsTitleControl extends TitleControl {
 			// Tab Label
 			const tabLabel = document.createElement('a');
 			tabLabelContainer.appendChild(tabLabel);
+
+			// Tab Description
+			const tabDescription = document.createElement('span');
+			tabLabelContainer.appendChild(tabDescription);
 
 			// Tab Close
 			const tabCloseContainer = document.createElement('div');
