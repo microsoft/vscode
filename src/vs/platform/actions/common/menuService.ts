@@ -9,7 +9,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IAction} from 'vs/base/common/actions';
 import {values} from 'vs/base/common/collections';
-import {KbExpr, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {MenuId, MenuRegistry, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -111,7 +111,7 @@ class Menu implements IMenu {
 		return result;
 	}
 
-	private static _fillInKbExprKeys(exp: KbExpr, set: { [k: string]: boolean }): void {
+	private static _fillInKbExprKeys(exp: ContextKeyExpr, set: { [k: string]: boolean }): void {
 		if (exp) {
 			for (let key of exp.keys()) {
 				set[key] = true;

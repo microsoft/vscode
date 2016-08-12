@@ -8,7 +8,7 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {IKeybindingContextKey, IContextKeyService, IKeybindingContext, KbExpr} from 'vs/platform/contextkey/common/contextkey';
+import {IKeybindingContextKey, IContextKeyService, IKeybindingContext, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 	private _key: string;
@@ -42,7 +42,7 @@ export class MockKeybindingService implements IContextKeyService {
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
 		return new MockKeybindingContextKey(key, defaultValue);
 	}
-	public contextMatchesRules(rules: KbExpr): boolean {
+	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		return false;
 	}
 	public get onDidChangeContext(): Event<string[]> {

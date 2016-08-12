@@ -17,16 +17,16 @@ export enum KbExprType {
 	KbAndExpression = 5
 }
 
-export interface KbExpr {
+export interface ContextKeyExpr {
 	getType(): KbExprType;
-	equals(other: KbExpr): boolean;
+	equals(other: ContextKeyExpr): boolean;
 	evaluate(context: any): boolean;
-	normalize(): KbExpr;
+	normalize(): ContextKeyExpr;
 	serialize(): string;
 	keys(): string[];
 }
 
-function cmp(a:KbExpr, b:KbExpr): number {
+function cmp(a:ContextKeyExpr, b:ContextKeyExpr): number {
 	let aType = a.getType();
 	let bType = b.getType();
 	if (aType !== bType) {
@@ -42,11 +42,11 @@ function cmp(a:KbExpr, b:KbExpr): number {
 		case KbExprType.KbNotEqualsExpression:
 			return (<KbNotEqualsExpression>a).cmp(<KbNotEqualsExpression>b);
 		default:
-			throw new Error('Unknown KbExpr!');
+			throw new Error('Unknown ContextKeyExpr!');
 	}
 }
 
-export class KbDefinedExpression implements KbExpr {
+export class KbDefinedExpression implements ContextKeyExpr {
 	constructor(protected key: string) {
 	}
 
@@ -64,7 +64,7 @@ export class KbDefinedExpression implements KbExpr {
 		return 0;
 	}
 
-	public equals(other: KbExpr): boolean {
+	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof KbDefinedExpression) {
 			return (this.key === other.key);
 		}
@@ -75,7 +75,7 @@ export class KbDefinedExpression implements KbExpr {
 		return (!!context[this.key]);
 	}
 
-	public normalize(): KbExpr {
+	public normalize(): ContextKeyExpr {
 		return this;
 	}
 
@@ -88,7 +88,7 @@ export class KbDefinedExpression implements KbExpr {
 	}
 }
 
-export class KbEqualsExpression implements KbExpr {
+export class KbEqualsExpression implements ContextKeyExpr {
 	constructor(private key: string, private value: any) {
 	}
 
@@ -112,7 +112,7 @@ export class KbEqualsExpression implements KbExpr {
 		return 0;
 	}
 
-	public equals(other: KbExpr): boolean {
+	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof KbEqualsExpression) {
 			return (this.key === other.key && this.value === other.value);
 		}
@@ -126,7 +126,7 @@ export class KbEqualsExpression implements KbExpr {
 		/* tslint:enable:triple-equals */
 	}
 
-	public normalize(): KbExpr {
+	public normalize(): ContextKeyExpr {
 		if (typeof this.value === 'boolean') {
 			if (this.value) {
 				return new KbDefinedExpression(this.key);
@@ -149,7 +149,7 @@ export class KbEqualsExpression implements KbExpr {
 	}
 }
 
-export class KbNotEqualsExpression implements KbExpr {
+export class KbNotEqualsExpression implements ContextKeyExpr {
 	constructor(private key: string, private value: any) {
 	}
 
@@ -173,7 +173,7 @@ export class KbNotEqualsExpression implements KbExpr {
 		return 0;
 	}
 
-	public equals(other: KbExpr): boolean {
+	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof KbNotEqualsExpression) {
 			return (this.key === other.key && this.value === other.value);
 		}
@@ -187,7 +187,7 @@ export class KbNotEqualsExpression implements KbExpr {
 		/* tslint:enable:triple-equals */
 	}
 
-	public normalize(): KbExpr {
+	public normalize(): ContextKeyExpr {
 		if (typeof this.value === 'boolean') {
 			if (this.value) {
 				return new KbNotExpression(this.key);
@@ -210,7 +210,7 @@ export class KbNotEqualsExpression implements KbExpr {
 	}
 }
 
-export class KbNotExpression implements KbExpr {
+export class KbNotExpression implements ContextKeyExpr {
 	constructor(private key: string) {
 	}
 
@@ -228,7 +228,7 @@ export class KbNotExpression implements KbExpr {
 		return 0;
 	}
 
-	public equals(other: KbExpr): boolean {
+	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof KbNotExpression) {
 			return (this.key === other.key);
 		}
@@ -239,7 +239,7 @@ export class KbNotExpression implements KbExpr {
 		return (!context[this.key]);
 	}
 
-	public normalize(): KbExpr {
+	public normalize(): ContextKeyExpr {
 		return this;
 	}
 
@@ -252,10 +252,10 @@ export class KbNotExpression implements KbExpr {
 	}
 }
 
-export class KbAndExpression implements KbExpr {
-	private expr: KbExpr[];
+export class KbAndExpression implements ContextKeyExpr {
+	private expr: ContextKeyExpr[];
 
-	constructor(expr: KbExpr[]) {
+	constructor(expr: ContextKeyExpr[]) {
 		this.expr = KbAndExpression._normalizeArr(expr);
 	}
 
@@ -263,7 +263,7 @@ export class KbAndExpression implements KbExpr {
 		return KbExprType.KbAndExpression;
 	}
 
-	public equals(other: KbExpr): boolean {
+	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof KbAndExpression) {
 			if (this.expr.length !== other.expr.length) {
 				return false;
@@ -286,8 +286,8 @@ export class KbAndExpression implements KbExpr {
 		return true;
 	}
 
-	private static _normalizeArr(arr:KbExpr[]): KbExpr[] {
-		let expr: KbExpr[] = [];
+	private static _normalizeArr(arr:ContextKeyExpr[]): ContextKeyExpr[] {
+		let expr: ContextKeyExpr[] = [];
 
 		if (arr) {
 			for (let i = 0, len = arr.length; i < len; i++) {
@@ -315,7 +315,7 @@ export class KbAndExpression implements KbExpr {
 		return expr;
 	}
 
-	public normalize(): KbExpr {
+	public normalize(): ContextKeyExpr {
 		if (this.expr.length === 0) {
 			return null;
 		}
@@ -363,42 +363,42 @@ export class KbCtxKey<T> extends KbDefinedExpression {
 		return target.getContextValue<T>(this.key);
 	}
 
-	public toNegated(): KbExpr {
-		return KbExpr.not(this.key);
+	public toNegated(): ContextKeyExpr {
+		return ContextKeyExpr.not(this.key);
 	}
 
-	public isEqualTo(value:string): KbExpr {
-		return KbExpr.equals(this.key, value);
+	public isEqualTo(value:string): ContextKeyExpr {
+		return ContextKeyExpr.equals(this.key, value);
 	}
 }
 
-export let KbExpr = {
+export let ContextKeyExpr = {
 	has: (key: string) => new KbDefinedExpression(key),
 	equals: (key: string, value: any) => new KbEqualsExpression(key, value),
 	notEquals: (key: string, value: any) => new KbNotEqualsExpression(key, value),
 	not: (key: string) => new KbNotExpression(key),
-	and: (...expr: KbExpr[]) => new KbAndExpression(expr),
-	deserialize: (serialized: string): KbExpr => {
+	and: (...expr: ContextKeyExpr[]) => new KbAndExpression(expr),
+	deserialize: (serialized: string): ContextKeyExpr => {
 		if (!serialized) {
 			return null;
 		}
 
 		let pieces = serialized.split('&&');
-		let result = new KbAndExpression(pieces.map(p => KbExpr._deserializeOne(p)));
+		let result = new KbAndExpression(pieces.map(p => ContextKeyExpr._deserializeOne(p)));
 		return result.normalize();
 	},
 
-	_deserializeOne: (serializedOne: string): KbExpr => {
+	_deserializeOne: (serializedOne: string): ContextKeyExpr => {
 		serializedOne = serializedOne.trim();
 
 		if (serializedOne.indexOf('!=') >= 0) {
 			let pieces = serializedOne.split('!=');
-			return new KbNotEqualsExpression(pieces[0].trim(), KbExpr._deserializeValue(pieces[1]));
+			return new KbNotEqualsExpression(pieces[0].trim(), ContextKeyExpr._deserializeValue(pieces[1]));
 		}
 
 		if (serializedOne.indexOf('==') >= 0) {
 			let pieces = serializedOne.split('==');
-			return new KbEqualsExpression(pieces[0].trim(), KbExpr._deserializeValue(pieces[1]));
+			return new KbEqualsExpression(pieces[0].trim(), ContextKeyExpr._deserializeValue(pieces[1]));
 		}
 
 		if (/^\!\s*/.test(serializedOne)) {
@@ -451,7 +451,7 @@ export interface IContextKeyService {
 
 	onDidChangeContext: Event<string[]>;
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
-	contextMatchesRules(rules: KbExpr): boolean;
+	contextMatchesRules(rules: ContextKeyExpr): boolean;
 	getContextValue<T>(key: string): T;
 
 	createScoped(domNode: IKeybindingScopeLocation): IContextKeyService;

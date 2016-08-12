@@ -48,7 +48,7 @@ import {WorkbenchKeybindingService2} from 'vs/workbench/services/keybinding/elec
 import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
-import {KbExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -71,7 +71,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 
 export const MessagesVisibleContext = new KbCtxKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new KbCtxKey<boolean>('editorIsOpen', false);
-export const NoEditorsVisibleContext:KbExpr = EditorsVisibleContext.toNegated();
+export const NoEditorsVisibleContext:ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;

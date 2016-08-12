@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KbExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
@@ -175,7 +175,7 @@ export class TriggerSuggestAction extends EditorAction {
 			id: 'editor.action.triggerSuggest',
 			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
 			alias: 'Trigger Suggest',
-			precondition: KbExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCompletionItemProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasCompletionItemProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
@@ -211,7 +211,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: KbExpr.and(EditorContextKeys.TextFocus, KbExpr.has('config.editor.acceptSuggestionOnEnter')),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, ContextKeyExpr.has('config.editor.acceptSuggestionOnEnter')),
 		primary: KeyCode.Enter
 	}
 }));
@@ -230,7 +230,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectNextSuggestion',
-	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectNextSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -243,7 +243,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectNextPageSuggestion',
-	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectNextPageSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -255,7 +255,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevSuggestion',
-	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -268,7 +268,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevPageSuggestion',
-	precondition: KbExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevPageSuggestion(),
 	kbOpts: {
 		weight: weight,

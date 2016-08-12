@@ -16,7 +16,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService2 } from 'vs/platform/keybinding/common/keybinding';
-import { KbExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, KbCtxKey, IContextKeyService, IKeybindingContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -339,7 +339,7 @@ export class SearchWidget extends Widget {
 export function registerContributions() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({id: ReplaceAllAction.ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: KbExpr.and(KbExpr.has('searchViewletVisible'), SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
+		when: ContextKeyExpr.and(ContextKeyExpr.has('searchViewletVisible'), SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
 			if (isSearchViewletFocussed(accessor.get(IViewletService))) {
