@@ -551,6 +551,8 @@ export class VSCodeMenu {
 		let resetZoom = this.createMenuItem(nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"), 'workbench.action.zoomReset');
 
 		arrays.coalesce([
+			commands,
+			__separator__(),
 			explorer,
 			search,
 			git,
@@ -561,8 +563,6 @@ export class VSCodeMenu {
 			problems,
 			debugConsole,
 			integratedTerminal,
-			__separator__(),
-			commands,
 			__separator__(),
 			fullscreen,
 			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
