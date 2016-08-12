@@ -45,7 +45,7 @@ import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService2} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import {KeybindingService} from 'vs/platform/contextkey/browser/contextKeyService';
+import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService2} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -353,7 +353,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// Keybindings
-		this.contextKeyService = this.instantiationService.createInstance(KeybindingService);
+		this.contextKeyService = this.instantiationService.createInstance(ContextKeyService);
 		serviceCollection.set(IContextKeyService, this.contextKeyService);
 
 		this.keybindingService2 = this.instantiationService.createInstance(WorkbenchKeybindingService2, <any>window);
