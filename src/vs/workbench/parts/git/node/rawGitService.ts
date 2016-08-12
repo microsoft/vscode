@@ -150,7 +150,7 @@ export class RawGitService implements IRawGitService {
 		return this.repo.sync().then(() => this.status());
 	}
 
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> {
 		let promise: Promise = TPromise.as(null);
 
 		if (stage) {
@@ -158,7 +158,7 @@ export class RawGitService implements IRawGitService {
 		}
 
 		return promise
-			.then(() => this.repo.commit(message, stage, amend))
+			.then(() => this.repo.commit(message, stage, amend, signoff))
 			.then(() => this.status());
 	}
 
@@ -225,7 +225,7 @@ export class DelayedRawGitService implements IRawGitService {
 	pull(rebase?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.pull(rebase)); }
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> { return this.raw.then(r => r.push(remote, name, options)); }
 	sync(): TPromise<IRawStatus> { return this.raw.then(r => r.sync()); }
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage)); }
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> { return this.raw.then(r => r.commit(message, amend, stage, signoff)); }
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> { return this.raw.then(r => r.detectMimetypes(path, treeish)); }
 	show(path: string, treeish?: string): TPromise<string> { return this.raw.then(r => r.show(path, treeish)); }
 	getCommitTemplate(): TPromise<string> { return this.raw.then(r => r.getCommitTemplate()); }

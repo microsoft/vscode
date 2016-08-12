@@ -288,7 +288,7 @@ export interface IRawGitService {
 	pull(rebase?: boolean): TPromise<IRawStatus>;
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus>;
 	sync(): TPromise<IRawStatus>;
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	show(path: string, treeish?: string): TPromise<string>;
 	getCommitTemplate(): TPromise<string>;
@@ -317,7 +317,7 @@ export interface IGitService extends IEventEmitter {
 	pull(rebase?: boolean): TPromise<IModel>;
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IModel>;
 	sync(): TPromise<IModel>;
-	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IModel>;
+	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IModel>;
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
 	buffer(path: string, treeish?: string): TPromise<string>;
 

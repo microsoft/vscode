@@ -737,6 +737,24 @@ export class CommitAction extends BaseCommitAction {
 
 }
 
+export class CommitSignedOffAction extends BaseCommitAction {
+
+	static ID = 'workbench.action.git.commitSignedOff';
+
+	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
+		super(commitState, CommitAction.ID, nls.localize('commitStagedSignedOff', "Commit Staged (Signed Off)"), 'git-action commit-signed-off', gitService);
+	}
+
+	public run(context?: any):Promise {
+		if (!this.commitState.getCommitMessage()) {
+			this.commitState.onEmptyCommitMessage();
+			return TPromise.as(null);
+		}
+
+		return this.gitService.commit(this.commitState.getCommitMessage(), undefined, undefined, true);
+	}
+}
+
 export class InputCommitAction extends GitAction {
 
 	static ID = 'workbench.action.git.input-commit';
@@ -807,6 +825,39 @@ export class StageAndCommitAction extends BaseCommitAction {
 		}
 
 		return this.gitService.commit(this.commitState.getCommitMessage(), false, true);
+	}
+}
+
+export class StageAndCommitSignedOffAction extends BaseCommitAction {
+
+	static ID = 'workbench.action.git.stageAndCommitSignedOff';
+
+	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
+		super(commitState, StageAndCommitAction.ID, nls.localize('commitAllSignedOff', "Commit All (Signed Off)"), 'git-action stage-and-commit-signed-off', gitService);
+	}
+
+	protected isEnabled():boolean {
+		if (!this.gitService) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		var status = this.gitService.getModel().getStatus();
+
+		return status.getIndexStatus().all().length > 0
+			|| status.getWorkingTreeStatus().all().length > 0;
+	}
+
+	public run(context?: any):Promise {
+		if (!this.commitState.getCommitMessage()) {
+			this.commitState.onEmptyCommitMessage();
+			return TPromise.as(null);
+		}
+
+		return this.gitService.commit(this.commitState.getCommitMessage(), false, true, true);
 	}
 }
 
