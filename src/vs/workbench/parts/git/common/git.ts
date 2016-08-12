@@ -222,6 +222,7 @@ export const ServiceOperations = {
 	CLEAN: 'clean',
 	UNDO: 'undo',
 	RESET: 'reset',
+	REVERT: 'revert',
 	COMMIT: 'commit',
 	COMMAND: 'command',
 	BACKGROUND_FETCH: 'backgroundfetch',
