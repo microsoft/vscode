@@ -3,6 +3,7 @@
 		"ts"
 	],
 	"name": "TypeScript",
+	"firstLineMatch": "#!/.*\bnode",
 	"patterns": [
 		{
 			"include": "#expression"
