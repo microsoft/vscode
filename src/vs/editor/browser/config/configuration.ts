@@ -209,6 +209,7 @@ class CSSBasedConfiguration extends Disposable {
 
 		return new FontInfo({
 			fontFamily: bareFontInfo.fontFamily,
+			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
 			lineHeight: bareFontInfo.lineHeight,
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
@@ -223,12 +224,14 @@ export class Configuration extends CommonEditorConfiguration {
 
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
 		domNode.style.fontFamily = fontInfo.fontFamily;
+		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
 	}
 
 	public static applyFontInfo(domNode: FastDomNode, fontInfo: BareFontInfo): void {
 		domNode.setFontFamily(fontInfo.fontFamily);
+		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setLineHeight(fontInfo.lineHeight);
 	}

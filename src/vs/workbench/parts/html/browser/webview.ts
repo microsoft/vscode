@@ -134,19 +134,21 @@ export default class Webview {
 	}
 
 	style(themeId: string): void {
-		const {color, backgroundColor, fontFamily, fontSize} = window.getComputedStyle(this._styleElement);
+		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(this._styleElement);
 
 		let value = `
 		:root {
 			--background-color: ${backgroundColor};
 			--color: ${color};
 			--font-family: ${fontFamily};
+			--font-weight: ${fontWeight};
 			--font-size: ${fontSize};
 		}
 		body {
 			background-color: var(--background-color);
 			color: var(--color);
 			font-family: var(--font-family);
+			font-weight: var(--font-weight);
 			font-size: var(--font-size);
 			margin: 0;
 		}
