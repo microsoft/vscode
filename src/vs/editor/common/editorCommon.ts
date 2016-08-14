@@ -446,6 +446,10 @@ export interface IEditorOptions {
 	 */
 	fontFamily?: string;
 	/**
+	 * The font weight
+	 */
+	fontWeight?: 'normal'|'bold'|'bolder'|'lighter'|'initial'|'inherit'|'100'|'200'|'300'|'400'|'500'|'600'|'700'|'800'|'900';
+	/**
 	 * The font size
 	 */
 	fontSize?: number;
@@ -3140,6 +3144,7 @@ export class BareFontInfo {
 	_bareFontInfoBrand: void;
 
 	fontFamily: string;
+	fontWeight: string;
 	fontSize: number;
 	lineHeight: number;
 
@@ -3148,10 +3153,12 @@ export class BareFontInfo {
 	 */
 	constructor(opts: {
 		fontFamily: string;
+		fontWeight: string;
 		fontSize: number;
 		lineHeight: number;
 	}) {
 		this.fontFamily = String(opts.fontFamily);
+		this.fontWeight = String(opts.fontWeight);
 		this.fontSize = opts.fontSize;
 		this.lineHeight = opts.lineHeight|0;
 	}
@@ -3160,7 +3167,7 @@ export class BareFontInfo {
 	 * @internal
 	 */
 	public getId(): string {
-		return this.fontFamily + '-' + this.fontSize + '-' + this.lineHeight;
+		return this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight + '-';
 	}
 }
 
@@ -3177,6 +3184,7 @@ export class FontInfo extends BareFontInfo {
 	 */
 	constructor(opts:{
 		fontFamily: string;
+		fontWeight: string;
 		fontSize: number;
 		lineHeight: number;
 		typicalHalfwidthCharacterWidth:number;
@@ -3197,6 +3205,7 @@ export class FontInfo extends BareFontInfo {
 	public equals(other:FontInfo): boolean {
 		return (
 			this.fontFamily === other.fontFamily
+			&& this.fontWeight === other.fontWeight
 			&& this.fontSize === other.fontSize
 			&& this.lineHeight === other.lineHeight
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth

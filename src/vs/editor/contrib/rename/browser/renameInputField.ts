@@ -69,6 +69,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 		const fontInfo = this._editor.getConfiguration().fontInfo;
 		this._inputField.style.fontFamily = fontInfo.fontFamily;
+		this._inputField.style.fontWeight = fontInfo.fontWeight;
 		this._inputField.style.fontSize = `${ fontInfo.fontSize }px`;
 	}
 
