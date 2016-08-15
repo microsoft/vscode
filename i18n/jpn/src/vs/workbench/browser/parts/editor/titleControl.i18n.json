@@ -9,5 +9,6 @@
 	"closeAll": "すべて閉じる",
 	"closeOthers": "その他を閉じる",
 	"closeRight": "右側を閉じる",
-	"keepOpen": "開いたままにする"
+	"keepOpen": "開いたままにする",
+	"showOpenedEditors": "開いているエディターを表示"
 }

@@ -11,6 +11,7 @@
 	"notInstalled": "未安装扩展“{0}”。",
 	"successInstall": "已成功安装扩展“{0}” v{1}!",
 	"successUninstall": "已成功卸载扩展“{0}”!",
+	"successVsixInstall": "已成功安装扩展“{0}”!",
 	"uninstalling": "正在卸载 {0}...",
 	"useId": "确保使用完整扩展 ID，包括发布服务器，如: {0}"
 }
