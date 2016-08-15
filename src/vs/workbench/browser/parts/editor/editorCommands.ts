@@ -90,7 +90,7 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: Servic
 
 function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
 	const editorGroupsService: IEditorGroupService = accessor.get(IEditorGroupService);
-	const editorGroup = editorGroupsService.getStacksModel().getGroup(activeEditor.position);
+	const editorGroup = editorGroupsService.getStacksModel().groupAt(activeEditor.position);
 	let index = editorGroup.indexOf(activeEditor.input);
 	switch (args.to) {
 		case ActiveEditorMovePositioning.FIRST:
