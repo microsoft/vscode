@@ -281,8 +281,8 @@ function toRegExp(regEx: string): RegExp {
  * - character ranges (using [...])
  */
 export function match(pattern: string, path: string): boolean;
-export function match(expression: IExpression, path: string, siblings?: string[]): string /* the matching pattern */;
-export function match(arg1: string | IExpression, path: string, siblings?: string[]): any {
+export function match(expression: IExpression, path: string, siblingsFn?: () => string[]): string /* the matching pattern */;
+export function match(arg1: string | IExpression, path: string, siblingsFn?: () => string[]): any {
 	if (!arg1 || !path) {
 		return false;
 	}
@@ -315,10 +315,13 @@ export function match(arg1: string | IExpression, path: string, siblings?: strin
 	}
 
 	// Glob with Expression
-	return matchExpression(<IExpression>arg1, path, siblings);
+	return matchExpression(<IExpression>arg1, path, siblingsFn);
 }
 
-function matchExpression(expression: IExpression, path: string, siblings?: string[]): string /* the matching pattern */ {
+function matchExpression(expression: IExpression, path: string, siblingsFn?: () => string[]): string /* the matching pattern */ {
+	let siblings: string[];
+	let siblingsResolved = false;
+
 	let patterns = Object.getOwnPropertyNames(expression);
 	let basename: string;
 	for (let i = 0; i < patterns.length; i++) {
@@ -339,6 +342,17 @@ function matchExpression(expression: IExpression, path: string, siblings?: strin
 
 			// Expression Pattern is <SiblingClause>
 			if (value && typeof (<SiblingClause>value).when === 'string') {
+
+				// Resolve siblings only once
+				if (!siblingsResolved) {
+					siblingsResolved = true;
+					if (siblingsFn) {
+						siblings = siblingsFn();
+					} else {
+						siblings = [];
+					}
+				}
+
 				if (!siblings || !siblings.length) {
 					continue; // pattern is malformed or we don't have siblings
 				}

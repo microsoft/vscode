@@ -181,7 +181,7 @@ export class FileWalker {
 
 			// Check exclude pattern
 			let currentRelativePathWithSlashes = relativeParentPathWithSlashes ? [relativeParentPathWithSlashes, file].join('/') : file;
-			if (glob.match(this.excludePattern, currentRelativePathWithSlashes, siblings)) {
+			if (glob.match(this.excludePattern, currentRelativePathWithSlashes, () => siblings)) {
 				return clb(null);
 			}
 
