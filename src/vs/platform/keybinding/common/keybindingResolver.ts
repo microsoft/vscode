@@ -408,11 +408,24 @@ export class IOSupport {
 	}
 
 	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number): IKeybindingItem {
-		let key = IOSupport.readKeybinding(input.key);
-		let when = IOSupport.readKeybindingWhen(input.when);
+		let key:number = 0;
+		if (typeof input.key === 'string') {
+			key = IOSupport.readKeybinding(input.key);
+		}
+
+		let when:ContextKeyExpr = null;
+		if (typeof input.when === 'string') {
+			when = IOSupport.readKeybindingWhen(input.when);
+		}
+
+		let command:string = null;
+		if (typeof input.command === 'string') {
+			command = input.command;
+		}
+
 		return {
 			keybinding: key,
-			command: input.command,
+			command: command,
 			when: when,
 			weight1: 1000,
 			weight2: index

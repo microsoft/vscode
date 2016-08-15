@@ -6,7 +6,8 @@
 
 import * as assert from 'assert';
 import {ISimplifiedPlatform, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {NormalizedKeybindingItem, IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 
 suite('Keybinding IO', () => {
 
@@ -110,4 +111,28 @@ suite('Keybinding IO', () => {
 		testDeserialization(' ctrl-shift-alt-win-A ', ' shift-alt-cmd-Ctrl-A ', ' ctrl-shift-alt-META-A ', KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A);
 	});
 
+
+	test('issue #10452 - invalid command', () => {
+		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": ["firstcommand", "seccondcommand"] }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.command, null);
+	});
+
+	test('issue #10452 - invalid when', () => {
+		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [] }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.when, null);
+	});
+
+	test('issue #10452 - invalid key', () => {
+		let strJSON = `[{ "key": [], "command": "firstcommand" }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.keybinding, 0);
+	});
 });
