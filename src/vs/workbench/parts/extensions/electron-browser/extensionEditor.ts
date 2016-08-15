@@ -109,6 +109,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.license = append(subtitle, $<HTMLAnchorElement>('a.license'));
 		this.license.href = '#';
 		this.license.textContent = localize('license', 'License');
+		this.license.style.display = 'none';
 
 		this.description = append(details, $('.description'));
 
@@ -131,16 +132,22 @@ export class ExtensionEditor extends BaseEditor {
 
 		if (product.extensionsGallery) {
 			const extensionUrl = `${ product.extensionsGallery.itemUrl }?itemName=${ extension.publisher }.${ extension.name }`;
-			const licenseUrl = `${ product.extensionsGallery.itemUrl }/${ extension.publisher }.${ extension.name }/license`;
 
 			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
-			this.license.onclick = finalHandler(() => shell.openExternal(licenseUrl));
 			this.rating.onclick = finalHandler(() => shell.openExternal(`${ extensionUrl }#review-details`));
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
 					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`, true));
 			});
+
+			if (extension.licenseUrl) {
+				this.license.onclick = finalHandler(() => shell.openExternal(extension.licenseUrl));
+				this.license.style.display = 'initial';
+			} else {
+				this.license.onclick = null;
+				this.license.style.display = 'none';
+			}
 		}
 
 		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, { extension });

@@ -98,6 +98,14 @@ class Extension implements IExtension {
 		return require.toUrl('./media/defaultIcon.png');
 	}
 
+	get licenseUrl(): string {
+		if (this.gallery) {
+			return this.gallery.versions[0].licenseUrl;
+		}
+
+		return null;
+	}
+
 	get state(): ExtensionState {
 		return this.stateProvider(this);
 	}

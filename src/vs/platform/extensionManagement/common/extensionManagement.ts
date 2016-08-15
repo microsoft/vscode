@@ -29,6 +29,7 @@ export interface IGalleryVersion {
 	readmeUrl: string;
 	downloadUrl: string;
 	iconUrl: string;
+	licenseUrl: string;
 	downloadHeaders: { [key: string]: string; };
 }
 
