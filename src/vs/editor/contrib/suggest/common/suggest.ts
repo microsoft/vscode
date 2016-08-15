@@ -31,7 +31,7 @@ export interface ISuggestionItem {
 	resolve(): TPromise<void>;
 }
 
-export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none' | 'only';
+export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
 
 export interface ISuggestOptions {
 	groups?: ISuggestSupport[][];
@@ -122,12 +122,10 @@ function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISugges
 }
 
 function createSuggesionFilter(options: ISuggestOptions): (candidate: ISuggestion) => boolean {
-	if (options.snippetConfig === 'only') {
-		return suggestion => suggestion.type === 'snippet';
-	} else if (options.snippetConfig === 'none') {
+	if (options.snippetConfig === 'none') {
 		return suggestion => suggestion.type !== 'snippet';
 	} else {
-		return _ => true;
+		return () => true;
 	}
 }
 
