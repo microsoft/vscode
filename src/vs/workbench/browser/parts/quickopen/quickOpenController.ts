@@ -229,12 +229,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
 					onType: (value: string) => { /* ignore, handle later */ },
-					onShow: () => this.emitQuickOpenVisibilityChange(true),
+					onShow: () => {
+						this.inQuickOpenMode.set(true);
+						this.emitQuickOpenVisibilityChange(true);
+					},
 					onHide: (reason) => {
 						if (reason !== HideReason.FOCUS_LOST) {
 							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
 						}
-						this.emitQuickOpenVisibilityChange(false); // event
+						this.inQuickOpenMode.reset();
+						this.emitQuickOpenVisibilityChange(false);
 					}
 				}, {
 					inputPlaceHolder: options.placeHolder || ''
@@ -373,13 +377,15 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
 					},
 					onShow: () => {
-						this.emitQuickOpenVisibilityChange(true); // event
+						this.inQuickOpenMode.set(true);
+						this.emitQuickOpenVisibilityChange(true);
 					},
 					onHide: (reason) => {
 						if (reason !== HideReason.FOCUS_LOST) {
 							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
 						}
-						this.emitQuickOpenVisibilityChange(false); // event
+						this.inQuickOpenMode.reset();
+						this.emitQuickOpenVisibilityChange(false);
 					}
 				});
 
@@ -407,6 +413,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				this.pickOpenWidget.show(new QuickOpenModel());
 			}
 		});
+	}
+
+	public close(): void {
+		if (this.quickOpenWidget) {
+			this.quickOpenWidget.hide();
+		}
+
+		if (this.pickOpenWidget) {
+			this.pickOpenWidget.hide();
+		}
 	}
 
 	private emitQuickOpenVisibilityChange(isVisible: boolean): void {

@@ -1243,6 +1243,26 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 	}
 }
 
+export class QuickOpenCloseAction extends Action {
+
+	public static ID = 'workbench.action.closeQuickOpen';
+	public static LABEL = nls.localize('closeQuickOpen', "Close Quick Open");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.quickOpenService.close();
+
+		return TPromise.as(true);
+	}
+}
+
 interface IEditorPickOpenEntry extends IPickOpenEntry {
 	identifier: IEditorIdentifier;
 }
