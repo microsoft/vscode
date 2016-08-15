@@ -447,10 +447,7 @@ class SuggestAdapter {
 					suggestion.codeSnippet = item.textEdit.text;
 					suggestion.overwriteBefore = position.column - editRange.startColumn;
 					suggestion.overwriteAfter = editRange.endColumn - position.column;
-
-
 				} else {
-					result.suggestions.push(suggestion);
 					suggestion.overwriteBefore = position.column - wordStartPos.column;
 					suggestion.overwriteAfter = 0;
 				}
