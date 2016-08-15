@@ -118,6 +118,11 @@ export interface IQuickOpenService {
 	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
 
 	/**
+	 * Closes any opened quick open.
+	 */
+	close(): void;
+
+	/**
 	 * Allows to register on the event that quick open is showing
 	 */
 	onShow: Event<void>;
