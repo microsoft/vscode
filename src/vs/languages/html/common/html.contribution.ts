@@ -21,6 +21,21 @@ ModesRegistry.registerCompatMode({
 
 var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);
 
+export interface IHTMLFormatConfiguration {
+	wrapLineLength: number;
+	unformatted: string;
+	indentInnerHtml: boolean;
+	preserveNewLines: boolean;
+	maxPreserveNewLines: number;
+	indentHandlebars: boolean;
+	endWithNewline: boolean;
+	extraLiners: string;
+}
+
+export interface IHTMLConfiguration {
+	format: IHTMLFormatConfiguration;
+}
+
 configurationRegistry.registerConfiguration({
 	'id': 'html',
 	'order': 20,

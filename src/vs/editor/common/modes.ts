@@ -209,12 +209,6 @@ export interface IMode {
 	 * @internal
 	 */
 	tokenizationSupport?: ITokenizationSupport;
-
-	/**
-	 * Optional adapter to support configuring this mode.
-	 * @internal
-	 */
-	configSupport?:IConfigurationSupport;
 }
 
 /**
@@ -817,15 +811,6 @@ export interface ILink {
 export interface LinkProvider {
 	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
-}
-
-
-/**
- * Interface used to define a configurable editor mode.
- * @internal
- */
-export interface IConfigurationSupport {
-	configure(options:any):TPromise<void>;
 }
 
 

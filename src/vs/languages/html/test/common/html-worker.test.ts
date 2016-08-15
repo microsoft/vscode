@@ -24,6 +24,7 @@ suite('HTML - worker', () => {
 			null,
 			new MockModeService(),
 			null,
+			null,
 			null
 		);
 	})();

@@ -20,6 +20,8 @@ import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, IT
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IHTMLConfiguration} from 'vs/languages/html/common/html.contribution';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
@@ -328,7 +330,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 	};
 
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public configSupport: modes.IConfigurationSupport;
 
 	private modeService:IModeService;
 	private _modeWorkerManager: ModeWorkerManager<W>;
@@ -338,7 +339,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
@@ -346,7 +348,15 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		this.modeService = modeService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true);
-		this.configSupport = this;
+
+		if (this.compatWorkerService && this.compatWorkerService.isInMainThread) {
+			let updateConfiguration = () => {
+				let opts = configurationService.getConfiguration<IHTMLConfiguration>('html');
+				this._configureWorker(opts);
+			};
+			configurationService.onDidUpdateConfiguration((e) => updateConfiguration());
+			updateConfiguration();
+		}
 
 		this._registerSupports();
 	}
@@ -446,17 +456,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 			};
 		}
 		return null;
-	}
-
-	public configure(options:any): winjs.TPromise<void> {
-		if (!this.compatWorkerService) {
-			return;
-		}
-		if (this.compatWorkerService.isInMainThread) {
-			return this._configureWorker(options);
-		} else {
-			return this._worker((w) => w._doConfigure(options));
-		}
 	}
 
 	static $_configureWorker = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._configureWorker);

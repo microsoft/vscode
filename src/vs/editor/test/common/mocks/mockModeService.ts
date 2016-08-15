@@ -16,16 +16,6 @@ export class MockModeService implements IModeService {
 	onDidAddModes: Event<string[]> = undefined;
 	onDidCreateMode: Event<modes.IMode> = undefined;
 
-	configureMode(modeName: string, options: any): void {
-		throw new Error('Not implemented');
-	}
-	configureModeById(modeId: string, options: any): void {
-		throw new Error('Not implemented');
-	}
-	getConfigurationForMode(modeId:string): any {
-		throw new Error('Not implemented');
-	}
-
 	// --- reading
 	isRegisteredMode(mimetypeOrModeId: string): boolean {
 		throw new Error('Not implemented');

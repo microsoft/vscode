@@ -54,6 +54,7 @@ suite('Syntax Highlighting - PHP', () => {
 			null,
 			modeService,
 			null,
+			null,
 			null
 		));
 

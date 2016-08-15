@@ -96,6 +96,7 @@ suite('Colorizing - HTML', () => {
 			null,
 			new HTMLMockModeService(),
 			null,
+			null,
 			null
 		);
 

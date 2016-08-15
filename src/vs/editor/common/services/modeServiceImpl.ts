@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
-import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
@@ -25,8 +24,6 @@ import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {Token} from 'vs/editor/common/modes/supports';
-
-interface IModeConfigurationMap { [modeId: string]: any; }
 
 let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
@@ -142,7 +139,6 @@ export class ModeServiceImpl implements IModeService {
 
 	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
 	private _instantiatedModes: { [modeId: string]: modes.IMode; };
-	private _config: IModeConfigurationMap;
 
 	private _registry: LanguagesRegistry;
 
@@ -158,49 +154,9 @@ export class ModeServiceImpl implements IModeService {
 
 		this._activationPromises = {};
 		this._instantiatedModes = {};
-		this._config = {};
 
 		this._registry = new LanguagesRegistry();
 		this._registry.onDidAddModes((modes) => this._onDidAddModes.fire(modes));
-	}
-
-	public getConfigurationForMode(modeId:string): any {
-		return this._config[modeId] || {};
-	}
-
-	public configureMode(mimetype: string, options: any): void {
-		var modeId = this.getModeId(mimetype);
-		if (modeId) {
-			this.configureModeById(modeId, options);
-		}
-	}
-
-	public configureModeById(modeId:string, options:any):void {
-		var previousOptions = this._config[modeId] || {};
-		var newOptions = objects.mixin(objects.clone(previousOptions), options);
-
-		if (objects.equals(previousOptions, newOptions)) {
-			// This configure call is a no-op
-			return;
-		}
-
-		this._config[modeId] = newOptions;
-
-		var mode = this.getMode(modeId);
-		if (mode && mode.configSupport) {
-			mode.configSupport.configure(this.getConfigurationForMode(modeId));
-		}
-	}
-
-	protected _configureAllModes(config:any): void {
-		if (!config) {
-			return;
-		}
-		var modes = this._registry.getRegisteredModes();
-		modes.forEach((modeIdentifier) => {
-			var configuration = config[modeIdentifier];
-			this.configureModeById(modeIdentifier, configuration);
-		});
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -379,12 +335,7 @@ export class ModeServiceImpl implements IModeService {
 
 			return resolvedDeps.then(_ => {
 				let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
-				return this._instantiationService.createInstance(compatModeAsyncDescriptor, modeDescriptor).then((compatMode) => {
-					if (compatMode.configSupport) {
-						compatMode.configSupport.configure(this.getConfigurationForMode(modeId));
-					}
-					return compatMode;
-				});
+				return this._instantiationService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
 			});
 		}
 
@@ -587,9 +538,6 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
-
-		// Update Languages
-		this._configureAllModes(configuration);
 
 		// Clear user configured mime associations
 		mime.clearTextMimes(true /* user configured */);
