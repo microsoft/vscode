@@ -460,7 +460,8 @@ export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 export const AutoSaveConfiguration = {
 	OFF: 'off',
 	AFTER_DELAY: 'afterDelay',
-	ON_FOCUS_CHANGE: 'onFocusChange'
+	ON_FOCUS_CHANGE: 'onFocusChange',
+	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
 export interface IFilesConfiguration {
