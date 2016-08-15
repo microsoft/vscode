@@ -68,7 +68,8 @@ const AssetType = {
 	Icon: 'Microsoft.VisualStudio.Services.Icons.Default',
 	Details: 'Microsoft.VisualStudio.Services.Content.Details',
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
-	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage'
+	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
+	License: 'Microsoft.VisualStudio.Services.Content.License'
 };
 
 interface ICriterium {
@@ -152,21 +153,22 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 	return result ? result.value : 0;
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IGalleryExtension {
-	const versions = galleryExtension.versions.map<IGalleryVersion>(v => {
-		const iconFile = v.files.filter(f => f.assetType === AssetType.Icon)[0];
-		const iconUrl = iconFile ? iconFile.source : require.toUrl('./media/defaultIcon.png');
+function getAssetSource(files: IRawGalleryExtensionFile[], type: string): string {
+	const result = files.filter(f => f.assetType === type)[0];
+	return result && result.source;
+}
 
-		return {
-			version: v.version,
-			date: v.lastUpdated,
-			downloadHeaders,
-			downloadUrl: `${ v.assetUri }/${ AssetType.VSIX }?install=true`,
-			manifestUrl: `${ v.assetUri }/${ AssetType.Manifest }`,
-			readmeUrl: `${ v.assetUri }/${ AssetType.Details }`,
-			iconUrl
-		};
-	});
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IGalleryExtension {
+	const versions = galleryExtension.versions.map<IGalleryVersion>(v => ({
+		version: v.version,
+		date: v.lastUpdated,
+		downloadHeaders,
+		downloadUrl: `${ v.assetUri }/${ AssetType.VSIX }?install=true`,
+		manifestUrl: `${ v.assetUri }/${ AssetType.Manifest }`,
+		readmeUrl: `${ v.assetUri }/${ AssetType.Details }`,
+		iconUrl: getAssetSource(v.files, AssetType.Icon) || require.toUrl('./media/defaultIcon.png'),
+		licenseUrl: getAssetSource(v.files, AssetType.License)
+	}));
 
 	return {
 		id: galleryExtension.extensionId,
@@ -222,7 +224,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles)
 			.withPage(1, pageSize)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withAssetTypes(AssetType.Icon);
+			.withAssetTypes(AssetType.Icon, AssetType.License);
 
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
