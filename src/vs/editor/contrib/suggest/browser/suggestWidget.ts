@@ -40,6 +40,9 @@ interface ISuggestionTemplateData {
 }
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
+function matchesColor(text: string) {
+	return text && text.match(colorRegExp) ? text : null;
+}
 
 class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
@@ -106,7 +109,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		data.colorspan.style.backgroundColor = '';
 
 		if (suggestion.type === 'color') {
-			let color = suggestion.label.match(colorRegExp) && suggestion.label || suggestion.documentationLabel.match(colorRegExp) && suggestion.documentationLabel;
+			let color = matchesColor(suggestion.label) || matchesColor(suggestion.documentationLabel);
 			if (color) {
 				data.icon.className = 'icon customcolor';
 				data.colorspan.style.backgroundColor = color;
