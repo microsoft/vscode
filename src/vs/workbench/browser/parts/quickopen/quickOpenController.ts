@@ -48,6 +48,14 @@ interface IPickOpenEntryItem extends IPickOpenEntry {
 	render?: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
 }
 
+interface IWorkbenchQuickOpenConfiguration {
+	workbench: {
+		quickOpen: {
+			closeOnFocusLost: boolean;
+		}
+	};
+}
+
 interface IInternalPickOptions {
 	value?: string;
 	valueSelect?: boolean;
@@ -82,6 +90,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private actionProvider = new ContributableActionProvider();
 	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
+	private closeOnFocusLost: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -89,6 +98,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -102,6 +112,18 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
+
+		this.updateConfiguration(<IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.configurationService.onDidUpdateConfiguration(e => this.updateConfiguration(e.config));
+	}
+
+	private updateConfiguration(settings: IWorkbenchQuickOpenConfiguration): void {
+		this.closeOnFocusLost = settings.workbench.quickOpen.closeOnFocusLost;
 	}
 
 	public get onShow(): Event<void> {
@@ -325,7 +347,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						complete(selectedPick || null);
 					},
 					onCancel: () => complete(void 0),
-					onFocusLost: () => options.ignoreFocusLost,
+					onFocusLost: () => !this.closeOnFocusLost || options.ignoreFocusLost,
 					onType: (value: string) => {
 
 						// the caller takes care of all input
@@ -455,7 +477,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onCancel: () => { /* ignore */ },
 					onType: (value: string) => this.onType(value || ''),
 					onShow: () => this.handleOnShow(false),
-					onHide: (reason) => this.handleOnHide(false, reason)
+					onHide: (reason) => this.handleOnHide(false, reason),
+					onFocusLost: () => !this.closeOnFocusLost
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : ''
 				},
