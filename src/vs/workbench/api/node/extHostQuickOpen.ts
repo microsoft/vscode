@@ -35,7 +35,8 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 			autoFocus: { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
-			matchOnDetail: options && options.matchOnDetail
+			matchOnDetail: options && options.matchOnDetail,
+			ignoreFocusLost: options && options.ignoreFocusOut
 		});
 
 		const promise = itemsPromise.then(items => {
