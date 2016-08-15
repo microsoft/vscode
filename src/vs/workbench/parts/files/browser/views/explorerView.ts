@@ -39,6 +39,7 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 export class ExplorerView extends CollapsibleViewletView {
@@ -60,6 +61,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	private explorerImportDelayer: ThrottledDelayer<void>;
 
 	private resourceContext: ResourceContextKey;
+	private folderContext: IContextKey<boolean>;
 
 	private shouldRefresh: boolean;
 
@@ -84,6 +86,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
@@ -99,6 +102,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.folderContext = new RawContextKey<boolean>('explorerResourceIsFolder', undefined).bindTo(contextKeyService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -332,7 +336,10 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
-		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => this.resourceContext.set(e.focus && e.focus.resource)));
+		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => {
+			this.resourceContext.set(e.focus && e.focus.resource);
+			this.folderContext.set(e.focus && e.focus.isDirectory);
+		}));
 
 		return this.explorerViewer;
 	}
