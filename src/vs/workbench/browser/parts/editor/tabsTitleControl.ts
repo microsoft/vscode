@@ -11,8 +11,8 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
-import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroup, IEditorIdentifier, asFileEditorInput, getUniqueLabels} from 'vs/workbench/common/editor';
+import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -33,6 +33,16 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {extractResources} from 'vs/base/browser/dnd';
+import {LinkedMap} from 'vs/base/common/map';
+import paths = require('vs/base/common/paths');
+
+interface IEditorInputLabel {
+	editor: IEditorInput;
+	name: string;
+	hasAmbiguousName?: boolean;
+	description?: string;
+	verboseDescription?: string;
+}
 
 export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
@@ -182,7 +192,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Compute labels and protect against duplicates
 		const editorsOfGroup = this.context.getEditors();
-		const labels = getUniqueLabels(editorsOfGroup);
+		const labels = this.getUniqueTabLabels(editorsOfGroup);
 
 		// Tab label and styles
 		editorsOfGroup.forEach((editor, index) => {
@@ -198,7 +208,7 @@ export class TabsTitleControl extends TitleControl {
 
 				const label = labels[index];
 				const name = label.name;
-				const description = label.hasAmbiguosName && label.description ? label.description : '';
+				const description = label.hasAmbiguousName && label.description ? label.description : '';
 				const verboseDescription = label.verboseDescription || '';
 
 				// Label & Description
@@ -243,6 +253,56 @@ export class TabsTitleControl extends TitleControl {
 
 		// Ensure the active tab is always revealed
 		this.layout();
+	}
+
+	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+		const labels: IEditorInputLabel[] = [];
+
+		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+		const mapDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+
+		// Build labels and descriptions for each editor
+		editors.forEach(editor => {
+			let description = editor.getDescription();
+			if (description && description.indexOf(paths.nativeSep) >= 0) {
+				description = paths.basename(description); // optimize for editors that show paths and build a shorter description to keep tab width small
+			}
+
+			const item: IEditorInputLabel = {
+				editor,
+				name: editor.getName(),
+				description,
+				verboseDescription: editor.getDescription(true)
+			};
+			labels.push(item);
+
+			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
+			if (item.description) {
+				mapDescriptionToDuplicates.getOrSet(item.description, []).push(item);
+			}
+		});
+
+		// Mark label duplicates
+		const labelDuplicates = mapLabelToDuplicates.values();
+		labelDuplicates.forEach(duplicates => {
+			if (duplicates.length > 1) {
+				duplicates.forEach(duplicate => {
+					duplicate.hasAmbiguousName = true;
+				});
+			}
+		});
+
+		// React to description duplicates
+		const descriptionDuplicates = mapDescriptionToDuplicates.values();
+		descriptionDuplicates.forEach(duplicates => {
+			if (duplicates.length > 1) {
+				duplicates.forEach(duplicate => {
+					duplicate.description = duplicate.editor.getDescription(); // fallback to full description if the short description still has duplicates
+				});
+			}
+		});
+
+		return labels;
 	}
 
 	protected doRefresh(): void {
