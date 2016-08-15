@@ -203,7 +203,16 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension): TPromise<void> {
-		const id = extension.id;
+		return this.getAllInstalled().then<void>(installed => {
+			const promises = installed
+				.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
+				.map(({ id }) => this.uninstallExtension(id));
+
+			return TPromise.join(promises);
+		});
+	}
+
+	private uninstallExtension(id: string): TPromise<void> {
 		const extensionPath = path.join(this.extensionsPath, id);
 
 		return pfs.exists(extensionPath)
@@ -215,14 +224,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this._onDidUninstallExtension.fire(id));
 	}
 
-	getInstalled(includeDuplicateVersions: boolean = false): TPromise<ILocalExtension[]> {
-		const all = this.getAllInstalled();
-
-		if (includeDuplicateVersions) {
-			return all;
-		}
-
-		return all.then(extensions => {
+	getInstalled(): TPromise<ILocalExtension[]> {
+		return this.getAllInstalled().then(extensions => {
 			const byId = values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`));
 			return byId.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 		});

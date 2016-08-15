@@ -125,19 +125,16 @@ class Main {
 
 	private uninstallExtension(ids: string[]): TPromise<any> {
 		return sequence(ids.map(id => () => {
-			return this.extensionManagementService.getInstalled(true).then(installed => {
-				const extensions = installed.filter(e => getId(e.manifest) === id);
+			return this.extensionManagementService.getInstalled().then(installed => {
+				const [extension] = installed.filter(e => getId(e.manifest) === id);
 
-				if (extensions.length === 0) {
+				if (!extension) {
 					return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);
 				}
 
 				console.log(localize('uninstalling', "Uninstalling {0}...", id));
 
-				const promises = extensions
-					.map(extension => this.extensionManagementService.uninstall(extension));
-
-				return TPromise.join(promises)
+				return this.extensionManagementService.uninstall(extension)
 					.then(() => console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id)));
 			});
 		}));
