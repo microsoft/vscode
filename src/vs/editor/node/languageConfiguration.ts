@@ -137,10 +137,8 @@ const schema: IJSONSchema = {
 	properties: {
 		comments: {
 			default: {
-				comments: {
-					blockComment: ['/*', '*/'],
-					lineComment: '//'
-				}
+				blockComment: ['/*', '*/'],
+				lineComment: '//'
 			},
 			description: nls.localize('schema.comments', 'Defines the comment symbols'),
 			type: 'object',
@@ -163,9 +161,7 @@ const schema: IJSONSchema = {
 			}
 		},
 		brackets: {
-			default: {
-				brackets: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
-			},
+			default: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
 			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
 			type: 'array',
 			items: {
@@ -173,9 +169,7 @@ const schema: IJSONSchema = {
 			}
 		},
 		autoClosingPairs: {
-			default: {
-				autoClosingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
-			},
+			default: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
 			description: nls.localize('schema.autoClosingPairs', 'Defines the bracket pairs. When a opening bracket is entered, the closing bracket is inserted automatically.'),
 			type: 'array',
 			items: {
@@ -202,9 +196,7 @@ const schema: IJSONSchema = {
 			}
 		},
 		surroundingPairs: {
-			default: {
-				surroundingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
-			},
+			default: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
 			description: nls.localize('schema.surroundingPairs', 'Defines the bracket pairs that can be used to surround a selected string.'),
 			type: 'array',
 			items: {
