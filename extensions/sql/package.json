@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "sql",
-			"extensions": [ ".sql" ],
+			"extensions": [ ".sql", ".dsql" ],
 			"aliases": [ "SQL" ],
 			"configuration": "./language-configuration.json"
 		}],
