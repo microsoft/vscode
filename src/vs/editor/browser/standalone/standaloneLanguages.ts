@@ -6,11 +6,8 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {Registry} from 'vs/platform/platform';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {IMonarchLanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
@@ -473,15 +470,6 @@ class SuggestAdapter {
 			return SuggestAdapter.from(resolvedItem);
 		});
 	}
-}
-
-
-/**
- * @internal
- */
-export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
-	let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
-	schemaRegistry.registerSchema(uri, schema);
 }
 
 /**

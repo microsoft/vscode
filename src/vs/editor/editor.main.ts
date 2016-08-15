@@ -14,9 +14,8 @@ import 'vs/languages/php/common/php.contribution';
 
 import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 import {createMonacoEditorAPI} from 'vs/editor/browser/standalone/standaloneEditor';
-import {createMonacoLanguagesAPI, registerStandaloneSchema} from 'vs/editor/browser/standalone/standaloneLanguages';
+import {createMonacoLanguagesAPI} from 'vs/editor/browser/standalone/standaloneLanguages';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
@@ -26,9 +25,3 @@ var global:any = self;
 global.monaco = createMonacoBaseAPI();
 global.monaco.editor = createMonacoEditorAPI();
 global.monaco.languages = createMonacoLanguagesAPI();
-
-// Register all built-in standalone JSON schemas
-let MonacoEditorSchemas: { [url:string]: IJSONSchema } = global.MonacoEditorSchemas || {};
-for (var uri in MonacoEditorSchemas) {
-	registerStandaloneSchema(uri, MonacoEditorSchemas[uri]);
-}
