@@ -17,7 +17,7 @@ export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'event:onDidUninstallExtension'): TPromise<void>;
 	call(command: 'install', extensionOrPath: ILocalExtension | string): TPromise<ILocalExtension>;
 	call(command: 'uninstall', extension: ILocalExtension): TPromise<void>;
-	call(command: 'getInstalled', includeDuplicateVersions: boolean): TPromise<ILocalExtension[]>;
+	call(command: 'getInstalled'): TPromise<ILocalExtension[]>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -33,7 +33,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 			case 'event:onDidUninstallExtension': return eventToCall(this.service.onDidUninstallExtension);
 			case 'install': return this.service.install(arg);
 			case 'uninstall': return this.service.uninstall(arg);
-			case 'getInstalled': return this.service.getInstalled(arg);
+			case 'getInstalled': return this.service.getInstalled();
 		}
 	}
 }
@@ -66,7 +66,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return this.channel.call('uninstall', extension);
 	}
 
-	getInstalled(includeDuplicateVersions?: boolean): TPromise<ILocalExtension[]> {
-		return this.channel.call('getInstalled', includeDuplicateVersions);
+	getInstalled(): TPromise<ILocalExtension[]> {
+		return this.channel.call('getInstalled');
 	}
 }

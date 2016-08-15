@@ -113,7 +113,7 @@ export interface IExtensionManagementService {
 	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
-	getInstalled(includeDuplicateVersions?: boolean): TPromise<ILocalExtension[]>;
+	getInstalled(): TPromise<ILocalExtension[]>;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
