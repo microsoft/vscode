@@ -23,6 +23,8 @@ export interface ITextMimeAssociation {
 }
 
 let registeredAssociations: ITextMimeAssociation[] = [];
+let nonUserRegisteredAssociations: ITextMimeAssociation[] = [];
+let userRegisteredAssociations: ITextMimeAssociation[] = [];
 
 /**
  * Associate a text mime to the registry.
@@ -31,6 +33,11 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 
 	// Register
 	registeredAssociations.push(association);
+	if (!association.userConfigured) {
+		nonUserRegisteredAssociations.push(association);
+	} else {
+		userRegisteredAssociations.push(association);
+	}
 
 	// Check for conflicts unless this is a user configured association
 	if (!association.userConfigured) {
@@ -64,8 +71,11 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 export function clearTextMimes(onlyUserConfigured?: boolean): void {
 	if (!onlyUserConfigured) {
 		registeredAssociations = [];
+		nonUserRegisteredAssociations = [];
+		userRegisteredAssociations = [];
 	} else {
 		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
+		userRegisteredAssociations = [];
 	}
 }
 
@@ -80,13 +90,13 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	path = path.toLowerCase();
 
 	// 1.) User configured mappings have highest priority
-	let configuredMime = guessMimeTypeByPath(path, registeredAssociations.filter(a => a.userConfigured));
+	let configuredMime = guessMimeTypeByPath(path, userRegisteredAssociations);
 	if (configuredMime) {
 		return [configuredMime, MIME_TEXT];
 	}
 
 	// 2.) Registered mappings have middle priority
-	let registeredMime = guessMimeTypeByPath(path, registeredAssociations.filter(a => !a.userConfigured));
+	let registeredMime = guessMimeTypeByPath(path, nonUserRegisteredAssociations);
 	if (registeredMime) {
 		return [registeredMime, MIME_TEXT];
 	}
