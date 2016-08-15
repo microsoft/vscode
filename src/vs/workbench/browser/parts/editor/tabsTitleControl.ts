@@ -259,7 +259,7 @@ export class TabsTitleControl extends TitleControl {
 		const labels: IEditorInputLabel[] = [];
 
 		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
-		const mapDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
@@ -278,7 +278,7 @@ export class TabsTitleControl extends TitleControl {
 
 			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
 			if (item.description) {
-				mapDescriptionToDuplicates.getOrSet(item.description, []).push(item);
+				mapLabelAndDescriptionToDuplicates.getOrSet(item.name + item.description, []).push(item);
 			}
 		});
 
@@ -292,8 +292,8 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 
-		// React to description duplicates
-		const descriptionDuplicates = mapDescriptionToDuplicates.values();
+		// React to duplicates for combination of label and description
+		const descriptionDuplicates = mapLabelAndDescriptionToDuplicates.values();
 		descriptionDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
 				duplicates.forEach(duplicate => {
