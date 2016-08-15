@@ -129,13 +129,13 @@ export class SuggestController implements IEditorContribution {
 
 		Object.keys(triggerCharacters).forEach(ch => {
 			this.triggerCharacterListeners.push(this.editor.addTypingListener(ch, () => {
-				this.triggerSuggest(ch, triggerCharacters[ch]);
+				this.model.trigger(false, ch, false, triggerCharacters[ch]);
 			}));
 		});
 	}
 
-	triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): void {
-		this.model.trigger(false, triggerCharacter, false, groups);
+	triggerSuggest(): void {
+		this.model.trigger(false, undefined, false);
 		this.editor.focus();
 	}
 
