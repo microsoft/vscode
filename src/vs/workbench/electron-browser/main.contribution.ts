@@ -83,6 +83,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'right',
 			'description': nls.localize('editorOpenPositioning', "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		},
+		'workbench.quickOpen.closeOnFocusLost': {
+			'type': 'boolean',
+			'description': nls.localize('closeOnFocusLost', "Controls if quick open should close automatically once it looses focus."),
+			'default': true
+		},
 		'workbench.settings.openDefaultSettings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
