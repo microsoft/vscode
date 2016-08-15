@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
-import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -1311,9 +1311,7 @@ export class MoveEditorLeftInGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const args: ActiveEditorMoveArguments = {
-			to: ActiveEditorMovePositioning.LEFT,
-			by: ActiveEditorMovePositioningBy.TAB,
-			value: 1
+			to: ActiveEditorMovePositioning.LEFT
 		};
 		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
 
@@ -1336,9 +1334,7 @@ export class MoveEditorRightInGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const args: ActiveEditorMoveArguments = {
-			to: ActiveEditorMovePositioning.RIGHT,
-			by: ActiveEditorMovePositioningBy.TAB,
-			value: 1
+			to: ActiveEditorMovePositioning.RIGHT
 		};
 		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
 
