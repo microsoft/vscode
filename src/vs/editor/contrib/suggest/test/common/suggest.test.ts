@@ -83,13 +83,4 @@ suite('Suggest', function () {
 			assert.equal(items[0].suggestion.label, 'fff');
 		});
 	});
-
-	test('sort - snippet top', function () {
-		return provideSuggestionItems(model, new Position(1, 1), { snippetConfig: 'only' }).then(items => {
-			assert.equal(items.length, 2);
-			assert.equal(items[0].suggestion.label, 'aaa');
-			assert.equal(items[1].suggestion.label, 'zzz');
-		});
-	});
-
 });
