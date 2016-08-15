@@ -18,6 +18,7 @@ import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} 
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
+import {IHTMLConfiguration, IHTMLFormatConfiguration} from 'vs/languages/html/common/html.contribution';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -34,7 +35,7 @@ export class HTMLWorker {
 	private resourceService:IResourceService;
 	private _modeId: string;
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
-	private formatSettings: any;
+	private formatSettings: IHTMLFormatConfiguration;
 
 	constructor(
 		modeId: string,
@@ -105,7 +106,7 @@ export class HTMLWorker {
 		return dflt;
 	}
 
-	_doConfigure(options: any): winjs.TPromise<void> {
+	_doConfigure(options: IHTMLConfiguration): winjs.TPromise<void> {
 		this.formatSettings = options && options.format;
 		return winjs.TPromise.as(null);
 	}

@@ -21,6 +21,7 @@ suite('Syntax Highlighting - Razor', () => {
 			null,
 			new MockModeService(),
 			null,
+			null,
 			null
 		);
 

@@ -250,16 +250,6 @@ export function getOrCreateMode(modeId: string):TPromise<modes.IMode> {
 }
 
 /**
- * @internal
- */
-export function configureMode(modeId: string, options: any): void {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-
-	modeService.configureModeById(modeId, options);
-}
-
-/**
  * A web worker that can provide a proxy to an arbitrary file.
  */
 export interface MonacoWebWorker<T> {
