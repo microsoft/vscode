@@ -239,13 +239,15 @@ export interface IResult {
 export interface IAutoSaveConfiguration {
 	autoSaveDelay: number;
 	autoSaveFocusChange: boolean;
+	autoSaveApplicationChange: boolean;
 }
 
 export enum AutoSaveMode {
 	OFF,
 	AFTER_SHORT_DELAY,
 	AFTER_LONG_DELAY,
-	ON_FOCUS_CHANGE
+	ON_FOCUS_CHANGE,
+	ON_WINDOW_CHANGE
 }
 
 export interface IFileEditorDescriptor extends IEditorDescriptor {

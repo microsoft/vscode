@@ -38,6 +38,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	private configuredAutoSaveDelay: number;
 	private configuredAutoSaveOnFocusChange: boolean;
+	private configuredAutoSaveOnWindowChange: boolean;
 
 	constructor(
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -74,12 +75,19 @@ export abstract class TextFileService implements ITextFileService {
 		// Configuration changes
 		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
-		// Editor focus change
-		window.addEventListener('blur', () => this.onEditorsChanged(), true);
-		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		// Application & Editor focus change
+		window.addEventListener('blur', () => this.onWindowFocusLost());
+		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
+		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
-	private onEditorsChanged(): void {
+	private onWindowFocusLost(): void {
+		if (this.configuredAutoSaveOnWindowChange && this.getDirty().length) {
+			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
+		}
+	}
+
+	private onEditorFocusChanged(): void {
 		if (this.configuredAutoSaveOnFocusChange && this.getDirty().length) {
 			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
 		}
@@ -93,16 +101,25 @@ export abstract class TextFileService implements ITextFileService {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
 				this.configuredAutoSaveOnFocusChange = false;
+				this.configuredAutoSaveOnWindowChange = false;
 				break;
 
 			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = true;
+				this.configuredAutoSaveOnWindowChange = false;
+				break;
+
+			case AutoSaveConfiguration.ON_WINDOW_CHANGE:
+				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveOnFocusChange = false;
+				this.configuredAutoSaveOnWindowChange = true;
 				break;
 
 			default:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = false;
+				this.configuredAutoSaveOnWindowChange = false;
 				break;
 		}
 
@@ -231,6 +248,10 @@ export abstract class TextFileService implements ITextFileService {
 			return AutoSaveMode.ON_FOCUS_CHANGE;
 		}
 
+		if (this.configuredAutoSaveOnWindowChange) {
+			return AutoSaveMode.ON_WINDOW_CHANGE;
+		}
+
 		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
 			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY : AutoSaveMode.AFTER_LONG_DELAY;
 		}
@@ -241,7 +262,8 @@ export abstract class TextFileService implements ITextFileService {
 	public getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
 			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
-			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange
+			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange,
+			autoSaveApplicationChange: this.configuredAutoSaveOnWindowChange
 		};
 	}
 
