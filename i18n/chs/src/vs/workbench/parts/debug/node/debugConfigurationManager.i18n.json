@@ -12,6 +12,8 @@
 	"duplicateDebuggerType": "调试类型“{0}”已注册，且具有属性“{1}”，正在忽略属性“{1}”。",
 	"interactiveVariableNotFound": "适配器 {0} 不提供启动配置中指定的变量 {1}。",
 	"selectDebug": "选择环境",
+	"vscode.extension.contributes.breakpoints": "贡献断电。",
+	"vscode.extension.contributes.breakpoints.language": "对此语言允许断点。",
 	"vscode.extension.contributes.debuggers": "用于调试适配器。",
 	"vscode.extension.contributes.debuggers.args": "要传递给适配器的可选参数。",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "用于验证 \"launch.json\" 的 JSON 架构配置。",

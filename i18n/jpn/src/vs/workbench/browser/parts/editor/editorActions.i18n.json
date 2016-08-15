@@ -24,6 +24,8 @@
 	"minimizeOtherEditorGroups": "他のエディター グループを最小化する",
 	"moveActiveGroupLeft": "エディター グループを左側に移動する",
 	"moveActiveGroupRight": "エディター グループを右側に移動する",
+	"moveEditorToLeftGroup": "エディターを左側のグループに移動",
+	"moveEditorToRightGroup": "エディターを右側のグループに移動",
 	"navigateEditorGroups": "エディター グループ間で移動する",
 	"navigateEditorHistoryByInput": "履歴から以前のエディターを開く",
 	"navigateNext": "次に進む",

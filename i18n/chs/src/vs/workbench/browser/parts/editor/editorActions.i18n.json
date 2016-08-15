@@ -24,6 +24,8 @@
 	"minimizeOtherEditorGroups": "最小化其他编辑器组",
 	"moveActiveGroupLeft": "向左移动编辑器组",
 	"moveActiveGroupRight": "向右移动编辑器组",
+	"moveEditorToLeftGroup": "将编辑器移动到左侧的组中",
+	"moveEditorToRightGroup": "将编辑器移动到右侧的组中",
 	"navigateEditorGroups": "在编辑器组间进行导航",
 	"navigateEditorHistoryByInput": "从历史记录里打开上一个编辑器",
 	"navigateNext": "前进",
