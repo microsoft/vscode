@@ -1363,6 +1363,11 @@ declare namespace vscode {
 		placeHolder?: string;
 
 		/**
+		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 */
+		ignoreFocusOut?: boolean;
+
+		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
 		onDidSelectItem?: <T extends QuickPickItem>(item: T | string) => any;
@@ -1411,9 +1416,14 @@ declare namespace vscode {
 		placeHolder?: string;
 
 		/**
-		 * Set to true to show a password prompt that will not show the typed value.
+		 * Set to `true` to show a password prompt that will not show the typed value.
 		 */
 		password?: boolean;
+
+		/**
+		 * Set to `true` to keep the input box open when focus moves to another part of the editor or to another window.
+		 */
+		ignoreFocusOut?: boolean;
 
 		/**
 		 * An optional function that will be called to valide input and to give a hint

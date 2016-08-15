@@ -46,6 +46,8 @@ export interface IPickOptions {
 	 * an optional flag to include the detail when filtering the picks
 	 */
 	matchOnDetail?: boolean;
+
+	ignoreFocusLost?: boolean;
 }
 
 export interface IInputOptions {
@@ -69,6 +71,8 @@ export interface IInputOptions {
 	 * set to true to show a password prompt that will not show the typed value
 	 */
 	password?: boolean;
+
+	ignoreFocusLost?: boolean;
 
 	/**
 	 * an optional function that is used to validate user input.
