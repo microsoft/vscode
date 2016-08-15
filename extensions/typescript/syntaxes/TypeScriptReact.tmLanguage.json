@@ -3,6 +3,7 @@
 		"tsx"
 	],
 	"name": "TypeScriptReact",
+	"firstLineMatch": "#!/.*\bnode",
 	"patterns": [
 		{
 			"include": "#expression"
