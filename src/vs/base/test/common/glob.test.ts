@@ -401,9 +401,9 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.equal('**/*.js', glob.match(expression, 'test.js', siblings));
-		assert(!glob.match(expression, 'test.js', []));
-		assert(!glob.match(expression, 'test.js', ['te.ts']));
+		assert.equal('**/*.js', glob.match(expression, 'test.js', () => siblings));
+		assert(!glob.match(expression, 'test.js', () => []));
+		assert(!glob.match(expression, 'test.js', () => ['te.ts']));
 		assert(!glob.match(expression, 'test.js'));
 
 		expression = {
@@ -412,18 +412,18 @@ suite('Glob', () => {
 			}
 		};
 
-		assert(!glob.match(expression, 'test.js', siblings));
+		assert(!glob.match(expression, 'test.js', () => siblings));
 
 		expression = <any>{
 			'**/*.js': {
 			}
 		};
 
-		assert.equal('**/*.js', glob.match(expression, 'test.js', siblings));
+		assert.equal('**/*.js', glob.match(expression, 'test.js', () => siblings));
 
 		expression = {};
 
-		assert(!glob.match(expression, 'test.js', siblings));
+		assert(!glob.match(expression, 'test.js', () => siblings));
 	});
 
 	test('expression support (multiple)', function () {
@@ -437,11 +437,11 @@ suite('Glob', () => {
 			'**/*.bananas': { bananas: true }
 		};
 
-		assert.equal('**/*.js', glob.match(expression, 'test.js', siblings));
-		assert.equal('**/*.as', glob.match(expression, 'test.as', siblings));
-		assert.equal('**/*.bananas', glob.match(expression, 'test.bananas', siblings));
+		assert.equal('**/*.js', glob.match(expression, 'test.js', () => siblings));
+		assert.equal('**/*.as', glob.match(expression, 'test.as', () => siblings));
+		assert.equal('**/*.bananas', glob.match(expression, 'test.bananas', () => siblings));
 		assert.equal('**/*.bananas', glob.match(expression, 'test.bananas'));
-		assert(!glob.match(expression, 'test.foo', siblings));
+		assert(!glob.match(expression, 'test.foo', () => siblings));
 	});
 
 	test('brackets', function () {

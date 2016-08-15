@@ -682,10 +682,9 @@ export class FileFilter implements IFilter {
 			return true; // always visible
 		}
 
-		let siblings = stat.parent && stat.parent.children && stat.parent.children.map(c => c.name);
-
 		// Hide those that match Hidden Patterns
-		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource), siblings)) {
+		const siblingsFn = () => stat.parent && stat.parent.children && stat.parent.children.map(c => c.name);
+		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
