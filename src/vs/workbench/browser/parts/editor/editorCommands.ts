@@ -120,12 +120,16 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor) {
 	let newPosition = activeEditor.position;
 	switch (args.to) {
-		case ActiveEditorMovePositioning.FIRST:
 		case ActiveEditorMovePositioning.LEFT:
+			newPosition = newPosition - 1;
+			break;
+		case ActiveEditorMovePositioning.RIGHT:
+			newPosition = newPosition + 1;
+			break;
+		case ActiveEditorMovePositioning.FIRST:
 			newPosition = Position.LEFT;
 			break;
 		case ActiveEditorMovePositioning.LAST:
-		case ActiveEditorMovePositioning.RIGHT:
 			newPosition = Position.RIGHT;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
