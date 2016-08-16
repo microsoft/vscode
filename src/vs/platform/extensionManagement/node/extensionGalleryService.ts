@@ -13,7 +13,7 @@ import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { download, json, IRequestOptions } from 'vs/base/node/request';
+import { request, download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
@@ -280,7 +280,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
 		const data = JSON.stringify(query.raw);
-		const request = this.request(this.api('/extensionquery'));
+		const opts = this.request(this.api('/extensionquery'));
 
 		return this.getCommonHeaders()
 			.then(headers => assign(headers, {
@@ -289,8 +289,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				'Accept-Encoding': 'gzip',
 				'Content-Length': data.length
 			}))
-			.then(headers => assign(request, { type: 'POST', data, headers }))
-			.then(() => json<any>(request))
+			.then(headers => assign(opts, { type: 'POST', data, headers }))
+			.then(() => request(opts))
+			.then(context => json<any>(context))
 			.then(result => {
 				const r = result.results[0];
 				const galleryExtensions = r.extensions;
@@ -319,11 +320,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions).then(rawVersion => {
 				const url = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
 				const zipPath = path.join(tmpdir(), extension.id);
-				const request = this.request(url);
+				const opts = this.request(url);
 
 				return this.getCommonHeaders()
-					.then(headers => assign(request, { headers }))
-					.then(() => download(zipPath, request))
+					.then(headers => assign(opts, { headers }))
+					.then(() => request(opts))
+					.then(context => download(zipPath, context))
 					.then(() => zipPath);
 			});
 		});
@@ -336,22 +338,23 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const version = versions[0];
 		const url = getAssetSource(version.files, AssetType.Manifest);
-		let request = this.request(url);
-		request = assign(request, { headers: { 'accept-encoding': 'gzip' } });
+		const opts = assign(this.request(url), { headers: { 'accept-encoding': 'gzip' } });
 
-		return json<IExtensionManifest>(request).then(manifest => {
-			const desc = {
-				isBuiltin: false,
-				engines: { vscode: manifest.engines.vscode },
-				main: manifest.main
-			};
+		return request(opts)
+			.then(context => json<IExtensionManifest>(context))
+			.then(manifest => {
+				const desc = {
+					isBuiltin: false,
+					engines: { vscode: manifest.engines.vscode },
+					main: manifest.main
+				};
 
-			if (!isValidExtensionVersion(pkg.version, desc, [])) {
-				return this.getLastValidExtensionVersion(extension, versions.slice(1));
-			}
+				if (!isValidExtensionVersion(pkg.version, desc, [])) {
+					return this.getLastValidExtensionVersion(extension, versions.slice(1));
+				}
 
-			return version;
-		});
+				return version;
+			});
 	}
 
 	// Helper for proxy business... shameful.
