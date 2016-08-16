@@ -21,7 +21,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
  * Configuration service to be used in the node side.
  * TODO@Joao:
  * 	- defaults handling
- *  - async reading
+ *  - async reading:
+ * 		- read async at construction and on file change event. but if someone
+ * 			calls getConfiguration before that first async call is done, just do
+ * 			it sync
  *
  * At some point, an async get() on the configuration service would be
  * much easier to implement and reason about. IConfigurationService2?
