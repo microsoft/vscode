@@ -18,6 +18,7 @@ import {ExtHostQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
 import {ExtHostStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/node/extHostOutputService';
+import {ExtHostTerminalService} from 'vs/workbench/api/node/extHostTerminalService';
 import {ExtHostMessageService} from 'vs/workbench/api/node/extHostMessageService';
 import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/node/extHostLanguages';
@@ -117,6 +118,7 @@ export class ExtHostAPIImplementation {
 		const extHostMessageService = new ExtHostMessageService(threadService);
 		const extHostStatusBar = new ExtHostStatusBar(threadService);
 		const extHostOutputService = new ExtHostOutputService(threadService);
+		const extHostTerminalService = new ExtHostTerminalService(threadService);
 		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 		const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 		const languages = new ExtHostLanguages(threadService);
@@ -253,6 +255,9 @@ export class ExtHostAPIImplementation {
 			},
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
+			},
+			createTerminal(name?: string): vscode.Terminal {
+				return extHostTerminalService.createTerminal(name);
 			}
 		};
 
