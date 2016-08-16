@@ -12,7 +12,6 @@ import objects = require('vs/base/common/objects');
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 
-
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
 };
@@ -80,7 +79,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
-		let schema = <IJSONSchema>objects.clone(configuration);
+		const schema = <IJSONSchema>objects.clone(configuration);
 		this.configurationSchema.allOf.push(schema);
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
@@ -89,7 +88,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 const configurationRegistry = new ConfigurationRegistry();
 platform.Registry.add(Extensions.Configuration, configurationRegistry);
 
-let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
@@ -110,8 +109,8 @@ let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigura
 
 configurationExtPoint.setHandler((extensions) => {
 	for (let i = 0; i < extensions.length; i++) {
-		let configuration = <IConfigurationNode>extensions[i].value;
-		let collector = extensions[i].collector;
+		const configuration = <IConfigurationNode>extensions[i].value;
+		const collector = extensions[i].collector;
 
 		if (configuration.type && configuration.type !== 'object') {
 			collector.warn(nls.localize('invalid.type', "if set, 'configuration.type' must be set to 'object"));
@@ -127,7 +126,7 @@ configurationExtPoint.setHandler((extensions) => {
 			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
 			return;
 		}
-		let clonedConfiguration = objects.clone(configuration);
+		const clonedConfiguration = objects.clone(configuration);
 		clonedConfiguration.id = extensions[i].description.id;
 		configurationRegistry.registerConfiguration(clonedConfiguration);
 	}

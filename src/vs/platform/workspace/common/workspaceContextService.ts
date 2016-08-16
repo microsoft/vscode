@@ -6,14 +6,16 @@
 
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {IWorkspaceContextService, IWorkspace, IConfiguration} from './workspace';
+import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 
 /**
  * Simple IWorkspaceContextService implementation to allow sharing of this service implementation
  * between different layers of the platform.
  */
 export class BaseWorkspaceContextService implements IWorkspaceContextService {
+
 	public _serviceBrand: any;
+
 	protected options: any;
 
 	private workspace: IWorkspace;

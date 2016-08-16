@@ -10,7 +10,7 @@ import {Build, Builder} from 'vs/base/browser/builder';
 import {Part} from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import * as TestUtils from 'vs/test/utils/servicesTestUtils';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';

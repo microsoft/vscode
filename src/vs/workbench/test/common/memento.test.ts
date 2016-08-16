@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
 import {StorageScope} from 'vs/platform/storage/common/storage';
 import * as TestUtils from 'vs/test/utils/servicesTestUtils';
 import {Memento, Scope} from 'vs/workbench/common/memento';

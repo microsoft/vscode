@@ -22,7 +22,8 @@ import {ConfigurationService} from 'vs/workbench/services/configuration/node/con
 import path = require('path');
 import fs = require('fs');
 import gracefulFs = require('graceful-fs');
-gracefulFs.gracefulify(fs);
+
+gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const timers = (<any>window).MonacoEnvironment.timers;
 
@@ -117,15 +118,13 @@ function getWorkspace(environment: IMainEnvironment): IWorkspace {
 	const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
 	const folderStat = fs.statSync(realWorkspacePath);
 
-	const workspace: IWorkspace = {
+	return <IWorkspace>{
 		'resource': workspaceResource,
 		'id': platform.isLinux ? realWorkspacePath : realWorkspacePath.toLowerCase(),
 		'name': folderName,
 		'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime(), // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 		'mtime': folderStat.mtime.getTime()
 	};
-
-	return workspace;
 }
 
 function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {

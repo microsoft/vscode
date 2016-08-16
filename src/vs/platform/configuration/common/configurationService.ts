@@ -79,8 +79,9 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	}
 
 	protected registerListeners(): void {
-		let unbind = this.eventService.addListener2(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
-		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration());
+		const unbind = this.eventService.addListener2(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
+		const subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration());
+
 		this.callOnDispose = {
 			dispose: () => {
 				unbind.dispose();
@@ -99,12 +100,12 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 
 	protected abstract resolveStat(resource: uri): TPromise<IStat>;
 
-	public abstract setUserConfiguration(key: string | JSONPath, value: any) : Thenable<void>;
+	public abstract setUserConfiguration(key: string | JSONPath, value: any): Thenable<void>;
 
 	public getConfiguration<T>(section?: string): T {
 		let result = section ? this.cachedConfig.config[section] : this.cachedConfig.config;
 
-		let parseErrors = this.cachedConfig.parseErrors;
+		const parseErrors = this.cachedConfig.parseErrors;
 		if (parseErrors && parseErrors.length > 0) {
 			if (!result) {
 				result = {};
@@ -134,10 +135,10 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 		return this.loadWorkspaceConfiguration().then((values) => {
 
 			// Consolidate
-			let consolidated = model.consolidate(values);
+			const consolidated = model.consolidate(values);
 
 			// Override with workspace locals
-			let merged = objects.mixin(
+			const merged = objects.mixin(
 				objects.clone(globals.contents), 	// target: global/default values (but dont modify!)
 				consolidated.contents,				// source: workspace configured values
 				true								// overwrite
@@ -147,6 +148,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 			if (consolidated.parseErrors) {
 				parseErrors = consolidated.parseErrors;
 			}
+
 			if (globals.parseErrors) {
 				parseErrors.push.apply(parseErrors, globals.parseErrors);
 			}
@@ -225,10 +227,11 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	}
 
 	private handleFileEvents(event: FileChangesEvent): void {
-		let events = event.changes;
+		const events = event.changes;
 		let affectedByChanges = false;
+		
 		for (let i = 0, len = events.length; i < len; i++) {
-			let workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
+			const workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
 			if (!workspacePath) {
 				continue; // event is not inside workspace
 			}
