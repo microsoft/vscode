@@ -3,15 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { tmpdir } from 'os';
+import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, SortBy, SortOrder } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
+import { download, json, IRequestOptions } from 'vs/base/node/request';
+import { getProxyAgent } from 'vs/base/node/proxy';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
+import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -158,21 +165,21 @@ function getAssetSource(files: IRawGalleryExtensionFile[], type: string): string
 	return result && result.source;
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IGalleryExtension {
-	const versions = galleryExtension.versions.map<IGalleryVersion>(v => ({
-		version: v.version,
-		date: v.lastUpdated,
-		downloadHeaders,
-		downloadUrl: `${ v.assetUri }/${ AssetType.VSIX }?install=true`,
-		manifestUrl: `${ v.assetUri }/${ AssetType.Manifest }`,
-		readmeUrl: `${ v.assetUri }/${ AssetType.Details }`,
-		iconUrl: getAssetSource(v.files, AssetType.Icon) || require.toUrl('./media/defaultIcon.png'),
-		licenseUrl: getAssetSource(v.files, AssetType.License)
-	}));
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: { [key: string]: string; }): IGalleryExtension {
+	const [version] = galleryExtension.versions;
+	const assets = {
+		manifest: getAssetSource(version.files, AssetType.Manifest),
+		readme: getAssetSource(version.files, AssetType.Details),
+		download: `${ getAssetSource(version.files, AssetType.VSIX) }?install=true`,
+		icon: getAssetSource(version.files, AssetType.Icon) || require.toUrl('./media/defaultIcon.png'),
+		license: getAssetSource(version.files, AssetType.License)
+	};
 
 	return {
 		id: galleryExtension.extensionId,
 		name: galleryExtension.extensionName,
+		version: version.version,
+		date: version.lastUpdated,
 		displayName: galleryExtension.displayName,
 		publisherId: galleryExtension.publisher.publisherId,
 		publisher: galleryExtension.publisher.publisherName,
@@ -181,7 +188,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
-		versions
+		assets,
+		downloadHeaders
 	};
 }
 
@@ -190,15 +198,29 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	_serviceBrand: any;
 
 	private extensionsGalleryUrl: string;
-	private machineId: TPromise<string>;
+
+	private getCommonHeaders(): TPromise<{ [key: string]: string; }> {
+		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
+			const result: { [key: string]: string; } = {
+				'X-Market-Client-Id': `VSCode ${ pkg.version }`,
+				'User-Agent': `VSCode ${ pkg.version }`
+			};
+
+			if (machineId) {
+				result['X-Market-User-Id'] = machineId;
+			}
+
+			return result;
+		});
+	}
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.machineId = telemetryService.getTelemetryInfo().then(({ machineId }) => machineId);
 	}
 
 	private api(path = ''): string {
@@ -221,10 +243,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		let query = new Query()
-			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles)
+			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles)
 			.withPage(1, pageSize)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withAssetTypes(AssetType.Icon, AssetType.License);
+			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
 
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
@@ -245,7 +267,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
-			return this.getRequestHeaders().then(downloadHeaders => {
+			return this.getCommonHeaders().then(downloadHeaders => {
 				const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders));
 				const pageSize = query.pageSize;
 				const getPage = pageIndex => this.queryGallery(query.withPage(pageIndex + 1))
@@ -258,27 +280,19 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
 		const data = JSON.stringify(query.raw);
+		const request = this.request(this.api('/extensionquery'));
 
-		return this.getRequestHeaders()
-			.then(headers => {
-				headers = assign(headers, {
-					'Content-Type': 'application/json',
-					'Accept': 'application/json;api-version=3.0-preview.1',
-					'Accept-Encoding': 'gzip',
-					'Content-Length': data.length
-				});
-
-				const request = {
-					type: 'POST',
-					url: this.api('/extensionquery'),
-					data,
-					headers
-				};
-
-				return this.requestService.makeRequest(request);
-			})
-			.then(r => JSON.parse(r.responseText).results[0])
-			.then(r => {
+		return this.getCommonHeaders()
+			.then(headers => assign(headers, {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json;api-version=3.0-preview.1',
+				'Accept-Encoding': 'gzip',
+				'Content-Length': data.length
+			}))
+			.then(headers => assign(request, { type: 'POST', data, headers }))
+			.then(() => json<any>(request))
+			.then(result => {
+				const r = result.results[0];
 				const galleryExtensions = r.extensions;
 				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
 				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
@@ -287,18 +301,67 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			});
 	}
 
-	private getRequestHeaders(): TPromise<any> {
-		return this.machineId.then(machineId => {
-			const result = {
-				'X-Market-Client-Id': `VSCode ${ pkg.version }`,
-				'User-Agent': `VSCode ${ pkg.version }`
-			};
+	download(extension: IGalleryExtension): TPromise<string> {
+		const query = new Query()
+			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles)
+			.withPage(1, 1)
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
+			.withFilter(FilterType.ExtensionId, extension.id);
 
-			if (machineId) {
-				result['X-Market-User-Id'] = machineId;
+		return this.queryGallery(query).then(({ galleryExtensions }) => {
+			const [rawExtension] = galleryExtensions;
+
+			if (!rawExtension) {
+				return TPromise.wrapError(new Error(localize('notFound', "Extension not found")));
 			}
 
-			return result;
+			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions).then(rawVersion => {
+				const url = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
+				const zipPath = path.join(tmpdir(), extension.id);
+				const request = this.request(url);
+
+				return this.getCommonHeaders()
+					.then(headers => assign(request, { headers }))
+					.then(() => download(zipPath, request))
+					.then(() => zipPath);
+			});
 		});
+	}
+
+	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
+		if (!versions.length) {
+			return TPromise.wrapError(new Error(localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName || extension.extensionName)));
+		}
+
+		const version = versions[0];
+		const url = getAssetSource(version.files, AssetType.Manifest);
+		let request = this.request(url);
+		request = assign(request, { headers: { 'accept-encoding': 'gzip' } });
+
+		return json<IExtensionManifest>(request).then(manifest => {
+			const desc = {
+				isBuiltin: false,
+				engines: { vscode: manifest.engines.vscode },
+				main: manifest.main
+			};
+
+			if (!isValidExtensionVersion(pkg.version, desc, [])) {
+				return this.getLastValidExtensionVersion(extension, versions.slice(1));
+			}
+
+			return version;
+		});
+	}
+
+	// Helper for proxy business... shameful.
+	// This should be pushed down and not rely on the context service
+	private request(url: string): IRequestOptions {
+		const httpConfig = this.configurationService.getConfiguration<any>('http') || {};
+		const proxyUrl = httpConfig.proxy as string;
+		const strictSSL = httpConfig.proxyStrictSSL as boolean;
+		const agent = getProxyAgent(url, { proxyUrl, strictSSL });
+
+		return { url, agent, strictSSL };
 	}
 }

@@ -17,8 +17,9 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -55,7 +56,6 @@ function main(server: Server): void {
 
 	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
-	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
 
 	const instantiationService = new InstantiationService(services);
@@ -92,6 +92,9 @@ function main(server: Server): void {
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
+
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 		const instantiationService2 = instantiationService.createChild(services);
 

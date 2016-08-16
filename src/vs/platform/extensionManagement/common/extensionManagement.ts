@@ -22,25 +22,24 @@ export interface IExtensionManifest {
 	icon?: string;
 }
 
-export interface IGalleryVersion {
-	version: string;
-	date: string;
-	manifestUrl: string;
-	readmeUrl: string;
-	downloadUrl: string;
-	iconUrl: string;
-	licenseUrl: string;
-	downloadHeaders: { [key: string]: string; };
-}
-
 export interface IExtensionIdentity {
 	name: string;
 	publisher: string;
 }
 
+export interface IGalleryExtensionAssets {
+	manifest: string;
+	readme: string;
+	download: string;
+	icon: string;
+	license: string;
+}
+
 export interface IGalleryExtension {
 	id: string;
 	name: string;
+	version: string;
+	date: string;
 	displayName: string;
 	publisherId: string;
 	publisher: string;
@@ -49,7 +48,8 @@ export interface IGalleryExtension {
 	installCount: number;
 	rating: number;
 	ratingCount: number;
-	versions: IGalleryVersion[];
+	assets: IGalleryExtensionAssets;
+	downloadHeaders: { [key: string]: string; };
 }
 
 export interface IGalleryMetadata {
@@ -98,6 +98,7 @@ export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
+	download(extension: IGalleryExtension): TPromise<string>;
 }
 
 export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; };
@@ -111,8 +112,8 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<string>;
 	onDidUninstallExtension: Event<string>;
 
-	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
 	getInstalled(): TPromise<ILocalExtension[]>;
 }
