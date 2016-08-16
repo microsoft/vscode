@@ -8,14 +8,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestOptions, IRequestContext, request } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { IRequestService2, IHTTPConfiguration } from 'vs/platform/request/common/request';
+import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/common/request';
 import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
 
 /**
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
-export class RequestService2 implements IRequestService2 {
+export class RequestService implements IRequestService {
 
 	_serviceBrand: any;
 

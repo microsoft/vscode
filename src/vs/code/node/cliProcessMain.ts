@@ -25,8 +25,8 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/ex
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { IRequestService2 } from 'vs/platform/request/common/request';
-import { RequestService2 } from 'vs/platform/request/node/requestService2';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
@@ -157,7 +157,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			const services = new ServiceCollection();
 			services.set(IEventService, new SyncDescriptor(EventService));
 			services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
-			services.set(IRequestService2, new SyncDescriptor(RequestService2));
+			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 

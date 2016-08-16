@@ -12,7 +12,6 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import {IEditorControl} from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
-import {IRequestService} from 'vs/platform/request/common/request';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -29,9 +28,8 @@ import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {createMockModelService, TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/test/utils/servicesTestUtils';
+import {createMockModelService, TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestContextService, TestWorkspace, TestEditorService} from 'vs/test/utils/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {EventType} from 'vs/workbench/common/events';
 import {IPanel} from 'vs/workbench/common/panel';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -337,25 +335,10 @@ suite('Workbench UI Services', () => {
 		let editorService = new TestEditorService(function () { });
 		let eventService = new TestEventService();
 		let contextService = new TestContextService(TestWorkspace);
-		let requestService = new MockRequestService(TestWorkspace, (url) => {
-			if (/index\.html$/.test(url)) {
-				return {
-					responseText: 'Hello Html',
-					getResponseHeader: key => ({
-						'content-length': '1000',
-						'last-modified': new Date().toUTCString(),
-						'content-type': 'text/html'
-					})[key.toLowerCase()]
-				};
-			}
-
-			return null;
-		});
 
 		let instantiationService= new TestInstantiationService();
 		instantiationService.stub(IEventService, eventService);
 		instantiationService.stub(IWorkspaceContextService, contextService);
-		instantiationService.stub(IRequestService, requestService);
 		instantiationService.stub(ITelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
@@ -433,12 +416,10 @@ suite('Workbench UI Services', () => {
 		let editorService = new TestEditorService(function () { });
 		let contextService = new TestContextService(TestWorkspace);
 		let eventService = new TestEventService();
-		let requestService = new TestRequestService();
 		let telemetryService = NullTelemetryService;
 
 		let instantiationService = new TestInstantiationService();
 		instantiationService.stub(IEventService, eventService);
-		instantiationService.stub(IRequestService, requestService);
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
