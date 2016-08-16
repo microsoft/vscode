@@ -20,8 +20,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 	}
 
 	public $createTerminal(name?: string): TPromise<number> {
-		// TODO: Use name here
-		return this._terminalService.createNew();
+		return this._terminalService.createNew(name);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
