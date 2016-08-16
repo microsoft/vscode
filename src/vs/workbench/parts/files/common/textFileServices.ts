@@ -83,13 +83,13 @@ export abstract class TextFileService implements ITextFileService {
 
 	private onWindowFocusLost(): void {
 		if (this.configuredAutoSaveOnWindowChange && this.isDirty()) {
-			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
+			this.saveAll().done(null, errors.onUnexpectedError);
 		}
 	}
 
 	private onEditorFocusChanged(): void {
 		if (this.configuredAutoSaveOnFocusChange && this.isDirty()) {
-			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
+			this.saveAll().done(null, errors.onUnexpectedError);
 		}
 	}
 

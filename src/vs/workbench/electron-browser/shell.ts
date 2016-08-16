@@ -140,14 +140,14 @@ export class WorkbenchShell {
 		aria.setARIAContainer(document.body);
 
 		// Workbench Container
-		let workbenchContainer = $(parent).div();
+		const workbenchContainer = $(parent).div();
 
 		// Instantiation service with services
-		let [instantiationService, serviceCollection] = this.initServiceCollection();
+		const [instantiationService, serviceCollection] = this.initServiceCollection();
 
 		//crash reporting
 		if (!!this.configuration.env.crashReporter) {
-			let crashReporter = instantiationService.createInstance(CrashReporter, this.configuration.env.version, this.configuration.env.commitHash);
+			const crashReporter = instantiationService.createInstance(CrashReporter, this.configuration.env.version, this.configuration.env.commitHash);
 			crashReporter.start(this.configuration.env.crashReporter);
 		}
 
@@ -166,7 +166,7 @@ export class WorkbenchShell {
 		this.workbench.getInstantiationService().createInstance(Update);
 
 		// Handle case where workbench is not starting up properly
-		let timeoutHandle = setTimeout(() => {
+		const timeoutHandle = setTimeout(() => {
 			console.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
 		}, 10000);
 
@@ -180,7 +180,7 @@ export class WorkbenchShell {
 	private onWorkbenchStarted(customKeybindingsCount: number): void {
 
 		// Log to telemetry service
-		let windowSize = {
+		const windowSize = {
 			innerHeight: window.innerHeight,
 			innerWidth: window.innerWidth,
 			outerHeight: window.outerHeight,
@@ -197,7 +197,7 @@ export class WorkbenchShell {
 				language: platform.language
 			});
 
-		let workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
+		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
 		workspaceStats.reportWorkspaceTags();
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
@@ -232,7 +232,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IWindowService, this.windowService);
 
 		// Storage
-		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
+		const disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
@@ -270,17 +270,17 @@ export class WorkbenchShell {
 		this.messageService = instantiationService.createInstance(MessageService);
 		serviceCollection.set(IMessageService, this.messageService);
 
-		let fileService = disposables.add(instantiationService.createInstance(FileService));
+		const fileService = disposables.add(instantiationService.createInstance(FileService));
 		serviceCollection.set(IFileService, fileService);
 
-		let lifecycleService = instantiationService.createInstance(LifecycleService);
+		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 
 		this.threadService = instantiationService.createInstance(MainThreadService);
 		serviceCollection.set(IThreadService, this.threadService);
 
-		let extensionService = instantiationService.createInstance(MainProcessExtensionService);
+		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, extensionService);
 
 		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
@@ -288,34 +288,34 @@ export class WorkbenchShell {
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);
 
-		let requestService = disposables.add(instantiationService.createInstance(RequestService));
+		const requestService = disposables.add(instantiationService.createInstance(RequestService));
 		serviceCollection.set(IRequestService, requestService);
 
-		let markerService = instantiationService.createInstance(MarkerService);
+		const markerService = instantiationService.createInstance(MarkerService);
 		serviceCollection.set(IMarkerService, markerService);
 
-		let modeService = instantiationService.createInstance(MainThreadModeServiceImpl);
+		const modeService = instantiationService.createInstance(MainThreadModeServiceImpl);
 		serviceCollection.set(IModeService, modeService);
 
-		let modelService = instantiationService.createInstance(ModelServiceImpl);
+		const modelService = instantiationService.createInstance(ModelServiceImpl);
 		serviceCollection.set(IModelService, modelService);
 
-		let compatWorkerService = instantiationService.createInstance(MainThreadCompatWorkerService);
+		const compatWorkerService = instantiationService.createInstance(MainThreadCompatWorkerService);
 		serviceCollection.set(ICompatWorkerService, compatWorkerService);
 
-		let editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
+		const editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
 		serviceCollection.set(IEditorWorkerService, editorWorkerService);
 
-		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
+		const untitledEditorService = instantiationService.createInstance(UntitledEditorService);
 		serviceCollection.set(IUntitledEditorService, untitledEditorService);
 
 		this.themeService = instantiationService.createInstance(ThemeService);
 		serviceCollection.set(IThemeService, this.themeService);
 
-		let searchService = instantiationService.createInstance(SearchService);
+		const searchService = instantiationService.createInstance(SearchService);
 		serviceCollection.set(ISearchService, searchService);
 
-		let codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
+		const codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
 		serviceCollection.set(ICodeEditorService, codeEditorService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
@@ -367,9 +367,9 @@ export class WorkbenchShell {
 	}
 
 	private writeTimers(): void {
-		let timers = (<any>window).MonacoEnvironment.timers;
+		const timers = (<any>window).MonacoEnvironment.timers;
 		if (timers) {
-			let events: timer.IExistingTimerEvent[] = [];
+			const events: timer.IExistingTimerEvent[] = [];
 
 			// Program
 			if (timers.beforeProgram) {
@@ -417,12 +417,12 @@ export class WorkbenchShell {
 	}
 
 	public onUnexpectedError(error: any): void {
-		let errorMsg = errors.toErrorMessage(error, true);
+		const errorMsg = errors.toErrorMessage(error, true);
 		if (!errorMsg) {
 			return;
 		}
 
-		let now = Date.now();
+		const now = Date.now();
 		if (errorMsg === this.previousErrorValue && now - this.previousErrorTime <= 1000) {
 			return; // Return if error message identical to previous and shorter than 1 second
 		}
@@ -440,9 +440,9 @@ export class WorkbenchShell {
 	}
 
 	public layout(): void {
-		let clArea = $(this.container).getClientArea();
+		const clArea = $(this.container).getClientArea();
 
-		let contentsSize = new Dimension(clArea.width, clArea.height);
+		const contentsSize = new Dimension(clArea.width, clArea.height);
 		this.contentsContainer.size(contentsSize.width, contentsSize.height);
 
 		this.contextViewService.layout();
