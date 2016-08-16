@@ -38,7 +38,9 @@ export class CompletionModel {
 
 	private _lineContext: LineContext;
 	private _items: CompletionItem[] = [];
+
 	private _filteredItems: CompletionItem[] = undefined;
+	private _topScoreIdx: number;
 
 	constructor(raw: ISuggestionItem[], leadingLineContent: string) {
 		this.raw = raw;
@@ -61,21 +63,31 @@ export class CompletionModel {
 
 	get items(): CompletionItem[] {
 		if (!this._filteredItems) {
-			this._filter();
+			this._filterAndScore();
 		}
 		return this._filteredItems;
 	}
 
+	get topScoreIdx(): number {
+		if (!this._filteredItems) {
+			this._filterAndScore();
+		}
+		return this._topScoreIdx;
+	}
 
-	private _filter(): void {
+	private _filterAndScore(): void {
 		this._filteredItems = [];
+		this._topScoreIdx = -1;
+		let topScore = -1;
 		const {leadingLineContent, characterCountDelta} = this._lineContext;
-		for (let item of this._items) {
+
+		//TODO@joh - sort by 'overwriteBefore' such that we can 'reuse' the word (wordLowerCase)
+		for (const item of this._items) {
 
 			const start = leadingLineContent.length - (item.suggestion.overwriteBefore + characterCountDelta);
 			const word = leadingLineContent.substr(start);
-
 			const {filter, suggestion} = item;
+
 			let match = false;
 
 			// compute highlights based on 'label'
@@ -87,9 +99,36 @@ export class CompletionModel {
 				match = !isFalsyOrEmpty(filter(word, suggestion.filterText));
 			}
 
-			if (match) {
-				this._filteredItems.push(item);
+			if (!match) {
+				continue;
+			}
+
+			this._filteredItems.push(item);
+
+			// compute score against word
+			const wordLowerCase = word.toLowerCase();
+			const score = CompletionModel._score(suggestion.label, word, wordLowerCase);
+			if (score > topScore) {
+				topScore = score;
+				this._topScoreIdx = this._filteredItems.length - 1;
 			}
 		}
+	}
+
+	private static _score(suggestion: string, currentWord: string, currentWordLowerCase: string): number {
+		const suggestionLowerCase = suggestion.toLowerCase();
+		let score = 0;
+
+		for (let i = 0, len = Math.min(currentWord.length, suggestion.length); i < len; i++) {
+			if (currentWord[i] === suggestion[i]) {
+				score += 2;
+			} else if (currentWordLowerCase[i] === suggestionLowerCase[i]) {
+				score += 1;
+			} else {
+				break;
+			}
+		}
+
+		return score;
 	}
 }
