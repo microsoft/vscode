@@ -71,6 +71,7 @@ const DEFAULT_ANSI_COLORS = {
 
 export interface ITerminalFont {
 	fontFamily: string;
+	fontWeight: string;
 	fontSize: string;
 	lineHeight: number;
 	charWidth: number;
@@ -99,7 +100,7 @@ export class TerminalConfigHelper {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
-	private measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+	private measureFont(fontFamily: string, fontWeight: string,fontSize: number, lineHeight: number): ITerminalFont {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this.charMeasureElement || !this.charMeasureElement.parentElement) {
 			this.charMeasureElement = this.panelContainer.div().getHTMLElement();
@@ -107,6 +108,7 @@ export class TerminalConfigHelper {
 		let style = this.charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
+		style.fontWeight = fontWeight;
 		style.fontSize = fontSize + 'px';
 		style.height = Math.floor(lineHeight * fontSize) + 'px';
 		this.charMeasureElement.innerText = 'X';
@@ -116,6 +118,7 @@ export class TerminalConfigHelper {
 		let charHeight = Math.ceil(rect.height);
 		return {
 			fontFamily,
+			fontWeight,
 			fontSize: fontSize + 'px',
 			lineHeight,
 			charWidth,
@@ -124,7 +127,7 @@ export class TerminalConfigHelper {
 	}
 
 	/**
-	 * Gets the font information based on the terminal.integrated.fontFamily,
+	 * Gets the font information based on the terminal.integrated.fontFamily, terminal.integrated.fontWeight
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
 	public getFont(): ITerminalFont {
@@ -132,13 +135,14 @@ export class TerminalConfigHelper {
 		let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
 
 		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
+		let fontWeight = terminalConfig.fontWeight || editorConfig.editor.fontWeight;
 		let fontSize = this.toInteger(terminalConfig.fontSize, 0) || editorConfig.editor.fontSize;
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}
 		let lineHeight = this.toInteger(terminalConfig.lineHeight, DEFAULT_LINE_HEIGHT);
 
-		return this.measureFont(fontFamily, fontSize, lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : lineHeight);
+		return this.measureFont(fontFamily, fontWeight, fontSize, lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : lineHeight);
 	}
 
 	public getFontLigaturesEnabled(): boolean {

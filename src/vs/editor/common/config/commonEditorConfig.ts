@@ -466,6 +466,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
 		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
+		let fontWeight = String(opts.fontWeight) || DefaultConfig.editor.fontWeight;
 		let fontSize = toFloat(opts.fontSize, DefaultConfig.editor.fontSize);
 		fontSize = Math.max(0, fontSize);
 		fontSize = Math.min(100, fontSize);
@@ -490,6 +491,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			opts,
 			this.readConfiguration(new editorCommon.BareFontInfo({
 				fontFamily: fontFamily,
+				fontWeight: fontWeight,
 				fontSize: fontSize,
 				lineHeight: lineHeight
 			})),
@@ -579,6 +581,11 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'string',
 			'default': DefaultConfig.editor.fontFamily,
 			'description': nls.localize('fontFamily', "Controls the font family.")
+		},
+		'editor.fontWeight' : {
+			'type': 'string',
+			'default': DefaultConfig.editor.fontWeight,
+			'description': nls.localize('fontWeight', "Controls the font weight.")
 		},
 		'editor.fontSize' : {
 			'type': 'number',

@@ -43,6 +43,7 @@ export interface ITerminalConfiguration {
 			},
 			cursorBlinking: boolean,
 			fontFamily: string,
+			fontWeight: string,
 			fontLigatures: boolean,
 			fontSize: number,
 			lineHeight: number,

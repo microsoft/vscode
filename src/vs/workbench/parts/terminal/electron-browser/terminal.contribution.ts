@@ -64,6 +64,10 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
 		},
+		'terminal.integrated.fontWeight': {
+			'description': nls.localize('terminal.integrated.fontWeight', "Controls the font weight of the terminal, this defaults to editor.fontWeight's value."),
+			'type': 'string'
+		},
 		'terminal.integrated.fontLigatures': {
 			'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
 			'type': 'boolean',
