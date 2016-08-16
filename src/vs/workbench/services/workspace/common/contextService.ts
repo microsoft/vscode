@@ -9,7 +9,7 @@ import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspace, IConfiguration, IWorkspaceContextService as IBaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 

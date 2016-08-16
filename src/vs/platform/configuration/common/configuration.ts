@@ -39,7 +39,7 @@ export interface IConfigurationService {
 	 * Sets a user configuration. An the setting does not yet exist in the settings, it will be
 	 * added.
 	 */
-	setUserConfiguration(key: string | JSONPath, value: any) : Thenable<void>;
+	setUserConfiguration(key: string | JSONPath, value: any): Thenable<void>;
 }
 
 export interface IConfigurationServiceEvent {
@@ -55,12 +55,11 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 				return undefined;
 			}
 		}
-		return <T> current;
+		return <T>current;
 	}
 
-	let path = settingPath.split('.');
-	let result = accessSetting(config, path);
-	return typeof result === 'undefined'
-		? defaultValue
-		: result;
+	const path = settingPath.split('.');
+	const result = accessSetting(config, path);
+	
+	return typeof result === 'undefined' ? defaultValue : result;
 }

@@ -20,7 +20,7 @@ import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom
 import {ExtHostExtensionService} from 'vs/workbench/api/node/extHostExtensionService';
 import {ExtHostThreadService} from 'vs/workbench/services/thread/common/extHostThreadService';
 import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Client} from 'vs/base/parts/ipc/node/ipc.net';
