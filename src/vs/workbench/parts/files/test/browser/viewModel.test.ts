@@ -60,6 +60,7 @@ suite('Files - View Model', () => {
 		assert(s.children.length === 1);
 		assert(s.hasChildren);
 
+		s.removeChild(child1);
 		s.addChild(child1);
 		assert(s.children.length === 1);
 
@@ -295,7 +296,9 @@ suite('Files - View Model', () => {
 		assert.strictEqual(merge1.children.length, 0);
 
 		// Merge Child with isDirectoryResolved=true
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d));
+		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d);
+		merge2.removeChild(child);
+		merge2.addChild(child);
 		merge2.isDirectoryResolved = true;
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 1);
