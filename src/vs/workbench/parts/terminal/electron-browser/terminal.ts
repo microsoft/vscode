@@ -66,7 +66,6 @@ export interface ITerminalService {
 	close(): TPromise<any>;
 	copySelection(): TPromise<any>;
 	createNew(): TPromise<any>;
-	focus(): TPromise<any>;
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
 	hide(): TPromise<any>;
@@ -74,6 +73,7 @@ export interface ITerminalService {
 	runSelectedText(): TPromise<any>;
 	scrollDown(): TPromise<any>;
 	scrollUp(): TPromise<any>;
+	show(focus: boolean, terminalId?: number): TPromise<any>;
 	setActiveTerminal(index: number): TPromise<any>;
 	toggle(): TPromise<any>;
 

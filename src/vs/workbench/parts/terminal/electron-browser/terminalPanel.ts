@@ -235,6 +235,18 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
+	public setActiveTerminalById(terminalId: number) {
+		let terminalIndex = -1;
+		this.terminalInstances.forEach((terminalInstance, i) => {
+			if (terminalInstance.id === terminalId) {
+				terminalIndex = i;
+			}
+		});
+		if (terminalIndex !== -1) {
+			this.setActiveTerminal(terminalIndex);
+		}
+	}
+
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
 		let index = this.terminalInstances.indexOf(terminalInstance);
 		if (index !== -1) {
@@ -247,7 +259,7 @@ export class TerminalPanel extends Panel {
 		if (this.terminalInstances.length === 0) {
 			this.terminalService.hide();
 		} else {
-			this.terminalService.focus();
+			this.terminalService.show(true);
 		}
 	}
 
