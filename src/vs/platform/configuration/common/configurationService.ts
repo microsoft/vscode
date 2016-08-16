@@ -22,7 +22,6 @@ import {Registry} from 'vs/platform/platform';
 import Event, {Emitter} from 'vs/base/common/event';
 import {JSONPath} from 'vs/base/common/json';
 
-
 // ---- service abstract implementation
 
 export interface IStat {
@@ -61,7 +60,6 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, workspaceSettingsRootFolder: string = '.vscode') {
-
 		this.contextService = contextService;
 		this.eventService = eventService;
 
@@ -229,7 +227,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	private handleFileEvents(event: FileChangesEvent): void {
 		const events = event.changes;
 		let affectedByChanges = false;
-		
+
 		for (let i = 0, len = events.length; i < len; i++) {
 			const workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
 			if (!workspacePath) {
