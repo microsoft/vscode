@@ -27,10 +27,12 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	public _serviceBrand: any;
 
-	protected contextService: IWorkspaceContextService;
 	private toDispose: IDisposable;
 
-	constructor(contextService: IWorkspaceContextService, eventService: IEventService) {
+	constructor(
+		contextService: IWorkspaceContextService,
+		eventService: IEventService
+	) {
 		super(contextService, eventService);
 
 		this.registerListeners();
@@ -49,7 +51,7 @@ export class ConfigurationService extends CommonConfigurationService {
 	}
 
 	protected resolveContents(resources: uri[]): TPromise<IContent[]> {
-		let contents: IContent[] = [];
+		const contents: IContent[] = [];
 
 		return TPromise.join(resources.map((resource) => {
 			return this.resolveContent(resource).then((content) => {
@@ -118,12 +120,15 @@ export class ConfigurationService extends CommonConfigurationService {
 	}
 
 	public setUserConfiguration(key: any, value: any) : Thenable<void> {
-		let appSettingsPath = this.contextService.getConfiguration().env.appSettingsPath;
+		const appSettingsPath = this.contextService.getConfiguration().env.appSettingsPath;
+		
 		return readFile(appSettingsPath, 'utf8').then(content => {
-			let {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-			let path: JSONPath = typeof key === 'string' ? (<string> key).split('.') : <JSONPath> key;
-			let edits = setProperty(content, path, value, {insertSpaces, tabSize, eol: '\n'});
+			const {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
+			const path: JSONPath = typeof key === 'string' ? (<string> key).split('.') : <JSONPath> key;
+			const edits = setProperty(content, path, value, {insertSpaces, tabSize, eol: '\n'});
+
 			content = applyEdits(content, edits);
+
 			return writeFile(appSettingsPath, content, 'utf8');
 		});
 	}
