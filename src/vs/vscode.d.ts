@@ -2971,6 +2971,10 @@ declare namespace vscode {
 		dispose(): void;
 	}
 
+	export interface Terminal {
+		name: string
+	}
+
 	/**
 	 * Represents an extension.
 	 *
@@ -3429,6 +3433,8 @@ declare namespace vscode {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		export function createTerminal(name?: string): Terminal;
 	}
 
 	/**

@@ -146,6 +146,10 @@ export abstract class MainThreadOutputServiceShape {
 	$close(channelId: string): TPromise<void> { throw ni(); }
 }
 
+export abstract class MainThreadTerminalServiceShape {
+	$createTerminal(name?: string) { throw ni(); }
+}
+
 export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
@@ -294,6 +298,7 @@ export const MainContext = {
 	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar', MainThreadStatusBarShape),
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage', MainThreadStorageShape),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry', MainThreadTelemetryShape),
+	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService', MainThreadTerminalServiceShape),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
 };
