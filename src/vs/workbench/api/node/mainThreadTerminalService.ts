@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {MainThreadTerminalServiceShape} from './extHost.protocol';
 
@@ -18,8 +19,9 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		this._terminalService = terminalService;
 	}
 
-	public $createTerminal(name?: string): void {
-		this._terminalService.createNew();
+	public $createTerminal(name?: string): TPromise<number> {
+		// TODO: Use name here
+		return this._terminalService.createNew();
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {

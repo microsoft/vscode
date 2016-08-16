@@ -104,7 +104,7 @@ export class TerminalPanel extends Panel {
 		return super.getActionItem(action);
 	}
 
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: Builder): TPromise<any> {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
 		this.terminalService.initConfigHelper(parent);
@@ -174,10 +174,11 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	public createNewTerminalInstance(terminalProcess: ITerminalProcess, terminalFocusContextKey: IContextKey<boolean>): TPromise<void> {
-		return this.createTerminal(terminalProcess, terminalFocusContextKey).then(() => {
+	public createNewTerminalInstance(terminalProcess: ITerminalProcess, terminalFocusContextKey: IContextKey<boolean>): TPromise<number> {
+		return this.createTerminal(terminalProcess, terminalFocusContextKey).then((terminalInstance) => {
 			this.updateConfig();
 			this.focus();
+			return TPromise.as(terminalInstance.id);
 		});
 	}
 
